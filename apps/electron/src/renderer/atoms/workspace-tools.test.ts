@@ -159,3 +159,47 @@ describe('工作区工具命令', () => {
   })
 
 })
+
+
+describe('影像创作独立入口', () => {
+  test('Given 有效项目普通会话 When 打开影像创作 Then 独立标签可恢复且不替换画布', () => {
+    /** 模拟用户主动打开入口，不靠后台创建自动聚焦。 */
+    const store = createStore()
+    store.set(agentWorkspacesAtom, [{ id: 'visual-project', name: '项目', slug: 'visual-project', createdAt: 1, updatedAt: 1 }])
+    store.set(agentSessionsAtom, [{ id: 'visual-session', title: '会话', workspaceId: 'visual-project', createdAt: 1, updatedAt: 1 }])
+    store.set(currentAgentSessionIdAtom, 'visual-session')
+    expect(store.get(activeWorkspaceToolAtom)).not.toBe('visual-production')
+    store.set(openWorkspaceToolAtom, 'visual-production')
+    expect(store.get(activeWorkspaceToolAtom)).toBe('visual-production')
+    expect(sanitizeWorkspaceComponentTabs(['canvas', 'interaction-design', 'visual-production', 'unknown'])).toEqual(['interaction-design', 'visual-production'])
+  })
+
+  test('Given 无效或后台会话 When 打开影像创作 Then 禁止导航', () => {
+    /** 每种身份均需单独校验，不能使用全局选中的项目补齐归属。 */
+    const invalidSessions = [undefined, { archived: true }, { parentSessionId: 'parent' }, { sourceCanvasId: 'canvas' }, { explorationParentSessionId: 'parent' }, { toolMode: 'server-ops-read' as const }, { workspaceId: 'missing' }]
+    for (const invalid of invalidSessions) {
+      /** 独立 store 避免前一用例的标签污染后续断言。 */
+      const store = createStore()
+      store.set(agentWorkspacesAtom, [{ id: 'visual-project', name: '项目', slug: 'visual-project', createdAt: 1, updatedAt: 1 }])
+      store.set(agentSessionsAtom, invalid ? [{ id: 'visual-session', title: '会话', workspaceId: 'visual-project', createdAt: 1, updatedAt: 1, ...invalid }] : [])
+      store.set(currentAgentSessionIdAtom, 'visual-session')
+      expect(store.get(workspaceToolAvailabilityAtom)['visual-production']?.disabledReason).toBeDefined()
+      store.set(openWorkspaceToolAtom, 'visual-production')
+      expect(store.get(activeWorkspaceToolAtom)).not.toBe('visual-production')
+    }
+  })
+})
+
+
+test('Given Chat 模式保留有效 Agent 会话 When 打开影像创作 Then 不打开后台工作台', () => {
+  /** Chat 与 Agent 使用不同交互入口，后台身份不能获得前台权限。 */
+  const store = createStore()
+  store.set(agentWorkspacesAtom, [{ id: 'visual-project', name: '项目', slug: 'visual-project', createdAt: 1, updatedAt: 1 }])
+  store.set(agentSessionsAtom, [{ id: 'visual-session', title: '会话', workspaceId: 'visual-project', createdAt: 1, updatedAt: 1 }])
+  store.set(currentAgentSessionIdAtom, 'visual-session')
+  store.set(appModeAtom, 'chat')
+  store.set(agentSidePanelOpenAtomFamily('visual-session'), false)
+  expect(store.get(workspaceToolAvailabilityAtom)['visual-production'].disabledReason).toBeDefined()
+  store.set(openWorkspaceToolAtom, 'visual-production')
+  expect(store.get(agentSidePanelOpenAtomFamily('visual-session'))).toBe(false)
+})

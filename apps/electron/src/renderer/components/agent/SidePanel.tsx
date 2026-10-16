@@ -3,7 +3,8 @@ import { mobileMirrorDeviceRequestsAtom } from '@/atoms/mobile-mirror-atoms'
 import { appModeAtom } from '@/atoms/app-mode'
 import { MobileMirrorPanel } from '@/components/mobile-mirror/MobileMirrorPanel'
 import { InteractionDesignWorkspace } from '@/components/interaction-design/InteractionDesignWorkspace'
-import { MousePointer2 } from 'lucide-react'
+import { VisualProductionWorkspace } from '@/components/visual-production/VisualProductionWorkspace'
+import { Film, MousePointer2 } from 'lucide-react'
 /**
  * SidePanel — Agent 侧面板容器
  *
@@ -13,7 +14,7 @@ import { MousePointer2 } from 'lucide-react'
 
 import * as React from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
-import { clearWorkspaceToolRequestAtom, pendingWorkspaceToolRequestAtom } from '@/atoms/workspace-tools'
+import { clearWorkspaceToolRequestAtom, pendingWorkspaceToolRequestAtom, visualProductionDenialReason } from '@/atoms/workspace-tools'
 import { createWorkspaceToolNavigationGuard, runPendingWorkspaceToolRequest } from './workspace-tool-request'
 import { X, ExternalLink, ChevronRight, MoreHorizontal, FolderSearch, Pencil, FolderInput, GitBranch, GitMerge, MessageSquarePlus, FileDiff, FileText, FolderOpen, Globe, MessageCircle, Brain, Split, Blocks, Braces, CalendarDays, ListTodo, Clock, ServerCog, SquareTerminal, Terminal, Workflow, Factory, Smartphone } from 'lucide-react'
 import { CapabilityFactoryPanel } from '@/components/capability-factory/CapabilityFactoryPanel'
@@ -640,6 +641,8 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
     apiWorkbenchSession,
     Boolean(apiWorkbenchSession?.workspaceId && workspaces.some((workspace) => workspace.id === apiWorkbenchSession.workspaceId)),
   )
+  /** 影像创作只绑定真实普通会话，不能沿用全局选中项目回退。 */
+  const visualProductionDenial = visualProductionDenialReason(apiWorkbenchSession, Boolean(apiWorkbenchSession?.workspaceId && workspaces.some((workspace) => workspace.id === apiWorkbenchSession.workspaceId)))
   const currentWorkspace = workspaces.find((workspace) => workspace.id === currentWorkspaceId)
   const workspaceSlug = currentWorkspace?.slug ?? null
   const projectRootPath = currentWorkspace?.projectRootPath ?? null
@@ -1824,6 +1827,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
         'server-ops': { label: '运维', icon: <ServerCog className="size-3.5" /> },
         'api-workbench': { label: '接口', icon: <Braces className="size-3.5" /> },
         'capability-factory': { label: '工厂', icon: <Factory className="size-3.5" /> },
+        'visual-production': { label: '影像创作', icon: <Film className="size-3.5" /> },
         'interaction-design': { label: '交互设计', icon: <MousePointer2 className="size-3.5" /> },
       }
       return { id: component, ...meta[component], closable: true }
@@ -2255,6 +2259,8 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
       )
     ) : paneTab === 'vault' ? (
       <div className="min-h-0 flex-1 overflow-hidden"><VaultView embedded sessionId={sessionId} /></div>
+    ) : paneTab === 'visual-production' ? (
+      !visualProductionDenial && apiWorkbenchSession?.workspaceId ? <VisualProductionWorkspace key={`${sessionId}:${apiWorkbenchSession.workspaceId}:${pane ?? 'single'}`} projectId={apiWorkbenchSession.workspaceId} sessionId={sessionId} paneActive={paneActive} /> : <div className="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground">{visualProductionDenial ?? '当前会话没有有效的所属项目'}</div>
     ) : paneTab === 'interaction-design' ? (
       currentWorkspaceId ? <InteractionDesignWorkspace key={`${sessionId}:${currentWorkspaceId}:${pane ?? 'single'}`} projectId={currentWorkspaceId} sessionId={sessionId} paneActive={paneActive} /> : <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">当前会话没有有效的所属项目</div>
     ) : paneTab === 'server-ops' ? (

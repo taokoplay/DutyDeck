@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>DutyDeck · 影像创作新增模块</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="data.js" defer></script>
+  <script src="storyboard.js" defer></script>
+  <script src="shot-settings.js" defer></script>
+  <script src="project-settings.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+    <header class="app-header">
+      <div class="brand"><span class="brand-mark">D</span><strong>DutyDeck</strong><span class="slash">/</span><span class="project-name">创作会话</span></div>
+      <div class="header-center"><span class="live-dot"></span><span>本地会话</span><span class="prototype-badge">HTML 规划稿</span></div>
+      <div class="header-actions"><button class="quiet-button" data-action="planning"><span data-icon="info"></span>规划说明</button><button class="icon-button" data-action="theme" aria-label="切换深浅主题"><span data-icon="sun"></span></button><span class="avatar">徐</span></div>
+    </header>
+
+    <aside class="project-rail" aria-label="DutyDeck 模块">
+      <span class="rail-project">D</span><span class="rail-separator"></span>
+      <button class="rail-button" data-workspace-tab="chat" title="主会话"><span data-icon="chat"></span></button>
+      <button class="rail-button" data-workspace-tab="canvas" title="原画布"><span data-icon="graph"></span></button>
+      <button class="rail-button" data-workspace-tab="interaction" title="交互设计"><span data-icon="panels"></span></button>
+      <button class="rail-button active" data-workspace-tab="visual" title="影像创作（新增）"><span data-icon="film"></span></button>
+      <span class="rail-spacer"></span><button class="rail-button" data-action="focus" title="专注右侧模块"><span data-icon="expand"></span></button><span class="rail-user">徐</span>
+    </aside>
+
+    <section class="conversation" id="conversation" aria-label="主 Agent 会话">
+      <div class="conversation-header"><div><strong>主 Agent</strong><span>负责理解目标、拆解任务和协调模块</span></div><span class="agent-state"><i></i>可协作</span></div>
+      <div class="messages" id="messages"></div>
+      <div class="suggestions" id="suggestions"><button data-suggestion="把当前镜头改成更克制的电影感">更电影感</button><button data-suggestion="为这一集补一个转场镜头">补一个转场</button><button data-suggestion="检查角色和场景的一致性">检查一致性</button></div>
+      <form class="composer" id="composer"><div class="context-chip" id="context-chip"><span data-icon="link"></span><span id="context-copy">未引用右侧对象</span><button type="button" class="chip-close" data-action="clear-reference" aria-label="清除引用">×</button></div><textarea id="prompt" rows="3" placeholder="告诉主 Agent 你想怎么改…"></textarea><div class="composer-bottom"><span><span data-icon="sparkles"></span>主 Agent 会调用影像创作模块</span><button class="send-button" type="submit" aria-label="发送"><span data-icon="arrow"></span></button></div></form>
+      <p class="demo-note">演示调用 · 不会触发真实生成服务</p>
+    </section>
+
+    <main class="workspace-shell" id="workspace-shell" aria-label="DutyDeck 右侧工作区">
+      <nav class="workspace-tabs" aria-label="右侧工作区标签"><div class="workspace-tab-group"><button class="workspace-tab" data-workspace-tab="canvas"><span data-icon="graph"></span><span>画布</span></button><button class="workspace-tab" data-workspace-tab="interaction"><span data-icon="panels"></span><span>交互设计</span></button><button class="workspace-tab active" data-workspace-tab="visual"><span data-icon="film"></span><span>影像创作</span><em>新增</em></button></div><button class="icon-button" data-action="close-workspace" aria-label="关闭右侧面板"><span data-icon="close"></span></button></nav>
+      <div class="workspace-content" id="workspace-content"></div>
+    </main>
+  </div>
+
+  <dialog id="planning-modal" aria-labelledby="planning-title"><div class="modal-heading"><div><span class="eyebrow">新增右侧模块</span><h2 id="planning-title">影像创作交互规划</h2></div><button class="icon-button" data-action="close-modal" aria-label="关闭"><span data-icon="close"></span></button></div><div class="planning-body"><p>该模块嵌入 DutyDeck 右侧工作区，主 Agent 继续负责理解与协调，模块负责影像对象的查看、候选确认和交付门禁。</p><div class="planning-grid"><div><strong>主会话</strong><span>提出目标、引用对象、接收任务结果</span></div><div><strong>影像创作</strong><span>作品、资产、镜头、候选和采用</span></div><div><strong>原画布</strong><span>保持原入口与原能力，独立存在</span></div><div><strong>交互设计</strong><span>承接 App / Web 页面与交互稿</span></div></div><p class="planning-note"><span data-icon="info"></span>当前仅为本地 HTML 规划稿，生成结果用离线矢量素材模拟。</p></div></dialog>
+  <dialog id="asset-create-dialog" class="asset-create-dialog" aria-labelledby="asset-create-title">
+    <form id="asset-create-form">
+      <header><h2 id="asset-create-title">新增资产</h2><button type="button" class="icon-button" data-action="close-asset-create" aria-label="关闭新增资产">×</button></header>
+      <div class="asset-create-fields">
+        <label class="creative-field"><span>资产名称</span><input name="name" required maxlength="80" placeholder="例如：林雾 · 主角" autofocus></label>
+        <label class="creative-field"><span>资产类型</span><select name="type" aria-label="资产类型"></select></label>
+        <label class="creative-field"><span>资产设定</span><textarea name="description" required maxlength="2000" rows="4" placeholder="描述外观、特征及需要保持一致的要求"></textarea></label>
+        <p class="asset-create-note">先建立设定，再引用给 Agent 补充参考图。条目保存在此浏览器。</p>
+        <p id="asset-create-error" role="alert"></p>
+      </div>
+      <footer><button class="button" type="button" data-action="close-asset-create">取消</button><button class="button primary" type="submit">创建资产</button></footer>
+    </form>
+  </dialog>
+  <dialog id="creative-settings-dialog" class="creative-settings-dialog" aria-labelledby="creative-settings-title">
+    <header class="creative-dialog-header"><h2 id="creative-settings-title">创作设定</h2><button type="button" class="icon-button" data-action="close-creative-settings" aria-label="关闭创作设定">×</button></header>
+    <div class="creative-dialog-body"></div>
+    <footer class="creative-dialog-footer">
+      <div class="creative-dialog-feedback"><p class="creative-settings-feedback" id="creative-settings-feedback" role="status"></p><button class="button subtle" type="button" data-action="reset-settings" hidden>重置修改</button></div>
+      <div class="creative-dialog-actions"><button class="button" type="button" data-action="close-creative-settings">关闭</button><button id="creative-settings-save" class="button primary" type="submit" form="creative-settings-form">保存创作设定</button></div>
+    </footer>
+  </dialog>
+  <dialog id="shot-settings-dialog" class="shot-settings-dialog" aria-labelledby="shot-settings-title">
+    <header class="shot-settings-header"><h2 id="shot-settings-title">镜头设置</h2><button class="icon-button" data-action="close-shot-settings" aria-label="关闭镜头设置">×</button></header>
+    <div class="shot-settings-body"></div>
+    <footer class="shot-settings-footer">
+      <div class="shot-settings-feedback"><span id="shot-settings-feedback" role="status"></span><button type="button" class="button subtle" data-action="reset-shot-settings" hidden>重置修改</button></div>
+      <div class="shot-settings-footer-actions"><button type="button" class="button" data-action="close-shot-settings">关闭</button><button id="shot-settings-save" class="button primary shot-settings-save" type="submit" form="shot-edit-form">保存镜头设置</button></div>
+    </footer>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

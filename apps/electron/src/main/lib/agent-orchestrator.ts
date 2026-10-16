@@ -105,6 +105,10 @@ import { createInteractionDesignAgentAccess } from './interaction-design/agent-a
 import { createInteractionDesignRun } from './interaction-design/agent-run'
 import { createProductionInteractionDesignAccess } from './interaction-design/integration'
 import { buildInteractionDesignAgentTools, INTERACTION_DESIGN_AGENT_TOOL_NAMES, INTERACTION_DESIGN_AGENT_WRITE_TOOL_NAMES } from './interaction-design/agent-tools'
+import { createVisualProductionAgentAccess } from './visual-production/agent-access'
+import { createVisualProductionRun } from './visual-production/agent-run'
+import { createProductionVisualProductionAccess } from './visual-production/integration'
+import { buildVisualProductionAgentTools, VISUAL_PRODUCTION_AGENT_TOOL_NAMES, VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES } from './visual-production/agent-tools'
 import { createCapabilityFactoryAgentFacade } from './capability-factory/capability-factory-agent-facade'
 import { getCapabilityFactoryService } from './capability-factory/capability-factory-singleton'
 import { createCapabilityFactoryAgentAccess } from './capability-factory/capability-factory-agent-access'
@@ -824,6 +828,8 @@ export class AgentOrchestrator {
     let knowledgeRunStopped = false
     /** 只清理本轮创建的原型任务，避免异常结束后一直显示等待生成。 */
     let interactionRun: ReturnType<typeof createInteractionDesignRun> | undefined
+    /** 本轮影像任务只由当前普通会话拥有并结算。 */
+    let visualProductionRun: ReturnType<typeof createVisualProductionRun> | undefined
     /** 当前运行消息仍按原顺序落盘，知识维护在本回合工具内完成。 */
     const persistRunSDKMessages = (messages: SDKMessage[], durationMs?: number): void => {
       this.persistSDKMessages(sessionId, messages, durationMs)
@@ -1414,6 +1420,14 @@ export class AgentOrchestrator {
       })
       if (interactionAccess) interactionRun = createInteractionDesignRun(sessionId, interactionAccess,
         createProductionInteractionDesignAccess(sessionId, { canWrite: () => getPermissionMode() !== 'plan' }))
+      /** 影片、漫剧和图片制作使用独立作品域，与原型设计职责分离。 */
+      const visualProductionAccess = createVisualProductionAgentAccess({
+        sessionId, toolMode: runToolMode, triggeredBy: input.triggeredBy, automation: Boolean(automationContext),
+        getSession: getAgentSessionMeta, assertRunActive: runIdentity.assertActive,
+        canWrite: () => getPermissionMode() !== 'plan', createAccess: createProductionVisualProductionAccess,
+      })
+      if (visualProductionAccess) visualProductionRun = createVisualProductionRun(sessionId, visualProductionAccess,
+        createProductionVisualProductionAccess(sessionId, { canWrite: () => getPermissionMode() !== 'plan' }))
       /**
        * 提示词编排工厂：存储按工作区隔离，所以服务按工作区根目录取。
        * 没有工作区（例如临时会话）时不注册工具 —— 工厂是工作区级的模块。
@@ -1524,6 +1538,13 @@ export class AgentOrchestrator {
           assertAccess: (write) => {
             interactionAccess.assertCurrent()
             if (write && getPermissionMode() === 'plan') throw new Error('计划模式不能修改原型')
+          },
+        }) : []),
+        ...(visualProductionAccess ? buildVisualProductionAgentTools({
+          sessionId, sdk: piSdk, execute: (method, request, signal) => visualProductionRun!.execute(method, request, signal),
+          assertAccess: (write) => {
+            visualProductionAccess.assertCurrent()
+            if (write && getPermissionMode() === 'plan') throw new Error('计划模式不能修改影像作品')
           },
         }) : []),
       ]
@@ -1866,6 +1887,20 @@ export class AgentOrchestrator {
             return { behavior: 'allow', updatedInput: input }
           } catch (error) {
             return { behavior: 'deny', message: error instanceof Error ? error.message : '原型访问权限已失效' }
+          }
+        }
+
+        /** 影像 Agent 仅登记媒体和候选，用户正式采纳没有对应工具。 */
+        if (VISUAL_PRODUCTION_AGENT_TOOL_NAMES.some((name) => name === toolName)) {
+          if (!visualProductionAccess) return { behavior: 'deny', message: '当前会话不具备影像创作能力' }
+          try {
+            visualProductionAccess.assertCurrent()
+            if (VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES.some((name) => name === toolName) && currentMode === 'plan') {
+              return { behavior: 'deny', message: '计划模式不能创建作品、素材、任务或候选' }
+            }
+            return { behavior: 'allow', updatedInput: input }
+          } catch (error) {
+            return { behavior: 'deny', message: error instanceof Error ? error.message : '影像作品访问权限已失效' }
           }
         }
 
@@ -2293,6 +2328,7 @@ export class AgentOrchestrator {
       }) + (automationContext ? `\n\n## 定时任务执行上下文\n\n${automationContext}` : '')
       /** 单次可信运行场景放在通用规则之后，使专用会话覆盖普通入口分流语义。 */
       const systemPromptAppend = [baseSystemPrompt,
+        visualProductionAccess ? '影像创作使用 visual_production_* 工具，承担漫剧、影片、宣传片和图片作品；交互稿由交互设计模块承接。一个 Agent 项目可有多个影像作品，作品下有集数、项目共用资产和有序镜头。先 list/read 当前作品和 revision，依据用户要求规划作品目标、资产一致性、集数与镜头，再 begin_job 冻结输入；仅修改已有镜头时传 shotId。完整 draft 包含 title/kind/brief/ratio/fps/voice/music/episodes/assets/shots，不包含系统 id/revision；保留未要求修改的内容和锁定资产。生成媒体时使用当前可用的真实媒体工具，结果通过 import_media 的完整 MediaAssetRef 或 import_file 的授权项目相对路径导入，再把返回 mediaId 写入候选。没有可用模型或生成失败时明确报告，不能用占位内容冒充成片。propose 只提交候选，用户在影像工作区预览和采用；版本冲突需重新读取后再制作，取消后的任务不得回流。不要用 Write/Edit 直接改 .proma/visual-production。静帧预演、单镜头生成和制作清单导出都不代表已经合成影片；未执行真实合成时不得报告成片交付。' : undefined,
         interactionAccess ? '交互设计使用 prototype_* 工具：用户可直接描述要还原的项目页面，Agent 先读取现有原型和当前版本，再从路由、组件、主题和实际素材建立最小源码证据闭包；现有项目还原必须先盘点并向用户确认页面数量、分组树、状态矩阵、页面流程和源码/素材证据，再 begin_job(mode=project-restore, plan=完整页面规划)，之后只能按规划用 propose 提交完整候选，由用户在工作区采纳。元素引用是修改上下文，自动保护范围为所属页面。不要用 Write/Edit 直接改 .proma/interaction-design 数据，也不要把结构检查或访问路径记录宣称为视觉一比一验证。不同业务页面分别写入 pages，同页有数据/无数据等状态写入该页 states 并排展示；禁止整套 App 塞一个 HTML、导览页或来源参考页冒充拆分；prototype_import_html 只用于用户明确要求导入的独立 HTML，不能用于现有项目还原。详细流程按 interaction-design Skill。' : undefined,
         extensions.systemPromptAppend]
         .filter((section): section is string => Boolean(section?.trim()))
@@ -3116,6 +3152,8 @@ export class AgentOrchestrator {
       /** 运行结束仅结算本轮任务；归属或写权限变化时保留未知状态，不越权回填。 */
       try { await interactionRun?.finish(knowledgeRunStopped) }
       catch (error) { console.error('[交互设计] 保存任务终态失败:', error) }
+      try { await visualProductionRun?.finish(knowledgeRunStopped) }
+      catch (error) { console.error('[影像创作] 保存任务终态失败:', error) }
       /** 生命周期释放旧槽后再入 deferred queue，不能递归发起 Agent。 */
       try { await knowledgeExecutionRun?.finish({ failed: knowledgeRunFailed, stopped: knowledgeRunStopped }) }
       catch (error) { console.error('[知识任务] 保存终态失败:', error) }

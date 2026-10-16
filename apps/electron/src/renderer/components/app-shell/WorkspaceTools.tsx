@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Blocks, Brain, Braces, CalendarDays, Clock, Factory, FolderOpen, Globe, ListTodo, MousePointer2, Plug, ServerCog, SquareTerminal, Workflow } from 'lucide-react'
+import { Blocks, Brain, Braces, CalendarDays, Clock, Factory, Film, FolderOpen, Globe, ListTodo, MousePointer2, Plug, ServerCog, SquareTerminal, Workflow } from 'lucide-react'
 import { WorkspaceToolRail } from './WorkspaceToolRail'
 import type { WorkspaceToolRailItem } from './WorkspaceToolRail'
 import { ObsidianIcon } from '@/components/obsidian/obsidian-brand'
@@ -23,6 +23,7 @@ const TOOL_ITEMS: WorkspaceToolRailItem[] = [
   { id: 'skills', label: 'Skills', group: '知识与能力', icon: Blocks, keywords: '技能' },
   { id: 'mcp', label: 'MCP', group: '知识与能力', icon: Plug, keywords: '服务 插件' },
   { id: 'interaction-design', label: '交互设计', group: '专业工具', icon: MousePointer2, keywords: '原型 页面 prototype interaction' },
+  { id: 'visual-production', label: '影像创作', group: '专业工具', icon: Film, keywords: '漫剧 影片 宣传片 图片 分镜 visual production' },
   { id: 'canvas', label: '画布', group: '专业工具', icon: Workflow, keywords: 'canvas 设计' },
   { id: 'server-ops', label: '服务器运维', group: '专业工具', icon: ServerCog, keywords: 'server ops SSH 数据库' },
   { id: 'api-workbench', label: '接口工作台', group: '专业工具', icon: Braces, keywords: 'API HTTP' },

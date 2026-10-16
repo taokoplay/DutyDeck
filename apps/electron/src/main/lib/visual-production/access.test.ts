@@ -1,0 +1,39 @@
+import { describe, expect, test } from 'bun:test'
+import { createVisualProductionAccess } from './access'
+import { createVisualProductionRun } from './agent-run'
+import type { VisualProductionExecutor } from './access'
+import type { VisualJob, VisualProductionResults } from '@proma/shared'
+
+describe('Given 会话绑定的影像能力', () => {
+  test('When 会话越界、计划写或取消 Then 不进入服务', async () => {
+    let calls = 0
+    const access = createVisualProductionAccess('session', {
+      resolveSession: () => ({ workspaceId: 'workspace', projectRoot: '/project' }), canWrite: () => false,
+      acquireWriteLease: () => () => {}, createService: () => ({ async invoke<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { calls++; throw new Error('不应调用') } }),
+    })
+    await expect(access.execute('list', { sessionId: 'other' })).rejects.toThrow('身份')
+    await expect(access.execute('create', { sessionId: 'session', title: '作品', kind: 'film' })).rejects.toThrow('计划')
+    const controller = new AbortController(); controller.abort()
+    await expect(access.execute('list', { sessionId: 'session' }, controller.signal)).rejects.toThrow('取消')
+    expect(calls).toBe(0)
+  })
+  test('When 本轮结束 Then 只结算本轮签发任务且保留作品归属', async () => {
+    const calls: unknown[] = []
+    const job: VisualJob = { id: 'job', sessionId: 'session', baseRevision: 1, instruction: '生成', status: 'running', createdAt: 1 }
+    const access: VisualProductionExecutor = { workspaceId: 'workspace', assertCurrent() {}, async execute<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { return job as VisualProductionResults[M] } }
+    const cleanup: VisualProductionExecutor = { ...access, async execute<M extends keyof VisualProductionResults>(method: M, input: unknown): Promise<VisualProductionResults[M]> { calls.push({ method, input }); return {} as VisualProductionResults[M] } }
+    const run = createVisualProductionRun('session', access, cleanup)
+    await run.execute('beginJob', { sessionId: 'session', productionId: 'production', baseRevision: 1, instruction: '生成' })
+    await run.finish(true)
+    await run.finish(true)
+    expect(calls).toEqual([{ method: 'cancelJob', input: { sessionId: 'session', productionId: 'production', jobId: 'job' } }])
+  })
+})
+
+test('Given 同会话新运行 When 提交旧运行job Then 不得进入正式执行器', async () => {
+  let called = false
+  const access: VisualProductionExecutor = { workspaceId: 'workspace', assertCurrent() {}, async execute<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { called = true; return {} as VisualProductionResults[M] } }
+  const run = createVisualProductionRun('session', access, access)
+  await expect(run.execute('propose', { sessionId: 'session', productionId: 'production', baseRevision: 1, jobId: 'old-job', draft: {} as never, summary: '旧结果' })).rejects.toThrow('本轮')
+  expect(called).toBe(false)
+})

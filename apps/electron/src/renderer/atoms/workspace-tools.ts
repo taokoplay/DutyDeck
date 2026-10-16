@@ -1,3 +1,5 @@
+import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
+import type { AgentSessionMeta } from '@proma/shared'
 import { atom } from 'jotai'
 import type { createStore } from 'jotai'
 import { atomFamily } from 'jotai-family'
@@ -106,17 +108,31 @@ export const consumeWorkspaceToolRequestAtom = atom(
 )
 
 /** 固定工具清单用于共享导航守卫，避免展示与命令校验漂移。 */
-const ALL_WORKSPACE_TOOLS: readonly WorkspaceToolId[] = ['browser', 'files', 'terminal', 'canvas', 'todos', 'calendar', 'automations', 'skills', 'mcp', 'memory', 'vault', 'server-ops', 'api-workbench', 'capability-factory', 'interaction-design', 'mobile-mirror']
+const ALL_WORKSPACE_TOOLS: readonly WorkspaceToolId[] = ['browser', 'files', 'terminal', 'canvas', 'todos', 'calendar', 'automations', 'skills', 'mcp', 'memory', 'vault', 'server-ops', 'api-workbench', 'capability-factory', 'interaction-design', 'visual-production', 'mobile-mirror']
 /** 这些入口必须拥有 Agent 会话才能维持资源归属。 */
-const SESSION_TOOLS: readonly WorkspaceToolId[] = ['browser', 'files', 'terminal', 'canvas', 'server-ops', 'api-workbench', 'capability-factory', 'interaction-design', 'mobile-mirror']
+const SESSION_TOOLS: readonly WorkspaceToolId[] = ['browser', 'files', 'terminal', 'canvas', 'server-ops', 'api-workbench', 'capability-factory', 'interaction-design', 'visual-production', 'mobile-mirror']
 /** Chat 继续只提供原有的效率工具与 Obsidian 整页入口。 */
 const CAPABILITY_TOOLS: readonly WorkspaceToolId[] = ['skills', 'mcp', 'memory']
+
+/**
+ * 判断影像创作入口的会话身份，供菜单和右侧面板共享。
+ * @param session 当前真实会话，不使用全局项目回退。
+ * @param workspaceExists 会话所属项目是否仍存在。
+ * @returns 可展示的拒绝原因；符合普通项目会话约束时返回 null。
+ */
+export function visualProductionDenialReason(session: AgentSessionMeta | undefined, workspaceExists: boolean): string | null {
+  if (!isOrdinaryTopLevelAgentSession(session) || session.archived || session.explorationParentSessionId !== undefined || (session.toolMode ?? 'standard') !== 'standard') return '影像创作仅支持未归档的普通项目会话'
+  if (!session.workspaceId || !workspaceExists) return '当前会话没有有效的所属项目'
+  return null
+}
 
 /** 根据模式、有效项目和功能开关计算显示与禁用状态，供界面与写入动作共同使用。 */
 export const workspaceToolAvailabilityAtom = atom<Record<WorkspaceToolId, WorkspaceToolAvailability>>((get) => {
   const agentMode = get(appModeAtom) === 'agent'
   const sessionId = agentMode ? get(currentAgentSessionIdAtom) : null
   const projectId = get(workspaceProjectAtom)
+  /** 入口依据会话索引验证身份，不允许后台会话借用普通入口。 */
+  const visualDenial = visualProductionDenialReason(get(agentSessionsAtom).find((session) => session.id === sessionId), Boolean(projectId))
   const settings = get(productivityToolsAtom)
   const availability = {} as Record<WorkspaceToolId, WorkspaceToolAvailability>
   for (const tool of ALL_WORKSPACE_TOOLS) {
@@ -124,6 +140,8 @@ export const workspaceToolAvailabilityAtom = atom<Record<WorkspaceToolId, Worksp
       availability[tool] = { visible: false }
     } else if (!sessionId && SESSION_TOOLS.includes(tool)) {
       availability[tool] = { visible: true, disabledReason: '需要先打开 Agent 会话' }
+    } else if (tool === 'visual-production' && visualDenial) {
+      availability[tool] = { visible: true, disabledReason: visualDenial }
     } else if (sessionId && !projectId && !['files', 'browser', 'terminal', 'server-ops'].includes(tool)) {
       availability[tool] = { visible: true, disabledReason: '当前会话没有有效的所属项目' }
     } else {

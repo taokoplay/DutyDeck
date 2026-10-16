@@ -14,7 +14,9 @@ import { connectMobileMirror } from './lib/mobile-mirror/connection'
 import { registerCapabilityFactoryIpc } from './lib/capability-factory/capability-factory-ipc'
 import { registerInteractionDesignIpc } from './lib/interaction-design/ipc'
 import { createProductionInteractionDesignAccess, setInteractionDesignHost } from './lib/interaction-design/integration'
-import { INTERACTION_DESIGN_CHANNELS } from '@proma/shared'
+import { registerVisualProductionIpc } from './lib/visual-production/ipc'
+import { createProductionVisualProductionAccess, setVisualProductionHost } from './lib/visual-production/integration'
+import { INTERACTION_DESIGN_CHANNELS, VISUAL_PRODUCTION_CHANNELS, VISUAL_PRODUCTION_LIMITS } from '@proma/shared'
 import { CAPABILITY_FACTORY_CHANNELS } from '@proma/shared'
 import { createCapabilityFactorySessionRuntime } from './lib/capability-factory/capability-factory-session-runtime'
 import { setCapabilityFactoryChangeSink } from './lib/capability-factory/capability-factory-events'
@@ -3182,6 +3184,25 @@ export function registerIpcHandlers(): void {
     ipc: ipcMain,
     isAuthorizedSender: (event) => listAuthorizedDesignWebContents().some((contents) => !contents.isDestroyed() && contents.id === event.sender.id),
     createAccess: (sessionId, assertCaller) => createProductionInteractionDesignAccess(sessionId, { assertCaller }),
+  })
+  /** 影像作品保存独立媒体副本；先检查元数据预算，再读取真实字节。 */
+  setVisualProductionHost({
+    readMediaAsset: (workspaceId, reference) => {
+      /** 现有媒体服务校验项目、版本和内容身份，避免任意路径读取。 */
+      const record = mediaAssets.getRecord(workspaceId, reference)
+      if (record.byteSize > VISUAL_PRODUCTION_LIMITS.mediaBytes) throw new Error('影像素材超过 32 MiB，请先压缩或拆分镜头')
+      return mediaAssets.read(workspaceId, reference)
+    },
+    onChanged: (event) => {
+      for (const contents of listAuthorizedDesignWebContents()) {
+        if (!contents.isDestroyed()) contents.send(VISUAL_PRODUCTION_CHANNELS.CHANGED, event)
+      }
+    },
+  })
+  registerVisualProductionIpc({
+    ipc: ipcMain,
+    isAuthorizedSender: (event) => listAuthorizedDesignWebContents().some((contents) => !contents.isDestroyed() && contents.id === event.sender.id),
+    createAccess: (sessionId, assertCaller) => createProductionVisualProductionAccess(sessionId, { assertCaller }),
   })
   /** 统一模型目录只组合独立图片/音频配置，凭据仍按运行时单条解密。 */
   const unifiedMediaCatalog = new UnifiedMediaModelCatalog({
