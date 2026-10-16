@@ -56,7 +56,7 @@ export function buildInteractionDesignAgentTools(options: InteractionDesignAgent
     { name: 'prototype_asset_content', method: 'assetContent', description: '读取已登记模块图片，不能读取任意文件。', fields: { ...target, assetId: id } },
     { name: 'prototype_create', method: 'create', description: '仅在项目尚无交互设计模块时创建唯一模块。已有模块应新增页面或生成候选，不能创建第二个模块。', fields: { name: Type.String(), platform: Type.Union([Type.Literal('mobile'), Type.Literal('desktop')]) }, write: true },
     { name: 'prototype_begin_job', method: 'beginJob', description: '冻结生成基线和完整页面规划。现有项目还原必须先整理并确认 plan（页面数量、分组、状态、流程、源码/素材证据和待确认项），再传 mode=project-restore 与 plan；宿主会拒绝缺少规划、未规划页面/分组/状态或整套 App 单页。旧 pageManifest 仅用于兼容历史任务。pageId 是单页修改保护边界；elementId 仅定位上下文。', fields: { ...base, instruction: Type.String(), mode: Type.Optional(jobMode), pageManifest: Type.Optional(pageManifest), plan: Type.Optional(plan), pageId: Type.Optional(id), elementId: Type.Optional(id) }, write: true },
-    { name: 'prototype_propose', method: 'propose', description: '提交完整候选页面包：独立业务页面分别为pages，同页不同数据状态为states（html为默认状态）；不能整套App塞单页。必须关联 begin_job 返回的 jobId 并保留锁定内容。仅形成候选，不保存当前版；采纳必须由用户界面执行。HTML使用 data-prototype-element 稳定ID、data-prototype-page 页内路由、prototype-asset:<id> 图片。', fields: { ...base, draft, summary: Type.String(), jobId: id }, write: true },
+    { name: 'prototype_propose', method: 'propose', description: '提交完整候选页面包：独立业务页面分别为pages，同页不同数据状态为states（html为默认状态）；不能整套App塞单页。必须关联 begin_job 返回的 jobId 并保留锁定内容。仅形成候选，不保存当前版；采纳必须由用户界面执行。HTML使用 data-prototype-element 稳定ID、data-prototype-page 页内路由、prototype-asset:<id> 图片。默认及每个附加状态须为独立离线完整HTML，资源已导入、脚本完整；3D等核心直接操作不得以静态图或toast替代，必须逐状态实际体验，结构检查不能代替交互验收。', fields: { ...base, draft, summary: Type.String(), jobId: id }, write: true },
     { name: 'prototype_fail_job', method: 'failJob', description: '将本会话生成任务标记失败并记录原因，不重放模型调用。', fields: { ...target, jobId: id, message: Type.String() }, write: true },
     { name: 'prototype_cancel_job', method: 'cancelJob', description: '取消本会话生成任务，迟到结果不能覆盖当前版。', fields: { ...target, jobId: id }, write: true },
     { name: 'prototype_import_asset', method: 'importAsset', description: '从授权项目相对路径导入图片到原型独立资产库。后续在候选使用返回的资源ID。', fields: { ...target, relativePath }, write: true },
@@ -116,7 +116,7 @@ export function buildInteractionDesignAgentTools(options: InteractionDesignAgent
     },
   }), options.sdk.defineTool({
     name: 'prototype_propose_page', label: '提交原型单页候选',
-    description: '局部修改优先使用。仅传入指定页HTML；stateId指定已有附加状态，省略时仅修改默认HTML并保留states；新增删除状态使用完整propose。宿主读取baseRevision并保持其他页面、目录、来源和流程原样，生成完整候选。必须提供本会话begin_job的jobId和pageId；不保存当前版、不采纳，服务再次校验任务范围与基线。需要修改流程或目录时使用完整prototype_propose。',
+    description: '局部修改优先使用。仅传入指定页HTML；stateId指定已有附加状态，省略时仅修改默认HTML并保留states；新增删除状态使用完整propose。宿主读取baseRevision并保持其他页面、目录、来源和流程原样，生成完整候选。必须提供本会话begin_job的jobId和pageId；不保存当前版、不采纳，服务再次校验任务范围与基线。需要修改流程或目录时使用完整prototype_propose。目标状态须独立离线完整、图片使用已导入资源、脚本完整；保留3D等核心直接操作，不用静态图或toast替代，并实际体验目标状态。',
     parameters: proposePageParameters,
     async execute(_callId, input, signal) {
       if (!Value.Check(proposePageParameters, input)) throw new Error('INTERACTION_DESIGN_INVALID_INPUT')

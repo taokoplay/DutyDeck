@@ -38,13 +38,48 @@ async function waitForPreviewText(window: BrowserWindow, expected: string): Prom
     const frame = window.webContents.mainFrame.frames.find(item => item.name === 'prototype-state:')
     if (frame) {
       try {
-        const text = await frame.executeJavaScript('document.body?.innerText ?? ""')
+        const text = await Promise.race([frame.executeJavaScript<string>('document.body?.innerText ?? ""'), new Promise<string>(resolve => setTimeout(() => resolve(''), 500))])
         if (text.includes(expected)) return
       } catch { /* iframe 尚在切换文档，下一轮继续读取。 */ }
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 40))
   }
   throw new Error(`当前页面正文未加载：${expected}`)
+}
+
+/**
+ * 等待当前页面所有示例图片完成解码，验证单张资产失败不会拖垮整页。
+ * @param window 当前 Electron 窗口。
+ * @returns 已完成解码的图片属性，供调用方核对数据 URL 和占位图。
+ */
+async function waitForPreviewImages(window: BrowserWindow): Promise<Array<{ alt: string; src: string; naturalWidth: number }>> {
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    const frame = window.webContents.mainFrame.frames.find(item => item.name === 'prototype-state:')
+    if (frame) {
+      try {
+        /** 子文档切换期间 Chromium 可能暂不响应脚本执行，单次读取必须有界。 */
+        const images = await Promise.race([
+          frame.executeJavaScript<Array<{ alt: string; src: string; naturalWidth: number; complete: boolean }>>(`([...document.querySelectorAll('img[alt]')]).map(image => ({ alt: image.getAttribute('alt') ?? '', src: image.getAttribute('src') ?? '', naturalWidth: image.naturalWidth, complete: image.complete }))`),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 500)),
+        ])
+        if (images && images.length >= 2 && images.every(image => image.complete && image.naturalWidth > 0)) return images
+      } catch { /* iframe 尚在切换文档，下一轮继续读取。 */ }
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 40))
+  }
+  throw new Error('当前页面图片未完成加载')
+}
+
+/** 在宿主坐标发送完整可信点击；鼠标移动确保跨 iframe 后命中目标窗口。 */
+async function clickPoint(window: BrowserWindow, point: { x: number; y: number }): Promise<void> {
+  window.focus()
+  window.webContents.debugger.attach('1.3')
+  try {
+    await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point })
+    await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount: 1 })
+    await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', buttons: 0, clickCount: 1 })
+  } finally { window.webContents.debugger.detach() }
 }
 
 /** 点击精确文本的可见按钮或 Radix Tab。 */
@@ -60,17 +95,26 @@ async function click(window: BrowserWindow, label: string): Promise<void> {
     return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
   })()`)
   assert.ok(point, `无法点击：${label}`)
-  window.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 })
-  window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 })
+  await clickPoint(window, point)
 }
 
 
 /** 真实指针事件覆盖 Radix pointerdown。 */
 async function clickSelector(window: BrowserWindow, selector: string): Promise<void> {
   await waitFor(window, `document.querySelector(${JSON.stringify(selector)})`, `缺少节点 ${selector}`)
-  const point = await window.webContents.executeJavaScript(`(() => {const node=document.querySelector(${JSON.stringify(selector)});const rect=node.getBoundingClientRect();return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}})()`)
-  window.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 })
-  window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 })
+  const point = await window.webContents.executeJavaScript(`(async () => {const node=document.querySelector(${JSON.stringify(selector)});node.scrollIntoView({block:'nearest'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const rect=node.getBoundingClientRect();return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}})()`)
+  await clickPoint(window, point)
+}
+/**
+ * 按页面选择按钮的可访问标签点击目录页面，忽略入口和状态元数据。
+ * @param window 当前 Electron 窗口。
+ * @param pageName 要选择的页面名称。
+ * @returns 页面按钮点击完成后的异步结果。
+ */
+async function clickPage(window: BrowserWindow, pageName: string): Promise<void> {
+  // 根据页面名组装稳定的可访问标签选择器。
+  const selector = `.id-page-select[aria-label=${JSON.stringify(`${pageName}页面`)}]`
+  await clickSelector(window, selector)
 }
 /** 在指定状态沙箱内定位元素，再由宿主发送可信指针事件，覆盖真实选区/路由桥。 */
 async function clickStateElement(window: BrowserWindow, stateId: string, selector: string): Promise<void> {
@@ -96,6 +140,86 @@ async function clickStateElement(window: BrowserWindow, stateId: string, selecto
   } finally { window.webContents.debugger.detach() }
 
 }
+/** 读取指定状态六面体的真实计算矩阵；等待独立 iframe 初始化完成。 */
+async function geometryMatrix(window: BrowserWindow, stateId: string): Promise<string> {
+  /** 初始导航与 srcDoc 挂载不同步，轮询只用于测试等待。 */
+  const deadline = Date.now() + 8_000
+  while (Date.now() < deadline) {
+    const frame = window.webContents.mainFrame.frames.find(item => item.name === `prototype-state:${stateId}`)
+    if (frame) {
+      const matrix = await frame.executeJavaScript<string>(`document.querySelectorAll('#cube .face').length === 6 ? getComputedStyle(document.querySelector('#cube')).transform : ''`)
+      if (matrix.startsWith('matrix3d(')) return matrix
+    }
+    await new Promise<void>(resolve => setTimeout(resolve, 40))
+  }
+  throw new Error(`状态未渲染三维几何：${stateId}`)
+}
+
+/** 用 Chromium 可信输入路由在指定状态拖动或滚轮缩放，不派发合成 DOM 事件。 */
+async function manipulateGeometry(window: BrowserWindow, stateId: string, gesture: 'drag' | 'wheel'): Promise<void> {
+  /** 使用与真实画板相同的缩放比例定位，不跨源访问 iframe DOM。 */
+  const frame = window.webContents.mainFrame.frames.find(item => item.name === `prototype-state:${stateId}`)
+  assert.ok(frame)
+  const inner = await frame.executeJavaScript<{ x: number; y: number }>(`(() => { const rect=document.querySelector('#viewport').getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2} })()`)
+  const outer = await window.webContents.executeJavaScript(`(() => {const frame=[...document.querySelectorAll('iframe')].find(item=>item.name===${JSON.stringify(`prototype-state:${stateId}`)});const rect=frame.getBoundingClientRect();return {x:rect.x,y:rect.y,scale:rect.width/parseFloat(frame.style.width)}})()`)
+  const point = { x: Math.round(outer.x + inner.x * outer.scale), y: Math.round(outer.y + inner.y * outer.scale) }
+  window.webContents.debugger.attach('1.3')
+  try {
+    await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point })
+    if (gesture === 'wheel') {
+      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseWheel', ...point, deltaX: 0, deltaY: -100 })
+    } else {
+      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount: 1 })
+      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x + 45, y: point.y + 10, button: 'left', buttons: 1 })
+      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x + 45, y: point.y + 10, button: 'left', buttons: 0, clickCount: 1 })
+    }
+    // 等输入跨进程送达并完成绘制后再读取矩阵，避免异步投递假阴性。
+    await new Promise<void>(resolve => setTimeout(resolve, 100))
+  } finally { window.webContents.debugger.detach() }
+}
+
+/** 默认与附加状态均验证真实投影变化、复位、本地表单和选择模式隔离。 */
+async function verifyGeometryInteraction(window: BrowserWindow): Promise<void> {
+  window.setSize(1180, 850)
+  await window.webContents.executeJavaScript(`(() => {
+    const smoke=window.__interactionSmoke,page=smoke.state.snapshot.document.pages[0];
+    page.html=smoke.geometryHtml;page.defaultStateName='默认场景';page.states=[{id:'selected',name:'选中场景',html:smoke.geometryHtml}];
+    smoke.state.snapshot.document.revision+=1;smoke.change('workspace-a','proto-a');
+  })()`)
+  await waitFor(window, `document.querySelectorAll('.id-state-board iframe').length===2 && document.querySelector('[data-state-id="selected"]')`, '三维状态画板未就绪')
+  await window.webContents.executeJavaScript(`document.querySelector('.id-state-space').scrollTop=0`)
+  await click(window, '体验')
+  await waitFor(window, `document.querySelector('.id-mode button:first-child')?.getAttribute('aria-pressed')==='true'`, '三维回归未进入体验模式')
+  for (const stateId of ['', 'selected']) {
+    /** 同一个几何场景在不同状态中独立初始化，复位应返回原投影。 */
+    const original = await geometryMatrix(window, stateId)
+    await manipulateGeometry(window, stateId, 'drag')
+    const rotated = await geometryMatrix(window, stateId)
+    assert.notEqual(rotated, original, `${stateId} 拖动未改变三维投影`)
+    await manipulateGeometry(window, stateId, 'wheel')
+    assert.notEqual(await geometryMatrix(window, stateId), rotated, `${stateId} 滚轮未改变缩放`)
+    await clickStateElement(window, stateId, '#reset')
+    assert.equal(await geometryMatrix(window, stateId), original, `${stateId} 复位未恢复原视角`)
+    /** 表单不得导航或重载；同时保留当前 iframe 身份和文档 URL 作为提交前基线。 */
+    const frame = window.webContents.mainFrame.frames.find(item => item.name === `prototype-state:${stateId}`)!
+    const documentUrl = await frame.executeJavaScript<string>('location.href')
+    await clickStateElement(window, stateId, 'button[type="submit"]')
+    await new Promise<void>(resolve => setTimeout(resolve, 100))
+    assert.equal(window.webContents.mainFrame.frames.find(item => item.name === `prototype-state:${stateId}`), frame, `${stateId} 本地表单替换了 iframe`)
+    assert.equal(await frame.executeJavaScript('location.href'), documentUrl, `${stateId} 本地表单发生导航`)
+    assert.equal(await frame.executeJavaScript(`document.querySelector('#result').textContent`), '1', `${stateId} 本地 onsubmit 未执行或发生导航`)
+    await click(window, '选择修改')
+    await waitFor(window, `document.querySelector('.id-mode button:last-child')?.getAttribute('aria-pressed')==='true'`, '三维回归未进入选择模式')
+    await manipulateGeometry(window, stateId, 'drag')
+    assert.equal(await geometryMatrix(window, stateId), original, `${stateId} 选择模式触发了页面拖动`)
+    await clickStateElement(window, stateId, 'button[type="submit"]')
+    assert.equal(await frame.executeJavaScript(`document.querySelector('#result').textContent`), '1', `${stateId} 选择模式触发了表单提交`)
+    await click(window, '体验')
+    await waitFor(window, `document.querySelector('.id-mode button:first-child')?.getAttribute('aria-pressed')==='true'`, '三维回归未恢复体验模式')
+  }
+  await writeFile('/private/tmp/interaction-design-geometry-states.png', (await window.webContents.capturePage()).toPNG())
+}
+
 /** Escape 逐层关闭真实菜单。 */
 async function escape(window: BrowserWindow): Promise<void> {
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
@@ -106,13 +230,25 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
   const url = process.env.PROMA_INTERACTION_DESIGN_FIXTURE_URL
   if (!url) throw new Error('缺少 fixture URL')
   await app.whenReady()
-  const window = new BrowserWindowCtor({ width: 1180, height: 850, show: false, webPreferences: { backgroundThrottling: false } })
+  const window = new BrowserWindowCtor({ width: 1180, height: 850, show: true, webPreferences: { backgroundThrottling: false } })
   const errors: string[] = []
-  window.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message) })
+  window.webContents.on('console-message', event => { if (event.level === 'error') { errors.push(event.message); console.error('[Interaction Design UI smoke] 浏览器错误', event.message) } })
   try {
     await window.loadURL(url)
+    console.log('[Interaction Design UI smoke] 初始页面载入')
     await waitFor(window, `document.querySelector('iframe') && document.body.textContent.includes('已保存 v1')`, '工作区未就绪')
     await waitForPreviewText(window, '拾光')
+    console.log('[Interaction Design UI smoke] 初始 iframe 就绪')
+    window.show(); window.focus()
+    await verifyGeometryInteraction(window)
+    console.log('[Interaction Design UI smoke] 三维交互通过')
+    await window.loadURL(url)
+    await waitForPreviewText(window, '拾光')
+    /** 首屏图片结果，覆盖成功读取与失败隔离。 */
+    const previewImages = await waitForPreviewImages(window)
+    assert.equal(previewImages.find(image => image.alt === '可用图片')?.src.startsWith('data:image/png;base64,'), true, '可用图片没有注入已授权数据 URL')
+    assert.equal(previewImages.find(image => image.alt === '损坏图片')?.src.startsWith('data:image/'), true, '读取失败图片没有得到可渲染的占位图')
+    console.log('[Interaction Design UI smoke] 图片与目录回归开始')
     for (const width of [1180, 820, 390]) {
       window.setSize(width, 850)
       await window.webContents.executeJavaScript(`new Promise(resolve=>setTimeout(resolve,180))`)
@@ -128,6 +264,7 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
       await click(window, '页面'); await waitFor(window, `document.querySelector('.id-directory')`, '目录未展开')
       assert.equal(await window.webContents.executeJavaScript(`window.__frame===document.querySelector('iframe') && window.__src===window.__frame.srcdoc && window.__rect===JSON.stringify(window.__frame.getBoundingClientRect().toJSON())`), true, `${width}px 目录挤压或重建预览`)
       assert.equal(await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.id-directory-backdrop')).backgroundColor === 'rgba(0, 0, 0, 0)'`), true, '页面目录遮罩不应压暗预览画面')
+      assert.equal(await window.webContents.executeJavaScript(`(() => { const tree = document.querySelector('.id-directory-content[role="tree"]'); const root = tree?.querySelector('.id-group[role="treeitem"][aria-level="1"]'); const nested = tree?.querySelector('.id-group-children .id-group[role="treeitem"][aria-level="2"]'); const page = tree?.querySelector('.id-page[role="treeitem"][aria-level="2"]'); return Boolean(tree && root && nested && page && page.querySelector('.id-page-meta')) })()`), true, '页面目录未呈现分组、页面和多级树形语义')
       assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-title strong')?.textContent === '交互设计'`), true, '交互模块标题未使用默认名称')
       assert.equal(await window.webContents.executeJavaScript(`Boolean(document.querySelector('.id-directory-header-actions [aria-label="新建页面"]')?.getBoundingClientRect().width) && Boolean(document.querySelector('.id-directory-header-actions [aria-label="新建分组"]')?.getBoundingClientRect().width) && !document.querySelector('.id-directory-create')`), true, '新增入口未放入目录标题右侧')
       assert.equal(await window.webContents.executeJavaScript(`(() => { const version = document.querySelector('.id-toolbar [aria-label="查看版本与候选"]'); const phone = document.querySelector('.id-toolbar [aria-label="手机预览"]'); const mode = document.querySelector('.id-mode'); return !document.querySelector('.id-actions [aria-label="查看版本与候选"]') && version instanceof HTMLElement && phone instanceof HTMLElement && mode instanceof HTMLElement && version.getBoundingClientRect().left > mode.getBoundingClientRect().right && version.getBoundingClientRect().right < phone.getBoundingClientRect().left })()`), true, `${width}px 版本按钮未移到第二排工具栏空位`)
@@ -150,6 +287,7 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
       await escape(window); await waitFor(window, `!document.querySelector('.id-directory')`, '目录未收起')
       assert.equal(await window.webContents.executeJavaScript(`window.__frame===document.querySelector('iframe')`), true)
     }
+    console.log('[Interaction Design UI smoke] 三档目录回归通过')
     /** 项目级变更事件仍需刷新唯一模块目录，不再提供原型切换入口。 */
     await window.webContents.executeJavaScript(`window.__interactionSmoke.change('workspace-a', 'proto-remote')`)
     assert.equal(await window.webContents.executeJavaScript(`window.__interactionSmoke.state.calls.filter(call => call === 'list:session-a').length > 1`), true, '其他原型事件未触发目录读取')
@@ -229,6 +367,7 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
     await waitFor(window, `!window.__interactionSmoke.state.pendingCandidate`, '旧请求未释放')
     assert.equal(await window.webContents.executeJavaScript(`!!document.querySelector('.id-candidate-preview')`), false, '旧候选污染新项目')
     assert.equal(await window.webContents.executeJavaScript(`window.__interactionSmoke.prompt()`), null, '旧响应污染新会话')
+    console.log('[Interaction Design UI smoke] 版本与上下文回归通过')
     /** Given 一页两状态 When 展示与编辑 Then 平面展开且只修改所选状态。 */
     window.show(); window.focus()
     await window.loadURL(url); await waitFor(window, `document.querySelector('iframe') && document.body.textContent.includes('已保存 v1')`, '状态场景未就绪')
@@ -279,14 +418,38 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
     await waitForPreviewText(window, '候选设置页')
     assert.equal(await window.webContents.executeJavaScript(`window.__interactionSmoke.state.snapshot.document.pages.length`), 2, '浏览候选自动采纳页面')
     await click(window, '返回当前版本')
+    /** Given 目标页拥有附加状态 When 从目录进入 Then 默认状态立即有可读正文。 */
+    await window.webContents.executeJavaScript(`(() => {
+      const state = window.__interactionSmoke.state
+      const page = state.snapshot.document.pages.find(item => item.id === 'detail')
+      if (!page) throw new Error('状态回归缺少今日习惯页')
+      page.states = [{ id: 'summary', name: '摘要', html: '<html><body><h1>今日习惯摘要</h1></body></html>' }]
+      state.snapshot.document.revision += 1
+      window.__interactionSmoke.change('workspace-a', 'proto-a')
+    })()`)
+    await waitFor(window, `document.body.textContent.includes('2 个状态')`, '多状态目标页未加载')
+    await click(window, '页面'); await clickPage(window, '欢迎'); await waitForPreviewText(window, '拾光')
+    await click(window, '页面'); await clickPage(window, '今日习惯')
+    await waitForPreviewText(window, '今日习惯')
+    /** Given 用户正在查看业务页 When 点击刷新 Then 只重载当前页，不跳回入口页。 */
+    for (const pageName of ['今日习惯', '欢迎', '今日习惯', '欢迎', '今日习惯']) {
+      await click(window, '页面'); await clickPage(window, pageName)
+      await waitFor(window, `document.querySelector('.id-stage-top')?.textContent.includes(${JSON.stringify(pageName)})`, `切换后标题未更新：${pageName}`)
+      await waitForPreviewText(window, pageName === '欢迎' ? '拾光' : pageName)
+    }
     await clickSelector(window, '[aria-label="重新体验"]')
+    await waitFor(window, `document.querySelector('.id-stage-top')?.textContent.includes('今日习惯')`, '刷新后错误跳回入口页')
+    await waitForPreviewText(window, '今日习惯')
+    await click(window, '页面'); await clickPage(window, '欢迎')
+    await waitFor(window, `document.querySelector('.id-stage-top')?.textContent.includes('欢迎')`, '刷新回归后的状态场景未恢复')
+    await waitForPreviewText(window, '拾光')
     window.setSize(390, 850)
     await window.webContents.executeJavaScript(`new Promise(resolve=>setTimeout(resolve,180))`)
     assert.equal(await window.webContents.executeJavaScript(`(() => {const space=document.querySelector('.id-state-space');return space && space.scrollHeight>space.clientHeight && space.scrollWidth<=space.clientWidth+1})()`), true, '窄窗口状态没有平铺滚动或横向溢出')
     await window.webContents.executeJavaScript(`document.querySelector('.id-state-space').scrollTop=10000`)
     await waitFor(window, `document.querySelector('[data-state-id="empty"] iframe')`, '滚动未加载附加状态')
     assert.deepEqual(errors, [])
-    console.log('[Interaction Design UI smoke] PASS: 状态平铺/独立编辑/引用/跳转/候选目录、开发交接、3种宽度目录覆盖无位移/重建、页面菜单、模式/设备稳定、深色、候选/采纳/恢复、删除确认/取消/错误/重试/上下文隔离及迟到隔离；未访问真实业务数据')
+    console.log('[Interaction Design UI smoke] PASS: 默认与附加状态三维旋转/缩放/复位/本地提交/选择隔离、状态平铺/独立编辑/引用/跳转/候选目录、开发交接、3种宽度目录覆盖无位移/重建、页面菜单、模式/设备稳定、深色、候选/采纳/恢复、删除确认/取消/错误/重试/上下文隔离及迟到隔离；未访问真实业务数据')
   } finally { window.destroy() }
 }
 /** Bun 父进程启动临时 Vite，再构建并执行 Electron 子进程。 */

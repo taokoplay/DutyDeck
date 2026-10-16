@@ -10,6 +10,7 @@ import { InteractionAssetService, MAX_INTERACTION_IMAGE_BYTES } from './asset-se
 import { InteractionSourceService, interactionHash } from './source-service'
 import type { InteractionSourceReader } from './source-service'
 import { createInteractionDelivery, createInteractionHandoff } from './delivery-service'
+import { validatePrototypeContent } from './content-validation'
 
 /** 主进程为已授权项目构造的依赖，真实来源读取使用稳定目录能力。 */
 export interface InteractionDesignServiceDependencies {
@@ -246,7 +247,6 @@ export class InteractionDesignService {
   private commit(id: string, baseRevision: number, draft: PrototypeDraft, summary: string, adoptedId?: string): void {
     draft = parsePrototypeDraft(draft)
     this.dependencies.assertCurrent?.()
-    this.assertAssets(draft)
     /** 现有提交点，初次创建允许缺失。 */
     const directory = this.directory(id, undefined, true)
     /** head 文件及读取期 CAS 状态。 */
@@ -256,8 +256,11 @@ export class InteractionDesignService {
     /** 当前权威版本。 */
     const previous = state ? this.head(id) : null
     if ((previous?.revision ?? 0) !== baseRevision) throw new Error('原型版本已变化，请重新读取后修改')
+    /** 固定基线用于内容差分；旧状态缺陷不阻断其他页面或目录修改。 */
+    const baseline = previous ? this.version(id, previous.revision) : undefined
+    this.assertAssets(draft, baseline)
     /** 创建时间始终沿用原始文档。 */
-    const createdAt = previous ? this.version(id, previous.revision).createdAt : Date.now()
+    const createdAt = baseline?.createdAt ?? Date.now()
     /** 新版本号取历史最高值之后，避免恢复旧版本后覆盖已有历史文件。 */
     const revision = (previous?.latestRevision ?? previous?.revision ?? 0) + 1
     /** 完整新文档。 */
@@ -306,11 +309,11 @@ export class InteractionDesignService {
   /** 生成结果仅保存候选，不能替换正式 head。 */
   private propose(input: InteractionDesignInputs['propose']): PrototypeCandidateSummary {
     input = { ...input, draft: parsePrototypeDraft(input.draft) }
-    this.assertAssets(input.draft)
     /** 当前原型提交点。 */
     const head = this.head(input.prototypeId)
     /** 所有候选都必须有真实基线，包含整模块任务及恢复后仍存在的历史版本。 */
-    this.version(input.prototypeId, input.baseRevision)
+    const baseline = this.version(input.prototypeId, input.baseRevision)
+    this.assertAssets(input.draft, baseline)
     if (input.jobId) {
       /** 绑定当前任务，拒绝取消后回填或跨会话伪造。 */
       const job = this.job(input.prototypeId, input.jobId)
@@ -347,7 +350,10 @@ export class InteractionDesignService {
     if (issues.length) throw new Error(`项目还原候选未完成页面拆分：${issues[0]}`)
   }
   /** 确认所有逻辑图片引用已在本项目独立库中存在。 */
-  private assertAssets(draft: PrototypeDraft): void {
+  private assertAssets(draft: PrototypeDraft, baseline?: PrototypeDraft): void {
+    /** 新正文必须离线完整；既有坏正文仍可读取并通过独立检查报告。 */
+    const issues = validatePrototypeContent(draft, baseline)
+    if (issues.length) throw new Error(issues[0])
     /** 当前项目已知资产身份。 */
     const known = new Set(this.assets.list().map(asset => asset.id))
     for (const page of draft.pages) {
@@ -614,7 +620,7 @@ export class InteractionDesignService {
           /** 被验证的不可变文档。 */
           const document = this.version(request.prototypeId, request.revision)
           /** 结构检查只报告结构事实。 */
-          const issues = method === 'validate' ? validatePrototypeStructure(document) : []
+          const issues = method === 'validate' ? [...validatePrototypeStructure(document), ...validatePrototypeContent(document)] : []
           /** 用户声明实际访问过的页面顺序，不推断未访问覆盖。 */
           const visitedPageIds = method === 'recordExperience' ? request.visitedPageIds : []
           if (visitedPageIds.some(id => !document.pages.some(page => page.id === id))) throw new Error('体验记录包含不存在的页面')

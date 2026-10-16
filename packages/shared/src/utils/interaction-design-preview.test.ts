@@ -10,11 +10,37 @@ const draft: PrototypeDraft = { name: '测试', platform: 'mobile', brief: '', g
 ], flows: [{ id: 'return', fromPageId: 'detail', elementId: 'back', targetPageId: 'home' }] }
 
 describe('交互原型预览合同', () => {
+  test('Given 本地表单提交 When 体验或选择 Then 体验执行页面处理器但两种模式都禁止默认导航', () => {
+    /** 使用真实 EventTarget 与 Event 运行宿主桥，不执行任何页面网络动作。 */
+    const target = new EventTarget()
+    /** 测试父窗口身份，仅用于桥接模式切换。 */
+    const host = { postMessage() {} }
+    /** 构建并取出真正的宿主桥脚本。 */
+    const html = buildPrototypePreview(draft, 'home', { mode: 'play', token: 'token', revision: 1, assets: {} })
+    const script = html.slice(html.indexOf('<script>') + 8, html.indexOf('</script>'))
+    runInNewContext(script, { window: target, parent: host, EventTarget, Event, Element: class { closest() {} getAttribute() {} }, document: { currentScript: { remove() {} } } })
+    /** 页面处理器计数：体验态应收到事件，选择态不应改动页面状态。 */
+    let submissions = 0
+    target.addEventListener('submit', () => { submissions += 1 })
+    /** 默认导航始终取消，页面代码仍应正常运行。 */
+    const playSubmit = new Event('submit', { cancelable: true })
+    target.dispatchEvent(playSubmit)
+    expect(playSubmit.defaultPrevented).toBe(true)
+    expect(submissions).toBe(1)
+    /** 只有已绑定父窗口可以将桥切换为选择模式。 */
+    const selectMode = Object.assign(new Event('message'), { source: host, data: { type: 'prototype-mode', token: 'token', mode: 'select' } })
+    target.dispatchEvent(selectMode)
+    const selectSubmit = new Event('submit', { cancelable: true })
+    target.dispatchEvent(selectSubmit)
+    expect(selectSubmit.defaultPrevented).toBe(true)
+    expect(submissions).toBe(1)
+  })
   test('Given 有效页面 When 构建预览 Then 注入先行CSP、模式桥与已授权图片', () => {
     const html = buildPrototypePreview(draft, 'home', { mode: 'play', token: 'token', revision: 1, assets: { picture: 'data:image/png;base64,AAAA' } })
     expect(html.indexOf('Content-Security-Policy')).toBeLessThan(html.indexOf('<button'))
     expect(html).toContain("connect-src 'none'")
     expect(html).toContain("frame-src 'none'")
+    expect(html).toContain("form-action 'none'")
     expect(html).toContain("e.source!==host")
     expect(html).toContain("e.data.token!==config.token")
     expect(html).toContain('e.isTrusted')
@@ -23,7 +49,9 @@ describe('交互原型预览合同', () => {
     expect(html).not.toContain('prototype-asset:picture')
   })
   test('Given 不受信图片与缺失页 When 构建 Then 拒绝协议注入和错误页面', () => {
-    expect(buildPrototypePreview(draft, 'home', { mode: 'select', token: 'token', revision: 1, assets: { picture: 'https://example.com/image.png' } })).not.toContain('https://example.com')
+    const html = buildPrototypePreview(draft, 'home', { mode: 'select', token: 'token', revision: 1, assets: { picture: 'https://example.com/image.png' } })
+    expect(html).not.toContain('https://example.com')
+    expect(html).toContain('data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=')
     expect(() => buildPrototypePreview(draft, 'missing', { mode: 'play', token: 'token', revision: 1, assets: {} })).toThrow('页面不存在')
   })
   test('Given 不可信桥消息 When 解析 Then 只接受有限身份和正确字段', () => {
@@ -41,7 +69,7 @@ describe('交互原型预览合同', () => {
   test('Given 内含script闭合标签的页面 When 导出 Then 数据不能逃逸且仅创建一个iframe', () => {
     const html = buildPrototypeExport(draft, {})
     expect(html.match(/<iframe\b/g)).toHaveLength(1)
-    expect(html).toContain('sandbox="allow-scripts"')
+    expect(html).toContain('sandbox="allow-scripts allow-forms"')
     expect(html).toContain('e.source!==frame.contentWindow')
     expect(html).toContain('\\u003cbutton')
   })

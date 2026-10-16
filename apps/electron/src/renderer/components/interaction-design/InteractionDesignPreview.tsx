@@ -32,9 +32,9 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
   /** 隔离正文身份和临时体验实例；只重置或换版本才生成新令牌。 */
   const token = React.useMemo(() => crypto.randomUUID(), [props.identity, props.pageId, props.stateId])
   const frameRef = React.useRef<HTMLIFrameElement>(null)
-  /** 状态首次进入滚动视区后才运行；同页滚走再返回保留临时表单。 */
+  /** 默认状态随页面立即加载，附加状态首次进入滚动视区后再加载；已加载状态保留临时表单。 */
   const boardRef = React.useRef<HTMLDivElement>(null)
-  const [loaded, setLoaded] = React.useState(!props.multiple)
+  const [loaded, setLoaded] = React.useState(!props.multiple || props.stateId === undefined)
   const callbacks = React.useRef(props)
   callbacks.current = props
   /** HTML 来自共享安全构造器，图片仅允许已校验 data URL。 */
@@ -78,7 +78,7 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
   return <div ref={boardRef} className={props.multiple ? 'id-state-board' : undefined} data-state-id={props.stateId ?? ''} style={{ width: width * props.scale }}>
     {props.multiple && <div className="id-state-label">{props.stateName}</div>}
     <div className="id-device-frame" style={{ width: width * props.scale, height: height * props.scale }}>
-      {loaded ? <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts" srcDoc={html} onLoad={syncMode} style={{ width, height, transform: `scale(${props.scale})`, transformOrigin: 'top left' }} /> : <div className="id-state-placeholder">{props.stateName} · 滚动到此处加载</div>}
+      {loaded ? <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts allow-forms" srcDoc={html} onLoad={syncMode} style={{ width, height, transform: `scale(${props.scale})`, transformOrigin: 'top left' }} /> : <div className="id-state-placeholder">{props.stateName} · 滚动到此处加载</div>}
     </div>
   </div>
 }

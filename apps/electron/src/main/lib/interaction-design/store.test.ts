@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { InteractionDesignService } from './store'
 import { InteractionSourceService, interactionHash } from './source-service'
+import { parsePrototypeDraft } from '@proma/shared'
+import type { PrototypeCandidate } from '@proma/shared'
 
 /** 测试独立目录，禁止触碰真实项目数据。 */
 const roots: string[] = []
@@ -36,6 +38,70 @@ function restorePlan() {
 }
 
 describe('交互设计版本与候选', () => {
+  it('Given 附加状态脚本截断 When 提交候选 Then 拒绝并定位页面和状态且不推进版本', async () => {
+    /** 独立测试服务与初始文档。 */
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '家具', platform: 'mobile' })
+    /** 模拟模型在脚本中途耗尽输出的附加状态。 */
+    const draft = { ...first.document, pages: first.document.pages.map(page => ({ ...page, name: '家具工作台', states: [{ id: 'selected', name: '选中部件', html: '<script>const selected = ' }] })) }
+    await expect(service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft, summary: '生成状态' })).rejects.toThrow('家具工作台 / 选中部件')
+    expect((await service.invoke('load', { sessionId, prototypeId: first.document.id })).document.revision).toBe(1)
+  })
+
+  it('Given 默认页面存在未导入图片 When 保存 Then 拒绝失效相对资源', async () => {
+    /** 独立测试服务与初始文档。 */
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '家具', platform: 'mobile' })
+    /** 图片路径没有经过项目资产导入。 */
+    const draft = { ...first.document, pages: first.document.pages.map(page => ({ ...page, html: '<img src="assets/cabinet.png">' })) }
+    await expect(service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft, summary: '保存' })).rejects.toThrow('离线')
+  })
+
+  it('Given 旧版合法哈希候选包含失效资源 When 读取和采纳 Then 允许读取修复但拒绝发布', async () => {
+    /** 隔离目录及服务。 */
+    const { root, service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '家具', platform: 'mobile' })
+    const candidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: first.document, summary: '旧候选' })
+    /** 模拟旧版本已保存且正文身份一致的候选，并非篡改检测测试。 */
+    const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'candidates', `${candidate.id}.json`)
+    const stored = JSON.parse(readFileSync(path, 'utf8')) as PrototypeCandidate & { draftHash: string }
+    stored.draft.pages[0]!.html = '<img src="assets/cabinet.png">'
+    stored.draftHash = interactionHash(JSON.stringify(parsePrototypeDraft(stored.draft)))
+    writeFileSync(path, JSON.stringify(stored))
+    expect((await service.invoke('getCandidate', { sessionId, prototypeId: first.document.id, candidateId: candidate.id })).draft.pages[0]!.html).toContain('assets/cabinet.png')
+    await expect(service.invoke('adopt', { sessionId, prototypeId: first.document.id, baseRevision: 1, candidateId: candidate.id })).rejects.toThrow('离线')
+    expect((await service.invoke('load', { sessionId, prototypeId: first.document.id })).document.revision).toBe(1)
+  })
+
+  it('Given 旧版本坏状态 When 修改其他正文并采纳 Then 保留旧状态且检查报告缺陷但拒绝新增坏正文', async () => {
+    /** 隔离项目及合法版本，随后只在夹具中还原历史坏内容。 */
+    const { root, service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '家具', platform: 'mobile' })
+    const saved = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, summary: '状态', draft: { ...first.document, pages: first.document.pages.map(page => ({ ...page, name: '工作台', states: [{ id: 'selected', name: '选中部件', html: '<p>部件</p>' }] })) } })
+    /** 模拟旧版存储合法身份与损坏语义同时存在，而不是破坏文件校验。 */
+    const document = structuredClone(saved.document)
+    document.pages[0]!.states![0]!.html = '<img src="assets/cabinet.png">'
+    const directory = join(root, '.proma', 'interaction-design', 'prototypes', document.id)
+    const versionPath = join(directory, 'revisions', '2.json')
+    const stored = JSON.parse(readFileSync(versionPath, 'utf8')) as { hash: string; document: { pages: Array<{ states: Array<{ contentHash: string }> }> } }
+    const contentHash = interactionHash(document.pages[0]!.states![0]!.html)
+    writeFileSync(join(directory, 'contents', `${contentHash}.json`), JSON.stringify({ html: document.pages[0]!.states![0]!.html }))
+    stored.document.pages[0]!.states[0]!.contentHash = contentHash
+    stored.hash = interactionHash(JSON.stringify([document.id, document.revision, document.createdAt, document.updatedAt, parsePrototypeDraft(document)]))
+    writeFileSync(versionPath, JSON.stringify(stored))
+    expect((await service.invoke('load', { sessionId, prototypeId: document.id })).document).toEqual(document)
+    /** 诊断旧内容不阻断读取或不相关页面编辑。 */
+    const check = await service.invoke('validate', { sessionId, prototypeId: document.id, revision: 2 })
+    expect(check.issues.join('\n')).toContain('工作台 / 选中部件')
+    const draft = { ...document, pages: document.pages.map(page => ({ ...page, html: '<h1>新的默认正文</h1>' })) }
+    const candidate = await service.invoke('propose', { sessionId, prototypeId: document.id, baseRevision: 2, draft, summary: '只改默认正文' })
+    const adopted = await service.invoke('adopt', { sessionId, prototypeId: document.id, baseRevision: 2, candidateId: candidate.id })
+    expect(adopted.document.pages[0]!.states![0]!.html).toContain('assets/cabinet.png')
+    /** 元数据更新同样不应要求用户修复无关旧状态。 */
+    const renamed = await service.invoke('save', { sessionId, prototypeId: document.id, baseRevision: 3, draft: { ...adopted.document, name: '交互设计' }, summary: '改名称' })
+    await expect(service.invoke('propose', { sessionId, prototypeId: document.id, baseRevision: 4, draft: { ...renamed.document, pages: renamed.document.pages.map(page => ({ ...page, states: [{ id: 'selected', name: '选中部件', html: '<img src="assets/other.png">' }] })) }, summary: '仍然坏的状态' })).rejects.toThrow('离线')
+  })
+
   it('Given 项目还原任务缺少页面规划 When 开始生成 Then 宿主拒绝进入生成阶段', async () => {
     const { service } = setup()
     const first = await service.invoke('create', { sessionId, name: '车本本', platform: 'mobile' })

@@ -27,11 +27,13 @@ function scriptData(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
 }
 
-/** 仅允许已校验的离线位图，拒绝协议或 SVG 可执行内容。 */
+/** 资源读取失败时使用的离线透明占位图，避免浏览器绘制破损图片图标。 */
+const EMPTY_ASSET_DATA_URL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
+
 function replaceAssets(html: string, assets: Record<string, string>): string {
   return html.replace(/prototype-asset:([A-Za-z0-9_-]+)/g, (_match, id: string) => {
     const value = assets[id]
-    return value && /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : 'data:,'
+    return value && /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : EMPTY_ASSET_DATA_URL
   })
 }
 
@@ -50,7 +52,8 @@ export function parsePrototypePreviewMessage(value: unknown): PrototypePreviewMe
 }
 
 /**
- * 构建单页 srcDoc；宿主必须设置 sandbox="allow-scripts" 并禁止 iframe 的跨文档导航。
+ * 构建单页 srcDoc；宿主必须设置 sandbox="allow-scripts allow-forms" 并禁止 iframe 的跨文档导航。
+ * allow-forms 仅用于浏览器本地校验和 submit 事件；CSP form-action 与先行桥继续禁止真正提交。
  * 选择模式在捕获阶段拦截点击，体验模式仅把声明过的路由交给父页面。
  */
 export function buildPrototypePreview(draft: PrototypeDraft, pageId: string, options: PrototypePreviewOptions): string {
@@ -82,7 +85,8 @@ export function buildPrototypePreview(draft: PrototypeDraft, pageId: string, opt
       if(near(e.target,'a[href],area[href]'))cancel(e);
     });
     on('auxclick',e=>{if(near(e.target,'a[href],area[href]'))cancel(e)});
-    on('submit',cancel);
+    // 体验态保留页面自身的表单校验和状态更新，仅取消浏览器默认提交；选择态拦截整个事件。
+    on('submit',e=>{if(mode==='select')cancel(e);else Reflect.apply(prevent,e,[])});
     for(const type of ['pointerdown','mousedown','keydown','beforeinput'])on(type,e=>{if(mode==='select'&&(type!=='keydown'||e.key==='Enter'||e.key===' '))cancel(e)});
   })()</script>`
   return `<!doctype html><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer">${bridge}${replaceAssets(state?.html ?? page.html, options.assets)}`
@@ -154,5 +158,5 @@ export function buildPrototypeExport(draft: PrototypeDraft, assets: Record<strin
   const token = 'offline-prototype'
   /** 全部状态预编译为字符串，切换时仍只有一个活动 iframe。 */
   const pages = draft.pages.map((page) => ({ id: page.id, name: page.name, states: [{ name: page.defaultStateName ?? '默认', html: buildPrototypePreview(draft, page.id, { mode: 'play', token, revision: 0, assets }) }, ...(page.states ?? []).map((state) => ({ id: state.id, name: state.name, html: buildPrototypePreview(draft, page.id, { mode: 'play', token, revision: 0, assets, stateId: state.id }) }))] }))
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>交互原型</title><style>html,body{margin:0;width:100%;height:100%}body{display:flex;flex-direction:column;overflow:hidden}nav{padding:8px;display:flex;gap:8px}nav[hidden]{display:none}iframe{width:100%;flex:1;min-height:0;border:0}</style><nav aria-label="页面与状态"><select aria-label="页面"></select><select aria-label="状态"></select></nav><iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="交互原型"></iframe><script>(()=>{const pages=${scriptData(pages)},frame=document.querySelector('iframe'),nav=document.querySelector('nav'),[pageSelect,stateSelect]=document.querySelectorAll('select');let current=${scriptData(draft.entryPageId)},currentState;for(const p of pages){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;pageSelect.append(option)}nav.hidden=!pages.some(p=>p.states.length>1);function show(id,stateId){const page=pages.find(p=>p.id===id),state=page?.states.find(s=>s.id===stateId);if(!page||!state)return;current=id;currentState=stateId;pageSelect.value=id;stateSelect.replaceChildren();for(const s of page.states){const option=document.createElement('option');option.value=s.id||'';option.textContent=s.name;stateSelect.append(option)}stateSelect.value=stateId||'';frame.srcdoc=state.html}pageSelect.onchange=()=>show(pageSelect.value);stateSelect.onchange=()=>show(current,stateSelect.value||undefined);window.addEventListener('message',e=>{const m=e.data;if(e.source!==frame.contentWindow||!m||m.type!=='prototype-navigate'||m.token!==${scriptData(token)}||m.pageId!==current||m.stateId!==currentState||m.revision!==0)return;show(m.targetPageId)});show(current)})()</script></html>`
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>交互原型</title><style>html,body{margin:0;width:100%;height:100%}body{display:flex;flex-direction:column;overflow:hidden}nav{padding:8px;display:flex;gap:8px}nav[hidden]{display:none}iframe{width:100%;flex:1;min-height:0;border:0}</style><nav aria-label="页面与状态"><select aria-label="页面"></select><select aria-label="状态"></select></nav><iframe sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" title="交互原型"></iframe><script>(()=>{const pages=${scriptData(pages)},frame=document.querySelector('iframe'),nav=document.querySelector('nav'),[pageSelect,stateSelect]=document.querySelectorAll('select');let current=${scriptData(draft.entryPageId)},currentState;for(const p of pages){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;pageSelect.append(option)}nav.hidden=!pages.some(p=>p.states.length>1);function show(id,stateId){const page=pages.find(p=>p.id===id),state=page?.states.find(s=>s.id===stateId);if(!page||!state)return;current=id;currentState=stateId;pageSelect.value=id;stateSelect.replaceChildren();for(const s of page.states){const option=document.createElement('option');option.value=s.id||'';option.textContent=s.name;stateSelect.append(option)}stateSelect.value=stateId||'';frame.srcdoc=state.html}pageSelect.onchange=()=>show(pageSelect.value);stateSelect.onchange=()=>show(current,stateSelect.value||undefined);window.addEventListener('message',e=>{const m=e.data;if(e.source!==frame.contentWindow||!m||m.type!=='prototype-navigate'||m.token!==${scriptData(token)}||m.pageId!==current||m.stateId!==currentState||m.revision!==0)return;show(m.targetPageId)});show(current)})()</script></html>`
 }
