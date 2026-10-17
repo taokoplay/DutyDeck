@@ -146,3 +146,4 @@ export * from './visual-production'
 export * from './visual-production-validation'
 
 export * from './visual-production-media'
+export * from './visual-editing'
