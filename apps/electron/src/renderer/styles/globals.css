@@ -1642,6 +1642,15 @@
   z-index: 30;
 }
 
+/* 交互设计专注预览沿用展开宿主层级，避免窗口分隔线穿透画面。 */
+.agent-right-panel-host:has([data-interaction-design-expanded="true"]) {
+  z-index: 90;
+}
+
+.agent-side-panel:has([data-interaction-design-expanded="true"]) {
+  z-index: 30;
+}
+
 /* ===== Office 内联预览 ===== */
 .office-preview-host {
   min-height: 100%;

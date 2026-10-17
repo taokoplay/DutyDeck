@@ -152,7 +152,8 @@ export function DiffPanelTabBar({
 
     const handleWheel = (event: WheelEvent): void => {
       event.preventDefault()
-      tabList.scrollLeft += event.deltaY || event.deltaX
+      // 横向手势优先使用横轴，避免微小纵向抖动让标签反向；纯竖向滚轮仍映射到横向。
+      tabList.scrollLeft += event.deltaX || event.deltaY
     }
 
     tabList.addEventListener('wheel', handleWheel, { passive: false })

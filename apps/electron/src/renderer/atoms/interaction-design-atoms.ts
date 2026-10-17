@@ -7,6 +7,8 @@ export interface InteractionDesignView {
   pageId: string | null
   /** 设备与目录折叠不会改写设计版本。 */
   device: 'mobile' | 'desktop'
+  /** 手动预览比例；缺省自动适应可用区域，不改变设计视口。 */
+  zoom?: number
   collapsedGroups: string[]
 }
 

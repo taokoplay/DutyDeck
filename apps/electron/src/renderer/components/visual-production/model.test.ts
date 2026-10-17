@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { copyVisualDraft, reorderVisualShot, VisualRequestGate, VisualScopeEpoch } from './model'
-import type { VisualProductionDraft, VisualShot } from '@proma/shared'
+import { buildVisualRetryPrompt, copyVisualDraft, groupVisualRecords, reorderVisualShot, VisualRequestGate, VisualScopeEpoch } from './model'
+import type { VisualCandidate, VisualJob, VisualProductionDraft, VisualShot } from '@proma/shared'
 /** 最小镜头夹具用于验证跨集排序边界。 */
 const shot = (id: string, episodeId: string): VisualShot => ({ id, episodeId, title: id, duration: 3, scene: '', motion: '', dialogue: '', assetIds: [], mediaId: null })
 describe('影像创作编辑模型', () => {
@@ -39,5 +39,42 @@ describe('影像工作区往返隔离', () => {
     expect(scope.accepts(current)).toBe(true)
     scope.invalidate()
     expect(scope.accepts(current)).toBe(false)
+  })
+})
+
+it('失败重试引用最新正式版本，已删除目标或活动任务不允许重试', () => {
+  /** 当前版本比失败任务更新，重试必须保留新内容并签发新任务。 */
+  const document = { schemaVersion: 1 as const, id: 'production', revision: 8, createdAt: 1, updatedAt: 2, title: '作品', kind: 'film' as const, brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [{ id: 'one', title: '一' }], assets: [], shots: [shot('third', 'one')] }
+  const job = { id: 'old-job', sessionId: 'session', baseRevision: 2, shotId: 'third', instruction: '第三镜头缓慢推进', status: 'failed' as const, createdAt: 1 }
+  const prompt = buildVisualRetryPrompt(document, job)
+  expect(prompt).toContain('revision: 8')
+  expect(prompt).toContain('shotId: third')
+  expect(prompt).toContain('第三镜头缓慢推进')
+  expect(prompt).toContain('新任务')
+  expect(prompt).not.toContain('jobId: old-job')
+  expect(buildVisualRetryPrompt({ ...document, shots: [] }, job)).toBeNull()
+  expect(buildVisualRetryPrompt(document, { ...job, status: 'running' })).toBeNull()
+})
+
+describe('制作记录状态筛选', () => {
+  /** 候选正文与状态筛选无关，使用完整最小作品保证夹具符合真实合同。 */
+  const draft: VisualProductionDraft = { title: '作品', kind: 'film', brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [], assets: [], shots: [] }
+  /** 按真实任务状态构造记录，便于验证终态和候选状态的优先级。 */
+  const job = (id: string, status: VisualJob['status']): VisualJob => ({ id, status, sessionId: 'session', baseRevision: 1, createdAt: 1, instruction: id })
+  /** 候选通过 jobId 与任务关联，同任务的多个结果不能重复计为多条任务。 */
+  const candidate = (jobId: string, status: VisualCandidate['status']): VisualCandidate => ({ id: `${jobId}-${status}`, jobId, status, baseRevision: 1, createdAt: 2, draft, summary: jobId })
+  it('当任务覆盖全部执行与候选状态时，各页签数量应完整且互不重复', () => {
+    /** 无候选的已提交记录也须保留在已结束中，不能从历史消失。 */
+    const snapshot = { jobs: [job('running', 'running'), job('failed', 'failed'), job('interrupted', 'interrupted'), job('cancelled', 'cancelled'), job('pending', 'candidate'), job('adopted', 'candidate'), job('stale', 'candidate'), job('discarded', 'candidate'), job('old', 'candidate')], candidates: [candidate('pending', 'ready'), candidate('adopted', 'adopted'), candidate('stale', 'stale'), candidate('discarded', 'discarded')] }
+    expect(groupVisualRecords(snapshot)).toMatchObject({ counts: { all: 9, running: 1, pending: 1, adopted: 1, failed: 2, stale: 1, closed: 3 } })
+  })
+  it('当同任务包含历史与待采用候选时，只计一条待采用任务，采用后归入已采用', () => {
+    /** 保留输入副本，确保分组操作不会改写持久化顺序或状态。 */
+    const snapshot = { jobs: [job('one', 'candidate')], candidates: [candidate('one', 'adopted'), candidate('one', 'ready')] }
+    const original = structuredClone(snapshot)
+    expect(groupVisualRecords(snapshot)).toMatchObject({ counts: { all: 1, pending: 1, adopted: 0 }, records: [{ status: 'pending' }] })
+    expect(snapshot).toEqual(original)
+    expect(groupVisualRecords({ ...snapshot, candidates: snapshot.candidates.map(item => ({ ...item, status: 'adopted' as const })) })).toMatchObject({ counts: { all: 1, pending: 0, adopted: 1 }, records: [{ status: 'adopted' }] })
+    expect(groupVisualRecords({ jobs: [], candidates: [] })).toMatchObject({ counts: { all: 0, running: 0, pending: 0, adopted: 0, failed: 0, stale: 0, closed: 0 }, records: [] })
   })
 })

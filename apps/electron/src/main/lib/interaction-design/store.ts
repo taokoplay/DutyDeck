@@ -47,6 +47,13 @@ interface StoredVersion {
   document: Omit<PrototypeDocument, 'pages'> & { pages: Array<Omit<PrototypeDocument['pages'][number], 'html' | 'states'> & { contentHash: string; states?: Array<{ id: string; name: string; contentHash: string }> }> }
   version: PrototypeVersion
 }
+/** 历史删除采用单个原子索引，正文、采纳事实和交接记录保持不变。 */
+interface HistoryDeletions {
+  /** 已隐藏的候选身份。 */
+  candidates: string[]
+  /** 已隐藏的生成任务身份。 */
+  jobs: string[]
+}
 /** 正式数据只读和修改都通过本服务。 */
 export class InteractionDesignService {
   /** 项目来源读取。 */
@@ -175,9 +182,47 @@ export class InteractionDesignService {
       }
     } finally { directory.closeSync() }
   }
+  /** 读取有界删除索引；不存在表示兼容旧项目，损坏则明确阻断。 */
+  private historyDeletions(id: string): HistoryDeletions {
+    /** 项目内固定索引路径。 */
+    const path = join(this.directory(id), 'history-deletions.json')
+    if (!existsSync(path)) return { candidates: [], jobs: [] }
+    /** 原子索引记录只保存身份，不保存正文。 */
+    const deleted = this.json<HistoryDeletions>(path, 1024 * 1024)
+    if (!Array.isArray(deleted.candidates) || !Array.isArray(deleted.jobs) || deleted.candidates.length > 2000 || deleted.jobs.length > 2000) throw new Error('历史删除记录损坏')
+    for (const recordId of [...deleted.candidates, ...deleted.jobs]) assertInteractionId(recordId)
+    return deleted
+  }
+  /** 对比固定基线与候选，返回正文、目录顺序、状态、入口和源流程真正变化的页面身份。 */
+  private affectedPages(baseline: PrototypeDraft, draft: PrototypeDraft): string[] {
+    /** 构造单页可见语义，目录祖先变化也会影响该页。 */
+    const signatures = (value: PrototypeDraft): Map<string, string> => new Map(value.pages.map(page => {
+      /** 目录祖先身份及其同级位置。 */
+      const groups: unknown[] = []
+      /** 当前目录游标与防循环集合。 */
+      let groupId: string | undefined = page.groupId
+      /** 已遍历祖先，保证损坏循环不会阻塞读取。 */
+      const visited = new Set<string>()
+      while (groupId && !visited.has(groupId)) {
+        visited.add(groupId)
+        /** 当前祖先及其名称、位置。 */
+        const group = value.groups.find(item => item.id === groupId)
+        if (!group) break
+        groups.push([group, value.groups.filter(item => item.parentId === group.parentId).findIndex(item => item.id === group.id)])
+        groupId = group.parentId
+      }
+      return [page.id, JSON.stringify([page, groups, value.pages.filter(item => item.groupId === page.groupId).findIndex(item => item.id === page.id), value.flows.filter(flow => flow.fromPageId === page.id), value.entryPageId === page.id])]
+    }))
+    /** 两份稿的页面签名，只遍历有限页面集。 */
+    const before = signatures(baseline)
+    /** 候选页面签名。 */
+    const after = signatures(draft)
+    return [...new Set([...before.keys(), ...after.keys()])].filter(id => before.get(id) !== after.get(id))
+  }
   /** 候选可采纳性由当前 head 推导，不修改旧生成结果。 */
   private candidate(id: string, candidateId: string): PrototypeCandidate {
     assertInteractionId(candidateId)
+    if (this.historyDeletions(id).candidates.includes(candidateId)) throw new Error('候选已删除')
     /** 独立保存的候选正文。 */
     const candidate = this.json<PrototypeCandidate & { draftHash: string }>(join(this.directory(id, 'candidates'), `${candidateId}.json`))
     /** 当前提交点。 */
@@ -200,9 +245,16 @@ export class InteractionDesignService {
     /** 轻量摘要文件集合。 */
     const names = readdirSync(path).filter(name => /^[A-Za-z0-9_-]+\.summary\.json$/.test(name))
     if (names.length > 2000) throw new Error('候选数量超过预算')
-    return names.map(name => {
+    /** 一次读取删除索引，避免每条摘要重复访问磁盘。 */
+    const deleted = new Set(this.historyDeletions(id).candidates)
+    /** 新摘要最多包含增删两侧 400 个页面身份，累计读取仍限制为 32 MiB。 */
+    let remaining = 32 * 1024 * 1024
+    return names.filter(name => !deleted.has(name.slice(0, -13))).map(name => {
       /** 独立候选摘要，不含 HTML。 */
-      const storedSummary = this.json<PrototypeCandidateSummary & { draftHash?: string }>(join(path, name), 8192)
+      const bytes = readInteractionFile(join(path, name), Math.min(remaining, 64 * 1024))
+      remaining -= bytes.length
+      /** 已受单条和累计预算约束的摘要数据。 */
+      const storedSummary = JSON.parse(bytes.toString('utf8')) as PrototypeCandidateSummary & { draftHash?: string }
       /** 兼容先前摘要残留的存储字段，不向调用方泄漏。 */
       const { draftHash: _draftHash, ...summary } = storedSummary
       if (summary.prototypeId !== id) throw new Error('候选归属不匹配')
@@ -224,12 +276,14 @@ export class InteractionDesignService {
   private snapshot(id: string): PrototypeSnapshot {
     /** 当前提交点。 */
     const head = this.head(id)
+    /** 删除索引在本次快照中仅读取一次。 */
+    const deletedJobs = new Set(this.historyDeletions(id).jobs)
     return {
       document: this.version(id, head.revision),
       /** 恢复旧版本后仍展示更高版本，用户可以再次切换而不丢历史。 */
       versions: this.records<StoredVersion>(id, 'revisions', head.latestRevision).filter(value => value.version.revision <= (head.latestRevision ?? head.revision)).map(value => value.version).sort((a, b) => b.revision - a.revision),
       candidates: this.candidateSummaries(id, head),
-      assets: this.assets.list(), jobs: this.records<PrototypeJob>(id, 'jobs'), checks: this.records<PrototypeCheck>(id, 'checks'),
+      assets: this.assets.list(), jobs: this.records<PrototypeJob>(id, 'jobs').filter(job => !deletedJobs.has(job.id)), checks: this.records<PrototypeCheck>(id, 'checks'),
     }
   }
   /** 使用工作区 lease 与跨进程模块锁覆盖整个受控变更。 */
@@ -322,7 +376,7 @@ export class InteractionDesignService {
       this.assertProjectRestoreScope(job, input.draft)
     }
     /** 不可变候选内容。 */
-    const candidate: PrototypeCandidate = { id: randomUUID(), prototypeId: input.prototypeId, baseRevision: input.baseRevision, draft: structuredClone(input.draft), summary: input.summary.slice(0, 1000), status: head.revision === input.baseRevision ? 'ready' : 'stale', createdAt: Date.now(), ...(input.jobId ? { jobId: input.jobId } : {}) }
+    const candidate: PrototypeCandidate = { id: randomUUID(), prototypeId: input.prototypeId, baseRevision: input.baseRevision, draft: structuredClone(input.draft), affectedPageIds: this.affectedPages(baseline, input.draft), summary: input.summary.slice(0, 1000), status: head.revision === input.baseRevision ? 'ready' : 'stale', createdAt: Date.now(), ...(input.jobId ? { jobId: input.jobId } : {}) }
     this.record(input.prototypeId, 'candidates', { ...candidate, draftHash: interactionHash(JSON.stringify(candidate.draft)) })
     this.candidateSummary(candidate)
     if (input.jobId) this.record(input.prototypeId, 'jobs', { ...this.job(input.prototypeId, input.jobId), status: 'candidate' })
@@ -367,6 +421,7 @@ export class InteractionDesignService {
   /** 读取独立任务并验证归属。 */
   private job(id: string, jobId: string): PrototypeJob {
     assertInteractionId(jobId)
+    if (this.historyDeletions(id).jobs.includes(jobId)) throw new Error('生成任务已删除')
     this.head(id)
     /** 当前任务记录。 */
     const job = this.json<PrototypeJob>(join(this.directory(id, 'jobs'), `${jobId}.json`))
@@ -498,6 +553,58 @@ export class InteractionDesignService {
           const versionState = readAtomicFileState(versionPath)
           if (!versionState) throw new Error('原型版本不存在')
           removeFileAtomic(versionPath, { expectedIdentity: versionState })
+          return this.snapshot(request.prototypeId)
+        })
+      }
+      case 'getCandidateImpact': {
+        /** 旧摘要按需比对正文，读取过程绝不补写持久化文件。 */
+        const request = input as InteractionDesignInputs['getCandidateImpact']
+        /** 已校验正文及归属的候选。 */
+        const candidate = this.candidate(request.prototypeId, request.candidateId)
+        /** 仅缺失版本允许保守回退，损坏或无权限不能冒充已完成比对。 */
+        if (!Number.isSafeInteger(candidate.baseRevision) || candidate.baseRevision < 1) throw new Error('候选基线身份非法')
+        const baselinePath = join(this.directory(request.prototypeId, 'revisions'), `${candidate.baseRevision}.json`)
+        if (existsSync(baselinePath)) return { pageIds: this.affectedPages(this.version(request.prototypeId, candidate.baseRevision), candidate.draft) }
+        if (candidate.jobId) {
+          /** 固定候选对应生成任务。 */
+          const job = this.job(request.prototypeId, candidate.jobId)
+          if (job.pageId) return { pageIds: [job.pageId] }
+        }
+        /** 当前正式页用于缺失基线时的保守范围。 */
+        const current = this.version(request.prototypeId, this.head(request.prototypeId).revision)
+        return { pageIds: [...new Set([...candidate.draft.pages, ...current.pages].map(page => page.id))], conservative: true }
+      }
+      case 'deleteHistory': {
+        /** 清理只改变列表可见性；写锁内复核 CAS、运行任务和当前版本保护。 */
+        const request = input as InteractionDesignInputs['deleteHistory']
+        return this.write(() => {
+          /** 写锁内的当前版本事实。 */
+          const head = this.head(request.prototypeId)
+          if (head.revision !== request.baseRevision) throw new Error('原型版本已变化，请重新读取后删除')
+          /** 已有隐藏身份，不覆盖历史清理结果。 */
+          const deleted = this.historyDeletions(request.prototypeId)
+          /** 同一次原子提交隐藏候选及其关联任务，避免任务重新冒出。 */
+          const candidates = request.kind === 'candidate'
+            ? [this.candidate(request.prototypeId, request.recordId)]
+            : this.candidateSummaries(request.prototypeId, head).filter(candidate => candidate.jobId === request.recordId)
+          /** 本次同时隐藏的任务身份。 */
+          const jobIds = new Set(candidates.flatMap(candidate => candidate.jobId ? [candidate.jobId] : []))
+          if (request.kind === 'job') jobIds.add(request.recordId)
+          for (const candidate of candidates) {
+            if (head.adopted[candidate.id] === head.revision) throw new Error('当前版本对应候选不能删除')
+          }
+          for (const jobId of jobIds) {
+            if (this.job(request.prototypeId, jobId).status === 'running') throw new Error('运行中的任务请先取消再删除')
+          }
+          /** 单次原子发布的完整删除索引。 */
+          const next: HistoryDeletions = { candidates: [...new Set([...deleted.candidates, ...candidates.map(candidate => candidate.id)])], jobs: [...new Set([...deleted.jobs, ...jobIds])] }
+          if (next.candidates.length > 2000 || next.jobs.length > 2000) throw new Error('历史删除数量超过预算')
+          /** 已校验项目目录内的固定文件。 */
+          const path = join(this.directory(request.prototypeId), 'history-deletions.json')
+          /** 写入前的文件身份，用于原子 CAS。 */
+          const state = readAtomicFileState(path)
+          this.dependencies.assertCurrent?.()
+          writeJsonFileAtomicSecure(path, next, { expectedDestination: state ? { kind: 'state', state } : { kind: 'missing' } })
           return this.snapshot(request.prototypeId)
         })
       }

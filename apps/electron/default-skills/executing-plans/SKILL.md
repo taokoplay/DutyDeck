@@ -1,84 +1,37 @@
 ---
 name: executing-plans
-description: Use when you have a written implementation plan to execute in a separate session with review checkpoints
-version: "1.0.1"
+description: 当已有实施计划且用户已授权执行，需要按任务推进、检查结果和完成交付时使用。用户只要求编写或评审计划时不触发实施。
+version: "1.0.2"
 ---
-# Executing Plans
 
-## Overview
+# 执行实施计划
 
-Load plan, review critically, execute tasks in batches, report for review between batches.
+按已批准的目标推进任务，以实际验证结果交付。任务拆解由 `writing-plans` 负责；代码测试方法由独立的 `test-driven-development` 负责。
 
-**Core principle:** Batch execution with checkpoints for architect review.
+## 1. 读取与检查
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+读取计划、当前任务更新、已授权项目规则及工作区差异，确认依赖顺序、验收标准、共享文件、关联模块和性能影响。对缺少的普通实施细节根据现有代码补齐；只有信息缺口会改变目标、范围或风险时才向用户澄清。
 
-## The Process
+使用当前可用的任务工具或简短文本记录进度。是否使用 worktree 由项目规则和工作区冲突风险决定，不以缺少 `TodoWrite`、外部插件或辅助 Skill 为由阻止普通本地工作。
 
-### Step 1: Load and Review Plan
-1. Read plan file
-2. Review critically - identify any questions or concerns about the plan
-3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create TodoWrite and proceed
+## 2. 在代码修改前加载测试方法
 
-### Step 2: Execute Batch
-**Default: First 3 tasks**
+- 涉及功能开发、缺陷修复、行为变更或重构时，从当前会话可用 Skill 清单获取 `test-driven-development` 的实际路径并读取；同一上下文已经读取时复用，不逐任务重复加载。
+- 如果该 Skill 未出现在当前清单、已停用或读取失败，不扫描全局目录或 `skills-inactive` 寻找副本，不自动安装或重新启用。继续按用户要求、项目测试规范和计划内验证步骤执行；必要时说明未加载，不将辅助 Skill 缺失视为阻塞，不声称已经使用它。
+- 停用 Skill 不等于禁止测试。文档、媒体、纯样式与一次性原型按风险选择验证，不强制走完整 TDD；业务逻辑仍需相应检查。
 
-For each task:
-1. Mark as in_progress
-2. Follow each step exactly (plan has bite-sized steps)
-3. Run verifications as specified
-4. Mark as completed
+## 3. 按依赖推进
 
-### Step 3: Report
-When batch complete:
-- Show what was implemented
-- Show verification output
-- Say: "Ready for feedback."
+1. 选择前置条件已满足的任务，确认目标行为、实际命令和影响范围。
+2. 执行计划中的验证与最小修改，保护用户已有代码。实现先于测试时补充验证并如实记录，不删除实现或制造红灯。
+3. 运行目标项目的相关检查并读取输出。测试命令、依赖、权限或环境错误不等于目标行为已经复现，也不能当作测试通过。
+4. 更新实际完成状态，简短报告关键发现，继续下一个已授权任务；不因固定批次结束就等待重复确认。用户明确设置的评审节点仍须遵守。
 
-### Step 4: Continue
-Based on feedback:
-- Apply changes if needed
-- Execute next batch
-- Repeat until complete
+遇到失败先分析原因，在授权范围内完成可逆诊断和修复；能独立推进的任务继续。持续失败时根据新证据调整方案，不无限重复同一命令。缺少权限、外部条件或会改变方案的关键信息时，报告具体阻塞与需要的输入。
 
-### Step 5: Complete Development
+## 4. 核对与交付
 
-After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
-
-## When to Stop and Ask for Help
-
-**STOP executing immediately when:**
-- Hit a blocker mid-batch (missing dependency, test fails, instruction unclear)
-- Plan has critical gaps preventing starting
-- You don't understand an instruction
-- Verification fails repeatedly
-
-**Ask for clarification rather than guessing.**
-
-## When to Revisit Earlier Steps
-
-**Return to Review (Step 1) when:**
-- Partner updates the plan based on your feedback
-- Fundamental approach needs rethinking
-
-**Don't force through blockers** - stop and ask.
-
-## Remember
-- Review plan critically first
-- Follow plan steps exactly
-- Don't skip verifications
-- Reference skills when plan says to
-- Between batches: just report and wait
-- Stop when blocked, don't guess
-- Never start implementation on main/master branch without explicit user consent
-
-## Integration
-
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+- 按计划逐项检查验收场景和关联回归，按项目要求运行必要的类型检查、lint、构建或真实交互检查；具体测试方法保持在 TDD Skill，避免维护两套细则。
+- 测试通过、真实平台验收、提交和发布是不同状态。说明实际运行的命令与结果、没有运行的部分及原因，不用“实现完成”替代验证。
+- 检查最终差异，确认只包含本任务范围，未覆盖用户或其他 Agent 的改动。只在用户授权时提交、推送或发布，提交说明遵循目标项目规则。
+- 直接交付完成结果和剩余限制，无需依赖额外的分支收尾 Skill；不存在未完成事项时结束，不为凑流程创建额外任务或子会话。

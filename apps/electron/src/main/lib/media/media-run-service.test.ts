@@ -174,6 +174,35 @@ beforeEach(() => { directory = mkdtempSync(join(tmpdir(), 'proma-media-run-')) }
 afterEach(() => { rmSync(directory, { recursive: true, force: true }) })
 
 describe('媒体运行完整链路', () => {
+  test('Given 影像任务绑定 When 重建服务读取 Then 保留不可变归属并兼容普通旧运行', async () => {
+    const fixture = harness()
+    const origin = { actor: { sessionId: 'session', runStartedAt: 10, mode: 'project-agent' as const }, visualProduction: { productionId: 'production', jobId: 'job', baseRevision: 1 } }
+    const prepared = await fixture.create().prepare(input(), origin)
+    const restored = fixture.create().getOrigin('project-a', prepared.id)
+    expect(restored).toEqual(origin)
+    restored.actor!.sessionId = 'changed'
+    restored.visualProduction!.jobId = 'changed'
+    expect(fixture.create().getOrigin('project-a', prepared.id)).toEqual(origin)
+    const ordinary = await fixture.create().prepare({ ...input(), operationId: 'ordinary' })
+    expect(fixture.create().getOrigin('project-a', ordinary.id)).toEqual({})
+    expect(fixture.calls.submit).toBe(0)
+  })
+  test('Given 影像绑定持久记录 When 字段、版本或身份被篡改 Then 恢复拒绝', async () => {
+    const fixture = harness()
+    const prepared = await fixture.create().prepare(input(), { actor: { sessionId: 'session', runStartedAt: 10, mode: 'project-agent' }, visualProduction: { productionId: 'production', jobId: 'job', baseRevision: 1 } })
+    const path = join(directory, 'project-a', 'runs', `${prepared.id}.json`)
+    const original = JSON.parse(readFileSync(path, 'utf8')) as { origin: Record<string, unknown> }
+    for (const binding of [
+      { productionId: 'production', jobId: 'job', baseRevision: 0 },
+      { productionId: '../outside', jobId: 'job', baseRevision: 1 },
+      { productionId: 'production', jobId: 'job', baseRevision: 1, extra: true },
+      { productionId: 'production', baseRevision: 1 },
+    ]) {
+      writeJsonFileAtomicSecure(path, { ...original, origin: { ...original.origin, visualProduction: binding } })
+      expect(() => fixture.create().getOrigin('project-a', prepared.id)).toThrow()
+    }
+  })
+
   test('Given 真实画布编排媒体来源 When 准备后重新读取 Then 保留固定画布身份且不接受缺失节点的来源', async () => {
     const fixture = harness()
     const actor = { sessionId: 'coordinator', runStartedAt: 10, mode: 'canvas-orchestrator' as const, canvasId: 'canvas', nodeId: 'agent' }

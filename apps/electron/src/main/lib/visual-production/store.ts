@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, opendirSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, assertVisualProductionId } from '@proma/shared'
-import type { MediaAssetRef, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia } from '@proma/shared'
+import { visualProductionMediaSourceAllows, parseVisualProductionMediaConfiguration, parseVisualProductionMediaExecution, parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, assertVisualProductionId } from '@proma/shared'
+import type { MediaAssetRef, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution } from '@proma/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
@@ -11,10 +11,18 @@ import { interactionImageMime } from '../interaction-design/asset-service'
 
 /** 宿主注入的可信项目边界；媒体与来源读取均需独立复核。 */
 export interface VisualProductionServiceDependencies {
+  /** 读取当前授权项目公开制作目录，不返回凭据。 */
+  listMediaOptions?: () => Promise<VisualProductionMediaOption[]>
+  /** 按精确版本解析 Agent 选择的工作流，不枚举服务器模板。 */
+  resolveMediaWorkflow?: (source: Extract<VisualProductionMediaOption['source'], { type: 'workflow' }>, kind: VisualProductionMediaOption['kind']) => Promise<VisualProductionMediaOption>
+  /** 按会话读取真实运行回执，不接受调用者编造内容。 */
+  readMediaExecution?: (sessionId: string, runId: string, engine: 'model' | 'workflow') => Promise<VisualProductionMediaExecution>
   workspaceId: string
   projectRoot: string
   assertCurrent?: () => void
   readSourceFile?: (relativePath: string, maxBytes: number) => Promise<Buffer>
+  /** 将已校验的正式参考副本登记到同项目媒体库。 */
+  registerReference?: (input: { sessionId: string; productionId: string; media: VisualMedia; bytes: Uint8Array }) => Promise<MediaAssetRef>
   readMediaAsset?: (reference: MediaAssetRef) => Promise<Uint8Array>
 }
 /** 内容摘要用于不可变媒体与版本比较。 */
@@ -26,6 +34,10 @@ function editable(document: VisualProductionDraft): VisualProductionDraft {
 }
 /** 比较已通过解析的普通领域对象。 */
 function same(left: unknown, right: unknown): boolean { return JSON.stringify(left) === JSON.stringify(right) }
+/** 比较来源的语义身份，不依赖宿主对象字段顺序。 */
+function sameSource(left: VisualProductionMediaOption['source'], right: VisualProductionMediaOption['source']): boolean {
+  return visualProductionMediaSourceAllows(left, right) && visualProductionMediaSourceAllows(right, left)
+}
 /** 只识别被动媒体格式，不允许 HTML/SVG 或任意可执行内容。 */
 function mediaFormat(bytes: Buffer): { mime: string; kind: VisualMedia['kind'] } {
   try { return { mime: interactionImageMime(bytes), kind: 'image' } } catch { /* 继续识别视频和音频。 */ }
@@ -63,6 +75,7 @@ export class VisualProductionService {
     const snapshot = JSON.parse(readInteractionFile(path, VISUAL_PRODUCTION_LIMITS.metadataBytes).toString()) as VisualProductionSnapshot
     if (!snapshot || snapshot.document?.id !== id || snapshot.document.schemaVersion !== 1 || !Number.isSafeInteger(snapshot.document.revision) || snapshot.document.revision < 1) throw new Error('影像作品快照损坏')
     parseVisualProductionDraft(editable(snapshot.document))
+    if (snapshot.mediaConfiguration) snapshot.mediaConfiguration = parseVisualProductionMediaConfiguration(snapshot.mediaConfiguration)
     if (!Array.isArray(snapshot.media) || snapshot.media.length > VISUAL_PRODUCTION_LIMITS.media || !Array.isArray(snapshot.candidates) || snapshot.candidates.length > VISUAL_PRODUCTION_LIMITS.candidates || !Array.isArray(snapshot.jobs) || snapshot.jobs.length > VISUAL_PRODUCTION_LIMITS.jobs || !snapshot.assetVersions || !snapshot.shotStates) throw new Error('影像作品索引损坏')
     for (const media of snapshot.media) {
       if (!media || !['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'video/mp4', 'audio/mpeg', 'audio/wav'].includes(media.mime) || media.mime.split('/')[0] !== media.kind || !/^[a-f0-9]{64}$/.test(media.hash) || media.id !== media.hash || !Number.isSafeInteger(media.byteSize) || media.byteSize < 1 || media.byteSize > VISUAL_PRODUCTION_LIMITS.mediaBytes) throw new Error('媒体索引损坏')
@@ -72,7 +85,14 @@ export class VisualProductionService {
     for (const job of snapshot.jobs) {
       assertVisualProductionId(job.sessionId)
       if (!['running', 'candidate', 'cancelled', 'failed', 'interrupted'].includes(job.status) || !Number.isSafeInteger(job.baseRevision) || job.baseRevision < 1 || job.baseRevision > snapshot.document.revision || typeof job.instruction !== 'string' || typeof job.createdAt !== 'number') throw new Error('任务索引损坏')
+      if (job.stage !== undefined && !['preparing', 'generating', 'reviewing'].includes(job.stage)) throw new Error('任务阶段索引损坏')
       if (job.shotId) assertVisualProductionId(job.shotId)
+      if (job.mediaConfiguration) job.mediaConfiguration = parseVisualProductionMediaConfiguration(job.mediaConfiguration)
+      if (job.mediaExecutions !== undefined) {
+        if (!Array.isArray(job.mediaExecutions) || job.mediaExecutions.length > 32) throw new Error('制作记录超过预算')
+        job.mediaExecutions = job.mediaExecutions.map(parseVisualProductionMediaExecution)
+        if (new Set(job.mediaExecutions.map(receipt => `${receipt.engine}:${receipt.runId}`)).size !== job.mediaExecutions.length) throw new Error('制作记录身份重复')
+      }
     }
     for (const candidate of snapshot.candidates) {
       parseVisualProductionDraft(candidate.draft)
@@ -106,6 +126,27 @@ export class VisualProductionService {
     this.dependencies.assertCurrent?.()
     if (Buffer.byteLength(JSON.stringify(snapshot)) > VISUAL_PRODUCTION_LIMITS.metadataBytes) throw new Error('影像作品快照超过预算')
     writeJsonFileAtomicSecure(join(this.directory(snapshot.document.id, true), 'snapshot.json'), snapshot, { expectedDestination: state ? { kind: 'state', state } : { kind: 'missing' } })
+  }
+  /** 精确解析历史工作流；宿主不能以最新版本替换请求身份。 */
+  private async resolveWorkflow(source: Extract<VisualProductionMediaOption['source'], { type: 'workflow' }>, kind: VisualProductionMediaOption['kind']): Promise<VisualProductionMediaOption> {
+    if (!this.dependencies.resolveMediaWorkflow) throw new Error('工作流解析服务未就绪')
+    const option = await this.dependencies.resolveMediaWorkflow(source, kind)
+    if (option.kind !== kind || !sameSource(option.source, source)) throw new Error('工作流解析身份不匹配')
+    return option
+  }
+  /** 只保留模型、服务及作品已保存的旧工作流，不枚举其他工作流。 */
+  private async mediaCatalog(snapshot: VisualProductionSnapshot): Promise<VisualProductionMediaOption[]> {
+    const options = (this.dependencies.listMediaOptions ? await this.dependencies.listMediaOptions() : []).filter(option => option.source.type !== 'workflow')
+    for (const entry of snapshot.mediaConfiguration?.entries ?? []) {
+      if (entry.source.type !== 'workflow') continue
+      try {
+        const option = await this.resolveWorkflow(entry.source, entry.kind)
+        options.push({ ...option, id: entry.id })
+      } catch {
+        options.push({ ...entry, available: false, unavailableReason: '历史工作流或服务不可用，请重新选择', constraints: {} })
+      }
+    }
+    return options
   }
   /** 正式保存统一维护资产与镜头依赖；保留已采用媒体直到显式替换。 */
   private commit(snapshot: VisualProductionSnapshot, draft: VisualProductionDraft): void {
@@ -191,8 +232,52 @@ export class VisualProductionService {
     if ('baseRevision' in input && input.baseRevision !== snapshot.document.revision) throw new Error('VISUAL_PRODUCTION_CONFLICT: 正式版本已变化')
     switch (command.method) {
       case 'load': return snapshot
+      case 'mediaCatalog': return this.mediaCatalog(snapshot)
+      case 'resolveMediaWorkflow': return this.resolveWorkflow(command.input.source, command.input.kind)
+      case 'saveMediaConfiguration': {
+        if ((snapshot.mediaConfiguration?.revision ?? 0) !== command.input.expectedRevision) throw new Error('VISUAL_PRODUCTION_CONFLICT: 制作配置已变化')
+        const options = this.dependencies.listMediaOptions ? await this.dependencies.listMediaOptions() : []
+        for (const entry of command.input.entries) {
+          const previous = snapshot.mediaConfiguration?.entries.find(item => item.id === entry.id)
+          let option = options.find(item => item.kind === entry.kind && sameSource(item.source, entry.source))
+          if (entry.source.type === 'workflow' && this.dependencies.resolveMediaWorkflow) {
+            try { option = await this.resolveWorkflow(entry.source, entry.kind) } catch { option = undefined }
+          }
+          if (!option?.available) {
+            if (previous && same(previous, entry) && (command.input.defaults[entry.kind] !== entry.id || snapshot.mediaConfiguration?.defaults[entry.kind] === entry.id)) continue
+            throw new Error('制作来源不可用，不能加入或修改此方案')
+          }
+          for (const [key, value] of Object.entries(entry.parameters)) {
+            const parameter = option.constraints.parameters?.find(item => item.key === key)
+            if (!parameter || typeof value !== parameter.type || (parameter.options && !parameter.options.includes(value)) || (typeof value === 'number' && ((parameter.min !== undefined && value < parameter.min) || (parameter.max !== undefined && value > parameter.max)))) throw new Error('制作参数不受当前适配器支持')
+          }
+        }
+        snapshot.mediaConfiguration = parseVisualProductionMediaConfiguration({ revision: command.input.expectedRevision + 1, entries: command.input.entries, defaults: command.input.defaults })
+        break
+      }
+      case 'recordMediaExecution': {
+        const job = this.currentJob(snapshot, command.input)
+        if (!this.dependencies.readMediaExecution) throw new Error('制作记录服务未就绪')
+        const receipt = parseVisualProductionMediaExecution(await this.dependencies.readMediaExecution(input.sessionId, command.input.runId, command.input.engine))
+        if (receipt.runId !== command.input.runId || receipt.engine !== command.input.engine) throw new Error('制作记录身份不匹配')
+        if (job.mediaConfiguration) {
+          /** 精确旧工作流优先，服务授权作为后备，保留已有参数方案身份。 */
+          const entry = job.mediaConfiguration.entries.find(item => item.kind === receipt.kind && sameSource(item.source, receipt.source))
+            ?? job.mediaConfiguration.entries.find(item => item.kind === receipt.kind && visualProductionMediaSourceAllows(item.source, receipt.source))
+          if (!entry) throw new Error('制作来源不在任务冻结范围')
+          receipt.entryId = entry.id
+        }
+        const executions = job.mediaExecutions ?? []
+        const existing = executions.findIndex(item => item.engine === receipt.engine && item.runId === receipt.runId)
+        if (existing < 0 && executions.length >= 32) throw new Error('制作记录超过预算')
+        if (existing < 0) executions.push(receipt)
+        else executions[existing] = receipt
+        job.mediaExecutions = executions
+        this.persist(snapshot, state)
+        return job
+      }
       case 'mediaContent': return this.mediaContent(snapshot, command.input.mediaId)
-      case 'exportManifest': return { fileName: `${snapshot.document.id}-manifest.json`, json: JSON.stringify({ schemaVersion: 1, document: snapshot.document, media: snapshot.media, shotStates: snapshot.shotStates, assetVersions: snapshot.assetVersions }, null, 2) }
+      case 'exportManifest': return { fileName: `${snapshot.document.id}-manifest.json`, json: JSON.stringify({ schemaVersion: 1, document: snapshot.document, media: snapshot.media, shotStates: snapshot.shotStates, assetVersions: snapshot.assetVersions, mediaConfiguration: snapshot.mediaConfiguration, jobs: snapshot.jobs }, null, 2) }
       case 'save': this.commit(snapshot, parseVisualProductionDraft(command.input.draft)); break
       case 'beginJob': {
         /** 仅裁剪未被待采纳候选引用的最老终态任务，关联终态候选一同裁剪。 */
@@ -204,8 +289,56 @@ export class VisualProductionService {
           snapshot.candidates = snapshot.candidates.filter(candidate => candidate.jobId !== removed.id)
         }
         if (command.input.shotId && !snapshot.document.shots.some(shot => shot.id === command.input.shotId)) throw new Error('镜头不存在')
-        const job = { id: randomUUID(), sessionId: input.sessionId, baseRevision: snapshot.document.revision, instruction: command.input.instruction, ...(command.input.shotId ? { shotId: command.input.shotId } : {}), status: 'running' as const, createdAt: Date.now() }
+        const job = { ...(snapshot.mediaConfiguration ? { mediaConfiguration: structuredClone(snapshot.mediaConfiguration) } : {}), id: randomUUID(), sessionId: input.sessionId, baseRevision: snapshot.document.revision, instruction: command.input.instruction, ...(command.input.shotId ? { shotId: command.input.shotId } : {}), status: 'running' as const, stage: 'preparing' as const, createdAt: Date.now() }
         snapshot.jobs.push(job); this.persist(snapshot, state); return job
+      }
+      case 'updateJob': {
+        /** 只推进当前会话仍存活的任务；终态不能被阶段更新复活。 */
+        const job = this.currentJob(snapshot, command.input)
+        /** 阶段序列只允许向前或幂等更新。 */
+        const stages = ['preparing', 'generating', 'reviewing']
+        if (stages.indexOf(command.input.stage) < stages.indexOf(job.stage ?? 'preparing')) throw new Error('任务阶段不能倒退')
+        job.stage = command.input.stage
+        this.persist(snapshot, state)
+        return job
+      }
+      case 'referenceMedia': {
+        /** 单镜头只能使用其正式输出和关联正式资产，不能使用未绑定导入素材。 */
+        const job = this.currentJob(snapshot, command.input)
+        /** 当前任务可访问的正式镜头集合。 */
+        const shots = job.shotId ? snapshot.document.shots.filter(shot => shot.id === job.shotId) : snapshot.document.shots
+        /** 单镜头显式引用的资产身份集合。 */
+        const assetIds = new Set(shots.flatMap(shot => shot.assetIds))
+        /** 整作品任务可使用全部正式资产。 */
+        const assets = job.shotId ? snapshot.document.assets.filter(asset => assetIds.has(asset.id)) : snapshot.document.assets
+        if (![...shots, ...assets].some(item => item.mediaId === command.input.mediaId)) throw new Error('媒体不属于任务正式参考范围')
+        /** 内容寻址媒体与受管副本保持一致。 */
+        const media = snapshot.media.find(item => item.id === command.input.mediaId)
+        if (!media || !this.dependencies.registerReference) throw new Error('参考媒体服务未就绪')
+        /** 先验证副本 hash、格式和长度再交给宿主。 */
+        const content = this.mediaContent(snapshot, media.id)
+        this.dependencies.assertCurrent?.()
+        /** 宿主返回同项目媒体库中的不可变身份。 */
+        const reference = await this.dependencies.registerReference({ sessionId: input.sessionId, productionId: input.productionId, media, bytes: content.bytes })
+        this.dependencies.assertCurrent?.()
+        /** 外部登记可能迟到；返回能力前重新检查任务与正式版本。 */
+        this.currentJob(this.load(input.productionId).snapshot, command.input)
+        if (reference.hash !== media.hash || reference.mediaKind !== media.kind) throw new Error('参考媒体身份不匹配')
+        parseVisualProductionCommand({ method: 'importMedia', input: { sessionId: input.sessionId, productionId: input.productionId, reference } })
+        return reference
+      }
+      case 'proposeShot': {
+        /** 固定任务归属与基线，不接受调用方提供完整草稿。 */
+        const job = this.currentJob(snapshot, command.input)
+        if (!job.shotId || job.shotId !== command.input.shotId) throw new Error('单镜头任务目标不匹配')
+        /** 独立复制正式草稿，仅替换目标输出。 */
+        const draft = parseVisualProductionDraft(editable(snapshot.document))
+        /** 保留目标镜头所有设定与原有顺序。 */
+        const shot = draft.shots.find(item => item.id === command.input.shotId)
+        if (!shot || shot.mediaId === command.input.mediaId) throw new Error('镜头输出没有变化')
+        shot.mediaId = command.input.mediaId
+        /** 沿用同一写锁内的候选检查，不再次 invoke 获取锁。 */
+        return this.execute({ method: 'propose', input: { sessionId: input.sessionId, productionId: input.productionId, baseRevision: command.input.baseRevision, jobId: job.id, draft, summary: command.input.summary } })
       }
       case 'propose': {
         const job = snapshot.jobs.find(item => item.id === command.input.jobId && item.sessionId === input.sessionId)
@@ -246,6 +379,13 @@ export class VisualProductionService {
     }
     this.persist(snapshot, state)
     return snapshot
+  }
+  /** 核验任务归属、存活与固定正式基线，返回当前任务。 */
+  private currentJob(snapshot: VisualProductionSnapshot, input: { sessionId: string; baseRevision: number; jobId: string }): VisualJob {
+    /** 身份匹配同时绑定发起会话。 */
+    const job = snapshot.jobs.find(item => item.id === input.jobId && item.sessionId === input.sessionId)
+    if (!job || job.status !== 'running' || job.baseRevision !== input.baseRevision || snapshot.document.revision !== input.baseRevision) throw new Error('任务已取消、过期或不属于当前会话')
+    return job
   }
   /** 优先使用生产稳定目录读取；测试回退仍禁止路径越界与链接。 */
   private async readSource(relativePath: string): Promise<Buffer> {

@@ -140,6 +140,8 @@ export interface PrototypeCandidateSummary {
   jobId?: string
   /** 已采纳时对应的版本。 */
   adoptedRevision?: number
+  /** 相对固定基线实际受影响的页面身份；旧摘要可按需计算。 */
+  affectedPageIds?: string[]
 }
 
 /** 完整候选正文仅在预览/采纳时读取。 */
@@ -407,6 +409,10 @@ export interface InteractionDesignInputs {
   restore: { sessionId: string; prototypeId: string; baseRevision: number; revision: number }
   deleteVersion: { sessionId: string; prototypeId: string; baseRevision: number; revision: number }
   propose: { sessionId: string; prototypeId: string; baseRevision: number; draft: PrototypeDraft; summary: string; jobId?: string }
+  /** 只读计算历史候选影响页面；缺失基线时返回保守范围。 */
+  getCandidateImpact: { sessionId: string; prototypeId: string; candidateId: string }
+  /** 隐藏历史候选或任务，不删除正式版本及采纳事实。 */
+  deleteHistory: { sessionId: string; prototypeId: string; baseRevision: number; kind: 'candidate' | 'job'; recordId: string }
   getCandidate: { sessionId: string; prototypeId: string; candidateId: string }
   adopt: { sessionId: string; prototypeId: string; candidateId: string; baseRevision: number }
   discardCandidate: { sessionId: string; prototypeId: string; candidateId: string }
@@ -435,6 +441,8 @@ export interface InteractionDesignResults {
   restore: PrototypeSnapshot
   deleteVersion: PrototypeSnapshot
   propose: PrototypeCandidateSummary
+  getCandidateImpact: { pageIds: string[]; conservative?: boolean }
+  deleteHistory: PrototypeSnapshot
   getCandidate: PrototypeCandidate
   adopt: PrototypeSnapshot
   discardCandidate: PrototypeSnapshot

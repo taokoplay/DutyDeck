@@ -6,8 +6,10 @@ export function createVisualProductionRun(sessionId: string, access: VisualProdu
   /** 本轮实际 beginJob 返回的可信身份，不采纳模型提供的任意任务。 */
   const ownedJobs = new Map<string, { job: VisualJob; productionId: string }>()
   return {
+    /** 只向主进程工具包装器提供本轮签发身份；返回副本防止外部改写冻结配置。 */
+    mediaJobs() { return structuredClone([...ownedJobs.values()]) },
     async execute<M extends VisualProductionMethod>(method: M, input: VisualProductionInputs[M], signal?: AbortSignal): Promise<VisualProductionResults[M]> {
-      if ((method === 'propose' || method === 'failJob') && 'jobId' in input) {
+      if (['propose', 'proposeShot', 'referenceMedia', 'updateJob', 'failJob'].includes(method) && 'jobId' in input) {
         /** 旧回合持久任务不属于本轮能力，禁止沿同一 session 偷接迟到结果。 */
         const owned = ownedJobs.get(input.jobId)
         if (!owned || owned.productionId !== input.productionId || input.sessionId !== sessionId) throw new Error('影像任务不属于本轮 Agent 运行')

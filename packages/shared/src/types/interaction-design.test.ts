@@ -122,3 +122,13 @@ describe('项目还原任务合同', () => {
     expect(parsed.input).toMatchObject({ mode: 'project-restore', pageManifest: [{ id: 'home', name: '首页' }, { id: 'settings', name: '设置' }] })
   })
 })
+
+test('Given 历史记录命令 When 类型或身份不合法 Then 拒绝且读取影响只接受身份', () => {
+  /** 合法当前基线和候选定位。 */
+  const input = { sessionId: 'session', prototypeId: 'prototype-1', baseRevision: 1, kind: 'candidate', recordId: 'candidate-1' }
+  expect(parseInteractionDesignCommand({ method: 'deleteHistory', input }).input).toEqual(input)
+  expect(() => parseInteractionDesignCommand({ method: 'deleteHistory', input: { ...input, kind: 'version' } })).toThrow()
+  expect(() => parseInteractionDesignCommand({ method: 'deleteHistory', input: { ...input, recordId: '../escape' } })).toThrow()
+  expect(() => parseInteractionDesignCommand({ method: 'deleteHistory', input: { ...input, baseRevision: undefined } })).toThrow()
+  expect(parseInteractionDesignCommand({ method: 'getCandidateImpact', input: { ...input, candidateId: 'candidate-1' } }).input).toEqual({ sessionId: 'session', prototypeId: 'prototype-1', candidateId: 'candidate-1' })
+})

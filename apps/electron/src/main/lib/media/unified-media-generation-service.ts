@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { MediaAssetRef, MediaGenerationRequest, MediaGenerationSnapshot, MediaInputValue, MediaKind } from '@proma/shared'
-import { parseMediaGenerationRequest } from '@proma/shared'
+import { assertVisualProductionId, parseMediaGenerationRequest } from '@proma/shared'
 import type { UnifiedMediaModelRoute } from './unified-media-model-catalog'
 
 /** 适配器生成的原始媒体结果；字节只在主进程内流转。 */
@@ -13,8 +13,13 @@ export interface UnifiedMediaGenerationAdapterOutput {
 /** 各供应商适配器只负责请求与响应，任务归属和资产登记由 Facade 统一处理。 */
 export interface UnifiedMediaGenerationAdapter {
   id: string
+  /** 同步校验并冻结实际默认输入；不得访问网络或产生文件。 */
+  prepareInputs?(input: { request: MediaGenerationRequest; route: UnifiedMediaModelRoute }): Record<string, MediaInputValue>
   generate(input: { request: MediaGenerationRequest; route: UnifiedMediaModelRoute; signal: AbortSignal }): Promise<UnifiedMediaGenerationAdapterOutput[]>
 }
+
+/** 仅承载主进程适配器明确映射的安全用户提示，原始供应商日志仍统一屏蔽。 */
+export class MediaGenerationUserError extends Error {}
 
 /** 主进程统一媒体运行入口，Agent 与 Canvas 可共享同一实例。 */
 export interface UnifiedMediaGenerationServiceOptions {
@@ -24,7 +29,19 @@ export interface UnifiedMediaGenerationServiceOptions {
   now?: () => number
 }
 
+/** 可信主进程冻结的影像归属，不开放为 Agent 工具参数。 */
+export interface UnifiedMediaVisualProductionBinding {
+  /** 所属影像作品。 */
+  productionId: string
+  /** 发起制作任务。 */
+  jobId: string
+  /** 任务冻结的正式版本。 */
+  baseRevision: number
+}
+
 interface GenerationRecord {
+  /** 首次绑定后不可更换的影像归属。 */
+  visualProduction?: UnifiedMediaVisualProductionBinding
   ownerSessionId: string
   request: MediaGenerationRequest
   route: UnifiedMediaModelRoute
@@ -47,11 +64,13 @@ export class UnifiedMediaGenerationService {
 
   /** 校验模型并冻结一次生成意图，不触发远端请求。 */
   prepare(ownerSessionId: string, raw: MediaGenerationRequest): MediaGenerationSnapshot {
-    const request = parseMediaGenerationRequest(raw)
-    const route = this.options.resolveModel(request.modelRef)
+    const parsed = parseMediaGenerationRequest(raw)
+    const route = this.options.resolveModel(parsed.modelRef)
+    /** 适配器只可补全输入，不能改变项目、模型、操作或提示词身份。 */
+    const adapter = route.option.adapterId ? this.adapters.get(route.option.adapterId) : undefined
+    if (!adapter) throw new Error('MEDIA_MODEL_UNAVAILABLE')
+    const request = adapter.prepareInputs ? parseMediaGenerationRequest({ ...parsed, inputs: adapter.prepareInputs({ request: parsed, route }) }) : parsed
     validateMediaInputCompatibility(request, route)
-    const adapterId = route.option.adapterId
-    if (!adapterId || !this.adapters.has(adapterId)) throw new Error('MEDIA_MODEL_UNAVAILABLE')
     const now = this.now()
     const snapshot: MediaGenerationSnapshot = {
       id: randomUUID(), projectId: request.projectId, revision: 0, phase: 'prepared', modelRef: request.modelRef,
@@ -61,9 +80,32 @@ export class UnifiedMediaGenerationService {
     return this.copy(snapshot)
   }
 
-  /** 启动已准备任务；完成由内部任务推进，返回 running 快照。 */
-  async execute(ownerSessionId: string, runId: string, expectedRevision: number): Promise<MediaGenerationSnapshot> {
+  /**
+   * 为尚未执行的媒体任务固定影像归属；同值调用幂等，禁止跨会话或改派。
+   * @param ownerSessionId 已授权会话身份。
+   * @param runId 该会话准备的媒体任务。
+   * @param binding 宿主已验证的影像任务身份，不接受工具直接填报。
+   */
+  bindVisualProduction(ownerSessionId: string, runId: string, binding: UnifiedMediaVisualProductionBinding): void {
     const record = this.requireOwned(ownerSessionId, runId)
+    assertVisualProductionId(binding.productionId)
+    assertVisualProductionId(binding.jobId)
+    if (!Number.isSafeInteger(binding.baseRevision) || binding.baseRevision < 1) throw new Error('MEDIA_VISUAL_BINDING_INVALID')
+    const previous = record.visualProduction
+    if (previous) {
+      if (previous.productionId !== binding.productionId || previous.jobId !== binding.jobId || previous.baseRevision !== binding.baseRevision) throw new Error('MEDIA_VISUAL_BINDING_CONFLICT')
+      return
+    }
+    if (record.snapshot.phase !== 'prepared') throw new Error('MEDIA_VISUAL_BINDING_TOO_LATE')
+    record.visualProduction = { productionId: binding.productionId, jobId: binding.jobId, baseRevision: binding.baseRevision }
+  }
+
+  /** 启动已准备任务；完成由内部任务推进，返回 running 快照。 */
+  async execute(ownerSessionId: string, runId: string, expectedRevision: number, visualBinding?: UnifiedMediaVisualProductionBinding): Promise<MediaGenerationSnapshot> {
+    const record = this.requireOwned(ownerSessionId, runId)
+    /** 已绑定任务只能由复核过存活状态的影像包装器执行，普通跨轮调用不得绕过。 */
+    const binding = record.visualProduction
+    if (binding && (!visualBinding || binding.productionId !== visualBinding.productionId || binding.jobId !== visualBinding.jobId || binding.baseRevision !== visualBinding.baseRevision)) throw new Error('MEDIA_VISUAL_BINDING_REQUIRED')
     if (record.snapshot.revision !== expectedRevision) throw new Error('MEDIA_GENERATION_REVISION_CONFLICT')
     if (record.snapshot.phase === 'succeeded' || record.snapshot.phase === 'failed' || record.snapshot.phase === 'cancelled') return this.copy(record.snapshot)
     if (record.task) return this.copy(record.snapshot)
@@ -82,10 +124,10 @@ export class UnifiedMediaGenerationService {
   }
 
   /** 为原卡回填读取指定会话的冻结输入与运行事实；返回独立副本，不包含路由凭据。 */
-  getAttachmentSource(ownerSessionId: string, runId: string): { request: MediaGenerationRequest; snapshot: MediaGenerationSnapshot } {
+  getAttachmentSource(ownerSessionId: string, runId: string): { request: MediaGenerationRequest; snapshot: MediaGenerationSnapshot; visualProduction?: UnifiedMediaVisualProductionBinding } {
     /** 所有权验证与普通查询使用同一入口。 */
     const record = this.requireOwned(ownerSessionId, runId)
-    return structuredClone({ request: record.request, snapshot: record.snapshot })
+    return structuredClone({ request: record.request, snapshot: record.snapshot, ...(record.visualProduction ? { visualProduction: record.visualProduction } : {}) })
   }
 
   /** 等待 revision 变化或终态；超时只返回当前快照，不取消远端任务。 */
@@ -141,7 +183,7 @@ export class UnifiedMediaGenerationService {
       this.update(record, { phase: 'succeeded', outputs: assets, error: null })
     } catch (error) {
       if (this.isCancelled(record)) return
-      const message = error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message) ? error.message : 'MEDIA_GENERATION_FAILED'
+      const message = error instanceof MediaGenerationUserError ? error.message : error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message) ? error.message : 'MEDIA_GENERATION_FAILED'
       this.update(record, { phase: 'failed', error: message })
     }
   }
@@ -190,6 +232,9 @@ function validateMediaInputCompatibility(request: MediaGenerationRequest, route:
   }
   if (assets.some((value) => value.asset.mediaKind !== 'image')) throw new Error('MEDIA_GENERATION_INPUT_INVALID')
   if (route.option.kind === 'image') {
+    /** 即梦执行器保留全部十张参考，其他执行器继续遵守当前单图协议。 */
+    const maxReferences = route.option.adapterId === 'dreamina-image' ? 10 : 1
+    if (assets.length > maxReferences) throw new Error('MEDIA_GENERATION_MULTIPLE_REFERENCES_UNSUPPORTED')
     if (hasAssets && !capabilities.has('image-to-image')) throw new Error('MEDIA_GENERATION_INPUT_INVALID')
     if (!hasAssets && !capabilities.has('text-to-image')) throw new Error('MEDIA_GENERATION_INPUT_INVALID')
     return

@@ -11,9 +11,14 @@ import '../src/renderer/styles/globals.css'
 const store = createStore()
 /** smoke 可检查主 Agent 输入引用，但不发模型请求。 */
 let setActive: (active: boolean) => void = () => undefined
+/** 记录并执行真实 URL 回收，用于验证悬浮预览关闭时释放图片资源。 */
+const revokedUrls: string[] = []
+const revokeObjectURL = URL.revokeObjectURL.bind(URL)
+URL.revokeObjectURL = (url: string): void => { revokedUrls.push(url); revokeObjectURL(url) }
 Object.defineProperty(window, '__visualSmoke', { value: {
   prompt: () => store.get(agentPendingPromptAtom),
   active: (value: boolean) => setActive(value),
+  revokedUrls: () => [...revokedUrls],
   select: (productionId: string) => store.set(visualProductionViewsAtom, previous => ({ ...previous, 'smoke-project': { productionId, episodeId: null, shotId: null, tab: 'project' } })),
 } })
 /** 宿主隐藏仅改变 paneActive，覆盖保留挂载时的媒体暂停。 */

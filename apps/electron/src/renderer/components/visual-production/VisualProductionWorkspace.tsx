@@ -2,15 +2,22 @@ import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { ChevronLeft, ChevronRight, Download, Film, FolderOpen, Plus, RefreshCw, Settings2, X } from 'lucide-react'
 import { VISUAL_PRODUCTION_RATIOS } from '@proma/shared'
-import type { VisualProductionDraft, VisualProductionKind, VisualProductionSnapshot, VisualProductionSummary, VisualCandidate } from '@proma/shared'
+import type { VisualProductionDraft, VisualProductionKind, VisualProductionSnapshot, VisualProductionSummary } from '@proma/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { agentPendingPromptAtom } from '@/atoms/agent-atoms'
 import { visualProductionViewsAtom, type VisualProductionView } from '@/atoms/visual-production-atoms'
-import { buildVisualPrompt, copyVisualDraft, reorderVisualShot, VisualRequestGate, VisualScopeEpoch } from './model'
+import { buildVisualPrompt, buildVisualRetryPrompt, copyVisualDraft, reorderVisualShot, VisualRequestGate, VisualScopeEpoch, VISUAL_KIND_LABELS as KIND_LABELS } from './model'
 import { VisualMediaView } from './VisualMediaView'
+import { VisualProductionMediaConfigurationPanel } from './VisualProductionMediaConfiguration'
+import { VisualProductionRecords } from './VisualProductionRecords'
+import { VisualAssetReference } from './VisualAssetReference'
+import { VisualShotDetails } from './VisualShotDetails'
+import { VisualRelationCanvas } from './VisualRelationCanvas'
 import './visual-production.css'
 
 /** 编辑器冻结作品与版本；后台刷新仅更新正式数据，不覆盖输入草稿。 */
@@ -19,8 +26,8 @@ interface VisualEditor { key: string; kind: 'project' | 'asset' | 'shot' | 'epis
 const EMPTY_VIEW: VisualProductionView = { productionId: null, episodeId: null, shotId: null, tab: 'project' }
 /** 资产类型使用内容角色分类，媒体格式单独显示。 */
 const ASSET_TYPES = ['角色', '场景', '产品', '道具', '风格', '品牌', '声音']
-/** 作品类型名称用于目录与新建表单。 */
-const KIND_LABELS: Record<VisualProductionKind, string> = { comic: '漫剧', film: '影片', promo: '宣传片', image: '图片' }
+/** Select 选项不能使用空字符串；下划线开头与合法媒体身份隔离，保存时还原为 null。 */
+const NO_MEDIA_VALUE = '__no_media__'
 
 /** 独立影像制作工作台，所有 Agent 请求统一引用到主会话。 */
 export function VisualProductionWorkspace({ projectId, sessionId, paneActive = true }: { projectId: string; sessionId: string; paneActive?: boolean }): React.ReactElement {
@@ -46,11 +53,16 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   const [playing, setPlaying] = React.useState(false)
   /** 等待实际媒体加载后再计时，避免读取耗时吞掉预演。 */
   const [mediaReady, setMediaReady] = React.useState('')
-  const [candidateId, setCandidateId] = React.useState<string | null>(null)
+  /** 横向分镜容器只在镜头切换时滚动，不移动下方播放器所在的纵向工作区。 */
+  const shotStrip = React.useRef<HTMLDivElement>(null)
   /** 关闭弹窗保留本会话内草稿，每个作品/对象独立保存。 */
   const drafts = React.useRef(new Map<string, VisualEditor>())
   /** 弹窗关闭后还原入口焦点，便于键盘连续编辑。 */
   const editorOpener = React.useRef<HTMLElement | null>(null)
+  /** 详情与编辑共用一个弹窗，切换内容时将焦点移到可见表单或标题。 */
+  const editorDialog = React.useRef<HTMLDivElement>(null)
+  /** 资产详情标题可接收程序焦点，打开长内容时从顶部开始阅读。 */
+  const assetHeading = React.useRef<HTMLHeadingElement>(null)
   const gate = React.useRef(new VisualRequestGate())
   const listGate = React.useRef(new VisualRequestGate())
   const context = `${projectId}:${sessionId}:${view.productionId ?? ''}`
@@ -65,7 +77,10 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   const shots = React.useMemo(() => document?.shots.filter(item => item.episodeId === episodeId) ?? [], [document, episodeId])
   const shot = shots.find(item => item.id === view.shotId) ?? shots[0]
   const selectedAsset = document?.assets.find(item => item.id === assetId)
-  const candidate = snapshot?.candidates.find(item => item.id === candidateId)
+  /** 详情只读取当前作品的正式资产，编辑草稿仍由原编辑器管理。 */
+  const showingAssetDetails = !!selectedAsset && !editor
+  /** 使用位置仅按资产身份关联，不把同名资产或其他作品镜头混入。 */
+  const assetUsages = React.useMemo(() => document?.shots.filter(item => item.assetIds.includes(selectedAsset?.id ?? '')) ?? [], [document, selectedAsset?.id])
   const currentMedia = snapshot?.media.find(item => item.id === shot?.mediaId)
   const shotIndex = shots.findIndex(item => item.id === shot?.id)
   /** 异步回流读取当前作用域，避免闭包把旧作品写回新面板。 */
@@ -105,7 +120,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   React.useEffect(() => { void refreshList(); return () => { listGate.current.next() } }, [refreshList])
   React.useEffect(() => {
     latest.current.busy = false; editorSequence.current++
-    setSnapshot(null); setEditor(null); setCreate(false); setCandidateId(null); setAssetId(null); setError(''); setNotice(''); setBusy(false); setPlaying(false); setImportPath('')
+    setSnapshot(null); setEditor(null); setCreate(false); setAssetId(null); setError(''); setNotice(''); setBusy(false); setPlaying(false); setImportPath('')
     void load()
     return () => { gate.current.next() }
   }, [context, load])
@@ -116,12 +131,30 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   }), [projectId, view.productionId, refreshList, load])
   React.useEffect(() => { if (!paneActive) setPlaying(false) }, [paneActive])
   React.useEffect(() => {
+    if (!paneActive || !selectedAsset) return
+    if (editor) editorDialog.current?.querySelector<HTMLInputElement>('form input')?.focus({ preventScroll: true })
+    else assetHeading.current?.focus({ preventScroll: true })
+  }, [editor?.key, selectedAsset?.id, paneActive])
+  React.useEffect(() => {
+    /** 只读取当前卡片和容器的边界，连续播放时无需逐帧测量整排镜头。 */
+    const strip = shotStrip.current
+    /** 使用实际选中节点，兼容镜头删除或集数切换后的默认选择。 */
+    const selected = strip?.querySelector<HTMLElement>('.vp-shot[aria-pressed="true"]')
+    if (!paneActive || !strip || !selected) return
+    /** 分镜条可见区域，用于计算横向裁切范围。 */
+    const viewport = strip.getBoundingClientRect()
+    /** 当前卡片边界，仅超出可见范围时调整横向滚动。 */
+    const card = selected.getBoundingClientRect()
+    if (card.left < viewport.left + 4) strip.scrollLeft += card.left - viewport.left - 4
+    else if (card.right > viewport.right - 4) strip.scrollLeft += card.right - viewport.right + 4
+  }, [shot?.id, shotIndex, document?.id, episodeId, view.tab, paneActive])
+  React.useEffect(() => {
     if (!directory) return
     const close = (event: KeyboardEvent): void => { if (event.key === 'Escape') setDirectory(false) }
     window.addEventListener('keydown', close)
     return () => window.removeEventListener('keydown', close)
   }, [directory])
-  React.useEffect(() => { setPlaying(false) }, [episodeId, view.tab, editor, candidateId])
+  React.useEffect(() => { setPlaying(false) }, [episodeId, view.tab, editor, assetId])
   React.useEffect(() => {
     const hide = (): void => { if (window.document.hidden) setPlaying(false) }
     window.document.addEventListener('visibilitychange', hide)
@@ -152,10 +185,15 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
     setPrompt({ sessionId, message: buildVisualPrompt(document, targetShot, targetAsset), autoSend: false })
     setNotice('已引用到旁边 Agent 对话，请补充制作要求。')
   }
+  /** 在当前页签打开资产详情；记录原入口，关闭后恢复焦点与滚动位置。 */
+  const openAsset = (targetId: string): void => {
+    editorOpener.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null
+    setError(''); setPlaying(false); setAssetId(targetId)
+  }
   const openEditor = (editorKind: VisualEditor['kind'], targetId?: string): void => {
     if (!document) return
     editorSequence.current++
-    editorOpener.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null
+    if (!selectedAsset) editorOpener.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null
     setError('')
     const id = targetId ?? crypto.randomUUID()
     const key = `${context}:${editorKind}:${targetId ?? 'new'}`
@@ -218,23 +256,24 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   const editShot = editor?.draft.shots.find(item => item.id === editor.targetId)
   const editAsset = editor?.draft.assets.find(item => item.id === editor.targetId)
   const editEpisode = editor?.draft.episodes.find(item => item.id === editor.targetId)
-  /** 候选预览只使用其草稿，不改变正式播放器或已采用画面。 */
-  const renderCandidate = (item: VisualCandidate): React.ReactElement => <div className="vp-card vp-candidate" key={item.id}>
-    <div className="vp-row">
-      <strong>{item.summary || '制作候选'}</strong>
-      <span className="vp-badge">{item.status === 'ready' ? '待采用' : item.status === 'stale' ? '已过期' : item.status === 'adopted' ? '已采用' : '已丢弃'}</span>
-    </div>
-    <span className="vp-muted">基于版本 {item.baseRevision} · {item.draft.shots.length} 个镜头</span>
-    <div className="vp-row">
-      <Button variant="outline" size="sm" onClick={() => setCandidateId(item.id)}>预览</Button>{item.status === 'ready' && <Button size="sm" disabled={busy || item.baseRevision !== document?.revision} onClick={() => { if (document) void mutate(() => window.electronAPI.visualProduction.invoke('adopt', { sessionId, productionId: document.id, baseRevision: document.revision, candidateId: item.id })) }}>采用候选</Button>}{(item.status === 'ready' || item.status === 'stale') && <Button variant="ghost" size="sm" disabled={busy} onClick={() => { if (document) void mutate(() => window.electronAPI.visualProduction.invoke('discardCandidate', { sessionId, productionId: document.id, candidateId: item.id })) }}>丢弃</Button>}</div>
-  </div>
   return <div className="vp-workspace" data-testid="visual-production-workspace">
     <header className="vp-top">
       <Button variant="ghost" size="icon" aria-label="影像项目目录" onClick={() => setDirectory(!directory)}>
         <FolderOpen size={17} />
       </Button>
       <Film size={17} />
-      <strong>{document?.title ?? '影像创作'}</strong>{document && <span className="vp-badge">v{document.revision}</span>}<Button variant="ghost" size="icon" aria-label="刷新作品" disabled={busy} onClick={() => { void refreshList(); void load() }}>
+      <strong>{document?.title ?? '影像创作'}</strong>{document && <span className="vp-badge">v{document.revision}</span>}
+      {document && snapshot && <VisualProductionRecords key={context} sessionId={sessionId} snapshot={snapshot} paneActive={paneActive} busy={busy} error={error}
+        onOpen={() => setPlaying(false)}
+        onAdopt={candidateId => void mutate(() => window.electronAPI.visualProduction.invoke('adopt', { sessionId, productionId: document.id, baseRevision: document.revision, candidateId }))}
+        onDiscard={candidateId => void mutate(() => window.electronAPI.visualProduction.invoke('discardCandidate', { sessionId, productionId: document.id, candidateId }))}
+        onCancel={jobId => void mutate(() => window.electronAPI.visualProduction.invoke('cancelJob', { sessionId, productionId: document.id, jobId }))}
+        onRetry={job => {
+          /** 点击时用最新正式版本构造重试要求，不恢复旧任务或自动发送。 */
+          const message = buildVisualRetryPrompt(document, job)
+          if (message) { setPrompt({ sessionId, message, autoSend: false }); setNotice('已将重试要求引用到 Agent，请核对后发送。') }
+        }} />}
+      <Button variant="ghost" size="icon" aria-label="刷新作品" disabled={busy} onClick={() => { void refreshList(); void load() }}>
         <RefreshCw size={15} />
       </Button>
     </header>
@@ -262,14 +301,15 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
         <X size={12} />
       </Button>
     </div>}
-    {document && <nav className="vp-tabs">{([['project', '项目'], ['assets', '资产'], ['shots', document.kind === 'image' ? '图片' : '分镜'], ['relations', '关系'], ['delivery', '交付']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={view.tab === tab ? 'secondary' : 'ghost'} onClick={() => updateView({ tab })}>{label}</Button>)}</nav>}
-    <main className="vp-body">
+    {document && <nav className="vp-tabs">{([['project', '项目'], ['assets', '资产'], ['shots', document.kind === 'image' ? '图片' : '分镜'], ['relations', '画布'], ['delivery', '交付'], ['configuration', '制作配置']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={view.tab === tab ? 'secondary' : 'ghost'} onClick={() => updateView({ tab })}>{label}</Button>)}</nav>}
+    <main className={`vp-body${view.tab === 'relations' && document ? ' vp-body-relations' : ''}`}>
       {!document ? <div className="vp-empty">
         <Film size={32} />
         <h3>{loading ? '读取影像项目…' : '开始你的第一部作品'}</h3>
         <p className="vp-muted">在当前 Agent 项目中管理漫剧、影片、宣传片和图片。</p>
         <Button onClick={() => setCreate(true)}>新建影像项目</Button>
       </div> : <>
+        {snapshot && <VisualProductionMediaConfigurationPanel key={context} sessionId={sessionId} productionId={document.id} configuration={snapshot.mediaConfiguration} active={paneActive && view.tab === 'configuration'} busy={busy} onSave={(configuration, onSaved) => { void mutate(() => window.electronAPI.visualProduction.invoke('saveMediaConfiguration', { sessionId, productionId: document.id, expectedRevision: configuration.revision, entries: configuration.entries, defaults: configuration.defaults }), () => { onSaved(); setNotice('已保存制作配置，新任务将使用此配置。') }) }} />}
         {view.tab === 'project' && <div className="vp-section">
           <section className="vp-card">
             <div className="vp-row">
@@ -295,49 +335,44 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
               <Button variant="ghost" size="sm" onClick={() => openEditor('episode', item.id)}>重命名</Button>
             </div>)}{!document.episodes.length && <p className="vp-muted mt-3">先新增集数，再安排镜头。</p>}</section>
         </div>}
-        {view.tab === 'assets' && <div className="vp-section">{selectedAsset ? <>
-          <div className="vp-row">
-            <Button variant="ghost" onClick={() => setAssetId(null)}>
-              <ChevronLeft size={14} />返回资产库</Button>
-            <strong>{selectedAsset.name}</strong>
-            <span className="vp-badge">{selectedAsset.type}{selectedAsset.locked ? ' · 已锁定' : ''}</span>
-          </div>
-          <VisualMediaView active={paneActive} key={selectedAsset.id} sessionId={sessionId} productionId={document.id} media={snapshot?.media.find(item => item.id === selectedAsset.mediaId)} className="vp-player" />
-          <p className="vp-summary">{selectedAsset.description || '尚无说明'}</p>
-          <div className="vp-detail-actions">
-            <Button variant="outline" onClick={() => openEditor('asset', selectedAsset.id)}>编辑资产</Button>
-            <Button variant="outline" disabled={busy} onClick={() => { const draft = copyVisualDraft(document); draft.assets.find(item => item.id === selectedAsset.id)!.locked = !selectedAsset.locked; void mutate(() => window.electronAPI.visualProduction.invoke('save', { sessionId, productionId: document.id, baseRevision: document.revision, draft })) }}>{selectedAsset.locked ? '解锁' : '锁定'}</Button>
-            <Button variant="ghost" onClick={() => reference(undefined, selectedAsset.id)}>引用到 Agent</Button>
-          </div>
-          <details>
-            <summary>使用位置（{document.shots.filter(item => item.assetIds.includes(selectedAsset.id)).length}）</summary>{document.shots.filter(item => item.assetIds.includes(selectedAsset.id)).map(item => <Button key={item.id} variant="ghost" onClick={() => updateView({ tab: 'shots', episodeId: item.episodeId, shotId: item.id })}>{item.title}</Button>)}</details>
-        </> : <>
-          <div className="vp-row">
-            <Input aria-label="搜索资产" placeholder="搜索资产名称或说明" value={assetSearch} onChange={event => setAssetSearch(event.target.value)} />
-            <Button variant="outline" onClick={() => openEditor('asset')}>
+        {view.tab === 'assets' && <div className="vp-section">
+          <div className="flex min-w-0 items-center gap-2">
+            <Input className="min-w-0 flex-1" aria-label="搜索资产" placeholder="搜索资产名称或说明" value={assetSearch} onChange={event => setAssetSearch(event.target.value)} />
+            <Button className="shrink-0" variant="outline" onClick={() => openEditor('asset')}>
               <Plus size={14} />新增资产</Button>
           </div>
           <div className="vp-row">{['全部', ...ASSET_TYPES].map(type => <Button size="sm" key={type} variant={assetType === type ? 'secondary' : 'ghost'} onClick={() => setAssetType(type)}>{type}</Button>)}</div>
-          <div className="vp-grid">{document.assets.filter(item => (assetType === '全部' || item.type === assetType) && `${item.name} ${item.description}`.toLowerCase().includes(assetSearch.toLowerCase())).map(item => <button className="vp-card vp-asset-card" key={item.id} onClick={() => setAssetId(item.id)}>
+          <div className="vp-grid">{document.assets.filter(item => (assetType === '全部' || item.type === assetType) && `${item.name} ${item.description}`.toLowerCase().includes(assetSearch.toLowerCase())).map(item => <button className="vp-card vp-asset-card" key={item.id} onClick={() => openAsset(item.id)}>
             <VisualMediaView active={paneActive} sessionId={sessionId} productionId={document.id} media={snapshot?.media.find(media => media.id === item.mediaId)} />
             <strong>{item.name}</strong>
             <span className="vp-muted">{item.type} · {item.locked ? '已锁定' : '可编辑'}</span>
-          </button>)}</div>{!document.assets.length && <p className="vp-muted">新增角色、场景或产品资产，镜头引用后可查看关联影响。</p>}</>}</div>}
+          </button>)}</div>{!document.assets.length && <p className="vp-muted">新增角色、场景或产品资产，镜头引用后可查看关联影响。</p>}</div>}
         {view.tab === 'shots' && <div className="vp-section">
-          <div className="vp-toolbar">
-            <select aria-label="当前集数" value={episodeId ?? ''} onChange={event => updateView({ episodeId: event.target.value, shotId: null })}>{!document.episodes.length && <option value="">尚无集数</option>}{document.episodes.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
-            <span className="vp-muted">{shots.length} 个{document.kind === 'image' ? '图片' : '镜头'}</span>
-            <Button size="sm" variant="outline" disabled={!episodeId} onClick={() => openEditor('shot')}>
+          <div className="flex min-w-0 items-center gap-2">
+            <Select value={episodeId ?? ''} disabled={!document.episodes.length} onValueChange={value => updateView({ episodeId: value, shotId: null })}>
+              <SelectTrigger aria-label="当前集数" className="h-8 min-w-0 max-w-72 flex-1 gap-2 text-xs [&>span]:min-w-0 [&>svg]:shrink-0"><SelectValue placeholder="尚无集数" /></SelectTrigger>
+              <SelectContent>{document.episodes.map(item => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent>
+            </Select>
+            <span className="vp-muted shrink-0 whitespace-nowrap">{shots.length} 个{document.kind === 'image' ? '图片' : '镜头'}</span>
+            <Button className="ml-auto shrink-0" size="sm" variant="outline" disabled={!episodeId} onClick={() => openEditor('shot')}>
               <Plus size={14} />新增</Button>
           </div>{document.kind === 'image' ? <div className="vp-grid">{shots.map(item => <button className="vp-card" key={item.id} onClick={() => { updateView({ shotId: item.id }); openEditor('shot', item.id) }}>
             <VisualMediaView active={paneActive} sessionId={sessionId} productionId={document.id} media={snapshot?.media.find(media => media.id === item.mediaId)} />
             <p className="mt-2">{item.title}</p>
           </button>)}</div> : <>
-            <div className="vp-strip">{shots.map((item, index) => <button key={item.id} className="vp-shot" aria-pressed={shot?.id === item.id} onClick={() => { setPlaying(false); updateView({ shotId: item.id }) }}>
-              <VisualMediaView active={paneActive} sessionId={sessionId} productionId={document.id} media={snapshot?.media.find(media => media.id === item.mediaId)} />
-              <span>{index + 1}. {item.title}</span>
-              <span className="vp-muted">{item.duration}s{snapshot?.shotStates[item.id]?.needsUpdate ? ' · 待更新' : ''}</span>
-            </button>)}</div>
+            <div ref={shotStrip} className="vp-strip" role="group" aria-label="分镜序列">{shots.map((item, index) => {
+              /** 没有输出时显示未生成，避免把空画面混同于需要重做的已采用素材。 */
+              const status = !item.mediaId ? '未生成' : snapshot?.shotStates[item.id]?.needsUpdate ? '待更新' : '已采用'
+              return <button key={item.id} className="vp-shot" aria-pressed={shot?.id === item.id} aria-label={`镜头 ${index + 1}，${item.title}，${item.duration} 秒，${status}`} onClick={() => { setPlaying(false); updateView({ shotId: item.id }) }}>
+                <div className="vp-shot-preview">
+                  <VisualMediaView active={paneActive} sessionId={sessionId} productionId={document.id} media={snapshot?.media.find(media => media.id === item.mediaId)} />
+                  <span className="vp-shot-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="vp-shot-duration">{item.duration}s</span>
+                </div>
+                <span className="vp-shot-title" title={item.title}>{item.title}</span>
+                <span className="vp-shot-footer"><span className="vp-shot-status">{status}</span>{shot?.id === item.id && <span className="vp-shot-current">当前</span>}</span>
+              </button>
+            })}</div>
             <div className="vp-player" style={{ aspectRatio: document.ratio.replace(':', '/'), width: `min(100%, calc(46vh * ${document.ratio.replace(':', ' / ')}))`, height: 'auto', maxHeight: '46vh', marginInline: 'auto' }} onClick={event => { if (shot && currentMedia && (event.target instanceof HTMLImageElement || event.target instanceof HTMLVideoElement)) setPlaying(value => !value) }}>{shot ? <VisualMediaView active={paneActive} key={`${document.id}:${shot.id}:${shot.mediaId}`} sessionId={sessionId} productionId={document.id} media={currentMedia} playing={playing && paneActive} onReady={() => setMediaReady(`${shot.id}:${shot.mediaId}`)} onEnded={advance} onError={() => setPlaying(false)} /> : <div className="vp-player-empty">新增镜头，开始安排画面</div>}</div>{shot && <div className="vp-row">
               <Button variant="outline" disabled={shotIndex <= 0} aria-label="上一镜头" onClick={() => { setPlaying(false); updateView({ shotId: shots[shotIndex - 1]?.id ?? null }) }}>
                 <ChevronLeft size={14} />
@@ -347,27 +382,22 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
                 <ChevronRight size={14} />
               </Button>
               <span className="vp-muted">{currentMedia?.kind === 'video' ? '视频素材' : '静帧预演'} · {shotIndex + 1} / {shots.length}</span>
-            </div>}</>}{shot && <section className="vp-card">
-              <div className="vp-row">
-                <strong>{shot.title}</strong>
-                <Button size="sm" variant="outline" onClick={() => openEditor('shot', shot.id)}>镜头设置</Button>
-                <Button size="sm" variant="ghost" onClick={() => reference(shot.id)}>引用到 Agent</Button>
+            </div>}</>}{shot && <section className="vp-card vp-shot-detail-card">
+              <div className="vp-shot-detail-header">
+                <div className="min-w-0 flex-1"><strong className="block truncate" title={shot.title}>{shot.title}</strong><span className="vp-muted">{document.kind === 'image' ? '图片' : `镜头 ${shotIndex + 1} / ${shots.length} · ${shot.duration} 秒`}</span></div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => openEditor('shot', shot.id)}>镜头设置</Button>
+                  <Button size="sm" variant="ghost" onClick={() => reference(shot.id)}>引用到 Agent</Button>
+                </div>
               </div>
-              <details className="mt-3">
-                <summary>画面与镜头信息</summary>
-                <p className="vp-summary mt-2">{shot.scene || '尚无画面描述'}</p>
-                <p className="vp-muted">运镜：{shot.motion || '未设置'} · 台词：{shot.dialogue || '未设置'}</p>
-                <div className="vp-row mt-2">{shot.assetIds.map(id => <Button variant="ghost" size="sm" key={id} onClick={() => { setAssetId(id); updateView({ tab: 'assets' }) }}>{document.assets.find(item => item.id === id)?.name}</Button>)}</div>
-              </details>
-              <div className="vp-row mt-3">
+              <VisualShotDetails key={`${document.id}:${shot.id}`} sessionId={sessionId} productionId={document.id} shot={shot} assets={document.assets} media={snapshot?.media ?? []} state={snapshot?.shotStates[shot.id]} active={paneActive} onOpenAsset={openAsset} />
+              <div className="vp-row vp-shot-detail-footer">
+                <span className="vp-muted mr-auto">调整顺序</span>
                 <Button variant="ghost" size="sm" disabled={busy || shotIndex <= 0} onClick={() => { const draft = copyVisualDraft(document); draft.shots = reorderVisualShot(draft.shots, shot.id, -1); void mutate(() => window.electronAPI.visualProduction.invoke('save', { sessionId, productionId: document.id, baseRevision: document.revision, draft })) }}>前移</Button>
                 <Button variant="ghost" size="sm" disabled={busy || shotIndex >= shots.length - 1} onClick={() => { const draft = copyVisualDraft(document); draft.shots = reorderVisualShot(draft.shots, shot.id, 1); void mutate(() => window.electronAPI.visualProduction.invoke('save', { sessionId, productionId: document.id, baseRevision: document.revision, draft })) }}>后移</Button>
               </div>
             </section>}</div>}
-        {view.tab === 'relations' && <div className="vp-section">
-          <h3>资产 → 镜头 → 集数</h3>
-          <p className="vp-muted">关系来自镜头的真实资产引用。资产变化会标记关联镜头待更新，采用新画面后恢复。</p>{document.assets.map(item => <section className="vp-card vp-relations" key={item.id}>
-            <Button variant="ghost" onClick={() => { setAssetId(item.id); updateView({ tab: 'assets' }) }}>{item.name} · {item.type}</Button>{document.shots.filter(value => value.assetIds.includes(item.id)).map(value => <Button key={value.id} variant="outline" onClick={() => updateView({ tab: 'shots', episodeId: value.episodeId, shotId: value.id })}>{document.episodes.find(episode => episode.id === value.episodeId)?.title} / {value.title}{snapshot?.shotStates[value.id]?.needsUpdate ? ' · 待更新' : ''}</Button>)}{!document.shots.some(value => value.assetIds.includes(item.id)) && <span className="vp-muted">尚未被镜头引用</span>}</section>)}{!document.assets.length && <p className="vp-muted">创建资产并在镜头设置中绑定后，这里会显示制作关系。</p>}</div>}
+        {view.tab === 'relations' && snapshot && <VisualRelationCanvas key={document.id} projectId={projectId} sessionId={sessionId} snapshot={snapshot} active={paneActive} onOpenAsset={openAsset} onOpenShots={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} />}
         {view.tab === 'delivery' && <div className="vp-section">
           <section className="vp-card">
             <h3>制作交付</h3>
@@ -377,12 +407,6 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
             <div className="vp-row mt-3">{Array.from(new Set([...document.shots.map(item => item.mediaId), ...document.assets.map(item => item.mediaId)].filter((id): id is string => !!id))).map(id => <Button key={id} variant="outline" size="sm" onClick={() => void exportMedia(id)}>{snapshot?.media.find(item => item.id === id)?.name ?? id}</Button>)}</div>
           </section>
         </div>}
-        {(snapshot?.jobs.length || snapshot?.candidates.length) ? <section className="vp-section mt-5">
-          <h3>制作任务与候选</h3>{snapshot.jobs.slice(-10).reverse().map(item => <div key={item.id} className="vp-card vp-row">
-            <strong>{item.instruction}</strong>
-            <span className="vp-muted">{({ running: '处理中', candidate: '候选已提交', failed: '失败', cancelled: '已取消', interrupted: '已中断' })[item.status]}{item.message ? ` · ${item.message}` : ''}</span>
-            {item.status === 'running' && <Button variant="outline" size="sm" disabled={busy} onClick={() => void mutate(() => window.electronAPI.visualProduction.invoke('cancelJob', { sessionId, productionId: document.id, jobId: item.id }))}>取消任务</Button>}
-          </div>)}{snapshot.candidates.slice().reverse().map(renderCandidate)}</section> : null}
       </>}
     </main>
     <Dialog open={create} onOpenChange={open => { if (!busy) setCreate(open) }}>
@@ -396,7 +420,10 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
             {error && <p role="alert" className="vp-error">{error}</p>}
             <label>作品名称<Input required maxLength={120} disabled={busy} value={title} onChange={event => setTitle(event.target.value)} autoFocus />
             </label>
-            <label>作品类型<select disabled={busy} value={kind} onChange={event => setKind(event.target.value as VisualProductionKind)}>{Object.entries(KIND_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
+            <label>作品类型<Select disabled={busy} value={kind} onValueChange={value => setKind(value as VisualProductionKind)}>
+              <SelectTrigger aria-label="作品类型"><SelectValue /></SelectTrigger>
+              <SelectContent>{Object.entries(KIND_LABELS).map(([value, label]) => <SelectItem value={value} key={value}>{label}</SelectItem>)}</SelectContent>
+            </Select>
             </label>
           </div>
           <footer className="vp-form-footer">
@@ -406,12 +433,30 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
         </form>
       </DialogContent>
     </Dialog>
-    <Dialog open={!!editor} onOpenChange={open => { if (!open) closeEditor() }}>
-      <DialogContent onCloseAutoFocus={event => { event.preventDefault(); editorOpener.current?.focus() }} className={editor?.kind === 'shot' ? 'vp-dialog sm:max-w-[880px]' : 'vp-dialog sm:max-w-[640px]'}>
-        <DialogHeader>
-          <DialogTitle>{editor?.kind === 'project' ? '作品设定' : editor?.kind === 'shot' ? '镜头设置' : editor?.kind === 'asset' ? '资产设置' : '集数设置'}</DialogTitle>
-          <DialogDescription>关闭保留本次草稿，保存后更新正式版本。</DialogDescription>
-        </DialogHeader>{editor && <form className="vp-form" onSubmit={saveEditor}>
+    <Dialog open={paneActive && (!!editor || !!selectedAsset)} onOpenChange={open => { if (!open) { if (editor) closeEditor(); else setAssetId(null) } }}>
+      <DialogContent ref={editorDialog} onOpenAutoFocus={event => { if (showingAssetDetails) { event.preventDefault(); assetHeading.current?.focus() } }} onCloseAutoFocus={event => { event.preventDefault(); if (paneActive && editorOpener.current?.isConnected) editorOpener.current.focus({ preventScroll: true }) }} className={showingAssetDetails ? 'vp-dialog vp-asset-dialog sm:max-w-[900px]' : editor?.kind === 'shot' ? 'vp-dialog sm:max-w-[880px]' : 'vp-dialog sm:max-w-[640px]'}>
+        <DialogHeader className="pr-6">
+          <DialogTitle ref={assetHeading} tabIndex={-1} className="break-words leading-snug">{showingAssetDetails ? selectedAsset.name : editor?.kind === 'project' ? '作品设定' : editor?.kind === 'shot' ? '镜头设置' : editor?.kind === 'asset' ? '资产设置' : '集数设置'}</DialogTitle>
+          <DialogDescription>{showingAssetDetails ? `${selectedAsset.type} · ${selectedAsset.locked ? '已锁定' : '可编辑'}` : '关闭保留本次草稿，保存后更新正式版本。'}</DialogDescription>
+        </DialogHeader>
+        {showingAssetDetails && document && <>
+          <div className="vp-asset-dialog-body">
+            {error && <p className="vp-error" role="alert">{error}</p>}
+            <VisualMediaView key={`${document.id}:${selectedAsset.id}:${selectedAsset.mediaId}`} sessionId={sessionId} productionId={document.id} media={snapshot?.media.find(item => item.id === selectedAsset.mediaId)} controls className="vp-asset-dialog-preview" />
+            <section className="grid gap-2"><h3 className="text-sm font-medium">资产说明</h3><p className="vp-summary text-sm leading-relaxed">{selectedAsset.description || '尚无说明'}</p></section>
+            <Collapsible key={selectedAsset.id}>
+              <CollapsibleTrigger asChild><Button variant="ghost" size="sm" className="group px-0"><ChevronRight size={14} className="transition-transform group-data-[state=open]:rotate-90" />使用位置（{assetUsages.length}）</Button></CollapsibleTrigger>
+              <CollapsibleContent><div className="grid gap-1 pt-2">{assetUsages.map(item => <Button key={item.id} variant="ghost" size="sm" className="h-auto justify-start whitespace-normal text-left" onClick={() => { setAssetId(null); updateView({ tab: 'shots', episodeId: item.episodeId, shotId: item.id }) }}>{document.episodes.find(episode => episode.id === item.episodeId)?.title} / {item.title}</Button>)}{!assetUsages.length && <p className="vp-muted">尚未被镜头引用</p>}</div></CollapsibleContent>
+            </Collapsible>
+          </div>
+          <footer className="vp-form-footer vp-asset-dialog-footer">
+            <Button variant="outline" disabled={busy} onClick={() => openEditor('asset', selectedAsset.id)}>编辑资产</Button>
+            <Button variant="outline" disabled={busy} onClick={() => { const draft = copyVisualDraft(document); draft.assets.find(item => item.id === selectedAsset.id)!.locked = !selectedAsset.locked; void mutate(() => window.electronAPI.visualProduction.invoke('save', { sessionId, productionId: document.id, baseRevision: document.revision, draft })) }}>{selectedAsset.locked ? '解锁' : '锁定'}</Button>
+            <Button variant="ghost" onClick={() => { reference(undefined, selectedAsset.id); setAssetId(null) }}>引用到 Agent</Button>
+            <Button variant="outline" className="ml-auto" onClick={() => setAssetId(null)}>关闭</Button>
+          </footer>
+        </>}
+        {editor && <form className="vp-form" onSubmit={saveEditor}>
           <div className="vp-form-body">{document && editor.baseRevision !== document.revision && <div role="alert" className="vp-error">
             <span>作品已更新，当前草稿基于旧版本。可先复制所需内容，或放弃旧草稿并读取最新版本。</span>
             <Button type="button" variant="outline" size="sm" onClick={() => { drafts.current.delete(editor.key); editorSequence.current++; setEditor(null); setNotice('已放弃旧草稿，请重新打开设置读取最新版本。') }}>放弃草稿，读取最新</Button>
@@ -422,8 +467,14 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
               <label>作品目标<Textarea rows={4} value={editor.draft.brief} onChange={event => changeEditor(draft => { draft.brief = event.target.value })} />
               </label>
               <div className="vp-grid">
-                <label>画面比例<select value={editor.draft.ratio} onChange={event => changeEditor(draft => { draft.ratio = event.target.value })}>{VISUAL_PRODUCTION_RATIOS.map(value => <option key={value}>{value}</option>)}</select>
-                </label>{editor.draft.kind !== 'image' && <label>帧率<select value={editor.draft.fps} onChange={event => changeEditor(draft => { draft.fps = Number(event.target.value) })}>{[24, 25, 30, 60].map(value => <option key={value}>{value}</option>)}</select>
+                <label>画面比例<Select value={editor.draft.ratio} onValueChange={value => changeEditor(draft => { draft.ratio = value })}>
+                  <SelectTrigger aria-label="画面比例"><SelectValue /></SelectTrigger>
+                  <SelectContent>{VISUAL_PRODUCTION_RATIOS.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
+                </Select>
+                </label>{editor.draft.kind !== 'image' && <label>帧率<Select value={String(editor.draft.fps)} onValueChange={value => changeEditor(draft => { draft.fps = Number(value) })}>
+                  <SelectTrigger aria-label="帧率"><SelectValue /></SelectTrigger>
+                  <SelectContent>{[24, 25, 30, 50, 60].map(value => <SelectItem key={value} value={String(value)}>{value}</SelectItem>)}</SelectContent>
+                </Select>
                 </label>}</div>{editor.draft.kind !== 'image' && <div className="vp-grid">
                   <label>配音要求<Input value={editor.draft.voice} onChange={event => changeEditor(draft => { draft.voice = event.target.value })} />
                   </label>
@@ -435,12 +486,15 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
             {editor.kind === 'asset' && editAsset && <>
               <label>资产名称<Input required maxLength={120} value={editAsset.name} onChange={event => changeEditor(draft => { draft.assets.find(item => item.id === editor.targetId)!.name = event.target.value })} />
               </label>
-              <label>资产类型<select value={editAsset.type} onChange={event => changeEditor(draft => { draft.assets.find(item => item.id === editor.targetId)!.type = event.target.value })}>{ASSET_TYPES.map(value => <option key={value}>{value}</option>)}</select>
+              <label>资产类型<Select value={editAsset.type} onValueChange={value => changeEditor(draft => { draft.assets.find(item => item.id === editor.targetId)!.type = value })}>
+                <SelectTrigger aria-label="资产类型"><SelectValue /></SelectTrigger>
+                <SelectContent>{ASSET_TYPES.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
+              </Select>
               </label>
               <label>描述<Textarea rows={4} value={editAsset.description} onChange={event => changeEditor(draft => { draft.assets.find(item => item.id === editor.targetId)!.description = event.target.value })} />
               </label>
               <label className="vp-check">
-                <input type="checkbox" checked={editAsset.locked} onChange={event => changeEditor(draft => { draft.assets.find(item => item.id === editor.targetId)!.locked = event.target.checked })} />锁定资产，Agent 候选不可修改</label>
+                <input type="checkbox" className="vp-themed-checkbox" checked={editAsset.locked} onChange={event => changeEditor(draft => { draft.assets.find(item => item.id === editor.targetId)!.locked = event.target.checked })} />锁定资产，Agent 候选不可修改</label>
             </>}
             {editor.kind === 'shot' && editShot && <div className="vp-form-columns">
               <div className="vp-form-fields">
@@ -455,59 +509,37 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
                 <label>旁白 / 对白<Textarea rows={2} value={editShot.dialogue} onChange={event => changeEditor(draft => { draft.shots.find(item => item.id === editor.targetId)!.dialogue = event.target.value })} />
                 </label>
               </div>
-              <aside className="vp-form-fields">
-                <strong>引用资产</strong>{editor.draft.assets.map(item => <label key={item.id} className="vp-check">
-                  <input type="checkbox" checked={editShot.assetIds.includes(item.id)} onChange={event => changeEditor(draft => { const target = draft.shots.find(value => value.id === editor.targetId)!; target.assetIds = event.target.checked ? [...target.assetIds, item.id] : target.assetIds.filter(id => id !== item.id) })} />{item.name} <span className="vp-muted">{item.type}</span>
-                </label>)}{!editor.draft.assets.length && <p className="vp-muted">先在资产库添加素材。</p>}<p className="vp-muted">设定修订 {snapshot?.shotStates[editShot.id]?.revision ?? 0} · 画面版本 {snapshot?.shotStates[editShot.id]?.outputVersion ?? 0}</p>
+              <aside className="vp-form-fields vp-asset-references">
+                <strong>引用资产</strong>{editor.draft.assets.map(item => <VisualAssetReference key={`${editor.key}:${item.id}`} sessionId={sessionId} productionId={editor.productionId} asset={item} media={snapshot?.media.find(media => media.id === item.mediaId)} active={paneActive} checked={editShot.assetIds.includes(item.id)} onCheckedChange={checked => changeEditor(draft => {
+                  /** 只更新当前镜头的引用集合，预览不修改资产或触发生成。 */
+                  const target = draft.shots.find(value => value.id === editor.targetId)!
+                  target.assetIds = checked ? [...target.assetIds, item.id] : target.assetIds.filter(id => id !== item.id)
+                })} />)}{!editor.draft.assets.length && <p className="vp-muted">先在资产库添加素材。</p>}<p className="vp-muted">设定修订 {snapshot?.shotStates[editShot.id]?.revision ?? 0} · 画面版本 {snapshot?.shotStates[editShot.id]?.outputVersion ?? 0}</p>
               </aside>
             </div>}
             {(editor.kind === 'asset' || editor.kind === 'shot') && <>
-              <label>采用素材<select value={editAsset?.mediaId ?? editShot?.mediaId ?? ''} onChange={event => changeEditor(draft => { if (editor.kind === 'asset') draft.assets.find(item => item.id === editor.targetId)!.mediaId = event.target.value || null; else draft.shots.find(item => item.id === editor.targetId)!.mediaId = event.target.value || null })}>
-                <option value="">暂无素材</option>{snapshot?.media.filter(item => editor.kind === 'asset' || (item.kind !== 'audio' && (editor.draft.kind !== 'image' || item.kind === 'image'))).map(item => <option key={item.id} value={item.id}>{item.name} · {item.kind}</option>)}</select>
+              <label>采用素材<Select value={editAsset?.mediaId ?? editShot?.mediaId ?? NO_MEDIA_VALUE} onValueChange={value => changeEditor(draft => { if (editor.kind === 'asset') draft.assets.find(item => item.id === editor.targetId)!.mediaId = value === NO_MEDIA_VALUE ? null : value; else draft.shots.find(item => item.id === editor.targetId)!.mediaId = value === NO_MEDIA_VALUE ? null : value })}>
+                <SelectTrigger aria-label="采用素材"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value={NO_MEDIA_VALUE}>暂无素材</SelectItem>{snapshot?.media.filter(item => editor.kind === 'asset' || (item.kind !== 'audio' && (editor.draft.kind !== 'image' || item.kind === 'image'))).map(item => <SelectItem key={item.id} value={item.id}>{item.name} · {item.kind}</SelectItem>)}</SelectContent>
+              </Select>
               </label>
-              <details>
-                <summary>从当前项目导入媒体</summary>
+              <Collapsible>
+                <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm" className="group justify-start px-0"><ChevronRight size={14} className="transition-transform group-data-[state=open]:rotate-90" />从当前项目导入媒体</Button></CollapsibleTrigger>
+                <CollapsibleContent>
                 <div className="vp-row mt-2">
                   <Input aria-label="项目内媒体相对路径" placeholder="例如 assets/shot-01.mp4" value={importPath} onChange={event => setImportPath(event.target.value)} />
                   <Button type="button" variant="outline" disabled={busy || !importPath.trim()} onClick={() => void importFile()}>导入</Button>
                 </div>
                 <p className="vp-muted mt-2">也可让 Agent 使用现有媒体工具生成后提交候选。</p>
-              </details>
+                </CollapsibleContent>
+              </Collapsible>
             </>}
           </div>
           <footer className="vp-form-footer">
-            <Button type="button" variant="outline" onClick={closeEditor}>关闭</Button>
+            <Button type="button" variant="outline" onClick={closeEditor}>{selectedAsset ? '返回详情' : '关闭'}</Button>
             <Button type="submit" disabled={busy || editor.baseRevision !== document?.revision}>保存设置</Button>
           </footer>
         </form>}</DialogContent>
-    </Dialog>
-    <Dialog open={!!candidate} onOpenChange={open => { if (!open) setCandidateId(null) }}>
-      <DialogContent className="vp-dialog sm:max-w-[800px]">
-        <DialogHeader>
-          <DialogTitle>候选预览</DialogTitle>
-          <DialogDescription>预览不会替换已采用的画面。基于版本 {candidate?.baseRevision}。</DialogDescription>
-        </DialogHeader>
-        <div className="vp-form-body" style={{ maxHeight: '65vh' }}>{candidate && <>
-          <p>{candidate.summary}</p>
-          <section className="vp-card">
-            <h3>作品设定</h3>
-            <p>{candidate.draft.title} · {KIND_LABELS[candidate.draft.kind]} · {candidate.draft.ratio} · {candidate.draft.fps} fps</p>
-            <p className="vp-summary">{candidate.draft.brief || '未填写作品目标'}</p>
-            <p className="vp-muted">配音：{candidate.draft.voice || '未设置'} · 音乐：{candidate.draft.music || '未设置'}</p>
-          </section>
-          <section className="vp-card">
-            <h3>集数（{candidate.draft.episodes.length}）</h3>{candidate.draft.episodes.map(item => <p key={item.id}>{item.title}</p>)}</section>
-          <section className="vp-card">
-            <h3>资产（{candidate.draft.assets.length}）</h3>{candidate.draft.assets.map(item => <div key={item.id} className="vp-card">
-              <strong>{item.name} · {item.type}{item.locked ? ' · 锁定' : ''}</strong>
-              <p className="vp-summary">{item.description}</p>{item.mediaId && <VisualMediaView active={paneActive} sessionId={sessionId} productionId={view.productionId!} media={snapshot?.media.find(media => media.id === item.mediaId)} />}</div>)}</section>
-          <h3>镜头（{candidate.draft.shots.length}）</h3>
-          <div className="vp-grid">{candidate.draft.shots.map(item => <div className="vp-card" key={item.id}>
-            <VisualMediaView active={paneActive} sessionId={sessionId} productionId={view.productionId!} media={snapshot?.media.find(media => media.id === item.mediaId)} />
-            <strong>{item.title}</strong>
-            <p className="vp-muted">{item.scene}</p>
-          </div>)}</div>{renderCandidate(candidate)}</>}</div>
-      </DialogContent>
     </Dialog>
   </div>
 }

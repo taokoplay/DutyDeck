@@ -37,3 +37,15 @@ test('Given 同会话新运行 When 提交旧运行job Then 不得进入正式�
   await expect(run.execute('propose', { sessionId: 'session', productionId: 'production', baseRevision: 1, jobId: 'old-job', draft: {} as never, summary: '旧结果' })).rejects.toThrow('本轮')
   expect(called).toBe(false)
 })
+
+test('Given 旧运行任务 When 转换参考或更新阶段或提交单镜头 Then 均不能绕过本轮归属', async () => {
+  /** 模拟同一会话的下一轮，底层服务不应收到旧任务调用。 */
+  let calls = 0
+  const access: VisualProductionExecutor = { workspaceId: 'workspace', assertCurrent() {}, async execute<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { calls++; return {} as VisualProductionResults[M] } }
+  const run = createVisualProductionRun('session', access, access)
+  const base = { sessionId: 'session', productionId: 'production', baseRevision: 1, jobId: 'old-job' }
+  await expect(run.execute('referenceMedia', { ...base, mediaId: 'media' })).rejects.toThrow('本轮')
+  await expect(run.execute('updateJob', { ...base, stage: 'generating' })).rejects.toThrow('本轮')
+  await expect(run.execute('proposeShot', { ...base, shotId: 'shot', mediaId: 'media', summary: '候选' })).rejects.toThrow('本轮')
+  expect(calls).toBe(0)
+})

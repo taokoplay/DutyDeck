@@ -350,7 +350,8 @@ function TabBarInner({
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
-      el.scrollLeft += e.deltaY || e.deltaX
+      // 横向手势优先使用横轴，避免微小纵向抖动让标签反向；纯竖向滚轮仍映射到横向。
+      el.scrollLeft += e.deltaX || e.deltaY
     }
 
     el.addEventListener('wheel', handleWheel, { passive: false })

@@ -22,6 +22,8 @@ export type MediaRunClient = Pick<ComfyUIClient, 'objectInfo' | 'uploadImage' | 
 /** Host 固化的发起来源；Agent 参数不能自行指定主体或父编排模式。 */
 export interface MediaRunOrigin {
   designJobId?: string
+  /** 可信影像任务绑定由 Host 注入并随运行持久化，模型参数不能指定。 */
+  visualProduction?: { productionId: string; jobId: string; baseRevision: number }
   /** 可信画布媒体目标由 Host 填入，后台完成只挂接这一目标的候选。 */
   canvasMedia?: CanvasMediaTarget
   actor?: {
@@ -109,6 +111,13 @@ function identifier(value: unknown): string {
 function integer(value: unknown, minimum = 0): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum) throw new Error('MEDIA_RUN_INVALID')
   return value
+}
+
+/** 从持久记录恢复影像绑定，只接受完整受管身份和正整数作品版本。 */
+function parseVisualProductionBinding(value: unknown): NonNullable<MediaRunOrigin['visualProduction']> {
+  const binding = record(value)
+  keys(binding, ['productionId', 'jobId', 'baseRevision'])
+  return { productionId: identifier(binding.productionId), jobId: identifier(binding.jobId), baseRevision: integer(binding.baseRevision, 1) }
 }
 
 /** 严格恢复媒体定义来源；draft 引用只接受项目配置中的受管标识。 */
@@ -281,6 +290,9 @@ export class MediaRunService {
   ): Promise<MediaRunSnapshot> {
     assertIdentifier(input.projectId)
     assertIdentifier(input.operationId)
+    /** 在首个异步边界前冻结调用方来源，防止准备过程中被外部改派。 */
+    origin = structuredClone(origin)
+    if (origin.visualProduction) origin.visualProduction = parseVisualProductionBinding(origin.visualProduction)
     this.dependencies.authorize(input.projectId, 'prepare', origin)
     const inputs = parseMediaRunInputs(input.inputs)
     const id = stableHash([input.projectId, input.operationId]).slice(0, 48)
@@ -608,7 +620,7 @@ export class MediaRunService {
   /** 仅可信 Host 用于完成已登记的 Job，不对模型公开内部任务归属。 */
   getOrigin(projectId: string, runId: string): MediaRunManifest['origin'] {
     this.dependencies.authorize(projectId, 'read')
-    return { ...this.load(projectId, runId).origin }
+    return structuredClone(this.load(projectId, runId).origin)
   }
 
   /** 监督器订阅持久化变化，不触发网络或额外生成。 */
@@ -836,8 +848,9 @@ export class MediaRunService {
     const schema = parseComfyObjectInfo(value.schema)
     const inputs = parseMediaRunInputs(value.inputs)
     const originValue = record(value.origin)
-    keys(originValue, [], ['designJobId', 'actor', 'canvasMedia', 'preparedBy'])
+    keys(originValue, [], ['designJobId', 'actor', 'canvasMedia', 'preparedBy', 'visualProduction'])
     const origin: MediaRunOrigin = Object.hasOwn(originValue, 'designJobId') ? { designJobId: identifier(originValue.designJobId) } : {}
+    if (originValue.visualProduction !== undefined) origin.visualProduction = parseVisualProductionBinding(originValue.visualProduction)
     if (originValue.canvasMedia !== undefined) {
       origin.canvasMedia = parseCanvasMediaTarget(originValue.canvasMedia)
       if (origin.canvasMedia.projectId !== projectId || origin.designJobId) throw new Error('MEDIA_RUN_INVALID')

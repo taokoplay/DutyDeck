@@ -61,3 +61,42 @@ describe('UnifiedMediaModelCatalog', () => {
     expect(model.unavailableReason).toBe('执行器尚未接入')
   })
 })
+
+/** 即梦不使用API key，公开目录中的凭据状态不证明实际CLI登录。 */
+function dreaminaCatalog(models: ImageGenerationPublicCatalog['profiles'][number]['models'], enabled = true) {
+  return new UnifiedMediaModelCatalog({
+    readImageCatalog: () => ({ schemaVersion: 1, revision: 1, profiles: [{ id: 'dreamina', name: '即梦', provider: 'dreamina', cliPath: '/opt/dreamina', models, enabled, credentialConfigured: false, createdAt: 1, updatedAt: 1 }] }),
+    readAudioCatalog: () => ({ ...audioCatalog, profiles: [] }),
+    resolveImageApiKey: () => { throw new Error('不应读取API key') },
+    resolveAudioApiKey: () => { throw new Error('不应读取API key') },
+  })
+}
+
+describe('即梦统一图片目录', () => {
+  test('Given 已核验图片模型 When 解析 Then 使用CLI路由和配置分辨率而非API凭据', () => {
+    const catalog = dreaminaCatalog([{ id: '5.0', capabilities: ['text-to-image', 'image-to-image'], params: { resolution_type: '4k' } }])
+    const option = catalog.list('project')[0]!
+    expect(option).toMatchObject({ available: true, adapterId: 'dreamina-image' })
+    expect(catalog.resolve(option.ref)).toMatchObject({ baseUrl: '', apiKey: '', cliPath: '/opt/dreamina', resolutionType: '4k' })
+  })
+  test('Given 旧模型虚报图生图或未知模型 When 列目录 Then 与真实能力取交集', () => {
+    const catalog = dreaminaCatalog([
+      { id: '3.0', capabilities: ['text-to-image', 'image-to-image'] },
+      { id: '3.1', capabilities: ['image-to-image'] },
+      { id: 'future', capabilities: ['text-to-image'] },
+      { id: 'seedance2.5', capabilities: ['text-to-video'] },
+    ])
+    const options = catalog.list('project')
+    expect(options[0]?.capabilities).toEqual(['text-to-image'])
+    expect(catalog.resolve(options[0]!.ref).resolutionType).toBe('1k')
+    expect(options.slice(1).every(option => !option.available)).toBe(true)
+    expect(options[3]?.unavailableReason).toBe('即梦视频执行器尚未接入')
+    expect(() => catalog.resolve(options[2]!.ref)).toThrow('MEDIA_MODEL_UNAVAILABLE')
+  })
+  test('Given 新图片模型缺省分辨率或停用配置 When 解析 Then 使用2k且不绕过停用', () => {
+    const models = [{ id: '5.0Pro', capabilities: ['text-to-image' as const] }]
+    const catalog = dreaminaCatalog(models)
+    expect(catalog.resolve(catalog.list('project')[0]!.ref).resolutionType).toBe('2k')
+    expect(dreaminaCatalog(models, false).list('project')[0]?.available).toBe(false)
+  })
+})

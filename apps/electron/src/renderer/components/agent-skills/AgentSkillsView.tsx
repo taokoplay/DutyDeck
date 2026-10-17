@@ -38,7 +38,7 @@ import { SkillDetailView } from './SkillDetailView'
 import { McpDetailView } from './McpDetailView'
 import { ImportSkillDialog } from './ImportSkillDialog'
 import { ProjectKnowledgeTab } from './ProjectKnowledgeTab'
-import { groupSkills } from './skillGrouping'
+import { getSkillGroupDisplayTitle, groupSkills } from './skillGrouping'
 import { EMBEDDED_CATALOG_TWO_COLUMN_MIN_WIDTH, IntegrationCatalog } from './IntegrationCatalog'
 import { CredentialDialog } from './CredentialDialog'
 import { OAuthClientSecretDialog } from './OAuthClientSecretDialog'
@@ -223,7 +223,8 @@ export function AgentSkillsView({
       return s.name.toLowerCase().includes(q) ||
         s.slug.toLowerCase().includes(q) ||
         (s.description ?? '').toLowerCase().includes(q) ||
-        (s.group ?? '').toLowerCase().includes(q)
+        (s.group ?? '').toLowerCase().includes(q) ||
+        getSkillGroupDisplayTitle(s.group ?? '').toLowerCase().includes(q)
     })
   }, [data.skills, q])
 
@@ -945,7 +946,7 @@ function SkillsTab({
         <SkillSection title="我的 Skills" skills={customSkills} embedded={embedded} isBuiltin={isBuiltin} updatingSkill={updatingSkill} onOpen={onOpen} onToggle={onToggle} onUpdate={onUpdate} />
       )}
       {builtinSkills.length > 0 && (
-        <SkillSection title="PROMA 内置" skills={builtinSkills} embedded={embedded} isBuiltin={isBuiltin} updatingSkill={updatingSkill} onOpen={onOpen} onToggle={onToggle} onUpdate={onUpdate} />
+        <SkillSection title="内置" skills={builtinSkills} embedded={embedded} isBuiltin={isBuiltin} updatingSkill={updatingSkill} onOpen={onOpen} onToggle={onToggle} onUpdate={onUpdate} />
       )}
     </div>
   )

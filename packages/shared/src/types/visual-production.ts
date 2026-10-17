@@ -1,3 +1,4 @@
+import type { VisualProductionMediaConfiguration, VisualProductionMediaEntry, VisualProductionMediaOption, VisualProductionMediaExecution, VisualProductionMediaSource, VisualProductionMediaKind } from './visual-production-media'
 import type { MediaAssetRef } from './media'
 
 /** 独立影像业务通道，不复用画布或交互设计存储。 */
@@ -149,6 +150,10 @@ export interface VisualCandidate {
 }
 /** 持久化生成任务，禁止自动重放未知消费。 */
 export interface VisualJob {
+  /** 发起时冻结的制作范围；缺省兼容旧作品。 */
+  mediaConfiguration?: VisualProductionMediaConfiguration
+  /** 可信宿主读取的实际执行记录。 */
+  mediaExecutions?: VisualProductionMediaExecution[]
   /** 任务身份。 */
   id: string
   /** 发起普通会话。 */
@@ -161,6 +166,8 @@ export interface VisualJob {
   instruction: string
   /** 任务执行状态。 */
   status: 'running' | 'candidate' | 'failed' | 'cancelled' | 'interrupted'
+  /** 可选制作阶段，旧任务未记录时保持兼容。 */
+  stage?: 'preparing' | 'generating' | 'reviewing'
   /** 创建时间。 */
   createdAt: number
   /** 失败或取消说明。 */
@@ -168,6 +175,8 @@ export interface VisualJob {
 }
 /** 一次有界读取，包含制作关系与候选，不携带媒体二进制。 */
 export interface VisualProductionSnapshot {
+  /** 当前作品制作方案，独立版本。 */
+  mediaConfiguration?: VisualProductionMediaConfiguration
   /** 正式作品。 */
   document: VisualProductionDocument
   /** 登记的独立媒体元数据。 */
@@ -183,6 +192,10 @@ export interface VisualProductionSnapshot {
 }
 /** 所有来源路径均由主进程据 sessionId 绑定项目根。 */
 export interface VisualProductionInputs {
+  resolveMediaWorkflow: { sessionId: string; productionId: string; source: Extract<VisualProductionMediaSource, { type: 'workflow' }>; kind: VisualProductionMediaKind }
+  mediaCatalog: { sessionId: string; productionId: string }
+  saveMediaConfiguration: { sessionId: string; productionId: string; expectedRevision: number; entries: VisualProductionMediaEntry[]; defaults: VisualProductionMediaConfiguration['defaults'] }
+  recordMediaExecution: { sessionId: string; productionId: string; baseRevision: number; jobId: string; runId: string; engine: 'model' | 'workflow' }
   list: { sessionId: string }
   create: { sessionId: string; title: string; kind: VisualProductionKind }
   load: { sessionId: string; productionId: string }
@@ -191,6 +204,9 @@ export interface VisualProductionInputs {
   importMedia: { sessionId: string; productionId: string; reference: MediaAssetRef }
   mediaContent: { sessionId: string; productionId: string; mediaId: string }
   beginJob: { sessionId: string; productionId: string; baseRevision: number; instruction: string; shotId?: string }
+  referenceMedia: { sessionId: string; productionId: string; baseRevision: number; jobId: string; mediaId: string }
+  proposeShot: { sessionId: string; productionId: string; baseRevision: number; jobId: string; shotId: string; mediaId: string; summary: string }
+  updateJob: { sessionId: string; productionId: string; baseRevision: number; jobId: string; stage: 'preparing' | 'generating' | 'reviewing' }
   propose: { sessionId: string; productionId: string; baseRevision: number; jobId: string; draft: VisualProductionDraft; summary: string }
   adopt: { sessionId: string; productionId: string; baseRevision: number; candidateId: string }
   discardCandidate: { sessionId: string; productionId: string; candidateId: string }
@@ -200,6 +216,10 @@ export interface VisualProductionInputs {
 }
 /** 方法到返回值的一一映射。 */
 export interface VisualProductionResults {
+  resolveMediaWorkflow: VisualProductionMediaOption
+  mediaCatalog: VisualProductionMediaOption[]
+  saveMediaConfiguration: VisualProductionSnapshot
+  recordMediaExecution: VisualJob
   list: VisualProductionSummary[]
   create: VisualProductionSnapshot
   load: VisualProductionSnapshot
@@ -208,6 +228,9 @@ export interface VisualProductionResults {
   importMedia: VisualMedia
   mediaContent: { mediaId: string; bytes: Uint8Array; mime: string }
   beginJob: VisualJob
+  referenceMedia: MediaAssetRef
+  proposeShot: VisualCandidate
+  updateJob: VisualJob
   propose: VisualCandidate
   adopt: VisualProductionSnapshot
   discardCandidate: VisualProductionSnapshot

@@ -1,116 +1,52 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code
-version: "1.0.2"
+description: 当需求和边界已经明确，需要为多步骤开发或修改任务编写实施计划时使用。直接的小修复无需强制生成计划；用户只要求分析或方案时不进入实施。
+version: "1.0.3"
 ---
-# Writing Plans
 
-## Overview
+# 编写实施计划
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+把明确需求拆成可执行、可验证的任务。计划说明做什么、为什么、改哪里和如何验收；具体测试方法由独立的 `test-driven-development` Skill 维护。
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+## 先读上下文
 
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+1. 读取当前任务、已授权项目规则、相关实现与工作区差异，确认目标行为、兼容边界、关联模块和性能影响。
+2. 复用已有有效计划和测试设施；仅追问会改变方案、范围或风险的信息。普通小修复可直接进入实现和验证，不强制建计划、worktree 或子会话。
+3. 只有需要保存计划时才写入项目约定位置；没有约定可使用 `docs/plans/YYYY-MM-DD-<feature-name>.md`。用户仅要求讨论时直接给出方案，不擅自改文件。
 
-**Context:** This should be run in a dedicated worktree.
+## 开发与验证的衔接
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
+- 代码任务在计划中明确验收场景、测试位置、真实命令与预期结果，保留“失败测试 → 最小实现 → 相关回归”的简短步骤；不复制整份 TDD 正文。
+- 实现前，从当前会话可用 Skill 清单获取 `test-driven-development` 的实际路径并读取；编写计划时只有需要核对测试方法才读取。小型代码任务也可以直接使用它。
+- 如果该 Skill 未出现在当前清单、已停用或读取失败，不扫描全局目录或 `skills-inactive` 寻找副本，不自动安装或重新启用。遵循用户要求、项目既有测试规范和计划内验证步骤继续；必要时简短说明该指引未加载，不把 Skill 缺失当作执行阻塞，也不声称已经使用它。
+- 停用 Skill 不等于禁止测试。文档、媒体、纯样式和一次性原型按风险选择验收，不强行套代码测试循环；业务逻辑仍需相应验证。
 
-## Bite-Sized Task Granularity
+## 计划模板
 
-**Each step is one action (2-5 minutes):**
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
-
-## Plan Document Header
-
-**Every plan MUST start with this header:**
+用以下结构记录必要信息，按实际复杂度增减任务；列出关键接口和实现要点，不提前堆出整套生产代码。
 
 ```markdown
-# [Feature Name] Implementation Plan
+# <功能>实施计划
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+目标与验收：用户可观察的行为、主要边界与非目标。
+方案与影响：改动理由、关联模块、兼容性、性能与资源开销。
+环境：目标项目的工具链、真实验证命令及必要前置条件。
+执行入口：当前可用的 executing-plans；代码测试方法按可用性读取 test-driven-development。
 
-**Goal:** [One sentence describing what this builds]
+## 任务 1：<一个可验证结果>
 
-**Architecture:** [2-3 sentences about approach]
-
-**Tech Stack:** [Key technologies/libraries]
-
----
+- 文件：明确修改、新增和测试路径。
+- 验收场景：Given / When / Then 或等价的具体行为描述。
+- 实施步骤：验证现状 → 最小修改 → 检查目标行为和关联回归。
+- 验证：从目标项目确认的命令、预期结果和不能自动验证的部分。
+- 依赖与边界：前置任务、共享文件、权限或外部副作用。
 ```
 
-## Task Structure
+新功能和缺陷修复应将验证现状具体化为目标行为的失败测试；保行为重构先建立通过的行为基线。已有实现不删除重写，保留用户改动并补充验证，不能补造红灯证据。
 
-```markdown
-### Task N: [Component Name]
+## 交给执行
 
-**Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
-
-**Step 1: Write the failing test**
-
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
-
-**Step 3: Write minimal implementation**
-
-```python
-def function(input):
-    return expected
-```
-
-**Step 4: Run test to verify it passes**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: PASS
-
-**Step 5: Commit**
-
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
-```
-
-## Remember
-- Exact file paths always
-- Complete code in plan (not "add validation")
-- Exact commands with expected output
-- Reference relevant skills with @ syntax
-- DRY, YAGNI, TDD, frequent commits
-
-## Execution Handoff
-
-After saving the plan, offer execution choice:
-
-**"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
-
-**1. Subagent-Driven (this session)** - I dispatch fresh subagent per task, review between tasks, fast iteration
-
-**2. Parallel Session (separate)** - Open new session with executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Stay in this session
-- Fresh subagent per task + code review
-
-**If Parallel Session chosen:**
-- Guide them to open new session in worktree
-- **REQUIRED SUB-SKILL:** New session uses superpowers:executing-plans
+- 用户已授权实施时，读取当前清单中的 `executing-plans` 并继续；若其不可用，直接依据计划用现有工具推进，不因缺少辅助 Skill 停住。
+- 用户只要求计划时，交付方案和待决定事项，不开始修改业务代码。
+- 多个独立长任务确需协作时才按当前可用的 `agent-collaboration` 判断；否则在当前会话执行。任务清单使用现有工具或简短文本，不依赖不存在的 `TodoWrite`。
+- Git 隔离遵循项目规则与工作区状态，不无条件要求另一个 worktree Skill。提交、推送、发布按用户授权和项目约定执行，不把每个任务自动提交写成默认步骤。

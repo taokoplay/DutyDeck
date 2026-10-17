@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs'
-import type { VisualProductionChanged, MediaAssetRef } from '@proma/shared'
+import type { VisualProductionChanged, MediaAssetRef, VisualMedia, VisualProductionMediaOption, VisualProductionMediaExecution, VisualProductionMediaExecutionSource, VisualProductionMediaKind } from '@proma/shared'
 import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
 import { getAgentSessionMeta } from '../agent-session-manager'
 import { isEligibleProjectAgent } from '../agent-session-visibility'
@@ -12,6 +12,14 @@ import { VisualProductionService } from './store'
 
 /** 主进程注册可信图片读取与失效通知，Agent 与 IPC 使用同一宿主。 */
 interface VisualProductionHost {
+  /** 只投影公开模型和服务，不枚举工作流、不探测网络或返回凭据。 */
+  listMediaOptions?(workspaceId: string): Promise<VisualProductionMediaOption[]>
+  /** 解析 Agent 选择的精确工作流；校验项目、服务归属及实际输入约束。 */
+  resolveMediaWorkflow?(workspaceId: string, source: Extract<VisualProductionMediaExecutionSource, { type: 'workflow' }>, kind: VisualProductionMediaKind): Promise<VisualProductionMediaOption>
+  /** 从可信运行冻结请求提取制作事实，核验工作区与会话归属。 */
+  readMediaExecution?(workspaceId: string, sessionId: string, runId: string, engine: 'model' | 'workflow'): Promise<VisualProductionMediaExecution>
+  /** 在受管项目写租约内登记已验证的正式参考副本。 */
+  registerReference?(workspaceId: string, input: { sessionId: string; productionId: string; media: VisualMedia; bytes: Uint8Array }): Promise<MediaAssetRef>
   readMediaAsset(workspaceId: string, reference: MediaAssetRef): Promise<Uint8Array>
   onChanged(event: VisualProductionChanged): void
 }
@@ -46,6 +54,27 @@ export function createProductionVisualProductionAccess(
     resolveSession, ...options, acquireWriteLease: acquireWorkspaceWriteLease,
     createService: ({ workspaceId, projectRoot, assertCurrent }) => new VisualProductionService({
       workspaceId, projectRoot, assertCurrent,
+      listMediaOptions: async () => {
+        assertCurrent()
+        if (!host?.listMediaOptions) throw new Error('制作配置目录尚未就绪')
+        const options = await host.listMediaOptions(workspaceId)
+        assertCurrent()
+        return options
+      },
+      resolveMediaWorkflow: async (source, kind) => {
+        assertCurrent()
+        if (!host?.resolveMediaWorkflow) throw new Error('工作流解析服务尚未就绪')
+        const option = await host.resolveMediaWorkflow(workspaceId, source, kind)
+        assertCurrent()
+        return option
+      },
+      readMediaExecution: async (sessionId, runId, engine) => {
+        assertCurrent()
+        if (!host?.readMediaExecution) throw new Error('制作记录服务尚未就绪')
+        const receipt = await host.readMediaExecution(workspaceId, sessionId, runId, engine)
+        assertCurrent()
+        return receipt
+      },
       readSourceFile: async (relativePath, maxBytes) => {
         assertCurrent()
         /** 稳定目录 helper 用句柄相对读取，避免父目录链接替换造成越界。 */
@@ -59,6 +88,13 @@ export function createProductionVisualProductionAccess(
         assertCurrent()
         if (result.resourceReadOutcome?.status !== 'ok') throw new Error('VISUAL_PRODUCTION_SOURCE_UNAVAILABLE: 来源缺失或不能安全读取')
         return Buffer.from(result.resourceReadOutcome.contentBase64, 'base64')
+      },
+      registerReference: async (input) => {
+        assertCurrent()
+        if (!host?.registerReference) throw new Error('VISUAL_PRODUCTION_MEDIA_UNAVAILABLE: 参考媒体服务尚未就绪')
+        const reference = await host.registerReference(workspaceId, input)
+        assertCurrent()
+        return reference
       },
       readMediaAsset: async (reference) => {
         assertCurrent()

@@ -16,6 +16,9 @@ import { registerInteractionDesignIpc } from './lib/interaction-design/ipc'
 import { createProductionInteractionDesignAccess, setInteractionDesignHost } from './lib/interaction-design/integration'
 import { registerVisualProductionIpc } from './lib/visual-production/ipc'
 import { createProductionVisualProductionAccess, setVisualProductionHost } from './lib/visual-production/integration'
+import { buildVisualProductionMediaCatalog, resolveVisualProductionMediaWorkflow } from './lib/visual-production/media-catalog'
+import { visualMediaExecutionContext, visualMediaOrigin, assertVisualMediaOrigin } from './lib/visual-production/media-execution-context'
+import type { MediaInputValue, VisualProductionMediaExecutionSource } from '@proma/shared'
 import { INTERACTION_DESIGN_CHANNELS, VISUAL_PRODUCTION_CHANNELS, VISUAL_PRODUCTION_LIMITS } from '@proma/shared'
 import { CAPABILITY_FACTORY_CHANNELS } from '@proma/shared'
 import { createCapabilityFactorySessionRuntime } from './lib/capability-factory/capability-factory-session-runtime'
@@ -526,6 +529,7 @@ import { createMediaToolRun } from './lib/media/media-tool-provider'
 import { UnifiedMediaModelCatalog } from './lib/media/unified-media-model-catalog'
 import { UnifiedMediaGenerationService } from './lib/media/unified-media-generation-service'
 import { createUnifiedMediaHttpAdapters } from './lib/media/unified-media-http-adapters'
+import { createUnifiedDreaminaImageAdapter } from './lib/media/unified-media-dreamina-adapter'
 import { createMediaImageCatalog } from './lib/media/media-image-catalog'
 import { createMediaDesignImageExecution } from './lib/media/media-design-execution'
 import { ServerOpsAgentAccessStore } from './lib/server-ops/server-ops-agent-access-store'
@@ -3188,6 +3192,62 @@ export function registerIpcHandlers(): void {
   })
   /** 影像作品保存独立媒体副本；先检查元数据预算，再读取真实字节。 */
   setVisualProductionHost({
+    listMediaOptions: async (workspaceId) => {
+      /** 公开连接只保留凭据存在性，目录计算完全在本地完成。 */
+      const configuration = getMediaConfiguration().read()
+      return buildVisualProductionMediaCatalog(unifiedMediaCatalog.list(workspaceId), {
+        connections: configuration.connections.map(({ credentialRef, ...connection }) => ({ ...connection, credentialConfigured: Boolean(credentialRef) })),
+        workflows: configuration.workflows, archivedWorkflowIds: configuration.archivedWorkflowIds,
+      }, workspaceId)
+    },
+    resolveMediaWorkflow: async (workspaceId, source, kind) => {
+      /** 仅解析任务已经选中的版本；打开配置页面不请求服务器工作流目录。 */
+      const configuration = getMediaConfiguration().read()
+      return resolveVisualProductionMediaWorkflow({
+        connections: configuration.connections.map(({ credentialRef, ...connection }) => ({ ...connection, credentialConfigured: Boolean(credentialRef) })),
+        workflows: configuration.workflows, archivedWorkflowIds: configuration.archivedWorkflowIds,
+      }, workspaceId, source, kind)
+    },
+    readMediaExecution: async (workspaceId, sessionId, runId, engine) => {
+      /** 输入只来自媒体运行冻结记录；不接受 Agent 或界面传入的执行说明。 */
+      let inputs: Record<string, MediaInputValue>
+      let source: VisualProductionMediaExecutionSource
+      let kind: 'image' | 'video' | 'audio'
+      let name: string
+      let phase: string
+      let createdAt: number
+      let prompt: string | undefined
+      if (engine === 'model') {
+        const recorded = unifiedMediaGeneration.getAttachmentSource(sessionId, runId)
+        if (recorded.snapshot.projectId !== workspaceId) throw new Error('制作记录不属于当前项目')
+        inputs = recorded.request.inputs
+        source = { type: 'model', modelRef: recorded.request.modelRef }
+        kind = recorded.snapshot.mediaKind
+        name = unifiedMediaCatalog.list(workspaceId).find(model => model.ref === recorded.request.modelRef)?.name ?? recorded.request.modelRef
+        phase = recorded.snapshot.phase; createdAt = recorded.snapshot.createdAt; prompt = recorded.request.prompt
+      } else {
+        const origin = mediaRuns.getOrigin(workspaceId, runId)
+        if (origin.actor?.sessionId !== sessionId) throw new Error('制作记录不属于当前会话')
+        const snapshot = mediaRuns.get(workspaceId, runId)
+        const reference = mediaRuns.getSourceRef(workspaceId, runId)
+        if (reference.kind !== 'project-draft-revision') throw new Error('影像工作流必须指定服务器与工作流版本')
+        inputs = mediaRuns.getInputs(workspaceId, runId)
+        source = { type: 'workflow', connectionId: reference.connectionId, workflowId: reference.workflowId, workflowRevision: reference.workflowRevision }
+        kind = reference.mediaKind
+        const configuration = getMediaConfiguration().read()
+        name = `${configuration.connections.find(connection => connection.id === reference.connectionId)?.name ?? reference.connectionId} · ${configuration.workflows.find(workflow => workflow.id === reference.workflowId && workflow.revision === reference.workflowRevision)?.name ?? reference.workflowId}`
+        phase = snapshot.phase; createdAt = snapshot.createdAt
+      }
+      return { runId, engine, name: name.slice(0, 200), kind, source,
+        parameters: Object.fromEntries(Object.entries(inputs).flatMap(([key, value]) => value.kind === 'scalar' ? [[key, value.value]] : [])),
+        referenceAssets: Object.values(inputs).flatMap(value => value.kind === 'asset' ? [value.asset] : []), phase, createdAt, ...(prompt ? { prompt } : {}),
+      }
+    },
+    registerReference: (workspaceId, input) => {
+      /** 同一会话/作品的不可变参考复用登记身份，避免重试重复创建或跨会话来源冲突。 */
+      return mediaAssets.register(workspaceId, `${input.sessionId}:${input.media.hash}`, input.bytes, input.media.mime,
+        { mediaRunId: input.productionId, sourceSessionId: input.sessionId }, input.media.kind)
+    },
     readMediaAsset: (workspaceId, reference) => {
       /** 现有媒体服务校验项目、版本和内容身份，避免任意路径读取。 */
       const record = mediaAssets.getRecord(workspaceId, reference)
@@ -3215,7 +3275,10 @@ export function registerIpcHandlers(): void {
   /** Agent 与未来 Canvas 统一复用的媒体运行 Facade；产物走同一媒体资产事务。 */
   const unifiedMediaGeneration = new UnifiedMediaGenerationService({
     resolveModel: (modelRef) => unifiedMediaCatalog.resolve(modelRef),
-    adapters: createUnifiedMediaHttpAdapters({ readAsset: (projectId, asset) => mediaAssets.read(projectId, asset) }),
+    adapters: [
+      ...createUnifiedMediaHttpAdapters({ readAsset: (projectId, asset) => mediaAssets.read(projectId, asset) }),
+      createUnifiedDreaminaImageAdapter({ readAsset: (projectId, asset) => mediaAssets.read(projectId, asset) }),
+    ],
     registerOutput: (projectId, operationId, bytes, contentType, origin, expectedMediaKind) => mediaAssets.register(projectId, operationId, bytes, contentType, origin, expectedMediaKind),
   })
   /** Renderer 缩略图读取复用统一素材引用校验和现有受管图片缩略图。 */
@@ -4495,11 +4558,35 @@ export function registerIpcHandlers(): void {
       verifyAsset: (current, asset, signal) => mediaSources.verifyAssetFile(current, asset, 128 * 1024 * 1024, signal),
     },
     mediaTools: (context) => createMediaToolRun({
-      configuration: getMediaConfiguration(), resources: mediaResources, runs: mediaRuns, supervisor: mediaSupervisor,
+      configuration: getMediaConfiguration(), resources: mediaResources,
+      runs: {
+        prepare: (input, origin) => mediaRuns.prepare(input, visualMediaOrigin(origin ?? {}, context.sessionId)),
+        prepareDraft: (input, origin) => mediaRuns.prepareDraft(input, visualMediaOrigin(origin ?? {}, context.sessionId)),
+        get: (projectId, runId) => mediaRuns.get(projectId, runId),
+        getOrigin: (projectId, runId) => mediaRuns.getOrigin(projectId, runId),
+        cancel: (projectId, runId) => mediaRuns.cancel(projectId, runId),
+      },
+      supervisor: {
+        start: (projectId, runId, expectedRevision) => {
+          assertVisualMediaOrigin(mediaRuns.getOrigin(projectId, runId), context.sessionId)
+          return mediaSupervisor.start(projectId, runId, expectedRevision)
+        },
+        watch: (projectId, runId) => mediaSupervisor.watch(projectId, runId),
+        wait: (projectId, runId, timeoutMs, afterRevision, signal) => mediaSupervisor.wait(projectId, runId, timeoutMs, afterRevision, signal),
+      },
       generation: {
         listModels: (projectId) => unifiedMediaCatalog.list(projectId),
-        prepare: (ownerSessionId, input) => unifiedMediaGeneration.prepare(ownerSessionId, input),
-        execute: (ownerSessionId, runId, expectedRevision) => unifiedMediaGeneration.execute(ownerSessionId, runId, expectedRevision),
+        prepare: (ownerSessionId, input) => {
+          const snapshot = unifiedMediaGeneration.prepare(ownerSessionId, input)
+          /** 绑定由主进程工具上下文签发，生成参数不能伪造它。 */
+          const binding = visualMediaExecutionContext.getStore()
+          if (binding && binding.sessionId === ownerSessionId) unifiedMediaGeneration.bindVisualProduction(ownerSessionId, snapshot.id, { productionId: binding.productionId, jobId: binding.jobId, baseRevision: binding.baseRevision })
+          return snapshot
+        },
+        execute: (ownerSessionId, runId, expectedRevision) => {
+          const binding = visualMediaExecutionContext.getStore()
+          return unifiedMediaGeneration.execute(ownerSessionId, runId, expectedRevision, binding?.sessionId === ownerSessionId ? { productionId: binding.productionId, jobId: binding.jobId, baseRevision: binding.baseRevision } : undefined)
+        },
         get: (ownerSessionId, runId) => unifiedMediaGeneration.get(ownerSessionId, runId),
         wait: (ownerSessionId, runId, timeoutMs, afterRevision, signal) => unifiedMediaGeneration.wait(ownerSessionId, runId, timeoutMs, afterRevision, signal),
         cancel: (ownerSessionId, runId) => unifiedMediaGeneration.cancel(ownerSessionId, runId),

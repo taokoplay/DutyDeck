@@ -4,7 +4,7 @@ import type { InteractionDesignCommand, InteractionDesignInputs, InteractionDesi
 export const PROTOTYPE_LIMITS = { pages: 200, statesPerPage: 12, groups: 100, flows: 2000, planEvidencePerPage: 24, planUnresolved: 100, pageChars: 512 * 1024, totalChars: 8 * 1024 * 1024 } as const
 
 /** 读取操作不改变原型或生成可计费任务。 */
-export const INTERACTION_DESIGN_READ_METHODS: readonly InteractionDesignMethod[] = ['list', 'load', 'getVersion', 'getCandidate', 'assetContent', 'inspectProject', 'readSource']
+export const INTERACTION_DESIGN_READ_METHODS: readonly InteractionDesignMethod[] = ['list', 'load', 'getVersion', 'getCandidate', 'getCandidateImpact', 'assetContent', 'inspectProject', 'readSource']
 
 /** 稳定错误文案，不回显未经检查的输入。 */
 function invalid(field: string): never { throw new Error(`INTERACTION_DESIGN_INVALID: ${field}`) }
@@ -345,8 +345,12 @@ export function parseInteractionDesignCommand(value: unknown): InteractionDesign
     case 'save': return result(method, { ...base, baseRevision: revision(input.baseRevision), draft: parsePrototypeDraft(input.draft), summary: string(input.summary, '保存说明', 2000) })
     case 'getVersion': case 'validate': case 'exportHtml': case 'createHandoff': return result(method, { ...base, revision: revision(input.revision) })
     case 'restore': case 'deleteVersion': return result(method, { ...base, revision: revision(input.revision), baseRevision: revision(input.baseRevision) })
+    case 'deleteHistory': {
+      if (input.kind !== 'candidate' && input.kind !== 'job') return invalid('历史记录类型')
+      return result(method, { ...base, baseRevision: revision(input.baseRevision), kind: input.kind, recordId: id(input.recordId) })
+    }
     case 'propose': return result(method, { ...base, baseRevision: revision(input.baseRevision), draft: parsePrototypeDraft(input.draft), summary: string(input.summary, '候选说明', 2000), ...(input.jobId === undefined ? {} : { jobId: id(input.jobId) }) })
-    case 'getCandidate': case 'discardCandidate': return result(method, { ...base, candidateId: id(input.candidateId) })
+    case 'getCandidate': case 'getCandidateImpact': case 'discardCandidate': return result(method, { ...base, candidateId: id(input.candidateId) })
     case 'adopt': return result(method, { ...base, candidateId: id(input.candidateId), baseRevision: revision(input.baseRevision) })
     case 'beginJob': {
       /** 规范化用户要求，供宿主推断任务边界。 */

@@ -107,6 +107,7 @@ import { createProductionInteractionDesignAccess } from './interaction-design/in
 import { buildInteractionDesignAgentTools, INTERACTION_DESIGN_AGENT_TOOL_NAMES, INTERACTION_DESIGN_AGENT_WRITE_TOOL_NAMES } from './interaction-design/agent-tools'
 import { createVisualProductionAgentAccess } from './visual-production/agent-access'
 import { createVisualProductionRun } from './visual-production/agent-run'
+import { bindVisualProductionMediaTools } from './visual-production/media-tool-binding'
 import { createProductionVisualProductionAccess } from './visual-production/integration'
 import { buildVisualProductionAgentTools, VISUAL_PRODUCTION_AGENT_TOOL_NAMES, VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES } from './visual-production/agent-tools'
 import { createCapabilityFactoryAgentFacade } from './capability-factory/capability-factory-agent-facade'
@@ -2328,7 +2329,10 @@ export class AgentOrchestrator {
       }) + (automationContext ? `\n\n## 定时任务执行上下文\n\n${automationContext}` : '')
       /** 单次可信运行场景放在通用规则之后，使专用会话覆盖普通入口分流语义。 */
       const systemPromptAppend = [baseSystemPrompt,
-        visualProductionAccess ? '影像创作使用 visual_production_* 工具，承担漫剧、影片、宣传片和图片作品；交互稿由交互设计模块承接。一个 Agent 项目可有多个影像作品，作品下有集数、项目共用资产和有序镜头。先 list/read 当前作品和 revision，依据用户要求规划作品目标、资产一致性、集数与镜头，再 begin_job 冻结输入；仅修改已有镜头时传 shotId。完整 draft 包含 title/kind/brief/ratio/fps/voice/music/episodes/assets/shots，不包含系统 id/revision；保留未要求修改的内容和锁定资产。生成媒体时使用当前可用的真实媒体工具，结果通过 import_media 的完整 MediaAssetRef 或 import_file 的授权项目相对路径导入，再把返回 mediaId 写入候选。没有可用模型或生成失败时明确报告，不能用占位内容冒充成片。propose 只提交候选，用户在影像工作区预览和采用；版本冲突需重新读取后再制作，取消后的任务不得回流。不要用 Write/Edit 直接改 .proma/visual-production。静帧预演、单镜头生成和制作清单导出都不代表已经合成影片；未执行真实合成时不得报告成片交付。' : undefined,
+        visualProductionAccess ? `影像创作使用 visual_production_* 工具，承担漫剧、影片、宣传片和图片作品；交互稿由交互设计模块承接。一个 Agent 项目可有多个影像作品，作品下有集数、共用资产和有序镜头。新作品先与用户明确目标、受众、比例、时长和风格，提交脚本/分镜/资产规划候选，用户采用后再基于正式版本生成；不要把尚未确认的设定当作已批准资产。
+已有镜头重做按顺序执行：① list/read 确认作品，用 read_shot 读取准确 shotId、最新 revision、绑定资产和版本；shot.assetIds 仅含当前页，先沿 textPage.nextOffset 用 textOffset 续读并拼接完整长文本，再沿 referencePage.nextOffset 用 referenceOffset 续读所有引用并重置 textOffset；所有页 revision 必须一致，变更时重新读取。② read_media_configuration 和 media_catalog 读取作品启用范围及各类别默认来源，沿用用户明确指定的模型或服务；显式空 entries 禁止生成，无可用来源说明缺口。③ begin_job 绑定 shotId 与 baseRevision 并冻结制作配置，多个活动任务向媒体准备工具提供 visualJobId。④ reference_media 将目标已采用画面或绑定资产的 mediaId 转成完整 MediaAssetRef，禁止把影像内部 mediaId 或本地路径伪装成媒体引用。参考数量须遵守选中模型或工作流的真实约束；不能悄悄拼图或忽略其他资产。⑤ 使用 API 模型时按 media_prepare_generation → media_execute_generation → media_wait_generation 生成；使用 ComfyUI 服务时由 Agent 在允许的 connectionId 内通过 media_discover_workflows 按需分页筛选，核对输出、参考数量与输入角色，再用精确 descriptor/contentHash 调用 media_use_remote_workflow，随后 media_inspect_workflow 校验节点、模型和输入，按返回的 workflowId/revision 调用 media_prepare_run → media_execute_run → media_wait_run。影像任务不传 canvasId 或 targetNodeId。不得按名称默认选第一项或让用户从大量工作流里手选；服务条目不证明该服务具备所有输出能力。目录失败不能当作没有匹配，真实无匹配时说明缺口，遵循现有媒体授权策略；不擅自换到未授权服务。旧固定工作流保留精确版本及参数。按真实动作 update_job(preparing/generating/reviewing)，等待超时只代表尚未完成，不自动重发收费请求。⑥ 成功结果 outputs[].asset 通过 import_media 导入独立副本，检查实际画面后用 propose_shot 提交 jobId/shotId/mediaId/summary，宿主仅替换该镜头输出。需改设定或规划时才使用完整 propose，保留未要求修改的内容及锁定资产。
+失败调用 fail_job 并说明原因；用户重试时重读最新版本并 begin_job 新任务，不复活旧任务。取消需分别处理已启动的媒体任务和影像任务；只取消影像任务会拒绝候选回流，不代表外部生成已停止。阶段是制作步骤，不是供应商百分比或质量验收证明。版本变化、取消或任务不属于本轮时不得继续提交，采用始终由用户在面板操作。
+完整 draft 仅含 title/kind/brief/ratio/fps/voice/music/episodes/assets/shots，不含系统 id/revision。不得用 Write/Edit 直接改 .proma/visual-production，不能用占位符冒充生成成功。静帧预演、单镜头生成及清单导出不代表成片合成；未真实合成不得报告影片已交付。` : undefined,
         interactionAccess ? '交互设计使用 prototype_* 工具：用户可直接描述要还原的项目页面，Agent 先读取现有原型和当前版本，再从路由、组件、主题和实际素材建立最小源码证据闭包；现有项目还原必须先盘点并向用户确认页面数量、分组树、状态矩阵、页面流程和源码/素材证据，再 begin_job(mode=project-restore, plan=完整页面规划)，之后只能按规划用 propose 提交完整候选，由用户在工作区采纳。元素引用是修改上下文，自动保护范围为所属页面。不要用 Write/Edit 直接改 .proma/interaction-design 数据，也不要把结构检查或访问路径记录宣称为视觉一比一验证。不同业务页面分别写入 pages，同页有数据/无数据等状态写入该页 states 并排展示；禁止整套 App 塞一个 HTML、导览页或来源参考页冒充拆分；prototype_import_html 只用于用户明确要求导入的独立 HTML，不能用于现有项目还原。详细流程按 interaction-design Skill。' : undefined,
         extensions.systemPromptAppend]
         .filter((section): section is string => Boolean(section?.trim()))
@@ -2406,9 +2410,13 @@ export class AgentOrchestrator {
           event: { type: 'context_window', contextWindow },
         })
       }
-      const piCustomTools = runToolMode === 'server-ops-read' || runToolMode === 'server-ops-write'
+      const assembledPiCustomTools = runToolMode === 'server-ops-read' || runToolMode === 'server-ops-write'
         ? piBuiltinTools
         : [...piBuiltinTools, ...piMcpTools, ...(extensions.piCustomTools ?? [])]
+      /** 媒体工具来自扩展集合，必须在最终汇总后绑定作品范围与执行上下文。 */
+      const piCustomTools = visualProductionAccess && visualProductionRun
+        ? bindVisualProductionMediaTools(assembledPiCustomTools as Parameters<typeof bindVisualProductionMediaTools>[0], { sessionId, access: visualProductionAccess, jobs: () => visualProductionRun!.mediaJobs() })
+        : assembledPiCustomTools
       /** 运行期间已确认的凭据版本，刷新只能条件替换相同版本，不能覆盖用户换号。 */
       let githubCopilotCredentialsSnapshot = githubCopilotOAuthCredentials
       if (channel.provider === 'dutydeck-local') {

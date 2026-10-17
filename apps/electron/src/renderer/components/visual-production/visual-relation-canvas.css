@@ -1,0 +1,24 @@
+/* 关系画布填满右侧正文；边框、节点和工具栏均使用项目主题变量。 */
+.vp-body.vp-body-relations{display:flex;flex-direction:column;overflow:hidden;padding:0}
+.vp-relation-canvas{display:flex;flex:1;flex-direction:column;min-height:0;min-width:0}
+.vp-relation-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px 6px;flex-shrink:0}
+.vp-relation-tools{display:flex;align-items:center;margin-left:auto;flex-shrink:0}
+.vp-relation-legend{display:flex;align-items:center;gap:8px;padding:4px 14px 10px;color:hsl(var(--muted-foreground));font-size:11px;flex-shrink:0}
+.vp-relation-legend>span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.vp-relation-total{margin-left:auto}
+.vp-relation-surface{position:relative;flex:1;min-height:160px;overflow:hidden;border-block:1px solid hsl(var(--border));background:hsl(var(--muted)/.16)}
+.vp-relation-surface .react-flow{--xy-edge-stroke:hsl(var(--muted-foreground));--xy-node-color:hsl(var(--foreground));--xy-node-background-color:hsl(var(--card));--xy-node-border:1px solid hsl(var(--border));--xy-attribution-background-color:hsl(var(--background)/.85)}
+.vp-relation-surface .react-flow__attribution{font-size:9px}.vp-relation-surface .react-flow__attribution a{color:hsl(var(--muted-foreground))}
+.vp-relation-node{display:flex;flex-direction:column;gap:8px;width:224px;height:108px;padding:12px 14px;border:1px solid hsl(var(--border));border-radius:10px;background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 2px 5px #00000008}
+.vp-relation-node-heading{display:flex;align-items:center;gap:6px;font-size:10px;color:hsl(var(--muted-foreground));min-width:0}.vp-relation-node-heading svg{flex-shrink:0}.vp-relation-node-heading span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vp-relation-node>strong{font-size:13px;font-weight:500;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vp-relation-node-status{font-size:10px;color:hsl(var(--muted-foreground))}.vp-relation-node-status[data-warning=true]{color:hsl(var(--foreground));font-weight:600}.vp-relation-node-status[data-warning=true]:before{content:'●';margin-right:5px;font-size:8px}
+.vp-relation-node[data-selected=true]{border-color:hsl(var(--primary));box-shadow:0 0 0 1px hsl(var(--primary))}
+.vp-relation-surface .react-flow__node:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:4px;border-radius:10px}
+.vp-relation-node .react-flow__handle{width:6px;height:6px;border:1px solid hsl(var(--card));background:hsl(var(--muted-foreground));pointer-events:none}
+.vp-relation-dimmed{opacity:.3}
+.vp-relation-selection{display:flex;align-items:center;gap:10px;padding:10px 14px;min-height:68px;flex-shrink:0}
+.vp-relation-selection-text{flex:1;min-width:0;display:grid;gap:4px}.vp-relation-selection-text strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.vp-relation-selection-text span{font-size:11px;color:hsl(var(--muted-foreground))}
+.vp-relation-preview.vp-media{width:48px;height:48px;min-height:0;flex-shrink:0;font-size:10px;border-radius:6px}
+.vp-relation-hint{padding:10px 14px;color:hsl(var(--muted-foreground));font-size:11px;flex-shrink:0}
+.vp-relation-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;color:hsl(var(--muted-foreground))}.vp-relation-empty strong{color:hsl(var(--foreground));font-size:13px}.vp-relation-empty p{font-size:12px}
+@container(max-width:480px){.vp-relation-toolbar{padding-inline:10px;gap:4px}.vp-relation-legend{padding-inline:10px;gap:5px}.vp-relation-total{font-size:10px}.vp-relation-selection{padding-inline:10px;gap:7px}.vp-relation-preview.vp-media{width:38px;height:38px}}

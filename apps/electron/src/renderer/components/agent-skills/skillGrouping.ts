@@ -12,6 +12,11 @@ function normalizeGroup(value: string): string {
   return value.trim().replace(/^["']|["']$/g, '')
 }
 
+/** 接收原始分类名并返回显示标题，将旧品牌分类显示为“应用能力”。 */
+export function getSkillGroupDisplayTitle(group: string): string {
+  return normalizeGroup(group).toLowerCase() === 'proma' ? '应用能力' : group
+}
+
 export function getSkillGroupTitle(skill: SkillMeta): string {
   if (skill.group) {
     const group = normalizeGroup(skill.group)
@@ -34,7 +39,7 @@ export function groupSkills(skills: SkillMeta[]): SkillGroup[] {
   return [...groups.entries()]
     .map(([title, groupSkills]) => ({
       id: title.toLowerCase(),
-      title,
+      title: getSkillGroupDisplayTitle(title),
       skills: groupSkills,
     }))
     .sort((a, b) => compareGroupTitle(a.title, b.title))

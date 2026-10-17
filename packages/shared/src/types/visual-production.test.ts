@@ -54,3 +54,51 @@ describe('影像创作请求合同', () => {
     expect(() => parseVisualProductionDraft({ ...draft(), brief: '长'.repeat(16001) })).toThrow()
   })
 })
+
+it('Given 制作闭环命令 When 解析 Then 校验固定版本、任务和阶段且拒绝额外字段', () => {
+  const base = { sessionId: 'session', productionId: 'production', baseRevision: 1, jobId: 'job' }
+  for (const stage of ['preparing', 'generating', 'reviewing']) expect(parseVisualProductionCommand({ method: 'updateJob', input: { ...base, stage } }).method).toBe('updateJob')
+  expect(() => parseVisualProductionCommand({ method: 'updateJob', input: { ...base, stage: 'completed' } })).toThrow()
+  for (const method of ['referenceMedia', 'proposeShot'] as const) {
+    const input = { ...base, mediaId: 'media', ...(method === 'proposeShot' ? { shotId: 'shot', summary: '只替换输出' } : {}) }
+    expect(parseVisualProductionCommand({ method, input }).method).toBe(method)
+    expect(() => parseVisualProductionCommand({ method, input: { ...input, baseRevision: 0 } })).toThrow()
+    expect(() => parseVisualProductionCommand({ method, input: { ...input, jobId: '' } })).toThrow()
+    expect(() => parseVisualProductionCommand({ method, input: { ...input, path: '/tmp/media' } })).toThrow()
+  }
+})
+
+it('Given 合法外部媒体身份与 128 个参数 When 保存制作配置 Then 接受点号工作流和点号冒号参数但不放宽影像身份', () => {
+  const entries = [{ id: 'entry', name: '工作流', kind: 'image', source: { type: 'workflow' as const, connectionId: 'comfy.local', workflowId: 'workflow.v2', workflowRevision: 2 }, parameters: Object.fromEntries(Array.from({ length: 128 }, (_, index) => [`node.${index}:seed`, index])) }]
+  const input = { sessionId: 'session', productionId: 'production', expectedRevision: 0, entries, defaults: { image: 'entry' } }
+  const parsed = parseVisualProductionCommand({ method: 'saveMediaConfiguration', input })
+  expect(parsed.method).toBe('saveMediaConfiguration')
+  if (parsed.method !== 'saveMediaConfiguration') throw new Error('错误命令')
+  expect(parsed.input.entries[0]?.source).toEqual(entries[0]!.source)
+  expect(Object.keys(parsed.input.entries[0]!.parameters)).toHaveLength(128)
+  expect(() => parseVisualProductionCommand({ method: 'saveMediaConfiguration', input: { ...input, productionId: 'production.with.dot' } })).toThrow()
+  expect(() => parseVisualProductionCommand({ method: 'saveMediaConfiguration', input: { ...input, entries: [{ ...entries[0], parameters: { constructor: 'bad' } }] } })).toThrow()
+})
+
+it('Given 媒体资产使用合法命名空间身份 When 导入引用 Then 保留外部身份且仍拒绝路径', () => {
+  const reference = { assetId: 'asset.provider:output-1', revision: 1, hash: 'a'.repeat(64), mediaKind: 'image' }
+  const input = { sessionId: 'session', productionId: 'production', reference }
+  const result = parseVisualProductionCommand({ method: 'importMedia', input })
+  expect(result.method).toBe('importMedia')
+  if (result.method !== 'importMedia') throw new Error('错误命令')
+  expect(result.input.reference.assetId).toBe(reference.assetId)
+  expect(() => parseVisualProductionCommand({ method: 'importMedia', input: { ...input, reference: { ...reference, assetId: '../output' } } })).toThrow()
+})
+
+it('Given 服务授权与精确工作流 When 校验授权 Then 单向允许同服务工作流且回执不能只写服务', async () => {
+  const { visualProductionMediaSourceAllows } = await import('./visual-production-media')
+  const { parseVisualProductionMediaExecution } = await import('./visual-production-validation')
+  const connection = { type: 'connection' as const, connectionId: 'comfy' }
+  const workflow = { type: 'workflow' as const, connectionId: 'comfy', workflowId: 'flow', workflowRevision: 1 }
+  expect(visualProductionMediaSourceAllows(connection, workflow)).toBe(true)
+  expect(visualProductionMediaSourceAllows(workflow, connection)).toBe(false)
+  expect(visualProductionMediaSourceAllows(workflow, { ...workflow, workflowRevision: 2 })).toBe(false)
+  expect(visualProductionMediaSourceAllows(connection, { ...workflow, connectionId: 'other' })).toBe(false)
+  expect(() => parseVisualProductionMediaExecution({ runId: 'run', engine: 'workflow', name: '错误服务回执', kind: 'image', source: connection, parameters: {}, referenceAssets: [], phase: 'prepared', createdAt: 1 })).toThrow()
+  expect(() => parseVisualProductionCommand({ method: 'resolveMediaWorkflow', input: { sessionId: 'session', productionId: 'production', source: connection, kind: 'image' } })).toThrow()
+})

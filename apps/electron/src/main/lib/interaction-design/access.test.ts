@@ -105,3 +105,28 @@ describe('交互设计访问边界', () => {
     registration.dispose(); expect(removed).toBe(true)
   })
 })
+
+test('Given 历史清理与影响查询 When 计划模式经 IPC 调用 Then 只读查询不拿租约而删除须写权限', async () => {
+  /** 带真实存储的授权环境。 */
+  const { access, state, dependencies } = fixture()
+  /** 原型与未采纳候选。 */
+  const first = await access.execute('create', { sessionId: 'session-1', name: '历史', platform: 'mobile' })
+  /** 固定会话和原型归属。 */
+  const base = { sessionId: 'session-1', prototypeId: first.document.id }
+  /** 本例提交的候选身份。 */
+  const candidate = await access.execute('propose', { ...base, baseRevision: 1, draft: first.document, summary: '候选' })
+  /** 捕获真实 IPC 通用分发函数。 */
+  let handler: ((event: InteractionDesignIpcEvent, value: unknown) => Promise<unknown>) | undefined
+  registerInteractionDesignIpc({ ipc: { handle: (_channel, callback) => { handler = callback }, removeHandler: () => {} }, isAuthorizedSender: () => true, createAccess: () => access })
+  /** 记录总租约次数，而非仅核验结束后释放。 */
+  let acquired = 0
+  dependencies.acquireWriteLease = () => { acquired += 1; return () => {} }
+  state.writable = false
+  expect(await handler!({ sender: { id: 1 } }, { method: 'getCandidateImpact', input: { ...base, candidateId: candidate.id } })).toEqual({ pageIds: [] })
+  await expect(handler!({ sender: { id: 1 } }, { method: 'deleteHistory', input: { ...base, baseRevision: 1, kind: 'candidate', recordId: candidate.id } })).rejects.toThrow('计划模式')
+  expect(acquired).toBe(0)
+  state.writable = true
+  await handler!({ sender: { id: 1 } }, { method: 'deleteHistory', input: { ...base, baseRevision: 1, kind: 'candidate', recordId: candidate.id } })
+  expect(acquired).toBe(1)
+  expect((await access.execute('load', base)).candidates).toEqual([])
+})

@@ -6,7 +6,7 @@ import type {
   MediaModelRef,
   UnifiedMediaModelOption,
 } from '@proma/shared'
-import { formatMediaModelRef, imageGenerationModelKind, parseMediaModelRef } from '@proma/shared'
+import { formatMediaModelRef, imageGenerationModelKind, parseMediaModelRef, IMAGE_GENERATION_PROVIDER_DEFAULTS } from '@proma/shared'
 
 /** 统一媒体目录解析出的主进程路由；API Key 只在此对象生命周期内存在。 */
 export interface UnifiedMediaModelRoute {
@@ -15,6 +15,8 @@ export interface UnifiedMediaModelRoute {
   baseUrl: string
   apiKey: string
   cliPath?: string
+  /** 即梦模型配置的默认分辨率，执行器验证合法组合。 */
+  resolutionType?: string
   groupId?: string
 }
 
@@ -25,6 +27,9 @@ export interface UnifiedMediaModelCatalogDependencies {
   resolveImageApiKey(profileId: string): string
   resolveAudioApiKey(profileId: string): string
 }
+
+/** 已按本机CLI帮助核验的图片版本；新增目录模型不能自动取得执行资格。 */
+const DREAMINA_IMAGE_MODELS = new Set(['3.0', '3.1', '4.0', '4.1', '4.5', '4.6', '4.7', '5.0', '5.0Pro'])
 
 /** 将独立图片、音频配置投影成 Agent 与 Canvas 共用的模型目录。 */
 export class UnifiedMediaModelCatalog {
@@ -38,14 +43,19 @@ export class UnifiedMediaModelCatalog {
     for (const profile of imageCatalog.profiles) {
       for (const model of profile.models) {
         const kind = imageGenerationModelKind(model)
-        const capabilities = model.capabilities.reduce<MediaApiModelCapability[]>((items, capability) => {
+        /** 即梦声明须与已核验内置能力取交集，避免旧版本伪报图生图。 */
+        const dreaminaModel = profile.provider === 'dreamina' && DREAMINA_IMAGE_MODELS.has(model.id)
+          ? IMAGE_GENERATION_PROVIDER_DEFAULTS.dreamina.builtinModels.find(item => item.id === model.id) : undefined
+        const capabilities = model.capabilities.filter(capability => profile.provider !== 'dreamina' || dreaminaModel?.capabilities.includes(capability)).reduce<MediaApiModelCapability[]>((items, capability) => {
           if (capability === 'text-to-image' || capability === 'image-to-image' || capability === 'text-to-video' || capability === 'image-to-video') {
             items.push(capability as MediaApiModelCapability)
           }
           return items
         }, [])
-        const adapterId = this.adapterForImage(profile.provider, kind, capabilities)
-        const available = profile.enabled && profile.credentialConfigured && adapterId !== undefined
+        const adapterId = profile.provider === 'dreamina'
+          ? kind === 'image' && dreaminaModel && capabilities.some(capability => capability === 'text-to-image' || capability === 'image-to-image') ? 'dreamina-image' : undefined
+          : this.adapterForImage(profile.provider, kind, capabilities)
+        const available = profile.enabled && (profile.provider === 'dreamina' || profile.credentialConfigured) && adapterId !== undefined
         options.push({
           ref: formatMediaModelRef({ kind, provider: profile.provider, profileId: profile.id, modelId: model.id }),
           name: `${profile.name} · ${model.name ?? model.id}`,
@@ -56,7 +66,7 @@ export class UnifiedMediaModelCatalog {
           capabilities,
           available,
           ...(adapterId ? { adapterId } : {}),
-          ...(available ? {} : { unavailableReason: !profile.enabled ? '模型已停用' : !profile.credentialConfigured ? '凭据未配置' : '执行器尚未接入' }),
+          ...(available ? {} : { unavailableReason: !profile.enabled ? '模型已停用' : profile.provider === 'dreamina' ? kind === 'video' ? '即梦视频执行器尚未接入' : '当前即梦图片模型或能力尚未接入' : !profile.credentialConfigured ? '凭据未配置' : '执行器尚未接入' }),
         })
       }
     }
@@ -88,7 +98,14 @@ export class UnifiedMediaModelCatalog {
       return { option, ref, baseUrl: profile.baseUrl, apiKey: this.dependencies.resolveAudioApiKey(profile.id), ...(profile.provider === 'minimax' && profile.groupId ? { groupId: profile.groupId } : {}) }
     }
     const profile = this.dependencies.readImageCatalog().profiles.find((candidate) => candidate.id === ref.profileId)
-    if (!profile || profile.provider === 'dreamina') throw new Error('MEDIA_MODEL_UNAVAILABLE')
+    if (!profile) throw new Error('MEDIA_MODEL_UNAVAILABLE')
+    if (profile.provider === 'dreamina') {
+      /** CLI复用本机登录态，绝不读取API密钥；未登录由执行时明确报告。 */
+      const model = profile.models.find(item => item.id === ref.modelId)
+      if (!model) throw new Error('MEDIA_MODEL_UNAVAILABLE')
+      const resolutionType = typeof model.params?.resolution_type === 'string' ? model.params.resolution_type : ['3.0', '3.1'].includes(model.id) ? '1k' : '2k'
+      return { option, ref, baseUrl: '', apiKey: '', ...(profile.cliPath ? { cliPath: profile.cliPath } : {}), resolutionType }
+    }
     return { option, ref, baseUrl: profile.baseUrl, apiKey: this.dependencies.resolveImageApiKey(profile.id), ...(profile.provider === 'minimax' && profile.groupId ? { groupId: profile.groupId } : {}) }
   }
 

@@ -1,6 +1,7 @@
 import type { MediaAssetRef, MediaGenerationRequest, MediaInputValue } from '@proma/shared'
 import { scalarInput, type UnifiedMediaGenerationAdapter, type UnifiedMediaGenerationAdapterOutput } from './unified-media-generation-service'
 import type { UnifiedMediaModelRoute } from './unified-media-model-catalog'
+import { detectMediaFileSignature } from './media-file-probe'
 
 /** HTTP 依赖可注入，测试不触碰真实供应商。 */
 export interface UnifiedMediaHttpAdapterOptions {
@@ -43,10 +44,10 @@ async function getJson(fetchImpl: FetchImpl, url: string, apiKey: string, signal
 }
 
 /** OpenAI Images 编辑接口使用 multipart，图片字节不经过第三方 URL。 */
-async function postMultipart(fetchImpl: FetchImpl, url: string, apiKey: string, fields: Record<string, string>, image: { bytes: Uint8Array; contentType: string }, signal: AbortSignal): Promise<unknown> {
+async function postMultipart(fetchImpl: FetchImpl, url: string, apiKey: string, fields: Record<string, string>, image: { bytes: Uint8Array; contentType: string; extension: string }, signal: AbortSignal): Promise<unknown> {
   const form = new FormData()
   for (const [key, value] of Object.entries(fields)) form.set(key, value)
-  form.set('image', new Blob([Buffer.from(image.bytes)], { type: image.contentType }), 'reference.png')
+  form.set('image', new Blob([Buffer.from(image.bytes)], { type: image.contentType }), `reference${image.extension}`)
   const response = await fetchImpl(url, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form, signal, redirect: 'manual' })
   if (!response.ok) throw new Error('MEDIA_ADAPTER_HTTP_ERROR')
   return parseJson(await response.text())
@@ -55,7 +56,7 @@ async function postMultipart(fetchImpl: FetchImpl, url: string, apiKey: string, 
 /** OpenAI Images 兼容接口的最小文生图执行器。 */
 async function generateOpenAiImage(request: MediaGenerationRequest, route: UnifiedMediaModelRoute, signal: AbortSignal, fetchImpl: FetchImpl, readAsset?: UnifiedMediaHttpAdapterOptions['readAsset']): Promise<UnifiedMediaGenerationAdapterOutput[]> {
   const size = String(scalarInput(request.inputs, 'size') ?? '1024x1024')
-  const reference = await firstAsset(request, readAsset)
+  const reference = await singleImageReference(request, readAsset)
   const endpoint = `${route.baseUrl.replace(/\/+$/, '')}/${reference ? 'images/edits' : 'images/generations'}`
   const payload = reference
     ? await postMultipart(fetchImpl, endpoint, route.apiKey, { model: route.ref.modelId, prompt: request.prompt, n: '1', size }, reference, signal)
@@ -65,7 +66,7 @@ async function generateOpenAiImage(request: MediaGenerationRequest, route: Unifi
 
 /** MiniMax 图像接口的最小统一执行器。 */
 async function generateMiniMaxImage(request: MediaGenerationRequest, route: UnifiedMediaModelRoute, signal: AbortSignal, fetchImpl: FetchImpl, readAsset?: UnifiedMediaHttpAdapterOptions['readAsset']): Promise<UnifiedMediaGenerationAdapterOutput[]> {
-  const reference = await firstAsset(request, readAsset)
+  const reference = await singleImageReference(request, readAsset)
   const payload = await postJson(fetchImpl, `${route.baseUrl.replace(/\/+$/, '')}/image_generation`, route.apiKey, {
     model: route.ref.modelId, prompt: request.prompt, response_format: 'base64',
     ...(reference ? { subject_reference: [{ type: 'character', image_file: `data:${reference.contentType};base64,${Buffer.from(reference.bytes).toString('base64')}` }] } : {}),
@@ -99,7 +100,7 @@ async function generateMiniMaxSpeech(request: MediaGenerationRequest, route: Uni
 
 /** MiniMax 视频提交、轮询与远端文件下载执行器。 */
 async function generateMiniMaxVideo(request: MediaGenerationRequest, route: UnifiedMediaModelRoute, signal: AbortSignal, fetchImpl: FetchImpl, options: UnifiedMediaHttpAdapterOptions): Promise<UnifiedMediaGenerationAdapterOutput[]> {
-  const reference = await firstAsset(request, options.readAsset)
+  const reference = await singleImageReference(request, options.readAsset)
   const submitted = await postJson(fetchImpl, `${route.baseUrl.replace(/\/+$/, '')}/video_generation`, route.apiKey, {
     model: route.ref.modelId, prompt: request.prompt, ...(route.groupId ? { group_id: route.groupId } : {}),
     ...(reference ? { first_frame_image: `data:${reference.contentType};base64,${Buffer.from(reference.bytes).toString('base64')}` } : {}),
@@ -150,14 +151,26 @@ async function parseMediaItems(payload: unknown, defaultType: string, fetchImpl:
   return outputs
 }
 
-/** 从输入中取第一份已授权资产；缺少读取器时 fail closed。 */
-async function firstAsset(request: MediaGenerationRequest, readAsset?: UnifiedMediaHttpAdapterOptions['readAsset']): Promise<{ bytes: Uint8Array; contentType: string } | undefined> {
-  const entry = Object.values(request.inputs).find((value): value is Extract<MediaInputValue, { kind: 'asset' }> => value.kind === 'asset')
+/** 读取唯一图片参考；多参考或格式不匹配时拒绝，避免静默丢失制作约束。 */
+async function singleImageReference(request: MediaGenerationRequest, readAsset?: UnifiedMediaHttpAdapterOptions['readAsset']): Promise<{ bytes: Uint8Array; contentType: string; extension: string } | undefined> {
+  /** 当前执行器仅支持一张图片；先校验数量，不读取或提交部分参考。 */
+  const entries = Object.values(request.inputs).filter((value): value is Extract<MediaInputValue, { kind: 'asset' }> => value.kind === 'asset')
+  if (entries.length > 1) throw new Error('MEDIA_GENERATION_MULTIPLE_REFERENCES_UNSUPPORTED')
+  /** 没有参考时保留原有文生图/视频行为。 */
+  const entry = entries[0]
   if (!entry) return undefined
+  if (entry.asset.mediaKind !== 'image') throw new Error('MEDIA_GENERATION_REFERENCE_IMAGE_REQUIRED')
   if (!readAsset) throw new Error('MEDIA_GENERATION_ASSET_UNAVAILABLE')
+  /** 读取失败直接向上传播，不能降级为无参考生成。 */
   const bytes = await readAsset(request.projectId, entry.asset)
-  const contentType = entry.asset.mediaKind === 'image' ? 'image/png' : entry.asset.mediaKind === 'audio' ? 'audio/mpeg' : 'video/mp4'
-  return { bytes, contentType }
+  try {
+    /** 复用资产系统的字节签名识别，确保 MIME 与 multipart 扩展名一致。 */
+    const signature = detectMediaFileSignature(bytes)
+    if (signature.mediaKind !== 'image') throw new Error('MEDIA_GENERATION_REFERENCE_IMAGE_REQUIRED')
+    return { bytes, contentType: signature.mediaType, extension: signature.extension }
+  } catch {
+    throw new Error('MEDIA_GENERATION_REFERENCE_IMAGE_REQUIRED')
+  }
 }
 
 /** 从有限 JSON 值中读取字符串字段。 */

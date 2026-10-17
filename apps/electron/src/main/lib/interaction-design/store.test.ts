@@ -754,3 +754,160 @@ describe('页面状态持久化', () => {
     expect((await service.invoke('beginJob', { sessionId, prototypeId, baseRevision: 2, instruction: '修改重试', pageId: 'home', elementId: 'retry' })).status).toBe('running')
   })
 })
+
+describe('历史记录清理与候选页面提示', () => {
+  it('Given 整稿候选只改一页 When 提交 Then 精确保存影响页面且旧摘要可以只读重算', async () => {
+    /** 隔离服务和项目根。 */
+    const { service, root } = setup()
+    /** 本例初始正式文档。 */
+    const first = await service.invoke('create', { sessionId, name: '历史', platform: 'mobile' })
+    /** 固定会话和原型归属。 */
+    const base = { sessionId, prototypeId: first.document.id }
+    /** 可编辑的候选基线副本。 */
+    const draft = parsePrototypeDraft(first.document)
+    draft.pages.push({ ...draft.pages[0]!, id: 'second', name: '第二页' })
+    await service.invoke('save', { ...base, baseRevision: 1, draft, summary: '两页' })
+    draft.pages[1]!.html = '<p>仅第二页变更</p>'
+    /** 本例提交的候选身份。 */
+    const candidate = await service.invoke('propose', { ...base, baseRevision: 2, draft, summary: '局部更改' })
+    expect(candidate.affectedPageIds).toEqual(['second'])
+    /** 隔离项目的候选摘要文件。 */
+    const path = join(root, '.proma', 'interaction-design', 'prototypes', base.prototypeId, 'candidates', `${candidate.id}.summary.json`)
+    /** 模拟旧版候选摘要。 */
+    const summary = JSON.parse(readFileSync(path, 'utf8'))
+    delete summary.affectedPageIds
+    writeFileSync(path, JSON.stringify(summary))
+    /** 读取前的文件字节，验证查询不落盘。 */
+    const before = readFileSync(path, 'utf8')
+    expect((await service.invoke('load', base)).candidates[0]!.affectedPageIds).toBeUndefined()
+    expect(await service.invoke('getCandidateImpact', { ...base, candidateId: candidate.id })).toEqual({ pageIds: ['second'] })
+    expect(readFileSync(path, 'utf8')).toBe(before)
+    await service.invoke('save', { ...base, baseRevision: 2, draft, summary: '推进' })
+    await service.invoke('deleteVersion', { ...base, baseRevision: 3, revision: 2 })
+    expect(await service.invoke('getCandidateImpact', { ...base, candidateId: candidate.id })).toEqual({ pageIds: [draft.pages[0]!.id, 'second'], conservative: true })
+  })
+
+  it('Given 未采纳候选 When 删除并重开 Then 候选和任务不再出现且迟到操作被拒绝', async () => {
+    /** 隔离服务和项目根。 */
+    const { service, root } = setup()
+    /** 本例初始正式文档。 */
+    const first = await service.invoke('create', { sessionId, name: '历史', platform: 'mobile' })
+    /** 固定会话和原型归属。 */
+    const base = { sessionId, prototypeId: first.document.id }
+    /** 本例生成任务及其固定范围。 */
+    const job = await service.invoke('beginJob', { ...base, baseRevision: 1, instruction: '设计', mode: 'design' })
+    /** 本例提交的候选身份。 */
+    const candidate = await service.invoke('propose', { ...base, baseRevision: 1, draft: first.document, summary: '候选', jobId: job.id })
+    await expect(service.invoke('deleteHistory', { ...base, baseRevision: 2, kind: 'candidate', recordId: candidate.id })).rejects.toThrow('版本已变化')
+    await service.invoke('deleteHistory', { ...base, baseRevision: 1, kind: 'candidate', recordId: candidate.id })
+    /** 模拟应用重新打开的服务实例。 */
+    const reopened = new InteractionDesignService({ workspaceId: 'workspace', projectRoot: root })
+    expect((await reopened.invoke('load', base)).candidates).toEqual([])
+    expect((await reopened.invoke('load', base)).jobs).toEqual([])
+    await expect(reopened.invoke('getCandidate', { ...base, candidateId: candidate.id })).rejects.toThrow('已删除')
+    await expect(reopened.invoke('adopt', { ...base, baseRevision: 1, candidateId: candidate.id })).rejects.toThrow('已删除')
+    await expect(reopened.invoke('discardCandidate', { ...base, candidateId: candidate.id })).rejects.toThrow('已删除')
+    await expect(reopened.invoke('propose', { ...base, baseRevision: 1, draft: first.document, summary: '迟到', jobId: job.id })).rejects.toThrow('已删除')
+  })
+
+  it('Given 当前已采纳候选与运行任务 When 清理 Then 保护当前与运行任务并保留历史采纳事实', async () => {
+    /** 隔离服务和项目根。 */
+    const { service, root } = setup()
+    /** 本例初始正式文档。 */
+    const first = await service.invoke('create', { sessionId, name: '历史', platform: 'mobile' })
+    /** 固定会话和原型归属。 */
+    const base = { sessionId, prototypeId: first.document.id }
+    /** 本例生成任务及其固定范围。 */
+    const job = await service.invoke('beginJob', { ...base, baseRevision: 1, instruction: '设计', mode: 'design' })
+    await expect(service.invoke('deleteHistory', { ...base, baseRevision: 1, kind: 'job', recordId: job.id })).rejects.toThrow('先取消')
+    await service.invoke('cancelJob', { ...base, jobId: job.id })
+    expect((await service.invoke('deleteHistory', { ...base, baseRevision: 1, kind: 'job', recordId: job.id })).jobs).toEqual([])
+    /** 本例提交的候选身份。 */
+    const candidate = await service.invoke('propose', { ...base, baseRevision: 1, draft: first.document, summary: '采纳' })
+    await service.invoke('adopt', { ...base, baseRevision: 1, candidateId: candidate.id })
+    expect((await service.invoke('adopt', { ...base, baseRevision: 1, candidateId: candidate.id })).document.revision).toBe(2)
+    await expect(service.invoke('deleteHistory', { ...base, baseRevision: 2, kind: 'candidate', recordId: candidate.id })).rejects.toThrow('当前版本')
+    await service.invoke('save', { ...base, baseRevision: 2, draft: first.document, summary: '下一版' })
+    /** 删除后的完整快照。 */
+    const deleted = await service.invoke('deleteHistory', { ...base, baseRevision: 3, kind: 'candidate', recordId: candidate.id })
+    expect(deleted.versions.map(version => version.revision)).toEqual([3, 2, 1])
+    /** 持久化采纳事实，验证清理不丢幂等信息。 */
+    const head = JSON.parse(readFileSync(join(root, '.proma', 'interaction-design', 'prototypes', base.prototypeId, 'head.json'), 'utf8'))
+    expect(head.adopted[candidate.id]).toBe(2)
+  })
+})
+
+describe('候选影响范围边界', () => {
+  it('Given 多页和分组 When 修改状态、排序、入口、流程或增删页面 Then 仅返回实际受影响身份', async () => {
+    /** 双分组、三页的独立基线。 */
+    const { service } = setup()
+    /** 本例初始正式文档。 */
+    const first = await service.invoke('create', { sessionId, name: '范围', platform: 'mobile' })
+    /** 固定会话和原型归属。 */
+    const base = { sessionId, prototypeId: first.document.id }
+    /** 可编辑的候选基线副本。 */
+    const draft = parsePrototypeDraft(first.document)
+    draft.groups = [{ id: 'a', name: '甲' }, { id: 'b', name: '乙' }]
+    draft.pages = ['one', 'two', 'three'].map((id, index) => ({ id, groupId: index === 2 ? 'b' : 'a', name: id, html: '<button data-prototype-element="go">跳转</button>' }))
+    draft.entryPageId = 'one'
+    await service.invoke('save', { ...base, baseRevision: 1, draft, summary: '基线' })
+    /** 各变体独立比较同一不可变基线，不产生新正式版本。 */
+    const cases: Array<{ change(value: typeof draft): void; expected: string[] }> = [
+      { change: value => { value.pages[1]!.states = [{ id: 'empty', name: '空状态', html: '<p>空</p>' }] }, expected: ['two'] },
+      { change: value => { value.pages[1]!.name = '改名' }, expected: ['two'] },
+      { change: value => { value.pages = [value.pages[1]!, value.pages[0]!, value.pages[2]!] }, expected: ['one', 'two'] },
+      { change: value => { value.entryPageId = 'two' }, expected: ['one', 'two'] },
+      { change: value => { value.flows = [{ id: 'route', fromPageId: 'two', targetPageId: 'one', elementId: 'go' }] }, expected: ['two'] },
+      { change: value => { value.groups[1]!.name = '新分组名' }, expected: ['three'] },
+      { change: value => { value.pages.pop() }, expected: ['three'] },
+      { change: value => { value.pages.push({ ...value.pages[2]!, id: 'four' }) }, expected: ['four'] },
+    ]
+    for (const item of cases) {
+      /** 单次候选草稿，避免前一个变体污染后续范围。 */
+      const changed = structuredClone(draft)
+      item.change(changed)
+      expect((await service.invoke('propose', { ...base, baseRevision: 2, draft: changed, summary: '变体' })).affectedPageIds).toEqual(item.expected)
+    }
+  })
+
+  it('Given 页级旧候选基线已删除 When 查询影响与取消后清理 Then 回退固定页且取消记录可删除', async () => {
+    /** 固定单页任务，生成之后推进正式版本。 */
+    const { service } = setup()
+    /** 本例初始正式文档。 */
+    const first = await service.invoke('create', { sessionId, name: '旧候选', platform: 'mobile' })
+    /** 固定会话和原型归属。 */
+    const base = { sessionId, prototypeId: first.document.id }
+    /** 页级任务固定身份。 */
+    const pageId = first.document.pages[0]!.id
+    /** 本例生成任务及其固定范围。 */
+    const job = await service.invoke('beginJob', { ...base, baseRevision: 1, pageId, instruction: '改正文', mode: 'page-edit' })
+    /** 本例提交的候选身份。 */
+    const candidate = await service.invoke('propose', { ...base, baseRevision: 1, jobId: job.id, draft: first.document, summary: '旧候选' })
+    await service.invoke('save', { ...base, baseRevision: 1, draft: first.document, summary: '新版本' })
+    await service.invoke('deleteVersion', { ...base, baseRevision: 2, revision: 1 })
+    expect(await service.invoke('getCandidateImpact', { ...base, candidateId: candidate.id })).toEqual({ pageIds: [pageId] })
+    await service.invoke('discardCandidate', { ...base, candidateId: candidate.id })
+    expect((await service.invoke('deleteHistory', { ...base, baseRevision: 2, kind: 'job', recordId: job.id })).candidates).toEqual([])
+  })
+})
+
+it('Given 已采纳任务对应当前版本 When 从任务入口删除 Then 同样拒绝并保持原子记录不变', async () => {
+  /** 隔离服务及正式基线。 */
+  const { service, root } = setup()
+  /** 初始模块。 */
+  const first = await service.invoke('create', { sessionId, name: '保护', platform: 'mobile' })
+  /** 固定调用身份。 */
+  const base = { sessionId, prototypeId: first.document.id }
+  /** 生成任务及其候选。 */
+  const job = await service.invoke('beginJob', { ...base, baseRevision: 1, instruction: '设计', mode: 'design' })
+  /** 待采纳正文。 */
+  const candidate = await service.invoke('propose', { ...base, baseRevision: 1, jobId: job.id, draft: first.document, summary: '采纳' })
+  await service.invoke('adopt', { ...base, baseRevision: 1, candidateId: candidate.id })
+  await expect(service.invoke('deleteHistory', { ...base, baseRevision: 2, kind: 'job', recordId: job.id })).rejects.toThrow('当前版本')
+  expect((await service.invoke('load', base)).candidates).toHaveLength(1)
+  expect((await service.invoke('load', base)).jobs).toHaveLength(1)
+  /** 模拟旧基线被破坏，禁止把校验失败当作正常保守回退。 */
+  const baselinePath = join(root, '.proma', 'interaction-design', 'prototypes', base.prototypeId, 'revisions', '1.json')
+  writeFileSync(baselinePath, '{}')
+  await expect(service.invoke('getCandidateImpact', { ...base, candidateId: candidate.id })).rejects.toThrow('版本页面记录非法')
+})

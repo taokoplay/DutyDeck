@@ -2,7 +2,7 @@ import * as React from 'react'
 import type { VisualMedia } from '@proma/shared'
 
 /** 每个预览只在进入视口后读取媒体；释放时回收 Blob URL，避免整库驻留。 */
-export function VisualMediaView({ sessionId, productionId, media, active = true, playing = false, onEnded, onError, onReady, className = '' }: { sessionId: string; productionId: string; media?: VisualMedia; active?: boolean; playing?: boolean; onEnded?: () => void; onError?: () => void; onReady?: () => void; className?: string }): React.ReactElement {
+export function VisualMediaView({ sessionId, productionId, media, active = true, playing = false, controls = false, onEnded, onError, onReady, className = '' }: { sessionId: string; productionId: string; media?: VisualMedia; active?: boolean; playing?: boolean; controls?: boolean; onEnded?: () => void; onError?: () => void; onReady?: () => void; className?: string }): React.ReactElement {
   const host = React.useRef<HTMLDivElement>(null)
   const audio = React.useRef<HTMLAudioElement>(null)
   const video = React.useRef<HTMLVideoElement>(null)
@@ -39,6 +39,6 @@ export function VisualMediaView({ sessionId, productionId, media, active = true,
     return () => document.removeEventListener('visibilitychange', hide)
   }, [active])
   return <div ref={host} className={`vp-media ${className}`}>
-    {!media ? <span>尚无画面</span> : error ? <span role="alert">媒体读取失败</span> : !url ? <span>加载素材…</span> : media.kind === 'video' ? <video ref={video} src={url} playsInline onLoadedData={onReady} onEnded={onEnded} onError={onError}  /> : media.kind === 'image' ? <img src={url} alt={media.name} onLoad={onReady} onError={() => { setError('无法解码图片'); onError?.() }} /> : <audio ref={audio} src={url} controls />}
+    {!media ? <span>尚无画面</span> : error ? <span role="alert">媒体读取失败</span> : !url ? <span>加载素材…</span> : media.kind === 'video' ? <video ref={video} src={url} controls={controls} playsInline onLoadedData={onReady} onEnded={onEnded} onError={onError} /> : media.kind === 'image' ? <img src={url} alt={media.name} onLoad={onReady} onError={() => { setError('无法解码图片'); onError?.() }} /> : <audio ref={audio} src={url} controls />}
   </div>
 }

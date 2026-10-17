@@ -39,7 +39,7 @@ function createFixture(options: {
   const removed: string[] = []
   const workDir = mkdtempSync(join(tmpdir(), 'dreamina-exec-'))
   const imagePath = join(workDir, 'result-1.png')
-  if (!options.pathMissing) writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+  if (!options.pathMissing) writeFileSync(imagePath, Buffer.from('89504e470d0a1a0a', 'hex'))
   const statuses = [...(options.statuses ?? ['success'])]
   return {
     calls,
@@ -98,6 +98,7 @@ describe('即梦图像执行器', () => {
     const result = await executeDreaminaImages(createInput({ aspectRatio: '16:9', numberOfImages: 2 }), fixture.dependencies)
     expect(fixture.calls[0]![0]).toBe('text2image')
     expect(fixture.calls[0]).toContain('--model_version=5.0')
+    expect(fixture.calls[0]).toContain('--resolution_type=2k')
     expect(fixture.calls[0]).toContain('--generate_num=2')
     expect(fixture.calls[0]).toContain('--ratio=16:9')
     /** 提交与查询是两步，submit 被接受不等于生成完成。 */
@@ -177,4 +178,25 @@ describe('即梦图像执行器', () => {
     await expect(executeDreaminaImages(tooManyPixels, fixture.dependencies)).rejects.toThrow('超出 2k 档位限制')
     expect(fixture.calls).toHaveLength(0)
   })
+})
+
+test('Given 第二张附件保存失败 When 包装器退出 Then 回滚第一张附件并已清理临时目录', async () => {
+  const fixture = createFixture()
+  const original = fixture.dependencies.runCli
+  fixture.dependencies.runCli = async (args, path, signal) => {
+    const result = await original(args, path, signal)
+    if (args[0] !== 'query_result') return result
+    const payload = JSON.parse(result.stdout)
+    payload.result_json.images.push(payload.result_json.images[0])
+    return { ...result, stdout: JSON.stringify(payload) }
+  }
+  const deleted: string[] = []
+  fixture.dependencies.deleteAttachment = path => { deleted.push(path); return true }
+  const save = fixture.dependencies.saveAttachment
+  let count = 0
+  fixture.dependencies.saveAttachment = input => { if (++count === 2) throw new Error('save failed'); return save(input) }
+  await expect(executeDreaminaImages(createInput({ numberOfImages: 2 }), fixture.dependencies)).rejects.toThrow('save failed')
+  expect(deleted).toEqual(fixture.saved)
+  expect(fixture.saved).toHaveLength(1)
+  expect(fixture.removed).toHaveLength(1)
 })

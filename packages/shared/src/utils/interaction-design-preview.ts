@@ -1,4 +1,5 @@
 import type { PrototypeDraft } from '../types/interaction-design'
+import { prototypeLifecycleScript } from './interaction-design-preview-lifecycle'
 
 /** 预览消息只报告稳定身份，父窗口仍必须核对 event.source 与当前 iframe。 */
 export interface PrototypePreviewMessage {
@@ -15,6 +16,8 @@ export interface PrototypePreviewMessage {
 /** 预览创建参数；资源必须由宿主读取已授权模块资产后提供。 */
 export interface PrototypePreviewOptions {
   mode: 'play' | 'select'
+  /** 缓存页初始是否活动；缺省 true 保持独立导出行为。 */
+  active?: boolean
   /** 仅选择已有附加状态，缺省预览默认正文。 */
   stateId?: string
   token: string
@@ -62,7 +65,7 @@ export function buildPrototypePreview(draft: PrototypeDraft, pageId: string, opt
   /** 不允许未知状态静默回退到默认页，以免修改/验收错误内容。 */
   const state = options.stateId === undefined ? undefined : page.states?.find((item) => item.id === options.stateId)
   if (options.stateId !== undefined && !state) throw new Error('页面状态不存在')
-  const context = scriptData({ pageId, stateId: options.stateId, token: options.token, revision: options.revision, mode: options.mode, pages: draft.pages.map((item) => item.id), flows: draft.flows.filter((item) => item.fromPageId === pageId) })
+  const context = scriptData({ active: options.active, pageId, stateId: options.stateId, token: options.token, revision: options.revision, mode: options.mode, pages: draft.pages.map((item) => item.id), flows: draft.flows.filter((item) => item.fromPageId === pageId) })
   const policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'"
   const bridge = `<script>(()=>{
     const config=${context};document.currentScript.remove();
@@ -74,8 +77,10 @@ export function buildPrototypePreview(draft: PrototypeDraft, pageId: string, opt
     const cancel=e=>{Reflect.apply(prevent,e,[]);Reflect.apply(stop,e,[])};
     const get=(el,name)=>el?Reflect.apply(attr,el,[name]):null;
     const near=(el,selector)=>el instanceof Element?Reflect.apply(closest,el,[selector]):null;
+    ${prototypeLifecycleScript}
     on('message',e=>{if(e.source!==host||!e.data||e.data.token!==config.token||e.data.type!=='prototype-mode')return;if(e.data.mode==='play'||e.data.mode==='select'){mode=e.data.mode;cancel(e)}});
     on('click',e=>{
+      if(!active){cancel(e);return}
       const element=near(e.target,'[data-prototype-element]'),elementId=get(element,'data-prototype-element');
       if(mode==='select'){cancel(e);if(e.isTrusted&&elementId)post({type:'prototype-select',token:config.token,pageId:config.pageId,stateId:config.stateId,revision:config.revision,elementId},'*');return}
       const route=near(e.target,'[data-prototype-page]');
@@ -84,10 +89,10 @@ export function buildPrototypePreview(draft: PrototypeDraft, pageId: string, opt
       if(targetPageId){cancel(e);if(e.isTrusted&&config.pages.includes(targetPageId))post({type:'prototype-navigate',token:config.token,pageId:config.pageId,stateId:config.stateId,revision:config.revision,elementId:elementId||undefined,targetPageId},'*');return}
       if(near(e.target,'a[href],area[href]'))cancel(e);
     });
-    on('auxclick',e=>{if(near(e.target,'a[href],area[href]'))cancel(e)});
+    on('auxclick',e=>{if(!active||near(e.target,'a[href],area[href]'))cancel(e)});
     // 体验态保留页面自身的表单校验和状态更新，仅取消浏览器默认提交；选择态拦截整个事件。
-    on('submit',e=>{if(mode==='select')cancel(e);else Reflect.apply(prevent,e,[])});
-    for(const type of ['pointerdown','mousedown','keydown','beforeinput'])on(type,e=>{if(mode==='select'&&(type!=='keydown'||e.key==='Enter'||e.key===' '))cancel(e)});
+    on('submit',e=>{if(!active||mode==='select')cancel(e);else Reflect.apply(prevent,e,[])});
+    for(const type of ['pointerdown','mousedown','keydown','beforeinput'])on(type,e=>{if(!active||mode==='select'&&(type!=='keydown'||e.key==='Enter'||e.key===' '))cancel(e)});
   })()</script>`
   return `<!doctype html><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer">${bridge}${replaceAssets(state?.html ?? page.html, options.assets)}`
 }
