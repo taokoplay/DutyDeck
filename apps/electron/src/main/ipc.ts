@@ -261,6 +261,7 @@ import {
   getCanvasToolProviderRuntime,
   registerCanvasDocumentIpcHandlers,
 } from './lib/design/canvas-document-ipc'
+import { createCanvasLoadErrorRecorder } from './lib/design/canvas-load-error-log'
 import { createCanvasAgentBatchOperationService } from './lib/design/canvas-agent-batch-operation'
 import { createCanvasArtifactCreationService } from './lib/design/canvas-artifact-creation'
 import { createCanvasImportedImageService } from './lib/design/canvas-imported-image-service'
@@ -4351,6 +4352,12 @@ export function registerIpcHandlers(): void {
     canvasViewCommands.dispose()
   })
   registerCanvasDocumentIpcHandlers({
+    /** 日志使用 Electron 自身目录，避免画布数据目录不可访问时连诊断一起丢失。 */
+    recordLoadError: createCanvasLoadErrorRecorder({
+      directory: () => app.getPath('logs'),
+      version: () => app.getVersion(),
+      platform: process.platform,
+    }),
     viewCommands: canvasViewCommands,
     configurationCatalog: (projectId) => ({
       models: buildCanvasGenerationModelOptions(readIndependentGenerationCatalog(), imageModels.listOptions(projectId)),

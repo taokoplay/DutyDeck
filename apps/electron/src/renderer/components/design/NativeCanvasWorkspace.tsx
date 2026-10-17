@@ -1,3 +1,4 @@
+import { CanvasLoadErrorPanel } from './CanvasLoadErrorPanel'
 import { assertCanvasViewSnapshotBudget } from '@proma/shared'
 import type { CanvasViewSnapshot } from '@proma/shared'
 import { activeSessionIdAtom } from '@/atoms/tab-atoms'
@@ -1813,11 +1814,13 @@ export function createNativeCanvasWorkspaceController(
     const isCurrentRequest = (): boolean => authoritative
       ? generation === recoveryLoadGeneration
       : generation === ordinaryLoadGeneration
+    dependencies.updateState({ loadError: null })
     if (!authoritative && !dependencies.getState().snapshot) {
       dependencies.updateState({ phase: 'loading', error: null })
     }
     void dependencies.adapter.loadCanvas(dependencies.target).then((snapshot) => {
       if (disposed || !isCurrentRequest()) return
+      dependencies.updateState({ loadError: null })
       if (authoritative || snapshot.recoveredFrom) {
         if (authoritative) authoritativeRecoveryInFlight = false
         /** 普通 LOAD 也可能在磁盘提升后返回恢复快照，必须执行完整 SAVE fence。 */
@@ -1843,6 +1846,12 @@ export function createNativeCanvasWorkspaceController(
       })
     }).catch((error: unknown) => {
       if (disposed || !isCurrentRequest()) return
+      /** 仅公开错误和白名单诊断进入界面；未知异常不透传正文。 */
+      const loadError = error instanceof CanvasPublicOperationError
+        ? { code: error.code, message: error.message, diagnostic: error.diagnostic }
+        : { code: 'CANVAS_LOAD_FAILED' as const, message: getNativeCanvasOperationErrorMessage('load', error),
+          diagnostic: { stage: 'renderer' as const, reason: 'transport-unavailable' as const } }
+      dependencies.updateState({ loadError })
       if (authoritative) {
         authoritativeRecoveryInFlight = false
         dependencies.updateState((latest) => ({
@@ -4520,12 +4529,9 @@ export function NativeCanvasWorkspace({
             <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
           </div>
         ) : state.phase === 'error' && !state.snapshot ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-            <p className="text-sm text-destructive">{state.error ?? 'Canvas 加载失败'}</p>
-            <Button size="sm" variant="outline" onClick={() => controllerRef.current?.retryLoad()}>
-              <RotateCcw className="mr-1.5 size-4" aria-hidden="true" />
-              重试
-            </Button>
+          <div className="flex h-full items-center justify-center overflow-auto p-4">
+            <CanvasLoadErrorPanel error={state.loadError ?? { code: 'CANVAS_LOAD_FAILED', message: state.error ?? '画布暂时无法加载。' }}
+              onRetry={() => controllerRef.current?.retryLoad()} />
           </div>
         ) : state.snapshot ? (
           <div className="relative h-full">
@@ -4656,7 +4662,14 @@ export function NativeCanvasWorkspace({
                 {createState.error ?? arrangeState.error}
               </div>
             ) : null}
-            {state.saveState === 'conflict' ? (
+            {state.loadError ? (
+              <div className="absolute inset-x-3 top-14 z-20 max-h-[calc(100%-4rem)] overflow-auto">
+                <CanvasLoadErrorPanel error={state.loadError} onRetry={() => {
+                  if (state.authoritativeRecoveryState === 'failed') controllerRef.current?.retryRecovery()
+                  else controllerRef.current?.retryLoad()
+                }} />
+              </div>
+            ) : state.saveState === 'conflict' ? (
               <div className="absolute inset-x-3 top-14 flex items-center justify-between gap-3 rounded-[8px] border border-destructive/30 bg-background/95 px-3 py-2 shadow-sm">
                 <p className="truncate text-xs text-destructive">{state.error}</p>
                 <Button

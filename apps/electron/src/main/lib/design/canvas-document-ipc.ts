@@ -45,6 +45,7 @@ import type {
   CanvasNodeIssue,
   CanvasPublicError,
   CanvasPublicErrorCode,
+  CanvasErrorDiagnostic,
   CreateDesignJobInput,
   CanvasRunNodesResult,
   CanvasWorkspaceSnapshot,
@@ -151,6 +152,7 @@ import {
   assertRebuildCanvasAgentNodeInput,
 } from './canvas-agent-node-creation'
 import { isSafeDesignStableId } from './design-paths'
+import { createCanvasLoadDiagnostic } from './canvas-load-error'
 
 /** 直接点击创建的单节点候选批次使用主进程 UUID；Agent 批次使用稳定哈希前缀。 */
 const SINGLE_IMAGE_CANDIDATE_BATCH_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -190,6 +192,8 @@ export function createCanvasOperationSerializer(): CanvasOperationSerializer {
 
 /** 注册原生 Canvas 文档 IPC 的可信依赖。 */
 export interface CanvasDocumentIpcOptions {
+  /** 加载失败日志独立于业务数据目录；记录器自身失败不能影响错误返回。 */
+  recordLoadError?: (diagnostic: CanvasErrorDiagnostic, error: unknown) => 'saved' | 'unavailable'
   /** Agent 交付合同持久化；原生 UI 操作仍沿用自身事务入口。 */
   taskStore?: ReturnType<typeof createCanvasTaskStore>
   ipc: CanvasDocumentIpcRegistrar
@@ -537,19 +541,35 @@ function toCanvasPublicError(
  * 将 Canvas handler 的成功或失败统一收敛为安全结果信封。
  * @param operation 当前操作类别，用于选择固定公开错误。
  * @param run 实际业务操作，允许同步校验和异步事务一起执行。
+ * @param getLoadStage 加载请求的独立阶段游标，用于定位失败而不改变事务顺序。
+ * @param recordLoadError 仅加载失败时调用的有界本地日志记录器。
  * @returns 成功值或不含内部异常正文的公开失败。
  */
 async function invokeCanvasOperation<T>(
   operation: CanvasInvokeOperation,
   run: () => Promise<T>,
+  getLoadStage?: () => CanvasErrorDiagnostic['stage'],
+  recordLoadError?: CanvasDocumentIpcOptions['recordLoadError'],
 ): Promise<CanvasInvokeResult<T>> {
   try {
     return { ok: true, value: await run() }
   } catch (error) {
-    if (!(error instanceof CanvasPublicFailure)) {
-      console.error(`[CanvasDocumentIPC] ${operation} 操作失败:`, error)
+    /** 仅在失败时生成诊断，完整异常仍保留在对应编号的主进程日志中。 */
+    const diagnostic = operation === 'load'
+      ? createCanvasLoadDiagnostic(error, getLoadStage?.() ?? 'load')
+      : undefined
+    if (diagnostic) {
+      try {
+        diagnostic.logStatus = recordLoadError?.(diagnostic, error) ?? 'unavailable'
+      } catch {
+        /** 不让日志目录的权限故障替换用户真正遇到的画布错误。 */
+        diagnostic.logStatus = 'unavailable'
+      }
     }
-    return { ok: false, error: toCanvasPublicError(operation, error) }
+    if (diagnostic || !(error instanceof CanvasPublicFailure)) {
+      console.error(`[CanvasDocumentIPC] ${operation} 操作失败${diagnostic ? ` [${diagnostic.referenceId}] stage=${diagnostic.stage}` : ''}:`, error)
+    }
+    return { ok: false, error: { ...toCanvasPublicError(operation, error), ...(diagnostic ? { diagnostic } : {}) } }
   }
 }
 
@@ -1108,7 +1128,7 @@ function assertAuthorizedSender(event: IpcMainInvokeEvent, options: CanvasDocume
 function requireWritableProject(projectId: string, options: CanvasDocumentIpcOptions): void {
   /** 只读原因由项目状态事实统一计算并原样传播。 */
   const reason = options.getProjectReadOnlyReason(projectId)
-  if (reason) throw new Error(reason)
+  if (reason) throw Object.assign(new Error(reason), { code: 'CANVAS_PROJECT_READ_ONLY' })
 }
 
 /**
@@ -2710,17 +2730,21 @@ export function registerCanvasDocumentIpcHandlers(
     })
   ))
 
-  options.ipc.handle(CANVAS_IPC_CHANNELS.LOAD, (event, value) => (
-    invokeCanvasOperation<CanvasWorkspaceSnapshot>('load', async () => {
+  options.ipc.handle(CANVAS_IPC_CHANNELS.LOAD, (event, value) => {
+    /** 每个请求独立记录阶段，排队或并行加载不会覆盖其他请求的诊断。 */
+    let stage: CanvasErrorDiagnostic['stage'] = 'access'
+    return invokeCanvasOperation<CanvasWorkspaceSnapshot>('load', async () => {
       assertAuthorizedSender(event, options)
       /** 外层输入解析后只保留双重稳定身份。 */
       const input = parseLoadInput(value)
       requireWritableProject(input.projectId, options)
+      stage = 'load'
       /** LOAD 可能创建 Canvas 根或提升恢复候选，因此也必须持有写 lease。 */
       const outcome = await runCanvasExclusive(input.projectId, input.canvasId, async () => {
         /** v1 内容必须先物化并提交 schema v2，Agent 对账才可安全 mutate。 */
         return options.guard.runWorkspaceWrite(input.projectId, async () => {
           /** 图片采用必须先收敛，后续图事务才能基于唯一正式版本继续。 */
+          stage = 'image-recovery'
           const imageAdoption = await options.imageCandidateBatches.reconcileLocked(input)
           if (imageAdoption.error) {
             return { imageAdoption, batchPublications: [], error: imageAdoption.error }
@@ -2728,6 +2752,7 @@ export function registerCanvasDocumentIpcHandlers(
           /** 后续任一阶段失败都必须把此前已提交事实带到锁外发布。 */
           let batchPublications: CanvasBatchPublication[]
           try {
+            stage = 'batch-recovery'
             batchPublications = (await options.batch.reconcileLocked(input)).publications
           } catch (error) {
             const failure = unwrapCanvasBatchReconciliationError(error)
@@ -2735,6 +2760,7 @@ export function registerCanvasDocumentIpcHandlers(
           }
           let content: CanvasContentNodeReconciliationResult
           try {
+            stage = 'content-load'
             content = await options.contentLifecycle.load(input)
           } catch (error) {
             return {
@@ -2745,6 +2771,7 @@ export function registerCanvasDocumentIpcHandlers(
           }
           if (content.error) return { imageAdoption, batchPublications, content, error: content.error }
           try {
+            stage = 'agent-recovery'
             const agent = await options.creation.reconcile(input)
             return {
               imageAdoption,
@@ -2789,8 +2816,8 @@ export function registerCanvasDocumentIpcHandlers(
           imagePreviews: [],
         }
       }
-    })
-  ))
+    }, () => stage, options.recordLoadError)
+  })
 
   options.ipc.handle(CANVAS_IPC_CHANNELS.LOAD_TEXT_ARTIFACT, (event, value) => (
     invokeCanvasOperation<CanvasTextArtifactSnapshot>('artifactLoad', async () => {

@@ -1,4 +1,5 @@
 import {
+  parseCanvasErrorDiagnostic,
   parseListCanvasImageActivityInput,
   parseCanvasImageJobActivities,
   parseCanvasArtifactRevisionSummary,
@@ -12,6 +13,7 @@ import {
   parseCanvasWorkspaceSnapshot,
 } from '@proma/shared'
 import type {
+  CanvasErrorDiagnostic,
   CanvasImageJobActivity,
   ListCanvasImageActivityInput,
   AdoptCanvasTextArtifactRevisionInput,
@@ -296,17 +298,22 @@ function requireMethod<K extends keyof CanvasWorkspacePreloadApi>(
 
 /** Renderer 内只携带共享公开错误，不接受 Electron rejection 正文。 */
 export class CanvasPublicOperationError extends Error {
+  /** 经过共享白名单校验的加载诊断，不保留原始异常正文。 */
+  readonly diagnostic?: CanvasErrorDiagnostic
   /**
    * 创建 Renderer 可安全展示和判别的 Canvas 错误。
    * @param code 共享公开错误码。
    * @param message 共享公开中文文案。
+   * @param diagnostic 可选的公开诊断，构造时重新执行白名单校验。
    */
   constructor(
     readonly code: CanvasPublicErrorCode,
     message: string,
+    diagnostic?: CanvasErrorDiagnostic,
   ) {
     super(message)
     this.name = 'CanvasPublicOperationError'
+    this.diagnostic = parseCanvasErrorDiagnostic(diagnostic)
   }
 }
 
@@ -319,7 +326,8 @@ const CANVAS_ADAPTER_FALLBACKS = {
   imageSave: { code: 'CANVAS_IMAGE_SAVE_FAILED', message: '生图配置保存失败，请重试。' },
   imageJob: { code: 'CANVAS_IMAGE_JOB_FAILED', message: '图片任务操作失败，请重试。' },
   imageBatch: { code: 'CANVAS_IMAGE_BATCH_INVALID', message: '图片候选批次暂时无法处理。' },
-  load: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+  load: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。',
+    diagnostic: { stage: 'renderer', reason: 'transport-unavailable' } },
   webviewLoad: { code: 'CANVAS_WEBVIEW_LOAD_FAILED', message: '原型暂时无法加载。' },
   webviewPreview: { code: 'CANVAS_WEBVIEW_PREVIEW_FAILED', message: '原型预览生成失败，请重试。' },
   save: { code: 'CANVAS_SAVE_FAILED', message: '画布暂时无法保存。' },
@@ -455,7 +463,7 @@ function makeIdempotentAdapterRelease(release: () => void): () => void {
  */
 function unwrapCanvasResult<T>(result: CanvasInvokeResult<T>): T {
   if (result.ok) return result.value
-  throw new CanvasPublicOperationError(result.error.code, result.error.message)
+  throw new CanvasPublicOperationError(result.error.code, result.error.message, result.error.diagnostic)
 }
 
 /**
@@ -472,7 +480,7 @@ async function callCanvasApi<T>(
     return unwrapCanvasResult(await call())
   } catch (error) {
     if (error instanceof CanvasPublicOperationError) throw error
-    throw new CanvasPublicOperationError(fallback.code, fallback.message)
+    throw new CanvasPublicOperationError(fallback.code, fallback.message, fallback.diagnostic)
   }
 }
 

@@ -370,6 +370,8 @@ describe('原生 Canvas 状态隔离', () => {
     const first = createInitialNativeCanvasState()
     const second = createInitialNativeCanvasState()
 
+    expect(first.loadError).toBeNull()
+    expect(second.loadError).toBeNull()
     expect(first.pendingMutations).not.toBe(second.pendingMutations)
     expect(first.inFlightMutations).not.toBe(second.inFlightMutations)
     expect(Object.keys(first).sort()).toEqual([
@@ -377,6 +379,7 @@ describe('原生 Canvas 状态隔离', () => {
       'deferredGraphRevision',
       'error',
       'inFlightMutations',
+      'loadError',
       'pendingMutations',
       'phase',
       'saveState',

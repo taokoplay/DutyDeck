@@ -952,3 +952,33 @@ describe('Design renderer adapter', () => {
     await expect(adapter.releaseMediaAccess()).resolves.toBeUndefined()
   })
 })
+
+
+test('Given LOAD 公开诊断 When adapter 解包 Then 保留安全字段并兼容旧信封', async () => {
+  /** 模拟 Windows 权限失败的公开诊断。 */
+  const diagnostic = { stage: 'content-load', reason: 'access-denied', systemCode: 'EACCES' } as const
+  await expect(createDesignAdapter({ loadCanvasWorkspace: async () => ({ ok: false,
+    error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic },
+  }) }).loadCanvas({ projectId: 'p', canvasId: 'c' })).rejects.toMatchObject({ diagnostic })
+  await expect(createDesignAdapter({ loadCanvasWorkspace: async () => { throw '/private/secret' } })
+    .loadCanvas({ projectId: 'p', canvasId: 'c' })).rejects.toMatchObject({
+      message: '画布暂时无法加载。', diagnostic: { stage: 'renderer', reason: 'transport-unavailable' },
+    })
+})
+
+test('Given 非法诊断字段 When adapter 解包 Then 丢弃诊断且不展示内部正文', async () => {
+  /** 模拟被污染的桥接结果；运行时必须重新执行共享白名单校验。 */
+  const adapter = createDesignAdapter({ loadCanvasWorkspace: async () => ({ ok: false,
+    error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: {
+      stage: 'content-load', reason: 'access-denied', systemCode: '/private/secret',
+    } },
+  }) })
+  try {
+    await adapter.loadCanvas({ projectId: 'p', canvasId: 'c' })
+    throw new Error('预期加载失败')
+  } catch (error: unknown) {
+    expect(error).toBeInstanceOf(CanvasPublicOperationError)
+    expect((error as CanvasPublicOperationError).diagnostic).toBeUndefined()
+    expect(String(error)).not.toContain('/private/secret')
+  }
+})

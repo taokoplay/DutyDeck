@@ -3711,3 +3711,50 @@ describe('原生 Canvas 添加 Agent 命令', () => {
     expect(html).not.toContain('原始标题')
   })
 })
+
+
+test('Given LOAD 诊断失败 When 重试及过期失败到达 Then 清空旧错误且不覆盖最新结果', async () => {
+  /** 独立控制器隔离每次加载的回调。 */
+  const harness = createHarness()
+  harness.controller.start()
+  harness.loads[0]?.reject(new CanvasPublicOperationError('CANVAS_LOAD_FAILED', '画布暂时无法加载。'))
+  await flushPromises()
+  expect(harness.getState().loadError).toMatchObject({ code: 'CANVAS_LOAD_FAILED' })
+  harness.controller.retryLoad()
+  expect(harness.getState().loadError).toBeNull()
+  harness.controller.retryLoad()
+  harness.loads[2]?.resolve(createSnapshot(4))
+  await flushPromises()
+  harness.loads[1]?.reject(new Error('secret'))
+  await flushPromises()
+  expect(harness.getState().loadError).toBeNull()
+  expect(harness.getState().snapshot?.document.revision).toBe(4)
+})
+
+
+test('Given 已有快照 When 刷新或恢复失败 Then 保留快照并展示完整公开诊断', async () => {
+  /** 两类 LOAD 路径均应保留可复制的诊断。 */
+  const diagnostic = { stage: 'content-load', reason: 'access-denied', systemCode: 'WIN32_5' } as const
+  for (const cause of ['graph', 'recovery'] as const) {
+    const harness = createHarness({ phase: 'ready', snapshot: createSnapshot(2) })
+    harness.controller.start()
+    harness.loads[0]?.resolve(createSnapshot(2))
+    await flushPromises()
+    harness.emit({ projectId: 'project-1', canvasId: 'canvas-1', revision: 3, cause })
+    harness.loads[1]?.reject(new CanvasPublicOperationError('CANVAS_LOAD_FAILED', '画布暂时无法加载。', diagnostic))
+    await flushPromises()
+    expect(harness.getState().snapshot?.document.revision).toBe(2)
+    expect(harness.getState().loadError).toMatchObject({ diagnostic })
+    const store = createStore()
+    store.set(nativeCanvasStatesAtom, new Map([['project-1:canvas-1', harness.getState()]]))
+    const markup = renderToStaticMarkup(<Provider store={store}><NativeCanvasWorkspace
+      sessionId="session-1" target={{ projectId: 'project-1', canvasId: 'canvas-1' }} title="测试画布"
+      adapter={{ loadCanvas: async () => createSnapshot(2), saveCanvas: async () => createSnapshot(2).document,
+        onCanvasChanged: () => () => undefined }} flowRenderer={() => <div />} /></Provider>)
+    expect(markup).toContain('role="alert"')
+    expect(markup).toContain('WIN32_5')
+    harness.controller.retryLoad()
+    expect(harness.getState().loadError).toBeNull()
+    harness.controller.dispose()
+  }
+})

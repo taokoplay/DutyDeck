@@ -215,6 +215,8 @@ function createDocument(revision: number): CanvasDocument {
 
 /** 创建主进程 IPC 测试上下文。 */
 function createContext(options: {
+  /** 用于验证诊断落盘状态以及记录器故障不能遮蔽 LOAD 原因。 */
+  recordLoadError?: (diagnostic: import('@proma/shared').CanvasErrorDiagnostic, error: unknown) => 'saved' | 'unavailable'
   authorized?: TestWebContents[]
   readOnlyReason?: string
   loadResult?: CanvasWorkspaceSnapshot
@@ -442,6 +444,7 @@ function createContext(options: {
     },
   }
   const registration = registerCanvasDocumentIpcHandlers({
+    recordLoadError: options.recordLoadError,
     ipc: {
       handle: (channel, handler) => { handlers.set(channel, handler) },
       removeHandler: (channel) => { removed.push(channel); handlers.delete(channel) },
@@ -2699,6 +2702,7 @@ describe('原生 Canvas 文档 IPC', () => {
       error: {
         code: 'CANVAS_IMAGE_BATCH_RECOVERY_REQUIRED',
         message: '图片版本采用状态无法安全恢复，请保留当前数据并重试。',
+        diagnostic: expect.objectContaining({ stage: 'image-recovery', reason: 'recovery-required', systemCode: 'CANVAS_IMAGE_BATCH_RECOVERY_REQUIRED' }),
       },
     })
     expect(context.calls).toEqual([
@@ -2741,7 +2745,7 @@ describe('原生 Canvas 文档 IPC', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
     })
     expect(context.calls).toEqual([
       'readonly:project-1', 'guard:project-1', 'image-adoption:reconcile', 'batch:reconcile',
@@ -2813,7 +2817,7 @@ describe('原生 Canvas 文档 IPC', () => {
 
       expect(result).toEqual({
         ok: false,
-        error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+        error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
       })
       expect(context.sender.sent).toEqual([
         {
@@ -2881,6 +2885,64 @@ describe('原生 Canvas 文档 IPC', () => {
     expect(saved).toHaveProperty('value.nodes.0.kind', 'document')
     expect(saved).toHaveProperty('value.nodes.0.documentId', 'document-1')
   })
+  test.each(['image-recovery', 'batch-recovery', 'content-load', 'agent-recovery'] as const)(
+    'Given Windows 在 %s 拒绝访问 When 打开画布 Then 前端获得阶段和系统码并能关联日志',
+    async (stage) => {
+      /** 模拟故障机原生 helper 错误，不要求测试机为 Windows。 */
+      const cause = new Error('稳定目录 helper 提前退出: code=4, signal=none, stderr=cannot open relative Windows object [win32=5 ACCESS_DENIED] C:\\Users\\private')
+      const errorSpy = spyOn(console, 'error').mockImplementation(() => undefined)
+      const context = createContext({
+        ...(stage === 'image-recovery' ? { imageCandidateReconcile: async () => { throw cause } } : {}),
+        ...(stage === 'batch-recovery' ? { batchReconcileError: cause } : {}),
+        ...(stage === 'content-load' ? { contentLoadError: cause } : {}),
+        ...(stage === 'agent-recovery' ? { reconcileError: cause } : {}),
+      })
+      try {
+        const result = await invoke(context.handlers, CANVAS_IPC_CHANNELS.LOAD, context.sender, {
+          projectId: 'project-1', canvasId: 'canvas-1',
+        }) as CanvasInvokeResult<CanvasWorkspaceSnapshot>
+        expect(result).toMatchObject({ ok: false, error: {
+          code: 'CANVAS_LOAD_FAILED',
+          diagnostic: { stage, reason: 'access-denied', systemCode: 'WIN32_5', helperExitCode: 4 },
+        } })
+        if (result.ok) throw new Error('测试预期 LOAD 失败')
+        const referenceId = result.error.diagnostic?.referenceId
+        expect(referenceId).toMatch(/^[0-9a-f-]{36}$/)
+        expect(errorSpy.mock.calls.some((call) => String(call[0]).includes(referenceId!))).toBe(true)
+        expect(JSON.stringify(result)).not.toContain('private')
+        expect(context.sender.sent).toEqual([])
+      } finally {
+        errorSpy.mockRestore()
+        context.registration.dispose()
+      }
+    },
+  )
+
+  test.each(['saved', 'unavailable', 'throw'] as const)('Given 日志记录器返回 %s When LOAD 失败 Then 不覆盖原始错误且准确报告日志状态', async (status) => {
+    /** 原始失败须与记录器收到的异常保持同一对象。 */
+    const cause = Object.assign(new Error('private failure'), { code: 'EACCES' })
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => undefined)
+    const recorded: unknown[] = []
+    const context = createContext({ contentLoadError: cause, recordLoadError: (diagnostic, error) => {
+      recorded.push({ referenceId: diagnostic.referenceId, error })
+      if (status === 'throw') throw new Error('日志目录不可写')
+      return status
+    } })
+    try {
+      const result = await invoke(context.handlers, CANVAS_IPC_CHANNELS.LOAD, context.sender, {
+        projectId: 'project-1', canvasId: 'canvas-1',
+      }) as CanvasInvokeResult<CanvasWorkspaceSnapshot>
+      expect(result).toMatchObject({ ok: false, error: { code: 'CANVAS_LOAD_FAILED', diagnostic: {
+        stage: 'content-load', reason: 'access-denied', systemCode: 'EACCES', logStatus: status === 'saved' ? 'saved' : 'unavailable',
+      } } })
+      if (result.ok) throw new Error('测试预期加载失败')
+      expect(recorded).toEqual([{ referenceId: result.error.diagnostic?.referenceId, error: cause }])
+    } finally {
+      errorSpy.mockRestore()
+      context.registration.dispose()
+    }
+  })
+
   test('Given 内部 LOAD 异常含路径和 UUID When IPC 返回 Then 只暴露公开文案', async () => {
     const errorSpy = spyOn(console, 'error').mockImplementation(() => undefined)
     const context = createContext({
@@ -2896,7 +2958,7 @@ describe('原生 Canvas 文档 IPC', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
     })
     errorSpy.mockRestore()
   })
@@ -3304,7 +3366,7 @@ describe('原生 Canvas 文档 IPC', () => {
     await expect(invoke(context.handlers, CANVAS_IPC_CHANNELS.LOAD, unauthorized, input))
       .resolves.toEqual({
         ok: false,
-        error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+        error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
       })
     expect(getterReads).toBe(0)
     expect(context.calls).toEqual([])
@@ -3361,7 +3423,7 @@ describe('原生 Canvas 文档 IPC', () => {
       projectId: 'project-1', canvasId: 'canvas-1',
     })).resolves.toEqual({
       ok: false,
-      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
     })
     await expect(invoke(context.handlers, CANVAS_IPC_CHANNELS.SAVE_MUTATIONS, context.sender, {
       projectId: 'project-1', canvasId: 'canvas-1', expectedRevision: 4, mutations: [],
@@ -3756,7 +3818,7 @@ describe('原生 Canvas 文档 IPC', () => {
       projectId: 'project-1', canvasId: 'canvas-1',
     })).resolves.toEqual({
       ok: false,
-      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
     })
     expect(context.sender.sent).toEqual([])
     expect(context.broadcastLeaseStates).toEqual([])
@@ -3801,7 +3863,7 @@ describe('原生 Canvas 文档 IPC', () => {
       projectId: 'project-1', canvasId: 'canvas-1',
     })).resolves.toEqual({
       ok: false,
-      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
     })
     expect(guarded.sender.sent).toEqual([])
 
@@ -3812,7 +3874,7 @@ describe('原生 Canvas 文档 IPC', () => {
       projectId: 'project-1', canvasId: 'canvas-1',
     })).resolves.toEqual({
       ok: false,
-      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: expect.objectContaining({ referenceId: expect.any(String) }) },
     })
     expect(recoveryFailed.sender.sent).toEqual([])
 

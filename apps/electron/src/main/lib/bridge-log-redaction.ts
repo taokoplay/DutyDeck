@@ -7,8 +7,9 @@
 const REDACTED = '[REDACTED]'
 const SENSITIVE_KEY_SOURCE = 'api[-_]?key|client[-_]?secret|app[-_]?secret|(?:access|refresh)[-_]?token|authorization|authentication|credential|password|session[-_]?webhook|webhook|download[-_]?code|[a-z0-9_-]*token'
 const SENSITIVE_KEY_PATTERN = new RegExp(`(?:${SENSITIVE_KEY_SOURCE})`, 'i')
+/** 引号值允许以输入末尾结束，避免有界日志截断闭引号后泄漏空格、换行后的秘密。 */
 const SENSITIVE_KEY_VALUE_PATTERN = new RegExp(
-  `((?:["']?(?:${SENSITIVE_KEY_SOURCE})["']?)\\s*[:=]\\s*)(?:"[^"]*"|'[^']*'|[^,\\s}\\]]+)`,
+  `((?:["']?(?:${SENSITIVE_KEY_SOURCE})["']?)\\s*[:=]\\s*)(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^,\\s}\\]]+)`,
   'gi',
 )
 const SENSITIVE_QUERY_PATTERN = new RegExp(

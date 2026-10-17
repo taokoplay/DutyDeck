@@ -5,6 +5,7 @@ import {
   parseCanvasImageJobActivities,
   CANVAS_IPC_CHANNELS,
   DESIGN_IPC_CHANNELS,
+  parseCanvasErrorDiagnostic,
   parseAgentCanvasBindingChangeEvent,
   parseCanvasChangeEvent,
   parseCanvasImageCandidateBatch,
@@ -505,12 +506,26 @@ async function invokeCanvasSafely<T>(
   fallback: CanvasPublicError,
 ): Promise<CanvasInvokeResult<T>> {
   try {
-    return await ipc.invoke(channel, input) as CanvasInvokeResult<T>
-  } catch (error) {
-    if (channel === CANVAS_IPC_CHANNELS.SAVE_MUTATIONS) {
-      console.error('[DesignPreload] Canvas 保存 IPC 调用失败:', error)
+    /** 主进程的公开失败只拣选契约字段，诊断不得夹带路径或堆栈。 */
+    const result = await ipc.invoke(channel, input) as CanvasInvokeResult<T>
+    if (result?.ok === false) {
+      const diagnostic = parseCanvasErrorDiagnostic(result.error.diagnostic)
+      return { ok: false, error: {
+        code: result.error.code, message: result.error.message,
+        ...(diagnostic ? { diagnostic } : {}),
+      } }
     }
-    return { ok: false, error: { ...fallback } }
+    return result
+  } catch (error) {
+    if (channel === CANVAS_IPC_CHANNELS.SAVE_MUTATIONS || channel === CANVAS_IPC_CHANNELS.LOAD) {
+      console.error('[DesignPreload] Canvas IPC 调用失败:', error)
+    }
+    return { ok: false, error: {
+      ...fallback,
+      ...(channel === CANVAS_IPC_CHANNELS.LOAD
+        ? { diagnostic: { stage: 'ipc' as const, reason: 'transport-unavailable' as const } }
+        : {}),
+    } }
   }
 }
 

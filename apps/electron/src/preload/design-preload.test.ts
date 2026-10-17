@@ -435,10 +435,24 @@ describe('Design preload', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。' },
+      error: { code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。', diagnostic: { stage: 'ipc', reason: 'transport-unavailable' } },
     })
     expect(JSON.stringify(result)).not.toContain('remote method')
     expect(JSON.stringify(result)).not.toContain('/Users/name')
+  })
+
+  test('Given 主进程返回加载诊断 When preload 跨边界 Then 保留安全字段而去除内部详情', async () => {
+    const recorded = createRecordingIpc()
+    recorded.ipc.invoke = async () => ({ ok: false, error: {
+      code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。',
+      diagnostic: { stage: 'content-load', reason: 'access-denied', systemCode: 'WIN32_5', path: 'C:\\private' },
+      stack: 'private stack',
+    } })
+    const api = createDesignPreloadApi(recorded.ipc)
+    expect(await api.loadCanvasWorkspace({ projectId: 'p1', canvasId: 'canvas-1' })).toEqual({ ok: false, error: {
+      code: 'CANVAS_LOAD_FAILED', message: '画布暂时无法加载。',
+      diagnostic: { stage: 'content-load', reason: 'access-denied', systemCode: 'WIN32_5' },
+    } })
   })
 
   test('Given WebView 输入含额外内部字段 When preload 加载 Then 只发送公开完整身份', async () => {

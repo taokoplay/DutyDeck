@@ -6,6 +6,7 @@ import {
   type CanvasImageSize,
   type CanvasImageTarget,
   type CanvasMutation,
+  type CanvasPublicError,
   type CanvasWorkspaceSnapshot,
   type DesignContextMode,
   type DesignTaskDetails,
@@ -110,6 +111,8 @@ export interface NativeCanvasState {
   deferredGraphRevision: number | null
   /** 当前共享 graph 正在执行的唯一结构生命周期操作。 */
   structuralOperation: NativeCanvasStructuralOperation | null
+  /** 加载或恢复的公开错误，与保存失败独立展示。 */
+  loadError: CanvasPublicError | null
   error: string | null
 }
 
@@ -124,6 +127,7 @@ export function createInitialNativeCanvasState(): NativeCanvasState {
     authoritativeRecoveryState: 'idle',
     deferredGraphRevision: null,
     structuralOperation: null,
+    loadError: null,
     error: null,
   }
 }

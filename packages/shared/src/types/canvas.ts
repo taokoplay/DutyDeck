@@ -10,6 +10,7 @@ import type {
 import type { AgentSessionMeta } from './agent'
 import type { SDKMessage } from './agent'
 import type { MediaInputValue } from './media'
+import type { CanvasErrorDiagnostic } from './canvas-error'
 import {
   parseCanvasMediaPreparationIssue,
   type CanvasMediaPreparationIssue,
@@ -1846,10 +1847,12 @@ export type CanvasPublicErrorCode =
   | 'CANVAS_BINDING_FAILED'
   | 'CANVAS_WORKFLOW_FAILED'
 
-/** 不含内部路径、UUID、通道或堆栈的公开错误。 */
+/** 不含内部路径、业务 UUID、通道或堆栈的公开错误。 */
 export interface CanvasPublicError {
   code: CanvasPublicErrorCode
   message: string
+  /** 加载失败的安全诊断；旧版无此字段时仍可展示基本文案。 */
+  diagnostic?: CanvasErrorDiagnostic
 }
 
 /** 所有原生 Canvas invoke 共用的安全结果信封。 */
