@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test'
-import type { TokenUsageAmounts } from '@proma/shared'
+import type { TokenUsageAmounts } from '@dutydeck/shared'
 import { AnthropicAdapter } from './anthropic-adapter.ts'
 import { GoogleAdapter } from './google-adapter.ts'
 import { OpenAIAdapter } from './openai-adapter.ts'

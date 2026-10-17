@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { FileWarning } from 'lucide-react'
-import type { FileAccessOptions, FilePreviewMetadata } from '@proma/shared'
+import type { FileAccessOptions, FilePreviewMetadata } from '@dutydeck/shared'
 import { DefaultAppOpenButton } from './DefaultAppOpenButton'
 
 interface UnsupportedFilePreviewProps {

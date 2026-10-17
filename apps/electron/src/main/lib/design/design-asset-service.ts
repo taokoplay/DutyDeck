@@ -18,7 +18,7 @@ import {
 import type { Stats } from 'node:fs'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import sharp from 'sharp'
-import type { DesignAsset, DesignCanvasDocument } from '@proma/shared'
+import type { DesignAsset, DesignCanvasDocument } from '@dutydeck/shared'
 import { isValidImageBytes } from '../image-content-validation'
 import { retainPromaPathUrl } from '../local-file-protocol'
 import { removeFileAtomic, writeJsonFileAtomicSecure } from '../safe-file'

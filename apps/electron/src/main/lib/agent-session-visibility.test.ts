@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, CanvasAgentActiveRunSnapshot } from '@proma/shared'
+import type { AgentSessionMeta, CanvasAgentActiveRunSnapshot } from '@dutydeck/shared'
 import * as visibility from './agent-session-visibility'
 import {
   hasValidCanvasAgentOwnership,

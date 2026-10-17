@@ -14,7 +14,7 @@ import { createRequire } from 'node:module'
 import { createHash, randomUUID } from 'node:crypto'
 import AdmZip from 'adm-zip'
 import { DOMParser } from '@xmldom/xmldom'
-import type { FilePreviewReadResult, OfficePreviewResult } from '@proma/shared'
+import type { FilePreviewReadResult, OfficePreviewResult } from '@dutydeck/shared'
 import { getBundledOfficeCliPath } from './officecli-manager'
 
 const require = createRequire(__filename)

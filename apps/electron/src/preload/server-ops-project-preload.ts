@@ -8,7 +8,7 @@ import {
   parseServerOpsProjectListResult,
   parseServerOpsProjectRenameInput,
   parseServerOpsProjectResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsProjectCreateInput,
   ServerOpsConnectionMoveInput,
@@ -18,7 +18,7 @@ import type {
   ServerOpsProjectListResult,
   ServerOpsProjectRenameInput,
   ServerOpsProjectResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 项目 preload 调用主进程所需的最小接口。 */
 export type ServerOpsProjectInvoke = (channel: string, input: unknown) => Promise<unknown>

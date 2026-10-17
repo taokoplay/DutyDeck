@@ -6,7 +6,7 @@ import {
   LAN_BRIDGE_PROTOCOL_VERSION,
   LAN_BRIDGE_WS_CAPABILITIES,
   type LanBridgeConnectedPayload,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createLanBridgeConnectedPayload } from './lan-bridge-handlers'
 import electronPackage from '../../../../package.json'
 

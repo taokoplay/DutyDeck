@@ -6,7 +6,7 @@ import type {
   SendCanvasAgentMessageInput,
   SendCanvasAgentMessageResult,
   StopCanvasAgentInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { CornerDownLeft, LoaderCircle, Square, X } from 'lucide-react'
 import {

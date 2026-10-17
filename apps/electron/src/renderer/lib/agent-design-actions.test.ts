@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentToolResultImage, DesignWorkspaceSnapshot } from '@proma/shared'
+import type { AgentToolResultImage, DesignWorkspaceSnapshot } from '@dutydeck/shared'
 import { importAgentToolResultImagesToDesign } from './agent-design-actions'
 
 describe('Agent 图片加入设计', () => {

@@ -1,5 +1,5 @@
-import { stableCapabilityValueKey } from '@proma/shared'
-import type { CapabilityFactoryBatch, CapabilityFactoryBatchRequest, CapabilityExperimentAdvanceRequest, CapabilityFactoryReviewRetryRequest } from '@proma/shared'
+import { stableCapabilityValueKey } from '@dutydeck/shared'
+import type { CapabilityFactoryBatch, CapabilityFactoryBatchRequest, CapabilityExperimentAdvanceRequest, CapabilityFactoryReviewRetryRequest } from '@dutydeck/shared'
 import { createCapabilityFactoryRunner } from './capability-factory-run'
 import type { CapabilityFactoryRunDeps } from './capability-factory-run'
 import { createCapabilityFactoryBatchRunner } from './capability-factory-batch'

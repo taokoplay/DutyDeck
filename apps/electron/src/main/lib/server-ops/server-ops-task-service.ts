@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { isOrdinaryTopLevelAgentSession, isServerOpsId, parseServerOpsTaskInput, parseServerOpsTaskResizeInput,
-  parseServerOpsTaskStartInput } from '@proma/shared'
+  parseServerOpsTaskStartInput } from '@dutydeck/shared'
 import type { AgentSessionMeta, ServerOpsConnectionState, ServerOpsTaskAck, ServerOpsTaskExitEvent,
   ServerOpsTaskIdentity, ServerOpsTaskInput, ServerOpsTaskOutputEvent, ServerOpsTaskResizeInput,
   ServerOpsTaskSummary, ServerOpsTaskTarget, ServerOpsTaskReadInput, ServerOpsTaskReadResult,
-  ServerOpsTaskUserInput, ServerOpsTaskUserResize } from '@proma/shared'
+  ServerOpsTaskUserInput, ServerOpsTaskUserResize } from '@dutydeck/shared'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'
 import type { ServerOpsAuditStore } from './server-ops-audit-store'
 

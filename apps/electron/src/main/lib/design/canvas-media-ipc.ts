@@ -10,8 +10,8 @@ import {
   parseReleaseCanvasMediaPreviewInput,
   parseRunCanvasMediaModuleInput,
   parseSaveCanvasMediaModuleInput,
-} from '@proma/shared'
-import type { CanvasMediaModuleChangedEvent, CanvasMediaTarget, MediaAssetRecord, MediaAssetRef } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { CanvasMediaModuleChangedEvent, CanvasMediaTarget, MediaAssetRecord, MediaAssetRef } from '@dutydeck/shared'
 import type { CanvasMediaService, CanvasMediaServiceDependencies } from './canvas-media-service'
 
 /** IPC 只持有公开操作，不依赖服务的私有状态。 */

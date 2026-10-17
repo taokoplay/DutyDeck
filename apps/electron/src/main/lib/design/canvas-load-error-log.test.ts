@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CanvasErrorDiagnostic } from '@proma/shared'
+import type { CanvasErrorDiagnostic } from '@dutydeck/shared'
 import { createCanvasLoadErrorRecorder } from './canvas-load-error-log'
 
 /** 每例独立的日志根，结束后删除，不使用真实业务数据。 */

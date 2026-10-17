@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useSetAtom } from 'jotai'
-import type { BrowserStateChange, BrowserViewState } from '@proma/shared'
+import type { BrowserStateChange, BrowserViewState } from '@dutydeck/shared'
 import { BROWSER_RISK_DISCLAIMER_VERSION } from '@/types/settings'
 import {
   browserFocusRequestMapAtom,

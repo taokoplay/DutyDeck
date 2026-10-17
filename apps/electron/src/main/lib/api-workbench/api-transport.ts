@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import type { Socket } from 'node:net'
 import type { TLSSocket } from 'node:tls'
 import { createBrotliDecompress, createGunzip, createInflate, type BrotliDecompress, type Gunzip, type Inflate } from 'node:zlib'
-import { API_LIMITS } from '@proma/shared'
+import { API_LIMITS } from '@dutydeck/shared'
 import type {
   ApiBodyInfo,
   ApiConnectionInfo,
@@ -19,8 +19,8 @@ import type {
   ApiSseSummary,
   ApiTimings,
   ApiTransportResult,
-} from '@proma/shared'
-import { createApiSseReader } from '@proma/shared'
+} from '@dutydeck/shared'
+import { createApiSseReader } from '@dutydeck/shared'
 
 /** 原始响应与解压响应各自允许采集的硬上限。 */
 const MAX_BODY_BYTES = 20 * 1024 * 1024

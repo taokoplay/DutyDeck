@@ -1,7 +1,7 @@
 import type {
   AgentIslandPhase,
   LanBridgeAgentSessionRuntimeStatus,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** Agent Island 投影四态所需的最小内部快照。 */
 export interface AgentIslandRuntimeState {

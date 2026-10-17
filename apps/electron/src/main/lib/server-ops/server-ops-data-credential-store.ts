@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { isServerOpsId } from '@proma/shared'
+import { isServerOpsId } from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { readAtomicFileState, readJsonFileSafe, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicDestinationExpectation, ReadJsonFileSafeOptions } from '../safe-file'

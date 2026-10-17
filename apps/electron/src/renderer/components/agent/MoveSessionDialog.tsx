@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { LocalProjectBadge } from './LocalProjectBadge'
-import type { AgentWorkspace, AgentSessionMeta } from '@proma/shared'
+import type { AgentWorkspace, AgentSessionMeta } from '@dutydeck/shared'
 
 interface MoveSessionDialogProps {
   open: boolean

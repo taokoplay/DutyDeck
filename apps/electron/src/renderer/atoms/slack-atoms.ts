@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { SlackBotBridgeState, SlackBridgeState } from '@proma/shared'
+import type { SlackBotBridgeState, SlackBridgeState } from '@dutydeck/shared'
 
 /** Slack Bot 状态（botId → 连接状态）。 */
 export const slackBotStatesAtom = atom<Record<string, SlackBotBridgeState>>({})

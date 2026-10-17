@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentCanvasBinding } from '@proma/shared'
+import type { AgentCanvasBinding } from '@dutydeck/shared'
 import type { CanvasToolRunContext } from './canvas-tool-provider'
 import { captureCanvasToolInitialContext } from './canvas-tool-initial-context'
 

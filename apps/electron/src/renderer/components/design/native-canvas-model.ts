@@ -11,7 +11,7 @@ import {
   findCompactCanvasSlot,
   resolveCanvasEdgeBinding,
   resolveCanvasImageNodeHeight,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasLayoutRect,
   CanvasImagePreview,
@@ -29,7 +29,7 @@ import type {
   DesignPoint,
   DesignViewport,
   CanvasMediaPreloadApi,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Position } from '@xyflow/react'
 import type { Edge, Node, NodeHandle } from '@xyflow/react'
 import { AGENT_STATUS_LABELS } from './CanvasAgentNode'

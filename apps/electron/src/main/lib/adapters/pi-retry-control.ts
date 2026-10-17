@@ -1,4 +1,4 @@
-import type { RetryAttempt } from '@proma/shared'
+import type { RetryAttempt } from '@dutydeck/shared'
 
 /**
  * 前 N 次 Pi native retry 静默处理；0 表示第一次重试就通知 UI。

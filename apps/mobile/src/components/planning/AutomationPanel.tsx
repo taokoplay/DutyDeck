@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { CalendarClock, LoaderCircle, Pause, Play, RefreshCw, Zap } from 'lucide-react'
 import { automationsAtom, tokenAtom } from '../../atoms'
-import type { LanBridgeAutomationDto } from '@proma/shared'
+import type { LanBridgeAutomationDto } from '@dutydeck/shared'
 import { wsReq } from '../../lib/ws-client'
 
 /** 自动计划列表接口的最小响应形状。 */

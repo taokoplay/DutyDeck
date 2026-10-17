@@ -1,4 +1,4 @@
-import { parseServerOpsOverviewInput, parseServerOpsOverviewResult } from '@proma/shared'
+import { parseServerOpsOverviewInput, parseServerOpsOverviewResult } from '@dutydeck/shared'
 import type {
   ServerOpsOverviewCpu,
   ServerOpsOverviewFilesystem,
@@ -9,7 +9,7 @@ import type {
   ServerOpsOverviewSwap,
   ServerOpsOverviewSystem,
   ServerOpsOverviewWarningCode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 固定采集脚本的采样窗口。 */
 const SAMPLE_WINDOW_MS = 250

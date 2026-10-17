@@ -16,13 +16,13 @@ import type {
   PermissionRequest,
   DangerLevel,
   AskUserRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   SAFE_TOOLS,
   isSafeBashCommand,
   isDangerousCommand,
   hasDangerousStructure,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AgentToolApprovalPolicy } from './agent-run-extensions'
 
 /** SDK PermissionBehavior */

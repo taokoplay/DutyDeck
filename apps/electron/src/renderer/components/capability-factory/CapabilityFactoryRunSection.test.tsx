@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { CapabilityDeclaration, CapabilityFactoryApi, CapabilityRun, CapabilityScene } from '@proma/shared'
+import type { CapabilityDeclaration, CapabilityFactoryApi, CapabilityRun, CapabilityScene } from '@dutydeck/shared'
 import {
   CapabilityFactoryRunSection, invokeCapabilityFactoryRunWithProgress, mergeCapabilityFactoryRuns,
 } from './CapabilityFactoryRunSection'

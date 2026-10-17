@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { PrototypeCandidateSummary, PrototypeJob, PrototypeSnapshot } from '@proma/shared'
+import type { PrototypeCandidateSummary, PrototypeJob, PrototypeSnapshot } from '@dutydeck/shared'
 import { buildPrototypeHistory, collectPendingPrototypePages, filterPrototypeHistory } from './interaction-design-history'
 
 /** 创建最小快照；输入局部历史覆盖，返回互相隔离的测试数据。 */

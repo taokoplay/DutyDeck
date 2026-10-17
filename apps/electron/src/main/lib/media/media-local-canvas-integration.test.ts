@@ -11,7 +11,7 @@ import {
   type DesignInternalMutation,
   type MediaInputValue,
   type MediaRunSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { CanvasMediaService, type CanvasMediaModuleState, type CanvasMediaModuleStore } from '../design/canvas-media-service'
 import { MediaAssetService } from './media-asset-service'
 import { MediaSourceService } from './media-source-service'

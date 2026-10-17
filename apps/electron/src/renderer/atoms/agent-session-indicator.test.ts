@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai/vanilla'
-import type { AgentStreamCompletePayload } from '@proma/shared'
+import type { AgentStreamCompletePayload } from '@dutydeck/shared'
 import {
   agentSessionIndicatorMapAtom,
   agentSessionStreamingStateAtomFamily,

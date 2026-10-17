@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
-import { analyzeServerOpsSqlQuery } from '@proma/shared'
+import { analyzeServerOpsSqlQuery } from '@dutydeck/shared'
 import { bindServerOpsSqlQueryAbort, executeServerOpsSqlQuery, getServerOpsSqlQueryPublicError } from './server-ops-query-runtime'
 
 /** 构造记录所有查询的内存 MySQL 连接。 */

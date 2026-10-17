@@ -10,7 +10,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { DESIGN_IPC_CHANNELS, createEmptyDesignDocument } from '@proma/shared'
+import { DESIGN_IPC_CHANNELS, createEmptyDesignDocument } from '@dutydeck/shared'
 import type {
   DesignAsset,
   DesignCanvasDocument,
@@ -19,7 +19,7 @@ import type {
   DesignJobRecord,
   DesignMutation,
   DesignWorkspaceSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import sharp from 'sharp'
 import { DesignAssetService } from './design-asset-service'

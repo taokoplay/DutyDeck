@@ -21,7 +21,7 @@ import type {
   DingTalkBotConfig,
   DingTalkMultiBotConfig,
   DingTalkBotConfigInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 // ===== 加密/解密 =====
 

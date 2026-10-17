@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { PermissionRequest, PromaPermissionMode, CapabilitySceneDefinition } from '@proma/shared'
+import type { PermissionRequest, PromaPermissionMode, CapabilitySceneDefinition } from '@dutydeck/shared'
 import {
   AgentPermissionService,
   revalidateSingleApprovalResult,

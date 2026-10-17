@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { FolderOpen, MoreHorizontal, PanelLeftClose, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { ServerOpsProject } from '@proma/shared'
+import type { ServerOpsProject } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'

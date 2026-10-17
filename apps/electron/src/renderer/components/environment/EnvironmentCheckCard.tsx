@@ -24,7 +24,7 @@ import {
   installerManifestAtom,
   type InstallerDownloadState,
 } from '@/atoms/environment'
-import type { InstallerDownloadRequest } from '@proma/shared'
+import type { InstallerDownloadRequest } from '@dutydeck/shared'
 
 type CheckStatus = 'checking' | 'success' | 'warning' | 'error'
 

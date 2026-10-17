@@ -16,7 +16,7 @@ import {
   parseServerOpsServiceDetailResult,
   parseServerOpsServiceListInput,
   parseServerOpsServiceListResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsLogExitEvent,
   ServerOpsLogExportInput,
@@ -34,7 +34,7 @@ import type {
   ServerOpsServiceDetailResult,
   ServerOpsServiceListInput,
   ServerOpsServiceListResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 观测 preload 调用主进程所需的最小接口。 */
 export type ServerOpsObservabilityInvoke = (channel: string, input: unknown) => Promise<unknown>

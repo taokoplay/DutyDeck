@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 import { projectSDKMessageForDisplay } from './agent-message-display'
 
 describe('音视频抽帧会话展示投影', () => {

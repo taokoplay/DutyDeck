@@ -10,8 +10,8 @@
  */
 import * as React from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import { diffSceneDefinition } from '@proma/shared'
-import type { CapabilityScene } from '@proma/shared'
+import { diffSceneDefinition } from '@dutydeck/shared'
+import type { CapabilityScene } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 

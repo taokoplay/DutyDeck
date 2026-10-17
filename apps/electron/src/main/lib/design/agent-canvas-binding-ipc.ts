@@ -13,18 +13,20 @@ import {
   parseSetDefaultAgentCanvasResult,
   parseUnlinkAgentCanvasInput,
   parseUnlinkAgentCanvasResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AgentCanvasBinding,
   AgentCanvasBindingChangeEvent,
   AgentSessionMeta,
   CanvasInvokeResult,
+  CanvasErrorDiagnostic,
   CanvasPublicError,
   CanvasSessionMeta,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { isEligibleProjectAgent, requireUserVisibleAgentSession } from '../agent-session-visibility'
 import type { AgentCanvasBindingStore } from './agent-canvas-binding-store'
+import { createCanvasLoadDiagnostic } from './canvas-load-error'
 
 /** Agent-Canvas 关联 IPC handler 的最小签名。 */
 type AgentCanvasBindingIpcHandler = (event: IpcMainInvokeEvent, input?: unknown) => unknown
@@ -60,6 +62,8 @@ export interface RegisterAgentCanvasBindingIpcOptions {
     sender: WebContents,
     projectId: string,
   ) => void | Promise<void>
+  /** 将绑定失败的安全诊断写入应用日志；失败路径不得影响 IPC 返回。 */
+  recordLoadError?: (diagnostic: CanvasErrorDiagnostic, error: unknown) => 'saved' | 'unavailable'
   broadcast: (event: AgentCanvasBindingChangeEvent) => void
 }
 
@@ -81,16 +85,31 @@ const MUTATION_FAILURE: CanvasPublicError = {
   message: '画布关联失败，请重试。',
 }
 
-/** 捕获内部错误并只返回固定公开信封。 */
+/** 捕获内部错误并返回固定公开信封与有界诊断。 */
 async function invokeSafely<T>(
   fallback: CanvasPublicError,
+  options: Pick<RegisterAgentCanvasBindingIpcOptions, 'recordLoadError'>,
   run: () => Promise<T>,
 ): Promise<CanvasInvokeResult<T>> {
   try {
     return { ok: true, value: await run() }
   } catch (error) {
+    /** 测试或旧宿主未提供日志记录器时保持旧公开信封，避免虚构不可追踪的日志编号。 */
+    if (!options.recordLoadError) {
+      console.error('[Agent-Canvas 关联] IPC 操作失败')
+      return { ok: false, error: { ...fallback } }
+    }
+    /** 绑定失败与 Canvas 加载共用安全诊断合同，原始错误只进入本地日志。 */
+    const diagnostic = createCanvasLoadDiagnostic(error, 'binding')
+    const logStatus = options.recordLoadError?.(diagnostic, error)
     console.error('[Agent-Canvas 关联] IPC 操作失败')
-    return { ok: false, error: { ...fallback } }
+    return { ok: false, error: {
+      ...fallback,
+      diagnostic: {
+        ...diagnostic,
+        ...(logStatus ? { logStatus } : {}),
+      },
+    } }
   }
 }
 
@@ -269,6 +288,7 @@ export function registerAgentCanvasBindingIpcHandlers(
 
   options.ipcMain.handle(CANVAS_IPC_CHANNELS.LIST_AGENT_BINDINGS, (event, value) => invokeSafely(
     LIST_FAILURE,
+    options,
     async () => {
       const input = parseListAgentCanvasBindingsInput(value)
       await options.assertSenderProjectAccess(event.sender, input.projectId)
@@ -284,6 +304,7 @@ export function registerAgentCanvasBindingIpcHandlers(
 
   options.ipcMain.handle(CANVAS_IPC_CHANNELS.LINK_AGENT_CANVAS, (event, value) => invokeSafely(
     MUTATION_FAILURE,
+    options,
     async () => {
       const input = parseLinkAgentCanvasInput(value)
       await options.assertSenderProjectAccess(event.sender, input.projectId)
@@ -304,6 +325,7 @@ export function registerAgentCanvasBindingIpcHandlers(
 
   options.ipcMain.handle(CANVAS_IPC_CHANNELS.UNLINK_AGENT_CANVAS, (event, value) => invokeSafely(
     MUTATION_FAILURE,
+    options,
     async () => {
       const input = parseUnlinkAgentCanvasInput(value)
       await options.assertSenderProjectAccess(event.sender, input.projectId)
@@ -324,6 +346,7 @@ export function registerAgentCanvasBindingIpcHandlers(
 
   options.ipcMain.handle(CANVAS_IPC_CHANNELS.MARK_AGENT_CANVAS_ACTIVE, (event, value) => invokeSafely(
     MUTATION_FAILURE,
+    options,
     async () => {
       /** 规范化调用目标，拒绝不合法的跨进程身份。 */
       const input = parseMarkAgentCanvasActiveInput(value)
@@ -368,6 +391,7 @@ export function registerAgentCanvasBindingIpcHandlers(
 
   options.ipcMain.handle(CANVAS_IPC_CHANNELS.SET_DEFAULT_AGENT_CANVAS, (event, value) => invokeSafely(
     MUTATION_FAILURE,
+    options,
     async () => {
       const input = parseSetDefaultAgentCanvasInput(value)
       await options.assertSenderProjectAccess(event.sender, input.projectId)
@@ -388,6 +412,7 @@ export function registerAgentCanvasBindingIpcHandlers(
 
   options.ipcMain.handle(CANVAS_IPC_CHANNELS.CLEAR_AGENT_BINDINGS, (event, value) => invokeSafely(
     MUTATION_FAILURE,
+    options,
     async () => {
       const input = parseClearAgentCanvasBindingsInput(value)
       await options.assertSenderProjectAccess(event.sender, input.projectId)

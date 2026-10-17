@@ -7,7 +7,7 @@ import {
   type ProviderType,
   type ReasoningEncoding,
   type ReasoningTransport,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 适配器构造请求时使用的已归一化思考参数。 */
 export interface ProviderReasoningRequest {

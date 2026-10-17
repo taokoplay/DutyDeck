@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVER_OPS_DOCKER_CHANNELS } from '@proma/shared'
+import { SERVER_OPS_DOCKER_CHANNELS } from '@dutydeck/shared'
 import {
   createServerOpsDockerPreload,
 } from './server-ops-docker-preload'

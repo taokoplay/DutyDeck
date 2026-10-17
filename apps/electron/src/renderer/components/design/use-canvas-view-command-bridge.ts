@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { sameCanvasViewTarget } from '@proma/shared'
-import type { CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewCommandTarget, CanvasViewSnapshot } from '@proma/shared'
+import { sameCanvasViewTarget } from '@dutydeck/shared'
+import type { CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewCommandTarget, CanvasViewSnapshot } from '@dutydeck/shared'
 import { createCanvasViewRequestHandler } from './native-canvas-view-command'
 
 /** 可在真实 React 生命周期测试中注入的精简 Preload 边界。 */

@@ -1,4 +1,4 @@
-import { API_WORKBENCH_CHANNELS, parseApiCommand, parseApiResponse } from '@proma/shared'
+import { API_WORKBENCH_CHANNELS, parseApiCommand, parseApiResponse } from '@dutydeck/shared'
 import type { ApiWorkbenchService } from './api-workbench-service'
 
 /** IPC 只需要发送方身份，不向业务层暴露 Electron 句柄。 */

@@ -1,4 +1,4 @@
-import { parseCanvasNodeReferences } from '@proma/shared'
+import { parseCanvasNodeReferences } from '@dutydeck/shared'
 import type {
   AgentCanvasBinding,
   AgentSessionMeta,
@@ -7,7 +7,7 @@ import type {
   CanvasSessionMeta,
   CanvasTarget,
   CanvasWorkspaceSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { isEligibleProjectAgent } from '../agent-session-visibility'
 
 /** Canvas 引用发送前失效的稳定公开错误码。 */

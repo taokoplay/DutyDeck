@@ -1,6 +1,6 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
-import { isServerOpsLocalSqliteFilePath } from '@proma/shared'
+import { isServerOpsLocalSqliteFilePath } from '@dutydeck/shared'
 
 /** SQLite 标准文件头，仅需读取 16 字节即可排除普通文件。 */
 const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'ascii')

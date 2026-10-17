@@ -1,8 +1,11 @@
 import { appendFileSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
+  assertReleaseTag,
   assertBoneReleaseTag,
+  createReleaseTitle,
   createBoneReleaseTitle,
+  parseBoneReleaseVersion,
 } from '../src/shared/release-version'
 
 /** GitHub Actions 后续任务需要的发布信息。 */
@@ -18,26 +21,29 @@ export interface ValidatedReleaseVersion {
 }
 
 /**
- * 校验当前标签对应的 Bone 版本说明文件。
+ * 校验当前标签对应的独立或历史版本说明文件。
  * @param tag 触发工作流的 Git 标签。
  * @param repositoryRoot Proma 仓库根目录。
  * @returns 可直接传给 GitHub CLI 的仓库相对路径。
  */
 export function validateReleaseNotes(tag: string, repositoryRoot: string): string {
-  /** Bone 版本说明在仓库内的稳定相对路径。 */
-  const releaseNotesPath = `release-notes/bone/${tag}.md`
-  /** Bone 版本说明的绝对路径。 */
+  /** 新独立版本使用顶层说明目录，旧 Bone 版本继续读取历史目录。 */
+  const version = tag.startsWith('v') ? tag.slice(1) : tag
+  const releaseNotesPath = parseBoneReleaseVersion(version)
+    ? `release-notes/bone/${tag}.md`
+    : `release-notes/${tag}.md`
+  /** 当前版本说明的绝对路径。 */
   const absoluteReleaseNotesPath = resolve(repositoryRoot, releaseNotesPath)
 
   let releaseNotes: string
   try {
     releaseNotes = readFileSync(absoluteReleaseNotesPath, 'utf8')
   } catch {
-    throw new Error(`缺少 Bone 版本说明：${releaseNotesPath}`)
+    throw new Error(`缺少 DutyDeck 版本说明：${releaseNotesPath}`)
   }
 
   if (!releaseNotes.trim()) {
-    throw new Error(`Bone 版本说明不能为空：${releaseNotesPath}`)
+    throw new Error(`DutyDeck 版本说明不能为空：${releaseNotesPath}`)
   }
 
   return releaseNotesPath
@@ -50,13 +56,25 @@ export function validateReleaseNotes(tag: string, repositoryRoot: string): strin
  * @returns 后续构建和 Release 任务使用的数据。
  */
 export function validateReleaseVersion(version: string, tag: string): ValidatedReleaseVersion {
-  /** 经过格式和标签一致性校验的发布版本。 */
-  const release = assertBoneReleaseTag(version, tag)
+  /** 旧版本继续使用 Bone 合同；新版本切换到独立标准 SemVer。 */
+  const legacyRelease = parseBoneReleaseVersion(version)
+  if (legacyRelease) {
+    assertBoneReleaseTag(version, tag)
+    return {
+      version: legacyRelease.fullVersion,
+      upstreamVersion: legacyRelease.upstreamVersion,
+      boneBuild: String(legacyRelease.boneBuild),
+      releaseTitle: createBoneReleaseTitle(version),
+    }
+  }
+
+  /** 经过格式和标签一致性校验的独立发布版本。 */
+  const release = assertReleaseTag(version, tag)
   return {
     version: release.fullVersion,
-    upstreamVersion: release.upstreamVersion,
-    boneBuild: String(release.boneBuild),
-    releaseTitle: createBoneReleaseTitle(version),
+    upstreamVersion: '',
+    boneBuild: '',
+    releaseTitle: createReleaseTitle(version),
   }
 }
 
@@ -81,7 +99,7 @@ if (import.meta.main) {
 
   /** 已完成校验的发布信息。 */
   const release = validateReleaseVersion(metadata.version, tag)
-  /** 当前标签对应且内容非空的 Bone 版本说明。 */
+  /** 当前标签对应且内容非空的版本说明。 */
   const releaseNotesPath = validateReleaseNotes(tag, repositoryRoot)
   /** 写入 GITHUB_OUTPUT 的稳定键值行。 */
   const outputLines = [

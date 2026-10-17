@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { LAN_BRIDGE_IPC_CHANNELS } from '@proma/shared'
+import { LAN_BRIDGE_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   LanBridgeConfig,
   LanBridgeDeviceDto,
   LanBridgeRuntimeState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcRendererEvent } from 'electron'
 import {
   createLanBridgePreloadApi,

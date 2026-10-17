@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { InteractionDesignService } from './store'
 import { InteractionSourceService, interactionHash } from './source-service'
-import { parsePrototypeDraft } from '@proma/shared'
-import type { PrototypeCandidate } from '@proma/shared'
+import { parsePrototypeDraft } from '@dutydeck/shared'
+import type { PrototypeCandidate } from '@dutydeck/shared'
 
 /** 测试独立目录，禁止触碰真实项目数据。 */
 const roots: string[] = []

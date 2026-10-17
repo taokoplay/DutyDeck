@@ -7,7 +7,7 @@ import { normalizeProviderUsage, usageObject } from './usage.ts'
  * - Pi-Agent 模式通过 pi-model-registry 注册为 `openai-responses` 协议
  */
 
-import type { ProviderType, TokenUsageAmounts } from '@proma/shared'
+import type { ProviderType, TokenUsageAmounts } from '@dutydeck/shared'
 import type {
   ContinuationMessage,
   ImageAttachmentData,

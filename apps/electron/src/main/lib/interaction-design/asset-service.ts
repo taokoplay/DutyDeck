@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { constants, closeSync, existsSync, fstatSync, fsyncSync, lstatSync, openSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { PrototypeAsset } from '@proma/shared'
+import type { PrototypeAsset } from '@dutydeck/shared'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import { assertInteractionId, interactionDirectory, readInteractionFile } from './paths'
 import { interactionHash } from './source-service'

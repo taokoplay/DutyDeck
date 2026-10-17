@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsAuditAppendInput } from '@proma/shared'
+import type { ServerOpsAuditAppendInput } from '@dutydeck/shared'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'
 import type { ServerOpsRuntimeExecResult } from '../../../utility/server-ops/server-ops-runtime-protocol'
 import {

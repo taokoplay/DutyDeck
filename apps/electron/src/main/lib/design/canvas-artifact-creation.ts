@@ -12,7 +12,7 @@ import type {
   CanvasLayoutRect,
   CanvasLayoutSize,
   DesignPoint,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createCanvasBoundEdge,
   createCanvasLayoutSpatialIndex,
@@ -20,7 +20,7 @@ import {
   parseCanvasBatchOperationEnvelope,
   CANVAS_IMAGE_NODE_WIDTH,
   CANVAS_IMAGE_NODE_MAX_HEIGHT,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanvasBatchOperationResult, CanvasBatchSourceReconciliationResult } from './canvas-agent-batch-operation'
 import type {
   CanvasNodeContentStore,

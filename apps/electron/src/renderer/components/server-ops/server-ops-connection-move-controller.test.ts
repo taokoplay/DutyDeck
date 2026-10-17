@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsConnectionMoveInput, ServerOpsConnectionMoveResult, ServerOpsProject } from '@proma/shared'
+import type { ServerOpsConnectionMoveInput, ServerOpsConnectionMoveResult, ServerOpsProject } from '@dutydeck/shared'
 import type { ServerOpsConnection } from './server-ops-connections'
 import { createServerOpsConnectionMoveController, mergeServerOpsMovedAsset } from './server-ops-connection-move-controller'
 

@@ -1,4 +1,4 @@
-import type { FileIndexEntry } from '@proma/shared'
+import type { FileIndexEntry } from '@dutydeck/shared'
 
 export function hasMixedFileSources(entries: readonly FileIndexEntry[]): boolean {
   let hasSession = false

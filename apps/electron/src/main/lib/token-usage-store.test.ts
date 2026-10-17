@@ -2,7 +2,7 @@ import { describe, expect, test, afterEach } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { TokenUsageQuery, TokenUsageRecord } from '@proma/shared'
+import type { TokenUsageQuery, TokenUsageRecord } from '@dutydeck/shared'
 import { TokenUsageStore } from './token-usage-store'
 import { aggregateTokenUsage, tokenUsageCsv, validateTokenUsageQuery } from './token-usage-query'
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import { createCanvasAgentReconciliation } from './canvas-agent-reconciliation'
 
 describe('Canvas Agent 查询与启动恢复边界', () => {

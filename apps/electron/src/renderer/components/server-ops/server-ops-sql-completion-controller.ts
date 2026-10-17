@@ -1,4 +1,4 @@
-import type { ServerOpsDataSourceTableInput, ServerOpsDataSourceTableResult, ServerOpsDataSourceTablesInput, ServerOpsDataSourceTablesResult } from '@proma/shared'
+import type { ServerOpsDataSourceTableInput, ServerOpsDataSourceTableResult, ServerOpsDataSourceTablesInput, ServerOpsDataSourceTablesResult } from '@dutydeck/shared'
 import type { ServerOpsSqlCompletionSchema } from './server-ops-sql-completion'
 import { enqueueServerOpsDataRead } from './server-ops-data-request-queue'
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { MEDIA_IPC_CHANNELS } from '@proma/shared'
+import { MEDIA_IPC_CHANNELS } from '@dutydeck/shared'
 import { createMediaPreloadApi } from './media-preload'
 
 /** 构造严格合法的独立音频配置，供 preload 透传合同测试复用。 */

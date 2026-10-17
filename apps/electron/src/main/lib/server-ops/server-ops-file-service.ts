@@ -10,7 +10,7 @@ import {
   parseServerOpsFileMutationResult,
   parseServerOpsFilePreviewInput,
   parseServerOpsFilePreviewResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsAuditAppendInput,
   ServerOpsAuditOperation,
@@ -24,7 +24,7 @@ import type {
   ServerOpsFilePreviewInput,
   ServerOpsFilePreviewResult,
   ServerOpsHost,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ServerOpsSftpRuntimeError } from '../../../utility/server-ops/server-ops-sftp-runtime'
 import type { ServerOpsSftpCall } from './server-ops-runtime-client'
 import type { ServerOpsSftpResult, ServerOpsSftpStat } from '../../../utility/server-ops/server-ops-sftp-runtime'

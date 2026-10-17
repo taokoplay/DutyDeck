@@ -31,6 +31,12 @@ describe('统一工具菜单', () => {
     expect(markup).toContain('专业工具')
     expect(markup).toContain('aria-label="外观设置"')
   })
+  test('Given 工具数量超出可视区域 When 渲染 Then 保留滚动能力但隐藏滚动条', () => {
+    const markup = renderRail(false)
+    expect(markup).toContain('overflow-y-auto')
+    expect(markup).toContain('scrollbar-none')
+    expect(markup).not.toContain('[scrollbar-width:thin]')
+  })
   test('Given 选中和禁用工具 When 渲染 Then 沿用主题选中态并明确禁用原因', () => {
     const markup = renderRail(false)
     expect(markup).toContain('bg-accent-foreground/[0.10]')

@@ -1,4 +1,4 @@
-import type { AgentSessionMeta, SDKMessage, SDKUserMessage } from '@proma/shared'
+import type { AgentSessionMeta, SDKMessage, SDKUserMessage } from '@dutydeck/shared'
 import type { AgentStreamState } from '@/atoms/agent-atoms'
 import type { TabItem } from '@/atoms/tab-atoms'
 

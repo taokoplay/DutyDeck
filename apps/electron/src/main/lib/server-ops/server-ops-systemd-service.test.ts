@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ServerOpsAuditAppendInput } from '@proma/shared'
+import type { ServerOpsAuditAppendInput } from '@dutydeck/shared'
 import {
   SERVER_OPS_SYSTEMD_CAPABILITY_COMMAND,
   SERVER_OPS_SYSTEMD_LIST_COMMAND,

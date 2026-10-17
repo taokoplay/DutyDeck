@@ -1,4 +1,4 @@
-import { isRfc1918Ipv4 } from '@proma/shared'
+import { isRfc1918Ipv4 } from '@dutydeck/shared'
 import { getPairingFailureMessage, supportsPairingTicket } from './pairing-link'
 import type { PairingLink } from './pairing-link'
 import type { WebSocketSourceProtocol } from './ws-client'

@@ -7,8 +7,8 @@
 import { join } from 'node:path'
 import { getConfigDir } from '../config-paths'
 import { writeJsonFileAtomic, readJsonFileSafe } from '../safe-file'
-import { DEFAULT_LAN_BRIDGE_CONFIG } from '@proma/shared'
-import type { LanBridgeConfig } from '@proma/shared'
+import { DEFAULT_LAN_BRIDGE_CONFIG } from '@dutydeck/shared'
+import type { LanBridgeConfig } from '@dutydeck/shared'
 
 const CONFIG_FILENAME = 'lan-bridge.json'
 

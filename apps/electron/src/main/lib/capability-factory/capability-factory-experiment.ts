@@ -2,11 +2,11 @@ import { createHash, randomUUID } from 'node:crypto'
 import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { compareOptimizationPair, isAdoptableOptimizationBatch, isPromptOnlyOptimization, stableCapabilityValueKey,
-  validateCapabilityEvaluationProtocol, validateCapabilityExperimentSamples } from '@proma/shared'
+  validateCapabilityEvaluationProtocol, validateCapabilityExperimentSamples } from '@dutydeck/shared'
 import type { CapabilityExperimentAdvanceRequest, CapabilityExperimentCandidate, CapabilityExperimentCreateRequest,
   CapabilityExperimentQuality, CapabilityExperimentSample, CapabilityExperimentStage, CapabilityFactoryBatch,
   CapabilityFactoryBatchRequest, CapabilityFactoryExperiment, CapabilityFactoryExperimentView, CapabilityRun,
-  CapabilitySceneDefinition } from '@proma/shared'
+  CapabilitySceneDefinition } from '@dutydeck/shared'
 import { ensureDirectoryDurable, writeJsonFileAtomicSecure } from '../safe-file'
 import type { CapabilityFactoryBatchService } from './capability-factory-batch'
 import type { CapabilityFactoryModelResolution } from './capability-factory-model-call'

@@ -12,7 +12,7 @@ import type {
   MediaAssetRecord,
   MediaConnectionSummary,
   MediaWorkflowVersion,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   Check,
   Download,

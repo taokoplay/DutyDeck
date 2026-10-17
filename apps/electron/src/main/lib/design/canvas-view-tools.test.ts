@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasBatchOperationEnvelope, CanvasMutation, CanvasViewCommand, CanvasViewCommandTarget, CanvasViewSnapshot } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasBatchOperationEnvelope, CanvasMutation, CanvasViewCommand, CanvasViewCommandTarget, CanvasViewSnapshot } from '@dutydeck/shared'
 import type { CanvasToolRunContext } from './canvas-tool-provider'
 import { createCanvasViewTools, type CanvasViewToolDependencies } from './canvas-view-tools'
 

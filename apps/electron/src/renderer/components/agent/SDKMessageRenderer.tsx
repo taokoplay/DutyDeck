@@ -23,7 +23,7 @@ import { ProcessBlockGroup, buildAssistantTurnRenderItems } from './ProcessBlock
 import { AgentTerminalNotice } from './AgentTerminalNotice'
 import { extractToolResultText, TASK_TOOL_NAMES } from './task-progress'
 import { normalizeThinkTagsInContentBlocks } from './thinking-tag-parser'
-// 会话转录的纯逻辑(Turn 分组 / 快照去重 / 预览)已下沉到 @proma/session-core 作为唯一真源。
+// 会话转录的纯逻辑(Turn 分组 / 快照去重 / 预览)已下沉到 @dutydeck/session-core 作为唯一真源。
 // 这里 import 供本文件内部使用，并 re-export 以保持既有 `from './SDKMessageRenderer'` 导入方零改动。
 import {
   groupIntoTurns,
@@ -34,9 +34,9 @@ import {
   stripScheduledRunMarker,
   type MessageGroup,
   type AssistantTurn,
-} from '@proma/session-core'
-export { groupIntoTurns, getGroupPreview, extractUserText } from '@proma/session-core'
-export type { MessageGroup, AssistantTurn } from '@proma/session-core'
+} from '@dutydeck/session-core'
+export { groupIntoTurns, getGroupPreview, extractUserText } from '@dutydeck/session-core'
+export type { MessageGroup, AssistantTurn } from '@dutydeck/session-core'
 import { DurationBadge } from './AgentMessages'
 import {
   Message,
@@ -79,8 +79,8 @@ import type {
   SDKToolResultBlock,
   RecoveryAction,
   CanvasNodeReference,
-} from '@proma/shared'
-import type { AgentPendingFile } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { AgentPendingFile } from '@dutydeck/shared'
 import {
   getSDKCompactStatus,
   inferContextWindow,
@@ -88,7 +88,7 @@ import {
   THINKING_SIGNATURE_ERROR_TITLE,
   THINKING_SIGNATURE_ERROR_MESSAGE,
   isThinkingSignatureError,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ToolActivity } from '@/atoms/agent-atoms'
 import { resolveAgentTerminalNotice } from '@/lib/agent-terminal-result'
 import { resolveAgentRunFileChanges } from '@/lib/agent-run-file-changes'
@@ -207,7 +207,7 @@ function CompactStatusNotice({ message }: { message: SDKSystemMessage }): React.
   return null
 }
 
-// extractMeta / MessageMeta 已迁移至 @proma/session-core
+// extractMeta / MessageMeta 已迁移至 @dutydeck/session-core
 
 /** 从 turn 消息列表中提取 result 消息的耗时和用量数据 */
 export function extractTurnUsage(turnMessages: SDKMessage[]): { durationMs?: number; usage?: AgentEventUsage } {
@@ -254,7 +254,7 @@ export function extractTurnUsage(turnMessages: SDKMessage[]): { durationMs?: num
   return {}
 }
 
-// extractUserText 已迁移至 @proma/session-core
+// extractUserText 已迁移至 @dutydeck/session-core
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -275,7 +275,7 @@ function extractToolResultForTask(message: SDKUserMessage, resultBlock: SDKToolR
   return extractStructuredToolResultText(message) ?? extractToolResultText(resultBlock.content)
 }
 
-// isUserInputMessage 已迁移至 @proma/session-core
+// isUserInputMessage 已迁移至 @dutydeck/session-core
 
 // ===== 助手头像 =====
 
@@ -297,9 +297,9 @@ export function AssistantLogo({ model }: { model?: string }): React.ReactElement
   )
 }
 
-// AssistantTurn / MessageGroup 类型已迁移至 @proma/session-core
+// AssistantTurn / MessageGroup 类型已迁移至 @dutydeck/session-core
 
-// groupIntoTurns / mergeAdjacentSameModelTurns 已迁移至 @proma/session-core
+// groupIntoTurns / mergeAdjacentSameModelTurns 已迁移至 @dutydeck/session-core
 
 export function buildTaskProgressData(
   topLevelBlocks: SDKContentBlock[],
@@ -946,7 +946,7 @@ function QuoteChip({ quote }: { quote: QuotedFileRef }): React.ReactElement {
 
 const SCHEDULED_RUN_MARKER = '<!--PROMA_SCHEDULED_RUN-->'
 
-// stripScheduledRunMarker 已迁移至 @proma/session-core（本文件从该包 import 使用）
+// stripScheduledRunMarker 已迁移至 @dutydeck/session-core（本文件从该包 import 使用）
 
 function ScheduledRunBadge(): React.ReactElement {
   const activeSessionId = useAtomValue(activeSessionIdAtom)
@@ -1520,7 +1520,7 @@ export function getGroupId(group: MessageGroup): string {
   return `turn-empty-${++fallbackIdCounter}`
 }
 
-// getGroupPreview 已迁移至 @proma/session-core（本文件从该包 import 并 re-export）
+// getGroupPreview 已迁移至 @dutydeck/session-core（本文件从该包 import 并 re-export）
 
 export const MessageGroupRenderer = React.memo(function MessageGroupRenderer({ group, sessionId, allMessages, basePath, onFork, onRewind, onAgentHistoryQuoteClick, onCreateTodo, onRetry, onRetryInNewSession, onCompact, onRelinkProjectRoot, onRestoreProjectRoot, historyTurn, isStreaming, stoppedByUser, sessionModelId }: MessageGroupRendererProps): React.ReactElement | null {
   const groupId = getGroupId(group)

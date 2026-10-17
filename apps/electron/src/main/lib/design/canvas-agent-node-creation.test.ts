@@ -12,8 +12,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { applyCanvasMutations, createEmptyCanvasDocument } from '@proma/shared'
-import type { AgentSessionMeta, CanvasDocument, CanvasMutation, CanvasTarget } from '@proma/shared'
+import { applyCanvasMutations, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { AgentSessionMeta, CanvasDocument, CanvasMutation, CanvasTarget } from '@dutydeck/shared'
 import {
   CanvasAgentNodeCreationService,
   type CanvasAgentNodeDurableIntent,

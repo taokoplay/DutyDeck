@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import type { TerminalOutputEvent } from '@proma/shared'
+import type { TerminalOutputEvent } from '@dutydeck/shared'
 import '@xterm/xterm/css/xterm.css'
 import { detectIsWindows } from '@/lib/platform'
 import { getWindowsPtyOptions } from '@/lib/terminal-windows-pty'

@@ -1,4 +1,4 @@
-import { INTERACTION_DESIGN_CHANNELS, parseInteractionDesignCommand } from '@proma/shared'
+import { INTERACTION_DESIGN_CHANNELS, parseInteractionDesignCommand } from '@dutydeck/shared'
 import type { InteractionDesignExecutor } from './access'
 
 /** 不泄漏 Electron 对象到业务服务的 sender 形状。 */

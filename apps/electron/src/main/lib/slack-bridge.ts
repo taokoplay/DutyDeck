@@ -10,8 +10,8 @@ import type {
   SlackBotConfig,
   SlackBridgeState,
   SlackThreadBinding,
-} from '@proma/shared'
-import { SLACK_IPC_CHANNELS } from '@proma/shared'
+} from '@dutydeck/shared'
+import { SLACK_IPC_CHANNELS } from '@dutydeck/shared'
 import { getSlackBotBindingsPath, getSlackBotDeliveryPath } from './config-paths'
 import { getSettings } from './settings-service'
 import { createAgentSession, getAgentSessionMeta } from './agent-session-manager'

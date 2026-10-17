@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 import { FileTypeIcon } from './FileTypeIcon'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fileBrowserAutoRevealAtom } from '@/atoms/agent-atoms'
-import type { FileIndexEntry } from '@proma/shared'
+import type { FileIndexEntry } from '@dutydeck/shared'
 import { hasMixedFileSources } from './file-search-sources'
 
 interface FileSearchBarProps {

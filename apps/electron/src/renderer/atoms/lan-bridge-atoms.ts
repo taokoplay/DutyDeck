@@ -3,7 +3,7 @@
  */
 
 import { atom } from 'jotai'
-import type { LanBridgeConfig, LanBridgeRuntimeState } from '@proma/shared'
+import type { LanBridgeConfig, LanBridgeRuntimeState } from '@dutydeck/shared'
 
 const DEFAULT_RUNTIME_STATE: LanBridgeRuntimeState = {
   status: 'stopped',

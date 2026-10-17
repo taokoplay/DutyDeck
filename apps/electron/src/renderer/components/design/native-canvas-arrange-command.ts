@@ -1,4 +1,4 @@
-import type { CanvasDocument, CanvasMutation, CanvasTarget } from '@proma/shared'
+import type { CanvasDocument, CanvasMutation, CanvasTarget } from '@dutydeck/shared'
 import type { NativeCanvasNodeSize } from './native-canvas-model'
 
 /** 整理命令每次启动时固定的布局输入。 */

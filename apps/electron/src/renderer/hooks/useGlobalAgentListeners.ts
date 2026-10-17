@@ -105,8 +105,8 @@ import {
 } from '@/atoms/preview-atoms'
 import type { NotificationSoundType } from '@/types/settings'
 import { toast } from 'sonner'
-import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, AgentStreamEvent, AgentStreamCompletePayload, AgentStreamErrorPayload, AgentEvent, AgentStreamPayload, AgentAssistantDelta, AgentAssistantDeltaPayload, CanvasChangeEvent, SDKAssistantMessage, SDKResultMessage, SDKMessage, SDKUserMessage, SDKSystemMessage, PromaEvent, AgentSessionMeta, ProviderType, SDKContentBlock, SDKUserContentBlock, AgentQueuedMessageSnapshot, AgentQueuedMessageStatus } from '@proma/shared'
-import { inferContextWindow } from '@proma/shared'
+import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, AgentStreamEvent, AgentStreamCompletePayload, AgentStreamErrorPayload, AgentEvent, AgentStreamPayload, AgentAssistantDelta, AgentAssistantDeltaPayload, CanvasChangeEvent, SDKAssistantMessage, SDKResultMessage, SDKMessage, SDKUserMessage, SDKSystemMessage, PromaEvent, AgentSessionMeta, ProviderType, SDKContentBlock, SDKUserContentBlock, AgentQueuedMessageSnapshot, AgentQueuedMessageStatus } from '@dutydeck/shared'
+import { inferContextWindow } from '@dutydeck/shared'
 import {
   buildExternalAgentRunActivation,
   appendExternalAgentRunUserMessage,
@@ -2104,7 +2104,7 @@ export function useGlobalAgentListeners(): void {
           } else if (event.type === 'permission_mode_changed') {
             // 权限模式变更（如 Plan 模式退出后切换到完全自动）
             console.log(`[GlobalAgentListeners] 权限模式变更: ${event.mode}`)
-            store.set(agentPermissionModeMapAtom, (prev: Map<string, import('@proma/shared').PromaPermissionMode>) => {
+            store.set(agentPermissionModeMapAtom, (prev: Map<string, import('@dutydeck/shared').PromaPermissionMode>) => {
               const next = new Map(prev)
               next.set(sessionId, event.mode)
               return next

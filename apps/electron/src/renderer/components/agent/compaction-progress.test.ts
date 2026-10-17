@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 import { buildCurrentRunTaskActivities, getContextCompactionProgress, hasRenderableAssistantTurnContent, isCompactionControlHistoryGroup, shouldRenderLiveAssistantTurn } from './AgentMessages'
 import { shouldClearRetainedCompactionForResumedStream, shouldRestoreCompactionProgress } from './TaskProgressOverlay'
 

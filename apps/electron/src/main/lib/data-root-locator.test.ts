@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { DataRootLocatorFile } from '@proma/shared'
+import type { DataRootLocatorFile } from '@dutydeck/shared'
 import { DataRootLocator } from './data-root-locator'
 
 /** 迁移提交拒绝矩阵使用的定位文件参数。 */

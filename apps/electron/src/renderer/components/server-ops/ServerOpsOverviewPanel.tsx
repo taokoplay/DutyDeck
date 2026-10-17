@@ -9,7 +9,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { ServerOpsOverviewResult } from '@proma/shared'
+import type { ServerOpsOverviewResult } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { SERVER_OPS_CARD_CLASS, SERVER_OPS_TABLE_CLASS, SERVER_OPS_TOOLBAR_CLASS } from './server-ops-ui'

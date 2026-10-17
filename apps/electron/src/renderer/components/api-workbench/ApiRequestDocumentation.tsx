@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { BookOpen, FileQuestion, KeyRound } from 'lucide-react'
-import type { ApiAssertion, ApiAuth, ApiField, ApiRequestBody, ApiRequestDefinition } from '@proma/shared'
+import type { ApiAssertion, ApiAuth, ApiField, ApiRequestBody, ApiRequestDefinition } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 
 /** 已保存请求的只读文档属性。 */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { KnowledgeSnapshot } from '@proma/shared'
+import type { KnowledgeSnapshot } from '@dutydeck/shared'
 import { startKnowledgePolling, waitForKnowledgeScan } from './project-knowledge-poll'
 
 /** 创建只包含轮询所需字段的固定快照。 */

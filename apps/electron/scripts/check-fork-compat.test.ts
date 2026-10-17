@@ -86,13 +86,13 @@ jobs:
       - name: Install dependencies from merged tree
         run: bun install --frozen-lockfile
       - name: Check fork compatibility seams
-        run: bun run --filter='@proma/electron' check:fork-compat
+        run: bun run --filter='@dutydeck/electron' check:fork-compat
       - name: Check data root contract
-        run: bun run --filter='@proma/electron' check:data-root
+        run: bun run --filter='@dutydeck/electron' check:data-root
       - name: Run LAN and mobile targeted tests
         run: bun test apps/electron/scripts/check-fork-compat.test.ts apps/electron/scripts/check-data-root-contract.test.ts apps/electron/scripts/verify-upstream-merge.test.ts apps/electron/src/main/lib/config-paths.test.ts apps/electron/src/main/lib/lan-bridge apps/electron/src/preload/lan-bridge-preload.test.ts apps/mobile/src/lib
       - name: Build mobile app
-        run: bun run --filter='@proma/mobile' build
+        run: bun run --filter='@dutydeck/mobile' build
       - name: Typecheck all workspaces
         run: bun run typecheck
       - name: Build Electron app
@@ -171,7 +171,7 @@ const validFiles: Record<string, string> = {
     }
   `,
   'apps/electron/src/main/lib/lan-bridge/lan-bridge-ipc.ts': `
-    import { LAN_BRIDGE_IPC_CHANNELS } from '@proma/shared'
+    import { LAN_BRIDGE_IPC_CHANNELS } from '@dutydeck/shared'
     import type { AgentEventBus } from '../agent-event-bus'
     export interface LanBridgeIpcRegistrar { handle: (channel: string, handler: Function) => void }
     export function createLanBridgeIpcDependencies(agentEventBus: AgentEventBus) {
@@ -199,7 +199,7 @@ const validFiles: Record<string, string> = {
     contextBridge.exposeInMainWorld('electronAPI', electronAPI)
   `,
   'apps/electron/src/preload/lan-bridge-preload.ts': `
-    import { LAN_BRIDGE_IPC_CHANNELS } from '@proma/shared'
+    import { LAN_BRIDGE_IPC_CHANNELS } from '@dutydeck/shared'
     export interface LanBridgePreloadApi {
       getLanBridgeConfig: Function
       updateLanBridgeConfig: Function
@@ -252,7 +252,7 @@ const validFiles: Record<string, string> = {
     } as const
   `,
   'apps/electron/src/main/lib/lan-bridge/lan-bridge-handlers.ts': `
-    import { LAN_BRIDGE_PROTOCOL_VERSION, LAN_BRIDGE_WS_CAPABILITIES } from '@proma/shared'
+    import { LAN_BRIDGE_PROTOCOL_VERSION, LAN_BRIDGE_WS_CAPABILITIES } from '@dutydeck/shared'
     import type { LanBridgePromaAdapter } from './lan-bridge-proma-adapter-core'
     export function createLanBridgeConnectedPayload() {
       return { protocolVersion: LAN_BRIDGE_PROTOCOL_VERSION, capabilities: [...LAN_BRIDGE_WS_CAPABILITIES] }
@@ -280,11 +280,11 @@ const validFiles: Record<string, string> = {
   'apps/electron/package.json': JSON.stringify({
     scripts: {
       dev: 'bun run build:mobile && bun run scripts/dev-kill.ts --vite && concurrently -k',
-      'build:mobile': "bun run --filter='@proma/mobile' build",
+      'build:mobile': "bun run --filter='@dutydeck/mobile' build",
       'package:prepare': 'bun run build && bun run build:mobile && bun run rebuild:node-pty && bun run sync:runtime-deps',
     },
   }),
-  'apps/mobile/package.json': JSON.stringify({ name: '@proma/mobile', scripts: { build: 'vite build' } }),
+  'apps/mobile/package.json': JSON.stringify({ name: '@dutydeck/mobile', scripts: { build: 'vite build' } }),
   'apps/electron/electron-builder.yml': `
 extraResources:
   - from: ../../apps/mobile/dist
@@ -1494,7 +1494,7 @@ describe('fork 上游兼容检查器', () => {
       ...validFiles,
       'apps/electron/package.json': JSON.stringify({
         scripts: {
-          'build:mobile': "bun run --filter='@proma/mobile' build",
+          'build:mobile': "bun run --filter='@dutydeck/mobile' build",
           'package:prepare': 'echo "bun run build && bun run build:mobile && bun run sync:runtime-deps"',
         },
       }),
@@ -1509,7 +1509,7 @@ describe('fork 上游兼容检查器', () => {
       ...validFiles,
       'apps/electron/package.json': JSON.stringify({
         scripts: {
-          'build:mobile': "bun run --filter='@proma/mobile' build",
+          'build:mobile': "bun run --filter='@dutydeck/mobile' build",
           'package:prepare': 'bun run build && bun run build:mobile && bun run sync:runtime-deps && bun run rebuild:node-pty',
         },
       }),
@@ -1525,7 +1525,7 @@ describe('fork 上游兼容检查器', () => {
       'apps/electron/package.json': JSON.stringify({
         scripts: {
           dev: 'bun run build:mobile && bun run scripts/dev-kill.ts --vite && concurrently -k',
-          'build:mobile': 'bun run --filter=@proma/mobile build',
+          'build:mobile': 'bun run --filter=@dutydeck/mobile build',
           'package:prepare': 'bun run build && bun run build:mobile && bun run rebuild:node-pty && bun run sync:runtime-deps',
         },
       }),
@@ -1555,12 +1555,12 @@ describe('fork 上游兼容检查器', () => {
   const unsafeShellCases: Array<{ name: string; buildMobile: string; packagePrepare: string }> = [
     {
       name: 'build:mobile 用 echo 伪装',
-      buildMobile: `echo "bun run --filter='@proma/mobile' build"`,
+      buildMobile: `echo "bun run --filter='@dutydeck/mobile' build"`,
       packagePrepare: 'bun run build && bun run build:mobile && bun run sync:runtime-deps',
     },
     {
       name: 'build:mobile 前置 false',
-      buildMobile: `false && bun run --filter='@proma/mobile' build`,
+      buildMobile: `false && bun run --filter='@dutydeck/mobile' build`,
       packagePrepare: 'bun run build && bun run build:mobile && bun run sync:runtime-deps',
     },
     {
@@ -1570,22 +1570,22 @@ describe('fork 上游兼容检查器', () => {
     },
     {
       name: 'package:prepare 前置 false',
-      buildMobile: 'bun run --filter=@proma/mobile build',
+      buildMobile: 'bun run --filter=@dutydeck/mobile build',
       packagePrepare: 'false && bun run build && bun run build:mobile && bun run sync:runtime-deps',
     },
     {
       name: 'package:prepare 使用 true 或短路',
-      buildMobile: 'bun run --filter=@proma/mobile build',
+      buildMobile: 'bun run --filter=@dutydeck/mobile build',
       packagePrepare: 'true || bun run build && bun run build:mobile && bun run sync:runtime-deps',
     },
     {
       name: 'package:prepare 使用子 shell',
-      buildMobile: 'bun run --filter=@proma/mobile build',
+      buildMobile: 'bun run --filter=@dutydeck/mobile build',
       packagePrepare: '(bun run build && bun run build:mobile) && bun run sync:runtime-deps',
     },
     {
       name: 'package:prepare 仅在引号文本出现命令',
-      buildMobile: 'bun run --filter=@proma/mobile build',
+      buildMobile: 'bun run --filter=@dutydeck/mobile build',
       packagePrepare: 'echo "bun run build && bun run build:mobile && bun run sync:runtime-deps"',
     },
   ]
@@ -1798,7 +1798,7 @@ broken: [
       name: '重复 Build mobile step',
       mutate: (source) => source.replace(
         '      - name: Typecheck all workspaces',
-        '      - name: Build mobile app\n        run: bun run --filter=\'@proma/mobile\' build\n      - name: Typecheck all workspaces',
+        '      - name: Build mobile app\n        run: bun run --filter=\'@dutydeck/mobile\' build\n      - name: Typecheck all workspaces',
       ),
     },
     {
@@ -1920,8 +1920,8 @@ broken: [
     },
     {
       name: 'checker',
-      target: "run: bun run --filter='@proma/electron' check:fork-compat",
-      replacement: "run: |\n          if false; then\n            bun run --filter='@proma/electron' check:fork-compat\n          fi",
+      target: "run: bun run --filter='@dutydeck/electron' check:fork-compat",
+      replacement: "run: |\n          if false; then\n            bun run --filter='@dutydeck/electron' check:fork-compat\n          fi",
     },
   ]
 
@@ -2205,29 +2205,29 @@ broken: [
     {
       name: '缺少 step',
       mutate: (source: string) => source.replace(
-        "      - name: Check data root contract\n        run: bun run --filter='@proma/electron' check:data-root\n",
+        "      - name: Check data root contract\n        run: bun run --filter='@dutydeck/electron' check:data-root\n",
         '',
       ),
     },
     {
       name: 'echo 伪装命令',
       mutate: (source: string) => source.replace(
-        "run: bun run --filter='@proma/electron' check:data-root",
-        "run: echo \"bun run --filter='@proma/electron' check:data-root\"",
+        "run: bun run --filter='@dutydeck/electron' check:data-root",
+        "run: echo \"bun run --filter='@dutydeck/electron' check:data-root\"",
       ),
     },
     {
       name: 'if 包裹命令',
       mutate: (source: string) => source.replace(
-        "run: bun run --filter='@proma/electron' check:data-root",
-        "run: if true; then bun run --filter='@proma/electron' check:data-root; fi",
+        "run: bun run --filter='@dutydeck/electron' check:data-root",
+        "run: if true; then bun run --filter='@dutydeck/electron' check:data-root; fi",
       ),
     },
     {
       name: '错误 workspace 过滤器',
       mutate: (source: string) => source.replace(
-        "--filter='@proma/electron' check:data-root",
-        "--filter='@proma/shared' check:data-root",
+        "--filter='@dutydeck/electron' check:data-root",
+        "--filter='@dutydeck/shared' check:data-root",
       ),
     },
   ]
@@ -2494,8 +2494,8 @@ broken: [
     },
     {
       name: 'checker',
-      target: "run: bun run --filter='@proma/electron' check:fork-compat",
-      replacement: `run: echo "bun run --filter='@proma/electron' check:fork-compat"`,
+      target: "run: bun run --filter='@dutydeck/electron' check:fork-compat",
+      replacement: `run: echo "bun run --filter='@dutydeck/electron' check:fork-compat"`,
     },
     {
       name: 'targeted tests',
@@ -2504,8 +2504,8 @@ broken: [
     },
     {
       name: 'mobile build',
-      target: "run: bun run --filter='@proma/mobile' build",
-      replacement: `run: echo "bun run --filter='@proma/mobile' build"`,
+      target: "run: bun run --filter='@dutydeck/mobile' build",
+      replacement: `run: echo "bun run --filter='@dutydeck/mobile' build"`,
     },
     {
       name: 'root typecheck',

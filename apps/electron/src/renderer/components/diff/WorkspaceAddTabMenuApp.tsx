@@ -15,7 +15,7 @@ import {
   Workflow,
   Brain,
 } from 'lucide-react'
-import type { WorkspaceMenuActionId, WorkspaceMenuEntryInput } from '@proma/shared'
+import type { WorkspaceMenuActionId, WorkspaceMenuEntryInput } from '@dutydeck/shared'
 import { ObsidianIcon } from '@/components/obsidian/obsidian-brand'
 import {
   DropdownMenu,

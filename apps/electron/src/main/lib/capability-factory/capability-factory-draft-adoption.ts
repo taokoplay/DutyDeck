@@ -2,7 +2,7 @@ import {
   getReviewSteps, getStepAcceptance, stableCapabilityValueKey,
   type CapabilityDraftAdoptionScope, type CapabilityScene, type CapabilitySceneDefinition,
   type SceneAcceptance, type Step,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 纯预览结果：生效快照、剩余完整目标草案与本次范围说明；不执行持久化。 */
 interface CapabilityDraftAdoption {

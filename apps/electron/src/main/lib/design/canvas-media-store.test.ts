@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CanvasDocument, CanvasMediaTarget, CanvasNodeContentMeta } from '@proma/shared'
+import type { CanvasDocument, CanvasMediaTarget, CanvasNodeContentMeta } from '@dutydeck/shared'
 import type { StableDirectoryNativeRequest, StableDirectoryNativeResult } from '../stable-directory-native-host'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import {

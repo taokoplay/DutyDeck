@@ -8,7 +8,7 @@ import {
   sanitizeServerOpsAuditCommand,
 } from './server-ops-audit-store'
 import type { ServerOpsAuditStoreDependencies } from './server-ops-audit-store'
-import type { ServerOpsAuditRecord } from '@proma/shared'
+import type { ServerOpsAuditRecord } from '@dutydeck/shared'
 
 interface Deferred<T> {
   promise: Promise<T>

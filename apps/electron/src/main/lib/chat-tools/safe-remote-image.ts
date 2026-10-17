@@ -1,7 +1,7 @@
 import { lookup as lookupDns } from 'node:dns/promises'
 import { request as requestHttps } from 'node:https'
 import { BlockList, isIP } from 'node:net'
-import { MAX_ATTACHMENT_SIZE } from '@proma/shared'
+import { MAX_ATTACHMENT_SIZE } from '@dutydeck/shared'
 
 /** DNS 返回并由请求层固定使用的 IP 地址。 */
 export interface ResolvedAddress {

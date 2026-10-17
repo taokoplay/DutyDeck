@@ -7,7 +7,7 @@
  * 刻意只做**行级 diff**：提示词是写给人看的文本，行级增删已经足够定位"改的是哪一句"，
  * 再细的字符级 diff 只会让改一个词的噪音铺满整屏。
  */
-import type { CapabilityRun } from '@proma/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 
 /** 一行差异。`same` 是两边都有的行，用来保留上下文。 */
 export interface TextDiffLine {

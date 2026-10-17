@@ -1,7 +1,7 @@
 /** Token 统计 IPC：只接收过滤 DTO，导出路径完全由主进程保存对话框决定。 */
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { TOKEN_USAGE_IPC } from '@proma/shared'
-import type { TokenUsageQuery, TokenUsageTaskDetail } from '@proma/shared'
+import { TOKEN_USAGE_IPC } from '@dutydeck/shared'
+import type { TokenUsageQuery, TokenUsageTaskDetail } from '@dutydeck/shared'
 import type { TokenUsageStore } from './token-usage-store'
 import { aggregateTokenUsage, tokenUsageCsv, tokenUsageExportRecords, tokenUsageTaskDetail, validateTokenUsageQuery } from './token-usage-query'
 import { importTokenUsageHistory } from './token-usage-history'

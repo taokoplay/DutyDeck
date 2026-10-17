@@ -27,14 +27,14 @@ import {
   type ReasoningTransport,
   type ProviderType,
   type ModelCapabilityCost,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   getPromaUserAgent,
   normalizeAnthropicBaseUrlForSdk,
   normalizeOpenAIBaseUrlForSdk,
   normalizeVersionedAnthropicBaseUrl,
   resolveAnthropicMessagesUrl,
-} from '@proma/core'
+} from '@dutydeck/core'
 import type { Api, KnownProvider, Model } from '@earendil-works/pi-ai/compat'
 import type { PiAgentQueryOptions } from './pi-agent-adapter'
 import { rememberXaiOAuthCredentials, refreshXaiOAuthCredentialsSerial } from '../xai-oauth-credentials'

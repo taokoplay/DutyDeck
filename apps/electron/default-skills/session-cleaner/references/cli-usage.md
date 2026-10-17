@@ -1,7 +1,7 @@
 # session-cleaner CLI 参考
 
-本技能是 `proma` CLI 的薄封装。本文件给维护者解释**底层格式**与**CLI 行为**，便于排查问题。
-真正的解析逻辑在 `@proma/session-core`（仓库内唯一真源），不要在技能里重抄。
+本技能是 `dutydeck` CLI 的薄封装。本文件给维护者解释**底层格式**与**CLI 行为**，便于排查问题。
+真正的解析逻辑在 `@dutydeck/session-core`（仓库内唯一真源），不要在技能里重抄。
 
 ## 会话存储
 
@@ -10,11 +10,11 @@
 ~/.DutyDeck/agent-sessions/<id>.jsonl   单会话消息，JSONL（一行一条 JSON）
 ```
 
-开发版与正式版共享同一活动数据根。Agent 运行时通过 `PROMA_CONFIG_DIR` 把 Electron 已解析的根传给 CLI；独立 CLI 依次读取 `--config-dir`、`PROMA_CONFIG_DIR`、`~/.DutyDeck-location.json`，没有 DutyDeck locator 时只读兼容旧 `~/.proma-location.json`，完全没有定位信息时才使用 `~/.DutyDeck/`。`--dev` / `PROMA_DEV=1` 仅是显式调试覆盖，不代表开发版默认目录。
+开发版与正式版共享同一活动数据根。Agent 运行时通过 `DUTYDECK_CONFIG_DIR` 把 Electron 已解析的根传给 CLI；独立 CLI 依次读取 `--config-dir`、`DUTYDECK_CONFIG_DIR`、兼容旧 `PROMA_CONFIG_DIR`、`~/.DutyDeck-location.json`，没有 DutyDeck locator 时只读兼容旧 `~/.proma-location.json`，完全没有定位信息时才使用 `~/.DutyDeck/`。`--dev` / `DUTYDECK_DEV=1` 仅是显式调试覆盖，旧 `PROMA_DEV=1` 保留兼容。
 
 ## 两种会话格式（CLI 自动识别，无需关心）
 
-`@proma/session-core` 的 `readSessionMessages` 在读取时统一归一，下游不需要区分：
+`@dutydeck/session-core` 的 `readSessionMessages` 在读取时统一归一，下游不需要区分：
 
 - **格式 B（SDK 流式，当前默认）**：每行 `{ type, message, _createdAt, ... }`。同一 assistant 回合被拆成**多行完整快照**，共享同一 `message.id`，内容数组逐步增长——这是"拼接单字 / 重复段落"的来源。core 的 `toTranscript` 按 `message.id` 取最完整快照消除冗余。
 - **格式 A（旧扁平 chat）**：每行 `{ id, role, content: string, createdAt }`。core 的 `convertLegacyMessage` 把它转成近似 SDKMessage。
@@ -55,10 +55,10 @@
 ## 与 core 的关系（维护者须知）
 
 ```
-@proma/session-core   解析 / 快照去重 / outline / search / select / render —— 真源
+@dutydeck/session-core   解析 / 快照去重 / outline / search / select / render —— 真源
   └─ /node 子入口      readSessionMessages（文件 IO，含 node:fs）
-apps/cli (proma)      命令路由薄壳，调用 core
+apps/cli (dutydeck)   命令路由薄壳，调用 core
 default-skills/session-cleaner  本技能，教 Agent 调 CLI
 ```
 
-改 bug / 改格式 → 改 `@proma/session-core`。CLI 和技能都不应包含解析逻辑。
+改 bug / 改格式 → 改 `@dutydeck/session-core`。CLI 和技能都不应包含解析逻辑。

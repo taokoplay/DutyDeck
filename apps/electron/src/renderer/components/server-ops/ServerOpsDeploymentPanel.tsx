@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { ServerOpsDeploymentCheck, ServerOpsDeploymentRun, ServerOpsDeploymentTarget } from '@proma/shared'
+import type { ServerOpsDeploymentCheck, ServerOpsDeploymentRun, ServerOpsDeploymentTarget } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'

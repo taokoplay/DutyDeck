@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CapabilityRun, CapabilityRunModelBinding, SceneAcceptance } from '@proma/shared'
+import type { CapabilityRun, CapabilityRunModelBinding, SceneAcceptance } from '@dutydeck/shared'
 import { reviewCapabilityRun } from './capability-factory-review'
 
 /** 合成标准：必须有证据，指标缺少标注时允许无法判断。 */

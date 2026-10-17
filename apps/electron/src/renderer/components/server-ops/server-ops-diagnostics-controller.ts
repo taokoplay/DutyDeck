@@ -1,4 +1,4 @@
-import type { ServerOpsDataDiagnoseInput, ServerOpsDataDiagnosticsResult } from '@proma/shared'
+import type { ServerOpsDataDiagnoseInput, ServerOpsDataDiagnosticsResult } from '@dutydeck/shared'
 import type { ServerOpsSchemaLoadState } from './server-ops-schema-controller'
 import { enqueueServerOpsDataRead } from './server-ops-data-request-queue'
 import { getServerOpsDataErrorMessage } from './server-ops-data-display'

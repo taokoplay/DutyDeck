@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { CANVAS_VIEW_IPC_CHANNELS, isCanvasViewCommand, isCanvasViewCommandResponse, isCanvasViewCommandTarget, isCanvasViewResponseWithinBudget, sameCanvasViewTarget } from '@proma/shared'
-import type { CanvasViewCommand, CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewCommandTarget, CanvasViewSnapshot } from '@proma/shared'
+import { CANVAS_VIEW_IPC_CHANNELS, isCanvasViewCommand, isCanvasViewCommandResponse, isCanvasViewCommandTarget, isCanvasViewResponseWithinBudget, sameCanvasViewTarget } from '@dutydeck/shared'
+import type { CanvasViewCommand, CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewCommandTarget, CanvasViewSnapshot } from '@dutydeck/shared'
 
 /** 主进程提供窗口存活/可见检查与定向发送，禁止广播。 */
 export interface CanvasViewCommandServiceDependencies {

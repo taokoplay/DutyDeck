@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsTransferSnapshot } from '@proma/shared'
+import type { ServerOpsTransferSnapshot } from '@dutydeck/shared'
 import { mergeServerOpsTransferSnapshots } from './ServerOpsFilesWorkspace'
 
 describe('文件传输事件投影', () => {

@@ -1,12 +1,12 @@
 import { describe, expect, spyOn, test } from 'bun:test'
-import { DESIGN_IPC_CHANNELS } from '@proma/shared'
+import { DESIGN_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   CanvasSessionMeta,
   CreateCanvasSessionInput,
   DeleteCanvasSessionInput,
   ListCanvasSessionsInput,
   UpdateCanvasSessionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { registerCanvasSessionIpcHandlers } from './canvas-session-ipc'
 

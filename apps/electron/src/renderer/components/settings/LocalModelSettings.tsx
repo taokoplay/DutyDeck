@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SettingsCard, SettingsSection } from './primitives'
 import { acceptLocalModelSnapshotAtom, localModelErrorsAtom, localModelLoadErrorAtom, localModelPendingAtom, localModelProgressAtom, localModelPromptAtom, localModelSnapshotAtom, localModelTestAssetAtom, localModelTestResultsAtom, performLocalModelActionAtom, refreshLocalModelsAtom } from '@/atoms/local-model-atoms'
-import type { LocalModelSnapshot } from '@proma/shared'
+import type { LocalModelSnapshot } from '@dutydeck/shared'
 import { localModelControls, localModelSize, localModelStatus } from '@/lib/local-model-state'
 import { settingsTabAtom } from '@/atoms/settings-tab'
 

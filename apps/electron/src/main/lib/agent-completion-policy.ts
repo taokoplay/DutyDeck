@@ -1,4 +1,4 @@
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 
 /** Host 对一次 Agent 成功终态的业务完成判断。 */
 export type AgentCompletionEvaluation =

@@ -7,8 +7,8 @@ import type {
   ImageGenerationCatalogFetchResult,
   ImageGenerationSettingsResult,
   ReplaceImageGenerationCatalogRequest,
-} from '@proma/shared'
-import { DREAMINA_LOGIN_MESSAGES, parseReplaceImageGenerationCatalogRequest } from '@proma/shared'
+} from '@dutydeck/shared'
+import { DREAMINA_LOGIN_MESSAGES, parseReplaceImageGenerationCatalogRequest } from '@dutydeck/shared'
 import {
   useImageGenerationController,
   type ImageGenerationController,

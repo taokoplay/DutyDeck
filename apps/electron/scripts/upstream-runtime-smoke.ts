@@ -6,7 +6,7 @@ import { syncBuiltinESMExports } from 'node:module'
 import type { AddressInfo } from 'node:net'
 import os, { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { SDKAssistantMessage, SDKMessage, SDKResultMessage, TerminalOutputEvent, TerminalProfile, TerminalState } from '@proma/shared'
+import type { SDKAssistantMessage, SDKMessage, SDKResultMessage, TerminalOutputEvent, TerminalProfile, TerminalState } from '@dutydeck/shared'
 import type { PiAgentQueryOptions } from '../src/main/lib/adapters/pi-agent-adapter'
 
 /** 标记当前进程是由 smoke 父入口启动的 Electron 子进程。 */

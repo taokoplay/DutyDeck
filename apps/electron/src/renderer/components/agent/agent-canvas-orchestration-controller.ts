@@ -4,8 +4,8 @@ import type {
   CanvasOrchestrationChangedEvent,
   CanvasOrchestrationRecord,
   CanvasTarget,
-} from '@proma/shared'
-import { LEGACY_DESIGN_CANVAS_ID } from '@proma/shared'
+} from '@dutydeck/shared'
+import { LEGACY_DESIGN_CANVAS_ID } from '@dutydeck/shared'
 import type { CanvasOrchestrationState } from '@/atoms/canvas-orchestration-atoms'
 import { createCanvasOrchestrationController, type CanvasOrchestrationController } from '@/components/design/CanvasOrchestrationPanel'
 

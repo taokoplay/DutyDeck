@@ -7,7 +7,7 @@ import {
   parseServerOpsDeploymentTarget,
   parseServerOpsDeploymentTargetSaveInput,
   parseServerOpsDeploymentTargets,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDeploymentCheck,
   ServerOpsDeploymentCheckInput,
@@ -15,7 +15,7 @@ import type {
   ServerOpsDeploymentRun,
   ServerOpsDeploymentTarget,
   ServerOpsDeploymentTargetSaveInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 部署 IPC invoke 的最小注入边界。 */
 export type ServerOpsDeploymentInvoke = (channel: string, input?: unknown) => Promise<unknown>

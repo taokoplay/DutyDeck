@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsAgentDatabaseScope, ServerOpsAgentReadAccess, ServerOpsDatabaseAgentPolicy } from '@proma/shared'
+import type { ServerOpsAgentDatabaseScope, ServerOpsAgentReadAccess, ServerOpsDatabaseAgentPolicy } from '@dutydeck/shared'
 import { createServerOpsAgentReadController } from './server-ops-agent-read-controller'
 
 /** 手动控制 IPC 回执先后次序，复现撤权与保存竞争。 */

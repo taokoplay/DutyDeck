@@ -4,7 +4,7 @@ import type {
   CanvasAgentTarget,
   CanvasWorkspaceSnapshot,
   SkillMeta,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { WebContents } from 'electron'
 import type { AgentRunExtensions } from '../agent-run-extensions'
 import type {

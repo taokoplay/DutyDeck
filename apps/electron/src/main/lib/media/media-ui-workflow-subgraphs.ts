@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, MediaRemoteWorkflowAnalysisIssue } from '@proma/shared'
+import type { JsonObject, JsonValue, MediaRemoteWorkflowAnalysisIssue } from '@dutydeck/shared'
 
 /** 展开后的 UI 图最多保留 512 个真实节点。 */
 const MAX_EXPANDED_NODES = 512

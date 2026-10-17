@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { buildModel, getCodexCatalogModels } from './pi-model-registry'
-import type { ProviderType } from '@proma/shared'
+import type { ProviderType } from '@dutydeck/shared'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { streamSimple } from '@earendil-works/pi-ai/api/openai-completions'
 

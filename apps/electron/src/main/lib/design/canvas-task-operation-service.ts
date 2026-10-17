@@ -1,4 +1,4 @@
-import type { DesignJobRecord, DesignJobStatus, DesignTraceEntry, ImageGenerationExecutor } from '@proma/shared'
+import type { DesignJobRecord, DesignJobStatus, DesignTraceEntry, ImageGenerationExecutor } from '@dutydeck/shared'
 import { isDeepStrictEqual } from 'node:util'
 import type { CanvasImageCandidateBatchService } from './canvas-image-candidate-batch-service'
 import { createImageJobId } from './canvas-image-run-service'

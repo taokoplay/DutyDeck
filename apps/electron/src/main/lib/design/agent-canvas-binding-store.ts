@@ -5,7 +5,7 @@ import type {
   MarkAgentCanvasActiveInput,
   SetDefaultAgentCanvasInput,
   UnlinkAgentCanvasInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   parseAgentCanvasBinding,
   parseClearAgentCanvasBindingsInput,
@@ -14,7 +14,7 @@ import {
   parseListAgentCanvasBindingsInput,
   parseSetDefaultAgentCanvasInput,
   parseUnlinkAgentCanvasInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { getAgentCanvasBindingsPath } from '../config-paths'
 import {
   readAtomicFileState,

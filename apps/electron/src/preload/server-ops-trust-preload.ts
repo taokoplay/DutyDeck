@@ -2,11 +2,11 @@ import {
   SERVER_OPS_TRUST_CHANNELS, parseServerOpsTrustCancelInput, parseServerOpsTrustCandidate,
   parseServerOpsTrustCommitInput, parseServerOpsTrustInput, parseServerOpsTrustPrepareInput,
   parseServerOpsTrustResult, parseServerOpsTrustSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsTrustCancelInput, ServerOpsTrustCandidate, ServerOpsTrustCommitInput, ServerOpsTrustInput,
   ServerOpsTrustPrepareInput, ServerOpsTrustResult, ServerOpsTrustSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** Renderer 可使用的信任管理桥接；所有操作由主进程验证窗口身份。 */
 export interface ServerOpsTrustPreload {

@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { TokenUsageQuery, TokenUsageTotals, TokenUsageSnapshot } from '@proma/shared'
+import type { TokenUsageQuery, TokenUsageTotals, TokenUsageSnapshot } from '@dutydeck/shared'
 
 /** 预设时间范围；自定义日期由页面显式提交。 */
 export type TokenUsageRange = 'today' | 'week' | 'month' | 'custom'

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasMediaOutputPreview, CanvasMutation } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasMediaOutputPreview, CanvasMutation } from '@dutydeck/shared'
 import { ReactFlow } from '@xyflow/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {

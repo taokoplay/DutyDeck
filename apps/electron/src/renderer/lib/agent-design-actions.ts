@@ -1,4 +1,4 @@
-import type { AgentToolResultImage, ImportAgentImageInput } from '@proma/shared'
+import type { AgentToolResultImage, ImportAgentImageInput } from '@dutydeck/shared'
 
 /** Agent 工具图片导入动作所需的最小主进程能力。 */
 export interface AgentDesignActionDependencies {

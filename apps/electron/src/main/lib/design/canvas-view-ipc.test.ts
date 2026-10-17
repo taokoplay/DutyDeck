@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { CANVAS_VIEW_IPC_CHANNELS } from '@proma/shared'
+import { CANVAS_VIEW_IPC_CHANNELS } from '@dutydeck/shared'
 import type { IpcMainInvokeEvent } from 'electron'
 import { registerCanvasViewIpcHandlers } from './canvas-view-ipc'
 import { createCanvasViewCommandService } from './canvas-view-command-service'

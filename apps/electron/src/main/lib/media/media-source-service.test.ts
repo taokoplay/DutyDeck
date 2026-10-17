@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import type { AgentSessionMeta, MediaAssetRecord, MediaAssetRef, SDKMessage } from '@proma/shared'
+import type { AgentSessionMeta, MediaAssetRecord, MediaAssetRef, SDKMessage } from '@dutydeck/shared'
 import { MediaSourceService, type MediaSourceServiceDependencies } from './media-source-service'
 
 const roots: string[] = []

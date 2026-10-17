@@ -1,4 +1,4 @@
-import type { ServerOpsAgentReference, ServerOpsAgentReferenceScope } from '@proma/shared'
+import type { ServerOpsAgentReference, ServerOpsAgentReferenceScope } from '@dutydeck/shared'
 
 /** 运维资源引用事件；AgentView 负责把引用插入当前会话编辑器。 */
 export const INSERT_SERVER_OPS_REFERENCE_EVENT = 'proma:insert-server-ops-reference'

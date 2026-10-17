@@ -2,14 +2,14 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { createEmptySceneDefinition } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
 import type {
   CapabilityDataset,
   CapabilityFactoryBatchRunOptions,
   CapabilityRun,
   CapabilitySavedTask,
   CapabilityScene,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createCapabilityFactoryBatchRunner } from './capability-factory-batch'
 
 /** 每个用例使用独立目录，验证真实文件恢复而不是内存模拟。 */

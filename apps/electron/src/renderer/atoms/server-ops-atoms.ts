@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
-import type { ServerOpsAgentAccess, ServerOpsAgentAccessTarget, ServerOpsConnectionState, ServerOpsDataSource, ServerOpsHost, ServerOpsProject } from '@proma/shared'
+import type { ServerOpsAgentAccess, ServerOpsAgentAccessTarget, ServerOpsConnectionState, ServerOpsDataSource, ServerOpsHost, ServerOpsProject } from '@dutydeck/shared'
 import type { ServerOpsProjectsStatus } from '@/components/server-ops/server-ops-project-controller'
 import type { ServerOpsDataSourcesStatus } from '@/components/server-ops/server-ops-data-source-list-controller'
 import type { ServerOpsSection } from '@/components/server-ops/ServerOpsWorkspace'

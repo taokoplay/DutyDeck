@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsAgentDatabaseScope, ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsAgentDatabaseScope, ServerOpsDataSource } from '@dutydeck/shared'
 import { createServerOpsDatabaseNavigation, getServerOpsDatabaseReadIdentity } from '@/atoms/server-ops-database-atoms'
 import { createServerOpsQueryableScope, prepareServerOpsReadEditorResources, resolveServerOpsAgentDatabase, toggleServerOpsExcludedTable } from './server-ops-agent-table-scope'
 

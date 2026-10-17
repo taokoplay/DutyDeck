@@ -1,5 +1,5 @@
 import sharp from 'sharp'
-import type { MobileMirrorDevice } from '@proma/shared'
+import type { MobileMirrorDevice } from '@dutydeck/shared'
 /** 面板必须具备的有限工具集合。 */
 export const MOBILE_MIRROR_TOOLS = ['mobile_list_available_devices', 'mobile_get_screen_size', 'mobile_take_screenshot', 'mobile_click_on_screen_at_coordinates', 'mobile_swipe_on_screen', 'mobile_type_keys', 'mobile_press_button'] as const
 /** 从不可信 MCP 返回值中验证内容数组与错误标记。 */

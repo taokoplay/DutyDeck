@@ -1,8 +1,8 @@
 import { CANVAS_READ_ONLY_TOOL_NAMES } from './canvas-agent-tool-policy'
-import { getCanvasOrchestrationPendingDecision } from '@proma/shared'
+import { getCanvasOrchestrationPendingDecision } from '@dutydeck/shared'
 import type { CanvasOrchestrationService, CanvasOrchestrationBranchAccess } from './canvas-orchestration-service'
 import type { CanvasToolRunContext } from './canvas-tool-provider'
-import type { CanvasDocument } from '@proma/shared'
+import type { CanvasDocument } from '@dutydeck/shared'
 
 /** 只读媒体工具使用固定集合，未知能力不能凭名称前缀获得权限。 */
 const mediaReads = new Set(['media_list_workflows', 'media_list_resources', 'media_read_remote_workflow',

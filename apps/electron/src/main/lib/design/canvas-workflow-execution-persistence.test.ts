@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@proma/shared'
+import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasImageCandidateBatch,
@@ -11,7 +11,7 @@ import type {
   CanvasNode,
   CanvasTarget,
   CanvasWorkflowRunChangedEvent,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createCanvasDependencyStateService } from './canvas-dependency-state-service'
 import { createCanvasImageCandidateBatchService } from './canvas-image-candidate-batch-service'
 import {

@@ -3,7 +3,7 @@ import type {
   PlanningNativeSyncPermission,
   PlanningNativeSyncStatus,
   PlanningNativeSyncTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { callMacEventKitNativeAddon, subscribeMacEventKitNativeChanges } from './mac-eventkit-native-addon'
 
 type NativePermissionResponse = {

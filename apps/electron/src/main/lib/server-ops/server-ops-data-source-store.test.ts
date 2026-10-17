@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ServerOpsDataSourceUpsertInput } from '@proma/shared'
+import type { ServerOpsDataSourceUpsertInput } from '@dutydeck/shared'
 import {
   createServerOpsDataSourceStoreDependencies,
   ServerOpsDataSourceStore as ProductionServerOpsDataSourceStore,

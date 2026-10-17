@@ -1,5 +1,5 @@
-import { createCanvasLayoutSpatialIndex } from '@proma/shared'
-import type { CanvasEdge, CanvasLayoutRect, CanvasMutation, DesignPoint } from '@proma/shared'
+import { createCanvasLayoutSpatialIndex } from '@dutydeck/shared'
+import type { CanvasEdge, CanvasLayoutRect, CanvasMutation, DesignPoint } from '@dutydeck/shared'
 import type { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api'
 import type { NativeCanvasLayoutEngine } from './native-canvas-layout-client'
 

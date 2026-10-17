@@ -1677,7 +1677,7 @@ function checkMobileBuild(reader: RepositoryReader): ForkCompatCheckResult {
       && commandEquals(devCommands![0], ['bun', 'run', 'build:mobile'])
     /** build:mobile 唯一允许的真实 workspace 构建命令。 */
     const hasValidMobileBuild = buildMobileCommands?.length === 1
-      && commandEquals(buildMobileCommands[0], ['bun', 'run', '--filter=@proma/mobile', 'build'])
+      && commandEquals(buildMobileCommands[0], ['bun', 'run', '--filter=@dutydeck/mobile', 'build'])
     /** package:prepare 必须先重建 native 依赖，再清理并同步打包运行时目录。 */
     const hasValidPackagePrepare = packagePrepareCommands?.length === 4
       && commandEquals(packagePrepareCommands[0], ['bun', 'run', 'build'])
@@ -1686,9 +1686,9 @@ function checkMobileBuild(reader: RepositoryReader): ForkCompatCheckResult {
       && commandEquals(packagePrepareCommands[3], ['bun', 'run', 'sync:runtime-deps'])
 
     if (!hasValidDevMobileBuild) details.push('dev 必须先执行 bun run build:mobile，避免局域网服务加载旧移动端产物')
-    if (!hasValidMobileBuild) details.push('build:mobile 必须直接执行 @proma/mobile workspace build')
+    if (!hasValidMobileBuild) details.push('build:mobile 必须直接执行 @dutydeck/mobile workspace build')
     if (!hasValidPackagePrepare) details.push('package:prepare 必须按 Electron build、mobile build、node-pty 重建、runtime 同步顺序直接执行')
-    if (mobilePackage.name !== '@proma/mobile' || !mobilePackage.scripts?.build) details.push('apps/mobile 未保留可执行 build script')
+    if (mobilePackage.name !== '@dutydeck/mobile' || !mobilePackage.scripts?.build) details.push('apps/mobile 未保留可执行 build script')
   } catch (error) {
     details.push(`package.json 解析失败：${error instanceof Error ? error.message : String(error)}`)
   }
@@ -1829,8 +1829,8 @@ function checkWorkflowDefinition(reader: RepositoryReader): ForkCompatCheckResul
     /** 简单验证步骤必须是唯一真实命令。 */
     const requiredCommands: Array<[string, readonly string[]]> = [
       ['Install dependencies from merged tree', ['bun', 'install', '--frozen-lockfile']],
-      ['Check fork compatibility seams', ['bun', 'run', '--filter=@proma/electron', 'check:fork-compat']],
-      ['Check data root contract', ['bun', 'run', '--filter=@proma/electron', 'check:data-root']],
+      ['Check fork compatibility seams', ['bun', 'run', '--filter=@dutydeck/electron', 'check:fork-compat']],
+      ['Check data root contract', ['bun', 'run', '--filter=@dutydeck/electron', 'check:data-root']],
       ['Run LAN and mobile targeted tests', [
         'bun',
         'test',
@@ -1842,7 +1842,7 @@ function checkWorkflowDefinition(reader: RepositoryReader): ForkCompatCheckResul
         'apps/electron/src/preload/lan-bridge-preload.test.ts',
         'apps/mobile/src/lib',
       ]],
-      ['Build mobile app', ['bun', 'run', '--filter=@proma/mobile', 'build']],
+      ['Build mobile app', ['bun', 'run', '--filter=@dutydeck/mobile', 'build']],
       ['Typecheck all workspaces', ['bun', 'run', 'typecheck']],
       ['Build Electron app', ['bun', 'run', 'electron:build']],
     ]

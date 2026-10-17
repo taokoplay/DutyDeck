@@ -9,7 +9,7 @@ import { RotateCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { describeVersionHistory } from './capability-factory-version-view'
-import type { CapabilitySceneVersion } from '@proma/shared'
+import type { CapabilitySceneVersion } from '@dutydeck/shared'
 
 /** 版本列表属性。 */
 export interface CapabilityFactoryVersionListProps {

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { opendir } from 'node:fs/promises'
 import { extname, join, relative } from 'node:path'
-import type { KnowledgeCategory, KnowledgeEntry, KnowledgeSource, KnowledgePlanSource } from '@proma/shared'
+import type { KnowledgeCategory, KnowledgeEntry, KnowledgeSource, KnowledgePlanSource } from '@dutydeck/shared'
 import type {
   ProjectKnowledgeControlledSource,
   ProjectKnowledgeControlledSourceList,

@@ -3,7 +3,7 @@ import type {
   AgentCanvasBinding,
   AgentCanvasBindingChangeEvent,
   CanvasChangeEvent,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createStore } from 'jotai'
 import {
   agentDiffPanelTabAtom,

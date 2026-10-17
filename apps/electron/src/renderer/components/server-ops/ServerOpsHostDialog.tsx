@@ -9,7 +9,7 @@ import type {
   ServerOpsTestConnectionResult,
   ServerOpsUpsertHostInput,
   ServerOpsConnectionDraftInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {

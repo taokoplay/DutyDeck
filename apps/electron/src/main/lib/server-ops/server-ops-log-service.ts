@@ -7,7 +7,7 @@ import {
   type ServerOpsLogStartInput,
   type ServerOpsAgentLogsInput,
   type ServerOpsAgentLogsResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsConnectionState,
   ServerOpsLogExitEvent,
@@ -15,7 +15,7 @@ import type {
   ServerOpsLogOutputAck,
   ServerOpsLogOutputEvent,
   ServerOpsLogStartResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsActiveConnectionIdentity,
   ServerOpsConnectionLogExitEvent,

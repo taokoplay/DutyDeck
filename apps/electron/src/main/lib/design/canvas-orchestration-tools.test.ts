@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { createCanvasOrchestrationTools, type CanvasOrchestrationToolDependencies } from './canvas-orchestration-tools'
 import type { CanvasOrchestrationService } from './canvas-orchestration-service'

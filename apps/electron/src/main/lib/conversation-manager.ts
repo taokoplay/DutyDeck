@@ -17,7 +17,7 @@ import {
   getConversationMessagesPath,
 } from './config-paths'
 import { deleteConversationAttachments, deleteAttachment } from './attachment-service'
-import type { ConversationMeta, ChatMessage, RecentMessagesResult, MessageSearchResult, SessionMessageSearchResponse } from '@proma/shared'
+import type { ConversationMeta, ChatMessage, RecentMessagesResult, MessageSearchResult, SessionMessageSearchResponse } from '@dutydeck/shared'
 import {
   createSearchSnippet,
   MAX_NORMALIZED_SEARCH_QUERY_LENGTH,
@@ -27,7 +27,7 @@ import {
   insertTopSearchResult,
   normalizeSearchText,
   type NormalizedSearchText,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /**
  * 对话索引文件格式

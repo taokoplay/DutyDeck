@@ -3,7 +3,7 @@ import type {
   DesignCanvasDocument,
   DesignPoint,
   DesignViewport,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { useSetAtom, useStore } from 'jotai'
 import { toast } from 'sonner'
 import {

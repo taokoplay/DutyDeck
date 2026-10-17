@@ -1,6 +1,6 @@
 /** 工作区 MCP 配置的纯策略函数。 */
 
-import type { McpOAuthConfiguration, McpServerEntry, McpTransportType } from '@proma/shared'
+import type { McpOAuthConfiguration, McpServerEntry, McpTransportType } from '@dutydeck/shared'
 import { RESERVED_BUILTIN_KEYS } from './builtin-mcp/baseline'
 
 /** 会影响普通对象继承链的危险属性名。 */

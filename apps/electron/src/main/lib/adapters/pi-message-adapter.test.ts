@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { AssistantMessage } from '@earendil-works/pi-ai/compat'
-import type { SDKAssistantMessage } from '@proma/shared'
+import type { SDKAssistantMessage } from '@dutydeck/shared'
 import {
   convertPiMessage,
   convertResultMessage,

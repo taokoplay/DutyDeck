@@ -2,8 +2,8 @@ import {
   CANVAS_UPSTREAM_CHANGE_MAX_SOURCE_IDS,
   compareCanvasStableIds,
   resolveCanvasEdgeBinding,
-} from '@proma/shared'
-import type { CanvasDocument, CanvasNode } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { CanvasDocument, CanvasNode } from '@dutydeck/shared'
 
 /** 正式产物提交后消费 producer 提示并传播直接下游的输入。 */
 export interface ConsumeAndPropagateCanvasDependencyStateInput {

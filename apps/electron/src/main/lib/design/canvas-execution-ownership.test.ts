@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CanvasOrchestrationRecord, CanvasWorkflowRun } from '@proma/shared'
+import type { CanvasOrchestrationRecord, CanvasWorkflowRun } from '@dutydeck/shared'
 import { createCanvasExecutionOwnership } from './canvas-execution-ownership'
 import type { CanvasExecutionOwnershipDependencies } from './canvas-execution-ownership'
 

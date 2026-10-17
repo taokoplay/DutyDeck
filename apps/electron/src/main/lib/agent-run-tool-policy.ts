@@ -1,5 +1,5 @@
 import type { PermissionResult } from './agent-permission-service'
-import type { AgentToolMode } from '@proma/shared'
+import type { AgentToolMode } from '@dutydeck/shared'
 
 /** 受限运行只注册和分派固定工具集合，新增入口须同步宿主准入。 */
 const SERVER_OPS_READ_TOOL_NAMES = [

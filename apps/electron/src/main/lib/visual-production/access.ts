@@ -1,5 +1,5 @@
-import { VISUAL_PRODUCTION_READ_METHODS, parseVisualProductionCommand } from '@proma/shared'
-import type { VisualProductionChanged, VisualProductionInputs, VisualProductionMethod, VisualProductionResults } from '@proma/shared'
+import { VISUAL_PRODUCTION_READ_METHODS, parseVisualProductionCommand } from '@dutydeck/shared'
+import type { VisualProductionChanged, VisualProductionInputs, VisualProductionMethod, VisualProductionResults } from '@dutydeck/shared'
 
 /** 身份解析后的唯一模块执行入口，UI 与 Agent 共享。 */
 export interface VisualProductionExecutor {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptySceneDefinition } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
 import { savedTaskDraft, parseSavedTaskInput, taskInputTemplate, inspectTaskContent } from './capability-factory-task-input'
 
 /** 覆盖不同输入类型，确保复用不会改变测试材料。 */

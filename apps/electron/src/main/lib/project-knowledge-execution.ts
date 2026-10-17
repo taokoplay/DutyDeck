@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { KnowledgeExecution, KnowledgeExecutionStartInput, KnowledgeWorkflow } from '@proma/shared'
+import type { KnowledgeExecution, KnowledgeExecutionStartInput, KnowledgeWorkflow } from '@dutydeck/shared'
 
 /** 任务级默认额度，用户显式继续才开启下一段额度。 */
 const LIMITS = { turns: 3, calls: 36, bytes: 288 * 1024, activeMs: 10 * 60 * 1000 } as const

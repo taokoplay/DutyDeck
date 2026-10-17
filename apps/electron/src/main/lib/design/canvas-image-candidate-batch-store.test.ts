@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasImageCandidateBatch } from '@proma/shared'
-import { createEmptyCanvasDocument } from '@proma/shared'
+import type { CanvasImageCandidateBatch } from '@dutydeck/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import type { StableDirectoryNativeRequest, StableDirectoryNativeResult } from '../stable-directory-native-host'
 import {
   createCanvasImageCandidateBatchStore,

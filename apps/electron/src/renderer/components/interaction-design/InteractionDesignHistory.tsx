@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Check, Clock3, Loader2, X } from 'lucide-react'
-import type { PrototypeCandidateSummary, PrototypeSnapshot } from '@proma/shared'
+import type { PrototypeCandidateSummary, PrototypeSnapshot } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { buildPrototypeHistory, filterPrototypeHistory, type PrototypeHistoryEntry, type PrototypeHistoryFilter } from './interaction-design-history'
 

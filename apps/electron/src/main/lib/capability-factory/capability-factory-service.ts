@@ -34,12 +34,12 @@ import {
   type CapabilitySceneVersion,
   type CapabilityStub,
   type CapabilityStubSource,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { CapabilityFactoryStore } from './capability-factory-store'
 import { resolveCapabilityDraftAdoption } from './capability-factory-draft-adoption'
 
 /** 保留既有服务导出，所有调用方共享同一比较规则。 */
-export { stableCapabilityValueKey } from '@proma/shared'
+export { stableCapabilityValueKey } from '@dutydeck/shared'
 
 /** 草案来源：Agent 只能产出草案，人既可以产出草案也可以直接采纳。 */
 export type CapabilitySceneChangeSource = 'agent' | 'human'

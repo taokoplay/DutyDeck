@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { NativeAgentIslandEvent, NativeAgentIslandSnapshot } from '@proma/shared'
+import type { NativeAgentIslandEvent, NativeAgentIslandSnapshot } from '@dutydeck/shared'
 
 const PROTOCOL = 1
 const READY_TIMEOUT_MS = 4_000

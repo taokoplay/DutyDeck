@@ -6,7 +6,7 @@ import type { PeerCertificate, TLSSocket } from 'node:tls'
 import { createConnection as createMysqlConnection } from 'mysql2'
 import type { Connection as MySqlConnection } from 'mysql2'
 import { AbstractConnector, Redis } from 'ioredis'
-import { isServerOpsMySqlTlsServerName, isServerOpsSqlSensitiveColumn, MAX_SERVER_OPS_CELL_BYTES } from '@proma/shared'
+import { isServerOpsMySqlTlsServerName, isServerOpsSqlSensitiveColumn, MAX_SERVER_OPS_CELL_BYTES } from '@dutydeck/shared'
 import type {
   ServerOpsDataCapability,
   ServerOpsDataEngine,
@@ -21,7 +21,7 @@ import type {
   ServerOpsDataParameter,
   ServerOpsDataQueryResult,
   ServerOpsDataRowFilters,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsRuntimeDataReadResult } from './server-ops-runtime-protocol'
 import {
   bindServerOpsSqlQueryAbort,
@@ -66,7 +66,7 @@ interface ServerOpsDataRuntimeInputBase {
   cellExpectedColumn?: string
   cellSha256?: string
   /** MySQL 诊断分区；省略时保持旧版全量诊断。 */
-  diagnosticSection?: import('@proma/shared').ServerOpsDataDiagnosticSection
+  diagnosticSection?: import('@dutydeck/shared').ServerOpsDataDiagnosticSection
   /** MySQL 会话或慢语句的库级筛选；不参与握手默认库。 */
   diagnosticDatabase?: string
 }

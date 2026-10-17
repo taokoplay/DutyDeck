@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { WorkspaceMemoryFileChange } from '@proma/shared'
+import type { WorkspaceMemoryFileChange } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 
 interface WorkspaceMemoryChangeShelfProps {

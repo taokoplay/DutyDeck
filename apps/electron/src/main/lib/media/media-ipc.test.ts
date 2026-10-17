@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
-import { AUDIO_GENERATION_CATALOG_MESSAGES, AUDIO_GENERATION_LEGACY_WARNING, AUDIO_GENERATION_TEST_MESSAGES, DREAMINA_LOGIN_MESSAGES, MEDIA_IPC_CHANNELS } from '@proma/shared'
-import type { AudioGenerationCatalogFetchInput, AudioGenerationPublicCatalog, AudioGenerationSettingsResult, AudioGenerationTestInput, AudioGenerationTestResult, MediaApiModelCatalogEntry, ReplaceAudioGenerationCatalogRequest } from '@proma/shared'
+import { AUDIO_GENERATION_CATALOG_MESSAGES, AUDIO_GENERATION_LEGACY_WARNING, AUDIO_GENERATION_TEST_MESSAGES, DREAMINA_LOGIN_MESSAGES, MEDIA_IPC_CHANNELS } from '@dutydeck/shared'
+import type { AudioGenerationCatalogFetchInput, AudioGenerationPublicCatalog, AudioGenerationSettingsResult, AudioGenerationTestInput, AudioGenerationTestResult, MediaApiModelCatalogEntry, ReplaceAudioGenerationCatalogRequest } from '@dutydeck/shared'
 import { createAudioGenerationIpcService, registerMediaIpcHandlers as registerProductionMediaIpcHandlers } from './media-ipc'
 import type { AudioGenerationIpcService, MediaIpcOptions } from './media-ipc'
 import type { ImageGenerationIpcService } from './image-generation-ipc'
 import { EventEmitter } from 'node:events'
-import type { MediaRunEvent } from '@proma/shared'
+import type { MediaRunEvent } from '@dutydeck/shared'
 
 /** 测试使用的完整图片引用，字段与 Renderer 公开合同一致。 */
 const imageAsset = {

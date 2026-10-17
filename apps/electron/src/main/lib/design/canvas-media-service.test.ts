@@ -10,8 +10,8 @@ import type {
   MediaAssetRecord,
   MediaInputValue,
   MediaRunSnapshot,
-} from '@proma/shared'
-import { parseCanvasMediaModuleConfig, parseSaveCanvasMediaModuleInput } from '@proma/shared'
+} from '@dutydeck/shared'
+import { parseCanvasMediaModuleConfig, parseSaveCanvasMediaModuleInput } from '@dutydeck/shared'
 import type { StableDirectoryNativeRequest, StableDirectoryNativeResult } from '../stable-directory-native-host'
 import {
   CanvasMediaService,
@@ -168,7 +168,7 @@ function createService(
   runInputs: Record<string, MediaInputValue> = { prompt: { kind: 'scalar', value: '生成短片' } },
   draft?: {
     projectId?: string | null
-    workflow: import('@proma/shared').MediaWorkflowDefinition
+    workflow: import('@dutydeck/shared').MediaWorkflowDefinition
     prepare(input: {
       projectId: string
       operationId: string
@@ -672,7 +672,7 @@ describe('Canvas 通用媒体服务', () => {
       workflow: { workflowId: 'public-video', workflowRevision: 2, connectionId: 'gpu' },
       inputs: [],
     }
-    const workflow: import('@proma/shared').MediaWorkflowDefinition = {
+    const workflow: import('@dutydeck/shared').MediaWorkflowDefinition = {
       schemaVersion: 1,
       prompt: { '12': { class_type: 'LoadImage', inputs: { image: '' } } },
       bindings: [{
@@ -713,7 +713,7 @@ describe('Canvas 通用媒体服务', () => {
       workflow: { workflowId: 'public-video', workflowRevision: 2, connectionId: 'gpu' },
       inputs: [],
     }
-    const workflow: import('@proma/shared').MediaWorkflowDefinition = {
+    const workflow: import('@dutydeck/shared').MediaWorkflowDefinition = {
       schemaVersion: 1,
       prompt: { '1': { class_type: 'TextNode', inputs: { text: '默认提示词' } } },
       bindings: [{
@@ -751,7 +751,7 @@ describe('Canvas 通用媒体服务', () => {
       workflow: { workflowId: 'public-video', workflowRevision: 2, connectionId: 'gpu' },
       inputs: [{ key: 'steps', kind: 'number' as const, source: { type: 'literal' as const, value: 100 } }],
     }
-    const workflow: import('@proma/shared').MediaWorkflowDefinition = {
+    const workflow: import('@dutydeck/shared').MediaWorkflowDefinition = {
       schemaVersion: 1,
       prompt: { '8': { class_type: 'Sampler', inputs: { steps: 20 } } },
       bindings: [{
@@ -1028,7 +1028,7 @@ describe('Canvas 通用媒体服务', () => {
       workflowId: 'public-video', workflowRevision: 2, connectionId: 'gpu', mediaKind: 'video' as const,
     }
     const draftRun = { ...run('running'), sourceRef, profileId: undefined, profileRevision: undefined }
-    const workflow: import('@proma/shared').MediaWorkflowDefinition = {
+    const workflow: import('@dutydeck/shared').MediaWorkflowDefinition = {
       schemaVersion: 1,
       prompt: { '1': { class_type: 'TextNode', inputs: { text: '生成短片' } } },
       bindings: [{ key: 'prompt', kind: 'text', nodeId: '1', input: 'text' }],
@@ -1056,7 +1056,7 @@ describe('Canvas 通用媒体服务', () => {
 
   test('Given 当前项目工作流草稿和显式连接 When 手动运行 Then 复用原 prepareDraft 合同', async () => {
     /** 与画布配置输入输出顺序完全一致的项目工作流定义。 */
-    const workflow: import('@proma/shared').MediaWorkflowDefinition = {
+    const workflow: import('@dutydeck/shared').MediaWorkflowDefinition = {
       schemaVersion: 1,
       prompt: { '1': { class_type: 'TextNode', inputs: { text: '生成短片' } } },
       bindings: [{ key: 'prompt', kind: 'text', nodeId: '1', input: 'text' }],
@@ -1084,7 +1084,7 @@ describe('Canvas 通用媒体服务', () => {
 
   test('Given 其他项目工作流草稿 When 手动运行 Then 在 prepareDraft 前拒绝', async () => {
     /** 与画布配置输入输出顺序完全一致的外部项目工作流定义。 */
-    const workflow: import('@proma/shared').MediaWorkflowDefinition = {
+    const workflow: import('@dutydeck/shared').MediaWorkflowDefinition = {
       schemaVersion: 1,
       prompt: { '1': { class_type: 'TextNode', inputs: { text: '生成短片' } } },
       bindings: [{ key: 'prompt', kind: 'text', nodeId: '1', input: 'text' }],
@@ -1112,7 +1112,7 @@ describe('Canvas 通用媒体服务', () => {
   })
 
   test('Given 公共工作流输入合同已变化 When 手动运行 Then 在 prepareDraft 前拒绝旧草稿', async () => {
-    const workflow: import('@proma/shared').MediaWorkflowDefinition = {
+    const workflow: import('@dutydeck/shared').MediaWorkflowDefinition = {
       schemaVersion: 1,
       prompt: { '1': { class_type: 'TextNode', inputs: { text: '生成短片' } } },
       bindings: [{ key: 'renamed-prompt', kind: 'text', nodeId: '1', input: 'text' }],

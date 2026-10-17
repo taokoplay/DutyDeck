@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { MediaAssetRecord } from '@proma/shared'
+import type { MediaAssetRecord } from '@dutydeck/shared'
 import { Check, ChevronDown, ImageIcon, ImageOff, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'

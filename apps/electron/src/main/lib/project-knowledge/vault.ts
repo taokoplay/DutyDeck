@@ -22,7 +22,7 @@ import type {
   KnowledgePlanProposalInput,
   KnowledgeWorkflow,
   KnowledgeWorkflowPauseInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ensureDirectoryDurable, writeJsonFileAtomic, writeTextFileAtomic } from '../safe-file'
 import { getKnowledgeRoot, validateResolvedProject } from './paths'
 import { containsKnowledgeSecret } from './sensitive-text'

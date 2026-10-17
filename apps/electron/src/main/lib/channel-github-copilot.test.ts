@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'b
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import * as os from 'node:os'
 import { join } from 'node:path'
-import { serializeGithubCopilotCredentials, type GithubCopilotOAuthCredentials } from '@proma/shared'
+import { serializeGithubCopilotCredentials, type GithubCopilotOAuthCredentials } from '@dutydeck/shared'
 
 type ChannelManagerModule = typeof import('./channel-manager')
 

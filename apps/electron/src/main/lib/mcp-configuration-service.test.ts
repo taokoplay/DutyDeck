@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
-import type { McpServerEntry, WorkspaceMcpConfig } from '@proma/shared'
+import type { McpServerEntry, WorkspaceMcpConfig } from '@dutydeck/shared'
 
 /** 测试内存中的工作区 MCP 配置，模拟原子读写边界。 */
 const workspaceConfigs = new Map<string, WorkspaceMcpConfig>()

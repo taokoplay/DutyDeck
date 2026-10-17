@@ -4,7 +4,7 @@ import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import type {
   DesignContextMode,
   DesignContextReference,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import type { DesignContextCatalogContract } from './design-context-catalog'

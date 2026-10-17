@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { LanBridgeDeviceDto } from '@proma/shared'
+import type { LanBridgeDeviceDto } from '@dutydeck/shared'
 import {
   createLanBridgeSettingsRequestCoordinator,
   formatDeviceIdentifier,

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { serverOpsReadResourceKey } from '@proma/shared'
-import type { ServerOpsAgentReadResource, ServerOpsHost } from '@proma/shared'
+import { serverOpsReadResourceKey } from '@dutydeck/shared'
+import type { ServerOpsAgentReadResource, ServerOpsHost } from '@dutydeck/shared'
 import type { ServerOpsAgentAccessStore, ServerOpsAgentReadBinding } from './server-ops-agent-access-store'
 import type { ServerOpsHostStoreContract } from './server-ops-ipc'
 import type { ServerOpsDataService } from './server-ops-data-service'

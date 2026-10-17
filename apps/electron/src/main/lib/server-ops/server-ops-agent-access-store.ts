@@ -1,5 +1,5 @@
-import { isServerOpsId, parseServerOpsAgentReadAccess, parseServerOpsAgentReadGrant, serverOpsReadResourceKey } from '@proma/shared'
-import type { ServerOpsAgentAccess, ServerOpsAgentReadAccess, ServerOpsAgentReadChanged, ServerOpsAgentReadGrant } from '@proma/shared'
+import { isServerOpsId, parseServerOpsAgentReadAccess, parseServerOpsAgentReadGrant, serverOpsReadResourceKey } from '@dutydeck/shared'
+import type { ServerOpsAgentAccess, ServerOpsAgentReadAccess, ServerOpsAgentReadChanged, ServerOpsAgentReadGrant } from '@dutydeck/shared'
 import type { ServerOpsAgentReadAccessPersistence } from './server-ops-agent-read-access-persistence'
 
 /** 仅主进程持有的配置身份摘要；hostId 同时标明 SSH 网络路径的撤权依赖。 */

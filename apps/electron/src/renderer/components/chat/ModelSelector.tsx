@@ -34,7 +34,7 @@ import { inputToolbarControlHeightClass } from '@/components/ai-elements/input-t
 import { buttonVariants } from '@/components/ui/button'
 import { getModelLogo, getChannelLogo, DefaultLogo } from '@/lib/model-logo'
 import { cn } from '@/lib/utils'
-import type { Channel, ModelOption, ProviderType } from '@proma/shared'
+import type { Channel, ModelOption, ProviderType } from '@dutydeck/shared'
 import { ChannelPlanQuotaBadge } from './ChannelPlanQuotaBadge'
 import { getModelSelectorOptionVisualState } from './model-selector-visual-state'
 

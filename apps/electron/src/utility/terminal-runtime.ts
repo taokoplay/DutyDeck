@@ -10,7 +10,7 @@ import {
   type TerminalOutputEvent,
   type TerminalResizeInput,
   type TerminalState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { resolveTerminalShell } from './terminal-shell-resolver'
 
 type MessagePortLike = {

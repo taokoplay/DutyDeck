@@ -1,4 +1,4 @@
-import type { CapabilityFactoryModelReference, CapabilityFactoryModelSelection } from '@proma/shared'
+import type { CapabilityFactoryModelReference, CapabilityFactoryModelSelection } from '@dutydeck/shared'
 
 /** 选择目标明确区分槽位与评审，避免槽位名称与保留字冲突。 */
 export type FactoryModelTarget = { slotId: string } | { review: true }

@@ -1,4 +1,4 @@
-import type { AgentIslandPhase } from '@proma/shared'
+import type { AgentIslandPhase } from '@dutydeck/shared'
 
 /**
  * Ordering for the island's primary status. A live run takes precedence over

@@ -1,5 +1,5 @@
 import { Script } from 'node:vm'
-import type { PrototypeDraft } from '@proma/shared'
+import type { PrototypeDraft } from '@dutydeck/shared'
 
 /** 标签扫描结果；仅提取准入检查需要的属性及正文起点，不构造 DOM。 */
 interface HtmlTag {

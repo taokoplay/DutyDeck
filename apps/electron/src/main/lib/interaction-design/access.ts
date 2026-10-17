@@ -1,5 +1,5 @@
-import { INTERACTION_DESIGN_READ_METHODS, parseInteractionDesignCommand } from '@proma/shared'
-import type { InteractionDesignChanged, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults } from '@proma/shared'
+import { INTERACTION_DESIGN_READ_METHODS, parseInteractionDesignCommand } from '@dutydeck/shared'
+import type { InteractionDesignChanged, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults } from '@dutydeck/shared'
 
 /** 身份解析后的唯一模块执行入口，UI 与 Agent 共享。 */
 export interface InteractionDesignExecutor {

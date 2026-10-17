@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { createEmptyDesignDocument } from '@proma/shared'
-import type { DesignCanvasDocument, DesignInternalMutation, MediaAssetRef } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
+import type { DesignCanvasDocument, DesignInternalMutation, MediaAssetRef } from '@dutydeck/shared'
 import { MediaAssetService, type MediaAssetServiceDependencies } from './media-asset-service'
 
 const roots: string[] = []

@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { LEGACY_DESIGN_CANVAS_ID } from '@proma/shared'
-import type { AgentCanvasBinding, CanvasSessionMeta } from '@proma/shared'
+import { LEGACY_DESIGN_CANVAS_ID } from '@dutydeck/shared'
+import type { AgentCanvasBinding, CanvasPublicError, CanvasSessionMeta } from '@dutydeck/shared'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Maximize2, Minimize2, PanelLeft, Trash2, Workflow } from 'lucide-react'
 import {
@@ -19,7 +19,7 @@ import {
   type AgentCanvasActivityState,
   type AgentCanvasViewState,
 } from '@/atoms/agent-canvas-atoms'
-import { designAdapter } from '@/lib/design-adapter'
+import { designAdapter, toCanvasPublicError } from '@/lib/design-adapter'
 import type { DesignAdapter } from '@/lib/design-adapter'
 import { getCanvasWorkspaceTab, type AgentSidePanelTab } from '@/atoms/agent-atoms'
 import type { RightWorkspacePane } from '@/lib/right-workspace-split'
@@ -30,6 +30,7 @@ import {
 } from './NativeCanvasWorkspace'
 import { DesignWorkspaceView } from './DesignWorkspaceView'
 import { CanvasWorkspaceSidebar } from './CanvasWorkspaceSidebar'
+import { CanvasLoadErrorPanel } from './CanvasLoadErrorPanel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -143,7 +144,9 @@ export interface AgentCanvasWorkspaceRegistry {
   metadataReady: boolean
   bindingReady: boolean
   loading: boolean
-  error: string | null
+  error: CanvasPublicError | null
+  /** 重新读取当前 Agent 的绑定，供错误面板重试使用。 */
+  retry: () => void
   canvasActivityStates: ReadonlyMap<string, AgentCanvasActivityState>
   link: (canvasId: string, makeDefault?: boolean) => Promise<boolean>
   linkAndOpen: (canvasId: string, makeDefault?: boolean, pane?: RightWorkspacePane | null) => Promise<void>
@@ -168,7 +171,9 @@ export function useAgentCanvasWorkspaceRegistry(
   const [binding, setBinding] = React.useState<AgentCanvasBinding | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [bindingReady, setBindingReady] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<CanvasPublicError | null>(null)
+  /** 递增后重新执行绑定读取与事件订阅，避免复用已失败的 Promise。 */
+  const [reloadGeneration, setReloadGeneration] = React.useState(0)
   const lifecycleRef = React.useRef({ projectId, sessionId, generation: 0 })
   if (lifecycleRef.current.projectId !== projectId || lifecycleRef.current.sessionId !== sessionId) {
     lifecycleRef.current = { projectId, sessionId, generation: lifecycleRef.current.generation + 1 }
@@ -201,7 +206,10 @@ export function useAgentCanvasWorkspaceRegistry(
       .catch((cause: unknown) => {
         if (!disposed && isCurrent() && !bindingEventReceived) {
           console.error('[CanvasWorkspaceAdapter] 加载画布关联失败:', cause)
-          setError('画布关联加载失败')
+          setError(toCanvasPublicError(cause, {
+            code: 'CANVAS_BINDING_LIST_FAILED',
+            message: '画布关联列表暂时无法加载。',
+          }))
         }
       })
       .finally(() => {
@@ -220,7 +228,13 @@ export function useAgentCanvasWorkspaceRegistry(
       disposed = true
       release()
     }
-  }, [isCurrent, projectId, sessionId])
+  }, [isCurrent, projectId, reloadGeneration, sessionId])
+
+  /** 清除失败状态并重新读取权威绑定，保持当前画布列表可操作。 */
+  const retry = React.useCallback((): void => {
+    setError(null)
+    setReloadGeneration((generation) => generation + 1)
+  }, [])
 
   /** 建立或更新关联；只有当前 Hook 代次接管成功时返回 true。 */
   const link = React.useCallback(async (canvasId: string, makeDefault = false): Promise<boolean> => {
@@ -229,9 +243,16 @@ export function useAgentCanvasWorkspaceRegistry(
       const next = await designAdapter.linkAgentCanvas({ projectId, sessionId, canvasId, makeDefault })
       if (!isCurrent()) return false
       setBinding(next)
+      setError(null)
       return true
     } catch (cause) {
-      if (isCurrent()) throw cause
+      if (isCurrent()) {
+        setError(toCanvasPublicError(cause, {
+          code: 'CANVAS_BINDING_FAILED',
+          message: '画布关联失败，请重试。',
+        }))
+        throw cause
+      }
       return false
     }
   }, [bindingReady, isCurrent, projectId, sessionId])
@@ -251,7 +272,13 @@ export function useAgentCanvasWorkspaceRegistry(
       const next = await markAgentCanvasActive(designAdapter, projectId, sessionId, canvasId)
       if (isCurrent()) setBinding(next)
     } catch (cause) {
-      if (isCurrent()) throw cause
+      if (isCurrent()) {
+        setError(toCanvasPublicError(cause, {
+          code: 'CANVAS_BINDING_FAILED',
+          message: '画布关联失败，请重试。',
+        }))
+        throw cause
+      }
     }
   }, [isCurrent, projectId, sessionId])
 
@@ -309,7 +336,11 @@ export function useAgentCanvasWorkspaceRegistry(
     metadataReady,
     bindingReady,
     loading,
-    error: error ?? projectStatus?.error ?? null,
+    error: error ?? (projectStatus?.error ? {
+      code: 'CANVAS_BINDING_LIST_FAILED',
+      message: '画布关联列表暂时无法加载。',
+    } : null),
+    retry,
     canvasActivityStates,
     link,
     linkAndOpen,
@@ -348,7 +379,9 @@ export interface CanvasWorkspaceAdapterProps {
   session: CanvasSessionMeta | null
   metadataReady: boolean
   loading?: boolean
-  error?: string | null
+  error?: CanvasPublicError | null
+  /** 绑定或列表失败后的重新读取动作。 */
+  onRetry?: () => void
   onUnlink: (canvasId: string) => Promise<void>
   /** 当前项目的完整画布索引。 */
   sessions?: readonly CanvasSessionMeta[]
@@ -388,7 +421,9 @@ export interface CanvasWorkspaceLauncherProps {
   /** registry 是否仍在加载。 */
   loading: boolean
   /** registry 的公开错误。 */
-  error: string | null
+  error: CanvasPublicError | null
+  /** 错误面板触发的绑定重试。 */
+  onRetry?: () => void
   /** 当前 launcher 所属 Pane 是否接收 Escape。 */
   paneActive: boolean
   /** 新建并打开画布。 */
@@ -407,6 +442,7 @@ export function CanvasWorkspaceLauncher({
   activityStates,
   loading,
   error,
+  onRetry,
   paneActive,
   onCreateCanvas,
   onOpenCanvas,
@@ -427,6 +463,13 @@ export function CanvasWorkspaceLauncher({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [paneActive, sidebarOpen])
+
+  /** 打开失败时收起抽屉，让诊断面板立即出现在 Canvas 区域。 */
+  const handleOpenCanvas = React.useCallback(async (session: CanvasSessionMeta): Promise<boolean> => {
+    const succeeded = await onOpenCanvas(session)
+    if (!succeeded) setSidebarOpen(false)
+    return succeeded
+  }, [onOpenCanvas])
 
   return (
     <TooltipProvider delayDuration={200} disableHoverableContent>
@@ -450,7 +493,7 @@ export function CanvasWorkspaceLauncher({
         </header>
         <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center">
           {error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <CanvasLoadErrorPanel error={error} onRetry={onRetry ?? (() => undefined)} />
           ) : loading ? (
             <p className="text-sm text-muted-foreground">正在加载画布...</p>
           ) : (
@@ -469,7 +512,7 @@ export function CanvasWorkspaceLauncher({
           activityStates={activityStates}
           onOpenChange={setSidebarOpen}
           onCreateCanvas={onCreateCanvas}
-          onOpenCanvas={onOpenCanvas}
+          onOpenCanvas={handleOpenCanvas}
           onToggleArchiveCanvas={onToggleArchiveCanvas}
           onRequestDeleteCanvas={onRequestDeleteCanvas}
         />
@@ -527,6 +570,7 @@ export function CanvasWorkspaceAdapter({
   metadataReady,
   loading = false,
   error = null,
+  onRetry,
   onUnlink,
   sessions = session ? [session] : [],
   activityStates = new Map(),
@@ -608,7 +652,7 @@ export function CanvasWorkspaceAdapter({
   }, [canvasId, metadataReady, onUnlink, session])
 
   if (error) {
-    return <div className="flex h-full items-center justify-center px-6 text-center text-sm text-destructive">{error}</div>
+    return <div className="flex h-full items-center justify-center px-6"><CanvasLoadErrorPanel error={error} onRetry={onRetry ?? (() => undefined)} /></div>
   }
   if (loading || !metadataReady) {
     return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">正在加载画布...</div>

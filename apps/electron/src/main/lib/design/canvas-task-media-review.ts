@@ -1,4 +1,4 @@
-import type { MediaAssetRef } from '@proma/shared'
+import type { MediaAssetRef } from '@dutydeck/shared'
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { MediaDeliveryInspectionResult } from '../media/media-delivery-inspection-service'

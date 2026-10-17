@@ -8,8 +8,8 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { parseCapabilityFactoryCommand } from '@proma/shared'
-import type { CapabilityFactoryBatchRequest, CapabilitySceneDefinition } from '@proma/shared'
+import { parseCapabilityFactoryCommand } from '@dutydeck/shared'
+import type { CapabilityFactoryBatchRequest, CapabilitySceneDefinition } from '@dutydeck/shared'
 import type { CapabilityFactoryAgentFacade } from './capability-factory-agent-facade'
 
 /** 只读工具可用于计划模式；列表结果保持摘要化。 */

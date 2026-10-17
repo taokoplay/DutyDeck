@@ -71,7 +71,7 @@ import {
   TokenUsageTaskDetailStatus,
 } from './TokenUsageSettings'
 import { formatTokenUsageTotal } from '../../atoms/token-usage'
-import type { TokenUsageAPI, TokenUsageTotals } from '@proma/shared'
+import type { TokenUsageAPI, TokenUsageTotals } from '@dutydeck/shared'
 
 /** 不可触发真实桥接的测试替身；服务端渲染阶段不会执行 effect。 */
 const neverApi: TokenUsageAPI = {
@@ -178,7 +178,7 @@ describe('Token 统计页面渲染', () => {
 import { loadTokenUsageSnapshot } from '../../atoms/token-usage'
 import type { TokenUsageLoadState } from '../../atoms/token-usage'
 import { TokenUsageFeedback } from './TokenUsageSettings'
-import type { TokenUsageSnapshot } from '@proma/shared'
+import type { TokenUsageSnapshot } from '@dutydeck/shared'
 
 /** 完整空快照验证真实零调用与读取失败是不同状态。 */
 const emptySnapshot: TokenUsageSnapshot = {

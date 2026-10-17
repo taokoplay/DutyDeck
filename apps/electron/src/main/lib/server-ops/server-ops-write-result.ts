@@ -1,4 +1,4 @@
-import type { ServerOpsDataWriteInput, ServerOpsDataWriteResult } from '@proma/shared'
+import type { ServerOpsDataWriteInput, ServerOpsDataWriteResult } from '@dutydeck/shared'
 
 /**
  * 没拿到可信引擎回执时生成保守结果，不能从取消、断线或错误文本推断回滚。

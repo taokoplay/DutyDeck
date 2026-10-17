@@ -5,7 +5,7 @@ import {
   parseCreateCanvasContentNodeInput,
   parseDeleteCanvasNodeInput,
   parseRestoreCanvasNodeInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasContentKind,
   CanvasDocument,
@@ -20,7 +20,7 @@ import type {
   CreateCanvasAgentNodeRelationship,
   DeleteCanvasNodeInput,
   RestoreCanvasNodeInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type { StableDirectoryNativeHost, StableDirectoryNativeWriteOutcome } from '../stable-directory-native-host'
 import type { PrepareCanvasNodeContentInput } from './canvas-node-content-store'

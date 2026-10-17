@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { ServerOpsTaskReadResult, ServerOpsTaskSummary } from '@proma/shared'
+import type { ServerOpsTaskReadResult, ServerOpsTaskSummary } from '@dutydeck/shared'
 import { attachServerOpsTaskTerminal } from './server-ops-task-terminal-controller'
 
 /** 仅用于隔离控制器测试的任务。 */

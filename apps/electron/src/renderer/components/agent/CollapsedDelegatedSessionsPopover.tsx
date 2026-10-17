@@ -13,7 +13,7 @@ import * as React from 'react'
 import { GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import type { SessionIndicatorStatus } from '@/atoms/agent-atoms'
 import {
   getDelegatedChildSessionStatus,

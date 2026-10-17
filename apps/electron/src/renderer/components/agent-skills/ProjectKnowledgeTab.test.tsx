@@ -7,7 +7,7 @@ import type {
   KnowledgeSearchResult,
   KnowledgeSnapshot,
   KnowledgeWorkflow,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   buildKnowledgeGenerationPendingPrompt,
   dispatchScannedKnowledge,

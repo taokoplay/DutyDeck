@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasNode, CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasNode, CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   CanvasOrchestrationPanel,

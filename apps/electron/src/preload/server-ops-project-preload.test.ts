@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVER_OPS_PROJECT_CHANNELS } from '@proma/shared'
+import { SERVER_OPS_PROJECT_CHANNELS } from '@dutydeck/shared'
 import { createServerOpsProjectPreload } from './server-ops-project-preload'
 
 describe('Server Ops 项目 preload 边界', () => {

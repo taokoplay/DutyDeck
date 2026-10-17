@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, test } from 'node:test'
 import { gzipSync } from 'node:zlib'
-import type { ApiResolvedRequest } from '@proma/shared'
+import type { ApiResolvedRequest } from '@dutydeck/shared'
 import { executeApiRuntimeRun } from './api-workbench-runtime.ts'
 
 /** 测试结束时关闭回环端口和临时产物。 */

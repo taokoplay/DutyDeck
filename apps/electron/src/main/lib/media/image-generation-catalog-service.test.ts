@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { IMAGE_GENERATION_CATALOG_FAILURE_MESSAGES } from '@proma/shared'
+import { IMAGE_GENERATION_CATALOG_FAILURE_MESSAGES } from '@dutydeck/shared'
 import {
   ImageGenerationCatalogService,
   type ImageGenerationCatalogFetch,

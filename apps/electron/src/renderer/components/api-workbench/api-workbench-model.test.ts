@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { ApiCatalog, ApiHttpHop, ApiRequestDraft, ApiRun, ApiWorkbenchApi } from '@proma/shared'
-import { createApiCatalogSnapshotExport, createApiRequestDraft } from '@proma/shared'
+import type { ApiCatalog, ApiHttpHop, ApiRequestDraft, ApiRun, ApiWorkbenchApi } from '@dutydeck/shared'
+import { createApiCatalogSnapshotExport, createApiRequestDraft } from '@dutydeck/shared'
 import {
   appendBodySlice,
   clearApiValue,

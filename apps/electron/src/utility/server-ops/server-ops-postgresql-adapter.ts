@@ -11,7 +11,7 @@ import {
   parseServerOpsDataQueryResult,
   parseServerOpsPostgresTable,
   SERVER_OPS_DATA_QUERY_TIMEOUT_MS,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDataMetric,
   ServerOpsDataParameter,
@@ -21,7 +21,7 @@ import type {
   ServerOpsDataSchemaIndex,
   ServerOpsDataSchemaTableSummary,
   ServerOpsDataTlsStatus,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsDataRuntimeInput, ServerOpsDataRuntimeOutput } from './server-ops-data-runtime'
 import { buildServerOpsRowFilterSql, getServerOpsRowFilterPublicError } from './server-ops-row-filter-sql'
 import { getServerOpsSqlQueryPublicError } from './server-ops-query-runtime'
@@ -707,7 +707,7 @@ async function readPostgresqlDiagnostics(client: ServerOpsPostgresqlClient, inpu
   const section = input.diagnosticSection
   const warnings: string[] = []
   const metrics: ServerOpsDataMetric[] = []
-  const tables: import('@proma/shared').ServerOpsDataTable[] = []
+  const tables: import('@dutydeck/shared').ServerOpsDataTable[] = []
   let parameters: ServerOpsDataParameter[] | undefined
   let parametersTruncated: boolean | undefined
   if (section === undefined || section === 'overview') {

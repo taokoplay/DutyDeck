@@ -10,7 +10,7 @@ import { ArrowLeft, CheckCircle2, CircleDashed, Plug, XCircle } from 'lucide-rea
 import { Button } from '@/components/ui/button'
 import { McpServerForm } from '@/components/settings/McpServerForm'
 import { cn } from '@/lib/utils'
-import type { McpServerEntry } from '@proma/shared'
+import type { McpServerEntry } from '@dutydeck/shared'
 
 export interface McpDetailViewProps {
   name: string

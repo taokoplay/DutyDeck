@@ -18,7 +18,7 @@ import type {
   DataRootSelection,
   OpenDataRootTarget,
   PathManagementState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

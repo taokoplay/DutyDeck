@@ -1,4 +1,4 @@
-import type { ProviderType } from '@proma/shared'
+import type { ProviderType } from '@dutydeck/shared'
 
 /**
  * 某些 OpenAI 兼容接口只接受 system、user、assistant 和 tool 角色。

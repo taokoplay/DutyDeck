@@ -4,7 +4,7 @@ import type {
   DesignContextCategory,
   DesignContextEntry,
   RegisterDesignContextAssetInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { FilePlus2, FileUp, Pencil, Search, Trash2 } from 'lucide-react'
 import type { DesignProjectState } from '@/atoms/design-atoms'
 import { Button } from '@/components/ui/button'

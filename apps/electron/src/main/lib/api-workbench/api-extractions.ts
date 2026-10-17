@@ -1,5 +1,5 @@
-import { API_LIMITS } from '@proma/shared'
-import type { ApiExtraction, ApiExtractionOutcome, ApiSseEvent, ApiTransportResult } from '@proma/shared'
+import { API_LIMITS } from '@dutydeck/shared'
+import type { ApiExtraction, ApiExtractionOutcome, ApiSseEvent, ApiTransportResult } from '@dutydeck/shared'
 import { apiJsonValueToText, readApiJsonPath } from './api-json-path'
 
 /** 事件流来源所需的上下文：明细不在传输结果里，必须由服务层传入。 */

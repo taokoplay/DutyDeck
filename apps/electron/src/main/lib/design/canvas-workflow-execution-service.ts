@@ -14,12 +14,12 @@ import type {
   CanvasWorkflowNodeStatus,
   CanvasWorkflowRunPage,
   MediaInputValue,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   CANVAS_WORKFLOW_RUN_DURATION_MS,
   CANVAS_WORKFLOW_RUN_NODE_LIMIT,
   resolveCanvasEdgeBinding,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanvasAgentExecutionService } from './canvas-agent-execution-service'
 import type { CanvasAgentOutputCommitResult } from './canvas-agent-output-service'
 import type { CanvasImageRunService } from './canvas-image-run-service'

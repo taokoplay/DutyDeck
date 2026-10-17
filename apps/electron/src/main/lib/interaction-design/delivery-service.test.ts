@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { PrototypeDocument } from '@proma/shared'
+import type { PrototypeDocument } from '@dutydeck/shared'
 import type { InteractionAssetService } from './asset-service'
 import { createInteractionDelivery, createInteractionHandoff } from './delivery-service'
 

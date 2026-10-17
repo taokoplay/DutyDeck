@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { PROMA_PERMISSION_MODES } from '@proma/shared'
+import { PROMA_PERMISSION_MODES } from '@dutydeck/shared'
 import type { CapabilityFactoryAgentApproval } from './capability-factory-agent-facade'
 import { getCapabilityFactoryMutationPolicy } from './capability-factory-permission-policy'
 

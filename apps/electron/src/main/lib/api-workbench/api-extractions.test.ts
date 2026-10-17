@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ApiExtraction, ApiSseEvent, ApiTransportResult } from '@proma/shared'
+import type { ApiExtraction, ApiSseEvent, ApiTransportResult } from '@dutydeck/shared'
 import { evaluateApiExtractions } from './api-extractions'
 
 /** 构造最小传输结果，正文内容按用例覆盖。 */

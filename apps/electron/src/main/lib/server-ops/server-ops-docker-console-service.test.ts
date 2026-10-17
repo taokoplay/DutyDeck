@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleOutputEvent } from '@proma/shared'
+import type { ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleOutputEvent } from '@dutydeck/shared'
 import { ServerOpsDockerConsoleService } from './server-ops-docker-console-service'
 import type { ServerOpsConnectionConsoleExitEvent, ServerOpsConnectionConsoleOutputEvent } from './server-ops-connection-service'
 

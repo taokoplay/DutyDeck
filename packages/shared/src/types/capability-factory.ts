@@ -5,7 +5,7 @@ import type { CapabilityCaseScore, CapabilityEvaluationProtocol, CapabilityExper
  * 提示词编排工厂的领域类型（DutyDeck 侧）。
  *
  * 与能力包 spec 的分工：
- * - `@proma/capability-runner` 定义**包**的格式 —— 可脱离 DutyDeck 运行，消费方直接用。
+ * - `@dutydeck/capability-runner` 定义**包**的格式 —— 可脱离 DutyDeck 运行，消费方直接用。
  * - 本文件定义**工厂内部**的对象 —— 场景、版本、运行、评测、数据集、导出。
  *
  * 两者共用同一套步骤与字段类型（`Step` / `FieldSchema` / `ItemResult`），避免两份定义漂移。
@@ -13,17 +13,17 @@ import type { CapabilityCaseScore, CapabilityEvaluationProtocol, CapabilityExper
  */
 import type {
   CapabilityDeclaration, CapabilityPackage, FieldSchema, ItemResult, ModelSlot, Step, StepTrace,
-} from '@proma/capability-runner'
-import { parseCapabilityPackageValue } from '@proma/capability-runner'
+} from '@dutydeck/capability-runner'
+import { parseCapabilityPackageValue } from '@dutydeck/capability-runner'
 
 /**
- * 把能力包 spec 的类型从 shared 转出：应用侧（主进程/渲染层）统一从 `@proma/shared` 取类型，
- * 不必再关心它定义在哪个包 —— 但**定义只有一处**，仍在 `@proma/capability-runner`。
+ * 把能力包 spec 的类型从 shared 转出：应用侧（主进程/渲染层）统一从 `@dutydeck/shared` 取类型，
+ * 不必再关心它定义在哪个包 —— 但**定义只有一处**，仍在 `@dutydeck/capability-runner`。
  */
 export type {
   CapabilityDeclaration, CapabilityPackage, ExtractStep, FailurePolicy, FieldSchema, InputSource,
   ItemResult, LlmStep, MapGroup, ModelSlot, Step, StepTrace, ToolStep,
-} from '@proma/capability-runner'
+} from '@dutydeck/capability-runner'
 
 /** 输出的形态声明（契约部分）。约束不进这里 —— 真正约束模型的是提示词。 */
 export interface SceneOutputDeclaration {

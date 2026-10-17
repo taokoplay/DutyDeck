@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsOverviewResult } from '@proma/shared'
+import type { ServerOpsOverviewResult } from '@dutydeck/shared'
 import {
   createServerOpsOverviewController,
   ServerOpsOverviewPanelView,

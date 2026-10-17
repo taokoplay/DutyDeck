@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { MediaAssetRef, MediaGenerationRequest } from '@proma/shared'
+import type { MediaAssetRef, MediaGenerationRequest } from '@dutydeck/shared'
 import { createUnifiedMediaHttpAdapters } from './unified-media-http-adapters'
 import type { UnifiedMediaModelRoute } from './unified-media-model-catalog'
 

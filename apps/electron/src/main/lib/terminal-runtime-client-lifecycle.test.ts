@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
-import type { TerminalCreateInput, TerminalState } from '@proma/shared'
+import type { TerminalCreateInput, TerminalState } from '@dutydeck/shared'
 
 /** 测试用终端端口，关闭后拒绝继续接收旧代次消息。 */
 class FakeTerminalPort {

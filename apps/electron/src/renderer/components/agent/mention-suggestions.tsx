@@ -12,7 +12,7 @@ import { CalendarDays, ListTodo, MessageSquareText, Sparkles, Server } from 'luc
 import { MentionList } from './MentionList'
 import type { MentionListRef } from './MentionList'
 import { createDebouncedSuggestionLoader, createLatestSuggestionRequestGuard, createMentionPopup, positionPopup, isSuggestionTriggerPresent, shouldSuppressEscTrigger, shouldClearEscSuppressionOnExit, type EscSuppressedTrigger } from './mention-popup-utils'
-import type { AgentSessionReferenceSearchResult, UnifiedMediaModelOption, WorkspaceCapabilities } from '@proma/shared'
+import type { AgentSessionReferenceSearchResult, UnifiedMediaModelOption, WorkspaceCapabilities } from '@dutydeck/shared'
 import { shouldAllowMentionTrigger, shouldShowMentionSuggestion } from '@/components/ai-elements/mention-utils'
 import {
   buildPlanningReferenceItems,

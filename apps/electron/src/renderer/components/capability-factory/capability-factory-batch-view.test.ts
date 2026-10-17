@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CapabilityFactoryApi, CapabilityFactoryBatch, CapabilityRun } from '@proma/shared'
+import type { CapabilityFactoryApi, CapabilityFactoryBatch, CapabilityRun } from '@dutydeck/shared'
 import { loadFactoryBatchRuns, describeFactoryBatchStatus } from './capability-factory-batch-view'
 
 describe('持久批次证据读取', () => {

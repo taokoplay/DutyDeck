@@ -125,7 +125,7 @@ function runElectronClient() {
   app.setPath('userData', path.join(appData, 'startup-smoke'))
   const recoveryTargetRoot = process.env.PROMA_RECOVERY_TARGET_ROOT
   let recoverySmokeComplete = false
-  process.env.PROMA_DEV_INSTANCE = `first-startup-smoke-${process.pid}`
+  process.env.DUTYDECK_DEV_INSTANCE = `first-startup-smoke-${process.pid}`
   // 验收窗口不抢用户焦点，也不占用全局快捷键。
   BrowserWindow.prototype.show = function () {}
   globalShortcut.register = () => false

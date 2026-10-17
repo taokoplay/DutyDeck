@@ -10,7 +10,7 @@
 import { Type } from 'typebox'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
-import { AGENT_IPC_CHANNELS, getTerminalProfilesForPlatform, normalizePathForCompare, parseTerminalProfile } from '@proma/shared'
+import { AGENT_IPC_CHANNELS, getTerminalProfilesForPlatform, normalizePathForCompare, parseTerminalProfile } from '@dutydeck/shared'
 import type {
   AgentWorkspace,
   CreateAutomationInput,
@@ -18,7 +18,7 @@ import type {
   TerminalProfile,
   UpdateAutomationInput,
   ImageGenerationModelSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ResolveImageGenerationRoute } from '../image-generation-runtime'
 import type { ImageRequestAudit } from '../chat-tools/image-request-context'
 import type { TrustedImageParameters } from '../agent-run-extensions'
@@ -117,7 +117,7 @@ type PiSdk = typeof import('@earendil-works/pi-coding-agent')
 
 export interface PiBuiltinToolsContext {
   /** 本轮冻结的工具模式，决定能否构建普通工具。 */
-  toolMode?: import('@proma/shared').AgentToolMode
+  toolMode?: import('@dutydeck/shared').AgentToolMode
   sessionId: string
   channelId: string
   modelId?: string
@@ -388,7 +388,7 @@ interface AutomationSummary {
 }
 
 function summarizeAutomation(
-  a: import('@proma/shared').Automation,
+  a: import('@dutydeck/shared').Automation,
   includeHistory: boolean,
   workspacesById?: ReadonlyMap<string, AgentWorkspace>,
 ): AutomationSummary {

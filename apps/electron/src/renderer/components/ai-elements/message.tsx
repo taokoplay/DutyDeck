@@ -37,8 +37,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { LoadingIndicator } from '@/components/ui/loading-indicator'
-import { CodeBlock, MermaidBlock } from '@proma/ui'
-import { detectLanguage } from '@proma/core'
+import { CodeBlock, MermaidBlock } from '@dutydeck/ui'
+import { detectLanguage } from '@dutydeck/core'
 import { FilePathChip, ResolvableFilePathChip, isAbsoluteFilePath, isImageFilePath, isLocalFileReference, isRelativeFilePath } from './file-path-chip'
 import { buildAgentHistoryQuoteLabel, parseAgentHistoryQuoteMention } from '@/lib/quoted-selection'
 import { createMentionPattern } from '@/lib/mention-patterns'
@@ -46,7 +46,7 @@ import { resolveSkillMentionName } from '@/lib/skill-mention-name'
 import { useSkillMentionNames } from '@/components/agent/SkillMentionNamesProvider'
 import { useAgentBrowserLink } from '@/components/browser/AgentBrowserLinkProvider'
 import type { HTMLAttributes, ComponentProps, ReactNode } from 'react'
-import type { CanvasNodeKind, CanvasNodeReference, FileAttachment, SDKUserMessage } from '@proma/shared'
+import type { CanvasNodeKind, CanvasNodeReference, FileAttachment, SDKUserMessage } from '@dutydeck/shared'
 import type { QuotedSelection } from '@/atoms/preview-atoms'
 
 // ===== Message 根容器 =====

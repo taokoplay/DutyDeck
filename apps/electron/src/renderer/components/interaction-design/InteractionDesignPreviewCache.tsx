@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { PrototypeAsset, PrototypeDraft } from '@proma/shared'
+import type { PrototypeAsset, PrototypeDraft } from '@dutydeck/shared'
 import { InteractionDesignPreview, type InteractionDesignPreviewProps } from './InteractionDesignPreview'
 import { createPrototypePreviewAssetReader, loadPrototypePreviewAssets } from './interaction-design-assets'
 import { PROTOTYPE_PAGE_CACHE_LIMITS, retainPrototypePage, type PrototypePageCache } from './interaction-design-page-cache'

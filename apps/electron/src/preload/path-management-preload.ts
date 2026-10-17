@@ -1,4 +1,4 @@
-import { PATH_MANAGEMENT_IPC_CHANNELS } from '@proma/shared'
+import { PATH_MANAGEMENT_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   DataRootMigrationProgress,
   DataRootMigrationPreview,
@@ -15,7 +15,7 @@ import type {
   WorkspaceRelocationProgress,
   WorkspaceRelocationRecoveryInput,
   WorkspaceTargetSelection,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcRendererEvent } from 'electron'
 
 /** 路径 preload adapter 依赖的最小 ipcRenderer 接口。 */

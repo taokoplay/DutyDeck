@@ -1,5 +1,5 @@
 import { SERVER_OPS_TASK_IPC_CHANNELS, parseServerOpsTaskSummary, parseServerOpsTaskTarget, parseServerOpsTaskReadInput, parseServerOpsTaskReadResult, parseServerOpsTaskUserInput, parseServerOpsTaskUserResize } from '../../../../packages/shared/src/types/server-ops-task-session'
-import type { ServerOpsTaskSummary, ServerOpsTaskTarget, ServerOpsTaskReadInput, ServerOpsTaskReadResult, ServerOpsTaskUserInput, ServerOpsTaskUserResize } from '@proma/shared'
+import type { ServerOpsTaskSummary, ServerOpsTaskTarget, ServerOpsTaskReadInput, ServerOpsTaskReadResult, ServerOpsTaskUserInput, ServerOpsTaskUserResize } from '@dutydeck/shared'
 import type { ServerOpsConsolePreloadIpc } from './server-ops-console-preload'
 
 /** 远程任务桥接；输入只来自用户终端，页面卸载不终止任务。 */

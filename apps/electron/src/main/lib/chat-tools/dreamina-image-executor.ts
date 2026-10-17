@@ -1,5 +1,5 @@
 /** 即梦会话附件包装器；CLI 核心独立供统一媒体服务复用。 */
-import type { AgentToolResultImage } from '@proma/shared'
+import type { AgentToolResultImage } from '@dutydeck/shared'
 import { deleteAttachment, saveAttachment } from '../attachment-service'
 import { generateDreaminaImages } from './dreamina-image-generation'
 import type { GenerateDreaminaImagesInput, DreaminaImageGenerationDependencies } from './dreamina-image-generation'

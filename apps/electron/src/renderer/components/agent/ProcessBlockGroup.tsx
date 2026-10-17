@@ -7,7 +7,7 @@ import type {
   SDKToolUseBlock,
   SDKTextBlock,
   SDKThinkingBlock,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 interface ProcessBlockGroupProps {
   blocks: SDKContentBlock[]

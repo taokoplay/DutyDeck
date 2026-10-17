@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVER_OPS_IPC_CHANNELS } from '@proma/shared'
+import { SERVER_OPS_IPC_CHANNELS } from '@dutydeck/shared'
 import {
   invokeServerOpsLogAck,
   invokeServerOpsLogExport,

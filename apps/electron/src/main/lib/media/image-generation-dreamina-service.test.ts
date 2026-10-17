@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { DREAMINA_LOGIN_MESSAGES } from '@proma/shared'
+import { DREAMINA_LOGIN_MESSAGES } from '@dutydeck/shared'
 import {
   ImageGenerationDreaminaService,
   type DreaminaCliRun,

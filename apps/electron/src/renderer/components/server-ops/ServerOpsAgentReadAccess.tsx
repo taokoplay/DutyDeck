@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { atom, useAtom, useStore } from 'jotai'
 import { Database, LoaderCircle, ShieldCheck } from 'lucide-react'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { serverOpsDatabaseNavigationAtom } from '@/atoms/server-ops-database-atoms'

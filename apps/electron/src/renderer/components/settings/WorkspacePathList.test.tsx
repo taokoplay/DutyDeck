@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { WorkspacePathState, WorkspaceRelocationPreview, WorkspaceTargetSelection } from '@proma/shared'
+import type { WorkspacePathState, WorkspaceRelocationPreview, WorkspaceTargetSelection } from '@dutydeck/shared'
 import * as workspacePathModule from './WorkspacePathList'
 
 /** 创建列表测试使用的项目路径状态。 */

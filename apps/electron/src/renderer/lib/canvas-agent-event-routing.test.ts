@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, AgentStreamSessionMeta, CanvasAgentActiveRunSnapshot } from '@proma/shared'
+import type { AgentSessionMeta, AgentStreamSessionMeta, CanvasAgentActiveRunSnapshot } from '@dutydeck/shared'
 import { createStore } from 'jotai/vanilla'
 import {
   canvasAgentAuthoritativeRunningSessionIdsAtom,

@@ -1,4 +1,4 @@
-import type { AskUserRequest, ExitPlanModeRequest, PermissionRequest } from '@proma/shared'
+import type { AskUserRequest, ExitPlanModeRequest, PermissionRequest } from '@dutydeck/shared'
 
 export type SlackBlock = Record<string, unknown>
 

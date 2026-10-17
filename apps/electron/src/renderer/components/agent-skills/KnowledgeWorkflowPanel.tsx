@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Check, FileText, Folder, Loader2, Pause, Play, Send } from 'lucide-react'
-import type { KnowledgeEntry, KnowledgePlan, KnowledgePlanSource, KnowledgeWorkflow } from '@proma/shared'
+import type { KnowledgeEntry, KnowledgePlan, KnowledgePlanSource, KnowledgeWorkflow } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

@@ -1,7 +1,7 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-import type { DesignAsset, MediaAssetRef } from '@proma/shared'
+import type { DesignAsset, MediaAssetRef } from '@dutydeck/shared'
 import type { DesignAssetService } from '../design/design-asset-service'
 import type { DesignStore } from '../design/design-store'
 import { acquireMediaFileLock } from './media-file-lock'

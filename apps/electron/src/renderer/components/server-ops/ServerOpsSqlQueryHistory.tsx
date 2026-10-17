@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { ArrowUpToLine, History, LoaderCircle, RefreshCw } from 'lucide-react'
-import { SERVER_OPS_DATA_QUERY_HISTORY_LIMIT } from '@proma/shared'
+import { SERVER_OPS_DATA_QUERY_HISTORY_LIMIT } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import type { ServerOpsSqlQueryHistoryProjection } from './server-ops-sql-query-history-controller'
 import { getServerOpsWriteOutcomePresentation, getServerOpsWriteResultError } from './server-ops-write-outcome'
-import type { ServerOpsDataQueryHistoryEntry } from '@proma/shared'
+import type { ServerOpsDataQueryHistoryEntry } from '@dutydeck/shared'
 
 /** 历史纯视图的输入；回填仅更新编辑器，读取与保存重试由控制器处理。 */
 export interface ServerOpsSqlQueryHistoryProps {

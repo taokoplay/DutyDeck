@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import type {
   AudioGenerationProfile,
   ReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { AtomicWritePostCommitError, writeJsonFileAtomicSecure } from '../safe-file'
 import {
   AudioGenerationConfigStore,

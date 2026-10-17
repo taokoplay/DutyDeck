@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ChannelModel } from '@proma/shared'
+import type { ChannelModel } from '@dutydeck/shared'
 import { mergeFetchedChannelModels } from './channel-model-catalog'
 
 /** 旧账号手工添加的模型，用于验证 Copilot 授权目录不会继承越权候选。 */

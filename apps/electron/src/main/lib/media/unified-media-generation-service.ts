@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { MediaAssetRef, MediaGenerationRequest, MediaGenerationSnapshot, MediaInputValue, MediaKind } from '@proma/shared'
-import { assertVisualProductionId, parseMediaGenerationRequest } from '@proma/shared'
+import type { MediaAssetRef, MediaGenerationRequest, MediaGenerationSnapshot, MediaInputValue, MediaKind } from '@dutydeck/shared'
+import { assertVisualProductionId, parseMediaGenerationRequest } from '@dutydeck/shared'
 import type { UnifiedMediaModelRoute } from './unified-media-model-catalog'
 
 /** 适配器生成的原始媒体结果；字节只在主进程内流转。 */

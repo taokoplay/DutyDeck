@@ -11,7 +11,7 @@
  * 消息的创建时间落在哪个 run 的时间区间内来定位分桶，不依赖消息顺序或回复文本。
  */
 
-import type { AgentRunFileChange, AgentRunFileChangesSnapshot } from '@proma/shared'
+import type { AgentRunFileChange, AgentRunFileChangesSnapshot } from '@dutydeck/shared'
 
 import { arePathsEqual } from './session-file-changes'
 

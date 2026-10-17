@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { LEGACY_DESIGN_CANVAS_ID } from '@proma/shared'
-import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, CanvasOrchestrationChangedEvent, CanvasOrchestrationRecord } from '@proma/shared'
+import { LEGACY_DESIGN_CANVAS_ID } from '@dutydeck/shared'
+import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, CanvasOrchestrationChangedEvent, CanvasOrchestrationRecord } from '@dutydeck/shared'
 import {
   createAgentCanvasOrchestrationController,
   type AgentCanvasOrchestrationControllerDependencies,

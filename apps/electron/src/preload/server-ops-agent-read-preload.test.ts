@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVER_OPS_AGENT_READ_CHANNELS } from '@proma/shared'
+import { SERVER_OPS_AGENT_READ_CHANNELS } from '@dutydeck/shared'
 import { createServerOpsAgentReadPreload } from './server-ops-agent-read-preload'
 
 describe('只读授权 preload', () => {

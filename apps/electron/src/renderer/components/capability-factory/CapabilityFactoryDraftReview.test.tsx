@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilityScene, CapabilitySceneDraft } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilityScene, CapabilitySceneDraft } from '@dutydeck/shared'
 import { CapabilityFactoryDraftReview } from './CapabilityFactoryDraftReview'
 
 /** 造一个「当前是空模板 v1 + 一份 Agent 草案」的场景，正是 2026-09-28 那次故障的形状。 */

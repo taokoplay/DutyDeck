@@ -22,7 +22,7 @@ import {
   parseCreateCanvasContentNodeInput,
   parseDeleteCanvasNodeInput,
   parseRestoreCanvasNodeInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AdoptCanvasTextArtifactRevisionInput,
   CanvasArtifactRevisionSummary,
@@ -79,7 +79,7 @@ import type {
   StopCanvasAgentInput,
   AgentSessionMeta,
   SDKMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import type { WorkspaceOperationGuard } from '../workspace-operation-guard'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
@@ -92,9 +92,9 @@ import {
   type CanvasImageRunService,
 } from './canvas-image-run-service'
 import type { CanvasWorkflowExecutionService } from './canvas-workflow-execution-service'
-import type { CanvasWorkflowRun, CanvasWorkflowRunListInput } from '@proma/shared'
-import { parseCanvasWorkflowRunListInput, parseCanvasWorkflowRunTarget } from '@proma/shared'
-import { parseListCanvasImageActivityInput, parseCanvasImageJobActivities } from '@proma/shared'
+import type { CanvasWorkflowRun, CanvasWorkflowRunListInput } from '@dutydeck/shared'
+import { parseCanvasWorkflowRunListInput, parseCanvasWorkflowRunTarget } from '@dutydeck/shared'
+import { parseListCanvasImageActivityInput, parseCanvasImageJobActivities } from '@dutydeck/shared'
 import type { CanvasArtifactExportService } from './canvas-artifact-export-service'
 import type { CanvasMediaService } from './canvas-media-service'
 import type { CanvasImageResultAttachmentService } from './canvas-image-result-attachment-service'

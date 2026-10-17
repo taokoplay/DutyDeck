@@ -7,7 +7,7 @@ import type {
   WorkspaceRelocationProgress,
   WorkspaceRelocationStage,
   WorkspaceTargetSelection,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

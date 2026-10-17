@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createCanvasBoundEdge, createEmptyCanvasDocument, parseCanvasWorkflowRun } from '@proma/shared'
-import type { CanvasDocument, CanvasNode, CanvasWorkflowRun } from '@proma/shared'
+import { createCanvasBoundEdge, createEmptyCanvasDocument, parseCanvasWorkflowRun } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasNode, CanvasWorkflowRun } from '@dutydeck/shared'
 import {
   createCanvasWorkflowDynamicSuccessorAmendment,
   createCanvasWorkflowPlanSnapshot,

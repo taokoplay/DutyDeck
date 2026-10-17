@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { MediaInputValue, VisualJob, VisualProductionMediaOption, VisualProductionMediaSource, VisualProductionMediaKind } from '@proma/shared'
-import { visualProductionMediaSourceAllows } from '@proma/shared'
+import type { MediaInputValue, VisualJob, VisualProductionMediaOption, VisualProductionMediaSource, VisualProductionMediaKind } from '@dutydeck/shared'
+import { visualProductionMediaSourceAllows } from '@dutydeck/shared'
 import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import type { VisualProductionExecutor } from './access'

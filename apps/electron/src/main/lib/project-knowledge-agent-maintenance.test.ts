@@ -13,7 +13,7 @@ import type {
   KnowledgeReadInput,
   KnowledgeReadResult,
   KnowledgeSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { PersistedAgentEvidenceRecord } from './agent-session-manager'
 import { createProjectKnowledgeAgentMaintenance } from './project-knowledge-agent-maintenance'
 import { emptyKnowledgeMaintenance } from './project-knowledge-maintenance-types'

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { createVisualProductionAccess } from './access'
 import { createVisualProductionRun } from './agent-run'
 import type { VisualProductionExecutor } from './access'
-import type { VisualJob, VisualProductionResults } from '@proma/shared'
+import type { VisualJob, VisualProductionResults } from '@dutydeck/shared'
 
 describe('Given 会话绑定的影像能力', () => {
   test('When 会话越界、计划写或取消 Then 不进入服务', async () => {

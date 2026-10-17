@@ -1,5 +1,5 @@
-import { parseServerOpsAuditListResult, SERVER_OPS_IPC_CHANNELS } from '@proma/shared'
-import type { ServerOpsAuditListInput, ServerOpsAuditListResult } from '@proma/shared'
+import { parseServerOpsAuditListResult, SERVER_OPS_IPC_CHANNELS } from '@dutydeck/shared'
+import type { ServerOpsAuditListInput, ServerOpsAuditListResult } from '@dutydeck/shared'
 
 /** Preload 审计调用所需的最小 invoke 签名。 */
 export type ServerOpsAuditInvoke = (channel: string, input: ServerOpsAuditListInput) => Promise<unknown>

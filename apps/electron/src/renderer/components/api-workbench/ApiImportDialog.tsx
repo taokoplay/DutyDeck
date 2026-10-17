@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { ApiCatalogSnapshot, ApiRequestDraft } from '@proma/shared'
+import type { ApiCatalogSnapshot, ApiRequestDraft } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {

@@ -9,7 +9,7 @@ import type {
   DesignImageModelSelection,
   MediaSettingsSnapshot,
   MediaWorkflowVersion,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { CanvasComfyUiConnectionPicker } from '../src/renderer/components/design/CanvasComfyUiConnectionPicker'
 import { CanvasMediaModelPicker } from '../src/renderer/components/design/CanvasMediaModelPicker'
 import { NativeCanvasToolbar } from '../src/renderer/components/design/NativeCanvasToolbar'

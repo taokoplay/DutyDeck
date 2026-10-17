@@ -7,8 +7,8 @@ import {
   limitServerOpsSqlQuery,
   parseServerOpsDataQueryResult,
   SERVER_OPS_DATA_QUERY_TIMEOUT_MS,
-} from '@proma/shared'
-import type { ServerOpsDataQueryResult, ServerOpsDataSchemaCell } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsDataQueryResult, ServerOpsDataSchemaCell } from '@dutydeck/shared'
 
 /** SQL 查询 pretty JSON 的公开返回预算。 */
 const MAX_QUERY_RESULT_BYTES = 32 * 1_024

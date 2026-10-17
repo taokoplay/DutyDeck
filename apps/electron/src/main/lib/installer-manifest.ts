@@ -9,15 +9,15 @@
  * 不必重新发版。清单里带官方发布页给出的 sha256 与字节数，下载后由 installer-downloader 校验。
  */
 
-import type { InstallerManifest, InstallerSource } from '@proma/shared'
-import { PROMA_RELEASE_REPOSITORY } from '../../shared/release-config'
+import type { InstallerManifest, InstallerSource } from '@dutydeck/shared'
+import { DUTYDECK_RELEASE_REPOSITORY } from '../../shared/release-config'
 import bundledManifest from '../../../resources/installer-manifest.json'
 
 /**
  * 远程清单地址：本仓库 main 分支上的同一个 JSON 文件。
  * 仓库改名只需改 `release-config.ts` 里的 owner/repo，这里跟着走。
  */
-const MANIFEST_URL = `https://raw.githubusercontent.com/${PROMA_RELEASE_REPOSITORY.owner}/${PROMA_RELEASE_REPOSITORY.repo}/main/apps/electron/resources/installer-manifest.json`
+const MANIFEST_URL = `https://raw.githubusercontent.com/${DUTYDECK_RELEASE_REPOSITORY.owner}/${DUTYDECK_RELEASE_REPOSITORY.repo}/main/apps/electron/resources/installer-manifest.json`
 const CACHE_TTL_MS = 5 * 60 * 1000
 
 interface ManifestCache {

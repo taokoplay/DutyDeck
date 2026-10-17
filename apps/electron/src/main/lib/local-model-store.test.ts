@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { LocalModelAsset } from '@proma/shared'
+import type { LocalModelAsset } from '@dutydeck/shared'
 import { getLocalModelsManifestPath } from './config-paths'
 import { LocalModelStore } from './local-model-store'
 

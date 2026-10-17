@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { KnowledgeEntry } from '@proma/shared'
+import type { KnowledgeEntry } from '@dutydeck/shared'
 import { emptyKnowledgeMaintenance } from '../project-knowledge-maintenance-types'
 import { createProjectKnowledgeService } from './service'
 

@@ -5,7 +5,7 @@
  * 取回 image_urls 后下载并保存为本地附件。凭据只在本次调用内存在，不落任何日志。
  */
 import { createHash, randomUUID } from 'node:crypto'
-import type { AgentToolResultImage } from '@proma/shared'
+import type { AgentToolResultImage } from '@dutydeck/shared'
 import { deleteAttachment, saveAttachment } from '../attachment-service'
 import type { ResolvedImageGenerationRoute } from '../image-generation-runtime'
 import { downloadSafeRemoteImage } from './safe-remote-image'

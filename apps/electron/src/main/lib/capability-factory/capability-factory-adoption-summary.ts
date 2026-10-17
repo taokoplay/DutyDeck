@@ -6,8 +6,8 @@ import type {
   CapabilityScene,
   CapabilitySceneDefinition,
   SceneAcceptance,
-} from '@proma/shared'
-import { stableCapabilityValueKey, canAdoptOptimization, compareOptimizationPair } from '@proma/shared'
+} from '@dutydeck/shared'
+import { stableCapabilityValueKey, canAdoptOptimization, compareOptimizationPair } from '@dutydeck/shared'
 
 /**
  * 采纳弹窗的冻结摘要：changes/rationale 来自真实草案，proposal 是 Agent 待验证判断，

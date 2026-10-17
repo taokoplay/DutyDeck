@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSubmitOrEnqueueInput } from '@proma/shared'
+import type { AgentSubmitOrEnqueueInput } from '@dutydeck/shared'
 import {
   createAgentQueueNowInput,
   prepareAgentCanvasMessageForSend,

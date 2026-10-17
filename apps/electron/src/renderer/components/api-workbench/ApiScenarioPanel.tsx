@@ -7,7 +7,7 @@
 
 import * as React from 'react'
 import { Play, Loader2, XCircle, ExternalLink, Workflow } from 'lucide-react'
-import type { ApiScenario, ApiScenarioPreparedPreview, ApiScenarioRun, ApiWorkbenchApi } from '@proma/shared'
+import type { ApiScenario, ApiScenarioPreparedPreview, ApiScenarioRun, ApiWorkbenchApi } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 

@@ -2,11 +2,11 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CanvasWorkflowRun, CanvasWorkflowRunNode } from '@proma/shared'
+import type { CanvasWorkflowRun, CanvasWorkflowRunNode } from '@dutydeck/shared'
 import {
   CANVAS_WORKFLOW_MAX_DURATION_MS,
   CANVAS_WORKFLOW_MAX_MEDIA_RUNS,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createCanvasWorkflowRunId,
   createCanvasWorkflowRunStore,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { readFileSync } from 'node:fs'

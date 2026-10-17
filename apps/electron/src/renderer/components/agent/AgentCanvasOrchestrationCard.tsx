@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CanvasOrchestrationProgress, CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationProgress, CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

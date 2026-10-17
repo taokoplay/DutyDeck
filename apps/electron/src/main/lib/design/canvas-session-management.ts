@@ -1,4 +1,4 @@
-import type { CanvasSessionChangeEvent, CanvasSessionMeta, CanvasTarget, DeleteCanvasSessionInput, UpdateCanvasSessionInput } from '@proma/shared'
+import type { CanvasSessionChangeEvent, CanvasSessionMeta, CanvasTarget, DeleteCanvasSessionInput, UpdateCanvasSessionInput } from '@dutydeck/shared'
 import type { WorkspaceOperationGuard } from '../workspace-operation-guard'
 import type { CanvasSessionIdleCheck } from './canvas-session-idle-guard'
 import type { CanvasSessionStore } from './canvas-session-store'

@@ -4,7 +4,7 @@ import { mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { parseServerOpsDataSourceUpsertInput } from '@proma/shared'
+import { parseServerOpsDataSourceUpsertInput } from '@dutydeck/shared'
 import { ServerOpsDataSourceStore } from './server-ops-data-source-store'
 import { ServerOpsDataService } from './server-ops-data-service'
 import { ServerOpsDataSchemaCache } from './server-ops-data-schema-cache'

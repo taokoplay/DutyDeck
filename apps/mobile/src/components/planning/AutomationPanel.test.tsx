@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { LanBridgeAutomationDto } from '@proma/shared'
+import type { LanBridgeAutomationDto } from '@dutydeck/shared'
 
 /** 提供 atoms 初始化所需的最小浏览器存储。 */
 Object.defineProperty(globalThis, 'localStorage', {

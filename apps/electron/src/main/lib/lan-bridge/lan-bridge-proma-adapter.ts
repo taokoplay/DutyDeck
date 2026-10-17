@@ -1,5 +1,5 @@
 import { BrowserWindow } from 'electron'
-import { AGENT_IPC_CHANNELS } from '@proma/shared'
+import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 import {
   getConversationMessages,
   listConversations,

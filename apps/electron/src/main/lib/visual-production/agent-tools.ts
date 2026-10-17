@@ -2,8 +2,8 @@ import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import { Value } from 'typebox/value'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { parseVisualProductionCommand } from '@proma/shared'
-import type { VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot } from '@proma/shared'
+import { parseVisualProductionCommand } from '@dutydeck/shared'
+import type { VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot } from '@dutydeck/shared'
 /** 工具只能使用主运行时固定的会话身份。 */
 export interface VisualProductionAgentToolOptions {
   sessionId: string

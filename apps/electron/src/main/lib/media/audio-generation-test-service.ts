@@ -5,13 +5,13 @@ import type {
   AudioGenerationPublicCatalog,
   AudioGenerationPublicProfile,
   AudioGenerationTestResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AUDIO_GENERATION_TEST_MESSAGES,
   parseAudioGenerationProfile,
   parseAudioGenerationTestInput,
   parseAudioGenerationTestResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AudioGenerationCatalogService } from './audio-generation-catalog-service'
 
 /** 测试器唯一可见的主进程输入；明文凭据不得离开当前调用链。 */

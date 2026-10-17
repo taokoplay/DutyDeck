@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { CanvasDocument } from '@proma/shared'
+import type { CanvasDocument } from '@dutydeck/shared'
 import { CanvasMediaSourcePicker, getCanvasMediaSourceNodes, previewForNode, selectCanvasMediaOutputs } from './CanvasMediaSourcePicker'
 
 /** 使用真实画布合同，禁止类型断言掩盖schema错误。 */

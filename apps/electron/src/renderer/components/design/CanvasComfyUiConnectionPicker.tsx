@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { MediaConnectionSummary } from '@proma/shared'
+import type { MediaConnectionSummary } from '@dutydeck/shared'
 import { Server } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
 import type { IpcMainInvokeEvent } from 'electron'
-import { CANVAS_MEDIA_IPC_CHANNELS as CHANNELS } from '@proma/shared'
-import type { CanvasMediaOutputPreview, CanvasMediaTarget, MediaAssetRecord, MediaAssetRef } from '@proma/shared'
+import { CANVAS_MEDIA_IPC_CHANNELS as CHANNELS } from '@dutydeck/shared'
+import type { CanvasMediaOutputPreview, CanvasMediaTarget, MediaAssetRecord, MediaAssetRef } from '@dutydeck/shared'
 import { registerCanvasMediaIpcHandlers } from './canvas-media-ipc'
 
 /** 固定媒体目标与公开资产，不包含任何路径输入。 */

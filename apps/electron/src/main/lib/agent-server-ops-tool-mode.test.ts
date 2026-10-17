@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { AGENT_DEFAULT_TOOL_MODE, isAgentToolMode } from '@proma/shared'
+import { AGENT_DEFAULT_TOOL_MODE, isAgentToolMode } from '@dutydeck/shared'
 import { denyToolOutsideAgentMode, resolveAgentModeToolNames } from './agent-run-tool-policy'
 import { createAgentRunIdentity } from './agent-run-identity'
 

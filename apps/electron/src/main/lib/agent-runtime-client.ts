@@ -23,7 +23,7 @@ import {
   type AgentRuntimeRequest,
   type AgentRuntimeResponse,
   type AgentRuntimeState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 type RuntimePort = Pick<MessagePortMain, 'close' | 'postMessage' | 'start'> & {
   on(event: 'message', listener: (event: { data: unknown }) => void): void

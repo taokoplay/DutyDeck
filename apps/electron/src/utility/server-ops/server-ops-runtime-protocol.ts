@@ -1,19 +1,19 @@
-import { parseServerOpsTaskStartInput, parseServerOpsTaskIdentity, parseServerOpsTaskInput, parseServerOpsTaskResizeInput, parseServerOpsTaskAck, parseServerOpsTaskOutputEvent, parseServerOpsTaskExitEvent } from '@proma/shared'
+import { parseServerOpsTaskStartInput, parseServerOpsTaskIdentity, parseServerOpsTaskInput, parseServerOpsTaskResizeInput, parseServerOpsTaskAck, parseServerOpsTaskOutputEvent, parseServerOpsTaskExitEvent } from '@dutydeck/shared'
 import { Buffer } from 'node:buffer'
 import { parseServerOpsSftpRequest, parseServerOpsSftpResult } from './server-ops-sftp-runtime'
 import type { ServerOpsSftpRequest, ServerOpsSftpResult } from './server-ops-sftp-runtime'
-import type { ServerOpsHostKey, ServerOpsTerminalExitEvent, ServerOpsTerminalOutputAck, ServerOpsTerminalOutputEvent } from '@proma/shared'
+import type { ServerOpsHostKey, ServerOpsTerminalExitEvent, ServerOpsTerminalOutputAck, ServerOpsTerminalOutputEvent } from '@dutydeck/shared'
 import { parseServerOpsConsoleAck, parseServerOpsConsoleExitEvent, parseServerOpsConsoleIdentity,
-  parseServerOpsConsoleInput, parseServerOpsConsoleOutputEvent, parseServerOpsConsoleResizeInput } from '@proma/shared'
+  parseServerOpsConsoleInput, parseServerOpsConsoleOutputEvent, parseServerOpsConsoleResizeInput } from '@dutydeck/shared'
 import { isServerOpsDataCapability, isServerOpsDataEngine, isServerOpsDataTlsMode, isServerOpsDataTlsStatus, isServerOpsMySqlTlsServerName, isServerOpsSqliteFilePath, isServerOpsLocalSqliteFilePath, isServerOpsSqliteFileId, parseServerOpsDataMetricList,
   parseServerOpsDataTableList, parseServerOpsDataWarnings, parseServerOpsDataDiagnosticsResult, parseServerOpsDataSourceRowsResult,
   parseServerOpsDataSourceTableResult, parseServerOpsDataSourceTablesResult, parseServerOpsDataQueryResult, parseServerOpsDataRowFilters,
-  parseServerOpsDataSourceCellResult, parseServerOpsPostgresTable } from '@proma/shared'
-import { parseServerOpsDataWriteResult, SERVER_OPS_DATA_WRITE_MAX_TIMEOUT_MS, SERVER_OPS_DATA_WRITE_STATEMENT_LIMIT } from '@proma/shared'
-import { parseServerOpsRedisCommandInput, parseServerOpsRedisCommandResult } from '@proma/shared'
-import type { ServerOpsRedisCommandInput, ServerOpsRedisCommandResult } from '@proma/shared'
-import type { ServerOpsConsoleIdentity, ServerOpsDataCapability, ServerOpsDataEngine, ServerOpsDataMetric, ServerOpsDataTable, ServerOpsDataTlsMode, ServerOpsDataTlsStatus } from '@proma/shared'
-import type { ServerOpsDataDiagnosticSection, ServerOpsDataParameter, ServerOpsDataQueryResult, ServerOpsDataSchemaCell, ServerOpsDataRowFilters } from '@proma/shared'
+  parseServerOpsDataSourceCellResult, parseServerOpsPostgresTable } from '@dutydeck/shared'
+import { parseServerOpsDataWriteResult, SERVER_OPS_DATA_WRITE_MAX_TIMEOUT_MS, SERVER_OPS_DATA_WRITE_STATEMENT_LIMIT } from '@dutydeck/shared'
+import { parseServerOpsRedisCommandInput, parseServerOpsRedisCommandResult } from '@dutydeck/shared'
+import type { ServerOpsRedisCommandInput, ServerOpsRedisCommandResult } from '@dutydeck/shared'
+import type { ServerOpsConsoleIdentity, ServerOpsDataCapability, ServerOpsDataEngine, ServerOpsDataMetric, ServerOpsDataTable, ServerOpsDataTlsMode, ServerOpsDataTlsStatus } from '@dutydeck/shared'
+import type { ServerOpsDataDiagnosticSection, ServerOpsDataParameter, ServerOpsDataQueryResult, ServerOpsDataSchemaCell, ServerOpsDataRowFilters } from '@dutydeck/shared'
 import type { ServerOpsConsoleRuntimeStart } from './server-ops-console-runtime'
 
 /** utility process 接收的 SSH 认证材料。 */
@@ -134,7 +134,7 @@ export interface ServerOpsRuntimeDataSchemaTablesResult {
   /** runtime 已通过参数化查询精确验证的目标库。 */
   database?: string
   databases: string[]
-  tables: import('@proma/shared').ServerOpsDataSchemaTableSummary[]
+  tables: import('@dutydeck/shared').ServerOpsDataSchemaTableSummary[]
   databasesTruncated?: boolean
   tablesTruncated?: boolean
   warnings: string[]
@@ -144,8 +144,8 @@ export interface ServerOpsRuntimeDataSchemaTablesResult {
 export interface ServerOpsRuntimeDataSchemaTableResult {
   mode: 'schema-table'
   capability: ServerOpsDataCapability
-  columns: import('@proma/shared').ServerOpsDataSchemaColumn[]
-  indexes: import('@proma/shared').ServerOpsDataSchemaIndex[]
+  columns: import('@dutydeck/shared').ServerOpsDataSchemaColumn[]
+  indexes: import('@dutydeck/shared').ServerOpsDataSchemaIndex[]
   warnings: string[]
 }
 
@@ -249,16 +249,16 @@ export type ServerOpsRuntimeRequest =
   | { type: 'server-ops.terminal-input'; hostId: string; connectionId: string; data: string }
   | { type: 'server-ops.terminal-resize'; hostId: string; connectionId: string; cols: number; rows: number }
   | { type: 'server-ops.terminal-ack'; input: ServerOpsTerminalOutputAck }
-  | { type: 'server-ops.task-start'; input: import('@proma/shared').ServerOpsTaskStartInput }
-  | { type: 'server-ops.task-stop'; input: import('@proma/shared').ServerOpsTaskIdentity }
-  | { type: 'server-ops.task-input'; input: import('@proma/shared').ServerOpsTaskInput }
-  | { type: 'server-ops.task-resize'; input: import('@proma/shared').ServerOpsTaskResizeInput }
-  | { type: 'server-ops.task-ack'; input: import('@proma/shared').ServerOpsTaskAck }
+  | { type: 'server-ops.task-start'; input: import('@dutydeck/shared').ServerOpsTaskStartInput }
+  | { type: 'server-ops.task-stop'; input: import('@dutydeck/shared').ServerOpsTaskIdentity }
+  | { type: 'server-ops.task-input'; input: import('@dutydeck/shared').ServerOpsTaskInput }
+  | { type: 'server-ops.task-resize'; input: import('@dutydeck/shared').ServerOpsTaskResizeInput }
+  | { type: 'server-ops.task-ack'; input: import('@dutydeck/shared').ServerOpsTaskAck }
   | { type: 'server-ops.console-start'; input: ServerOpsConsoleRuntimeStart }
   | { type: 'server-ops.console-stop'; input: ServerOpsConsoleIdentity }
-  | { type: 'server-ops.console-input'; input: import('@proma/shared').ServerOpsConsoleInput }
-  | { type: 'server-ops.console-resize'; input: import('@proma/shared').ServerOpsConsoleResizeInput }
-  | { type: 'server-ops.console-ack'; input: import('@proma/shared').ServerOpsConsoleAck }
+  | { type: 'server-ops.console-input'; input: import('@dutydeck/shared').ServerOpsConsoleInput }
+  | { type: 'server-ops.console-resize'; input: import('@dutydeck/shared').ServerOpsConsoleResizeInput }
+  | { type: 'server-ops.console-ack'; input: import('@dutydeck/shared').ServerOpsConsoleAck }
   | { type: 'server-ops.log-start'; input: ServerOpsRuntimeLogStartRequest }
   | { type: 'server-ops.log-stop'; streamId: string; hostId: string; connectionId: string }
   | { type: 'server-ops.log-ack'; streamId: string; hostId: string; connectionId: string; sequence: number }
@@ -273,18 +273,18 @@ export type ServerOpsRuntimeMessage =
   | { type: 'server-ops.exec-cancelled'; requestId: string; hostId: string; connectionId: string }
   | { type: 'server-ops.data-read-result'; requestId: string; hostId: string; connectionId: string; result: ServerOpsRuntimeDataReadResult }
   | { type: 'server-ops.data-read-cancelled'; requestId: string; hostId: string; connectionId: string }
-  | { type: 'server-ops.data-write-result'; requestId: string; hostId: string; connectionId: string; result: import('@proma/shared').ServerOpsDataWriteResult }
+  | { type: 'server-ops.data-write-result'; requestId: string; hostId: string; connectionId: string; result: import('@dutydeck/shared').ServerOpsDataWriteResult }
   | { type: 'server-ops.redis-result'; requestId: string; hostId: string; connectionId: string; result: ServerOpsRedisCommandResult }
   | { type: 'server-ops.data-write-cancelled'; requestId: string; hostId: string; connectionId: string }
   | { type: 'server-ops.error'; requestId?: string; hostId: string; connectionId: string; code: string; message: string }
   | { type: 'server-ops.terminal-output'; event: ServerOpsTerminalOutputEvent }
   | { type: 'server-ops.terminal-exit'; event: ServerOpsTerminalExitEvent }
-  | { type: 'server-ops.task-started'; session: import('@proma/shared').ServerOpsTaskIdentity }
-  | { type: 'server-ops.task-output'; event: import('@proma/shared').ServerOpsTaskOutputEvent }
-  | { type: 'server-ops.task-exit'; event: import('@proma/shared').ServerOpsTaskExitEvent }
+  | { type: 'server-ops.task-started'; session: import('@dutydeck/shared').ServerOpsTaskIdentity }
+  | { type: 'server-ops.task-output'; event: import('@dutydeck/shared').ServerOpsTaskOutputEvent }
+  | { type: 'server-ops.task-exit'; event: import('@dutydeck/shared').ServerOpsTaskExitEvent }
   | { type: 'server-ops.console-started'; session: ServerOpsConsoleIdentity }
-  | { type: 'server-ops.console-output'; event: import('@proma/shared').ServerOpsConsoleOutputEvent }
-  | { type: 'server-ops.console-exit'; event: import('@proma/shared').ServerOpsConsoleExitEvent }
+  | { type: 'server-ops.console-output'; event: import('@dutydeck/shared').ServerOpsConsoleOutputEvent }
+  | { type: 'server-ops.console-exit'; event: import('@dutydeck/shared').ServerOpsConsoleExitEvent }
   | { type: 'server-ops.log-started'; streamId: string; hostId: string; connectionId: string }
   | { type: 'server-ops.log-chunk'; streamId: string; hostId: string; connectionId: string; sequence: number; data: string }
   | { type: 'server-ops.log-exit'; streamId: string; hostId: string; connectionId: string; reason: ServerOpsRuntimeLogExitReason; errorCode?: string }
@@ -905,7 +905,7 @@ function parseDataReadResult(value: unknown): ServerOpsRuntimeDataReadResult {
 }
 
 /** 解析 runtime 诊断中的可选参数字段。 */
-function importDiagnosticsFields(value: Record<string, unknown>): Pick<import('@proma/shared').ServerOpsDataDiagnosticsResult, 'parameters' | 'parametersTruncated'> {
+function importDiagnosticsFields(value: Record<string, unknown>): Pick<import('@dutydeck/shared').ServerOpsDataDiagnosticsResult, 'parameters' | 'parametersTruncated'> {
   const parsed = parseServerOpsDataDiagnosticsResult({
     sourceId: 'runtime-result',
     engine: 'mysql',

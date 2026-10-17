@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
-import { createEmptySceneDefinition, type CapabilityFactoryExperimentView } from '@proma/shared'
+import { createEmptySceneDefinition, type CapabilityFactoryExperimentView } from '@dutydeck/shared'
 import { applyThemeToDOM } from '../src/renderer/atoms/theme'
 import { CapabilityFactoryExperimentSummary } from '../src/renderer/components/capability-factory/CapabilityFactoryExperimentSummary'
 import '../src/renderer/styles/globals.css'

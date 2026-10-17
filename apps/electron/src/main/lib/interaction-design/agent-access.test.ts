@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { createInteractionDesignAgentAccess } from './agent-access'
 
 /** 构造只记录准入边界的会话，实际命令行为由 access/store 测试覆盖。 */

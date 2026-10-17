@@ -1,4 +1,4 @@
-import type { FeishuChatBinding } from '@proma/shared'
+import type { FeishuChatBinding } from '@dutydeck/shared'
 
 export type FeishuBindingViewMode = 'active' | 'archived'
 export type FeishuBindingTypeFilter = 'all' | 'group' | 'p2p'

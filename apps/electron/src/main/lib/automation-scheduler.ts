@@ -22,7 +22,7 @@ import {
   type AgentSessionMeta,
   type Automation,
   type AutomationRun,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   listAutomations,
   getAutomation,

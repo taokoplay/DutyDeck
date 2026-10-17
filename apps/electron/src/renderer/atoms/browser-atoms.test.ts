@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
-import type { BrowserViewState } from '@proma/shared'
+import type { BrowserViewState } from '@dutydeck/shared'
 import {
   browserFocusRequestMapAtom,
   browserPanelMinimizedMapAtom,

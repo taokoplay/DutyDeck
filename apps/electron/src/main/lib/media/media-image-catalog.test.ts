@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasImageMediaWorkflow, MediaAssetRef, MediaWorkflowDefinition, MediaWorkflowVersion } from '@proma/shared'
+import type { CanvasImageMediaWorkflow, MediaAssetRef, MediaWorkflowDefinition, MediaWorkflowVersion } from '@dutydeck/shared'
 import { createMediaImageCatalog } from './media-image-catalog'
 import type { MediaConfigStore } from './media-config-store'
 

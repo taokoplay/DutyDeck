@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { mkdir as mkdirAsync, writeFile as writeFileAsync } from 'node:fs/promises'
 import { BrowserWindow } from 'electron'
 import type { WebContents } from 'electron'
-import { AGENT_IPC_CHANNELS, MAX_ATTACHMENT_SIZE } from '@proma/shared'
+import { AGENT_IPC_CHANNELS, MAX_ATTACHMENT_SIZE } from '@dutydeck/shared'
 import type {
   AgentSendInput,
   AgentGenerateTitleInput,
@@ -37,7 +37,7 @@ import type {
   AgentQueuedMessageSnapshot,
   AgentMessage,
   CanvasAgentActiveRunSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** Agent service 内部运行输入，允许主进程携带不对外暴露的运行代际。 */
 type AgentRunInput = AgentSendInput & { runGeneration?: number }
@@ -979,7 +979,7 @@ setAgentStopper(stopAgent)
 export async function rewindAgentSession(
   sessionId: string,
   assistantMessageUuid: string,
-): Promise<import('@proma/shared').RewindSessionResult> {
+): Promise<import('@dutydeck/shared').RewindSessionResult> {
   return orchestrator.rewindSession(sessionId, assistantMessageUuid)
 }
 

@@ -1,4 +1,4 @@
-import type { AgentStreamPayload } from '@proma/shared'
+import type { AgentStreamPayload } from '@dutydeck/shared'
 
 /** LAN Bridge 主动推送给移动端的消息。 */
 export interface LanBridgeOutboundMessage {

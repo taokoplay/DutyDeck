@@ -2,8 +2,8 @@ import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import { Value } from 'typebox/value'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { parseInteractionDesignCommand, PROTOTYPE_LIMITS } from '@proma/shared'
-import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults } from '@proma/shared'
+import { parseInteractionDesignCommand, PROTOTYPE_LIMITS } from '@dutydeck/shared'
+import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults } from '@dutydeck/shared'
 
 /** 固定当前会话的依赖；权限每次执行重新核验，不接受模型指定会话或项目路径。 */
 export interface InteractionDesignAgentToolOptions {

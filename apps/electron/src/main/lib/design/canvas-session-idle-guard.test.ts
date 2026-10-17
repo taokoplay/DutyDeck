@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { CanvasTarget, MediaRunSnapshot } from '@proma/shared'
+import type { CanvasTarget, MediaRunSnapshot } from '@dutydeck/shared'
 import { createCanvasSessionIdleGuard } from './canvas-session-idle-guard'
 
 /** 测试中的完整 Canvas 身份。 */

@@ -8,8 +8,8 @@ import type {
   CanvasTarget,
   CanvasWorkspaceSnapshot,
   CanvasTrashEntry,
-} from '@proma/shared'
-import { parseCanvasTrashEntry } from '@proma/shared'
+} from '@dutydeck/shared'
+import { parseCanvasTrashEntry } from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type { StableDirectoryNativeHost, StableDirectoryNativeWriteOutcome } from '../stable-directory-native-host'
 import type { CanvasDocumentStore, CanvasTrustedDirectoryCapability } from './canvas-document-store'

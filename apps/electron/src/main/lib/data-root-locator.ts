@@ -1,13 +1,13 @@
 import { accessSync, constants, existsSync, lstatSync, mkdirSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import { isDataRootLocatorFile } from '@proma/shared'
+import { isDataRootLocatorFile } from '@dutydeck/shared'
 import type {
   DataRootLocatorFile,
   DataRootMigrationProgress,
   DataRootMigrationRecord,
   DataRootMigrationStage,
   PathManagementState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { readJsonFileSafe, writeJsonFileAtomic } from './safe-file'
 
 /** 当前版本默认使用的用户级数据目录名称。项目内的 `.proma` 目录不受此常量影响。 */

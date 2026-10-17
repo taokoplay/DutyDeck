@@ -8,7 +8,7 @@
 import * as React from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { RefreshCw, Loader2, CheckCircle2, AlertCircle, Info, Terminal, ChevronDown, ChevronUp, ExternalLink, RotateCw } from 'lucide-react'
-import type { EnvironmentCheckResult, RuntimeStatus, WindowsShellPreference } from '@proma/shared'
+import type { EnvironmentCheckResult, RuntimeStatus, WindowsShellPreference } from '@dutydeck/shared'
 import {
   SettingsSection,
   SettingsCard,
@@ -24,8 +24,8 @@ import { Badge } from '@/components/ui/badge'
 import { ReleaseNotesViewer } from './ReleaseNotesViewer'
 import { VersionHistory } from './VersionHistory'
 import {
-  PROMA_DOWNLOAD_URL,
-  PROMA_RELEASE_REPOSITORY,
+  DUTYDECK_DOWNLOAD_URL,
+  DUTYDECK_RELEASE_REPOSITORY,
   UPSTREAM_CONTENT_BASELINE,
 } from '../../../shared/release-config'
 import { createAppVersionDisplay } from '@/lib/app-version-display'
@@ -34,7 +34,7 @@ import { createAppVersionDisplay } from '@/lib/app-version-display'
 declare const __APP_VERSION__: string
 /** Vite 构建时注入的完整应用版本。 */
 const APP_VERSION = __APP_VERSION__
-/** 关于页分别展示官方基线与 Bone 构建号。 */
+/** 关于页展示当前 DutyDeck 版本，并兼容读取历史 Bone 版本。 */
 const APP_VERSION_DISPLAY = createAppVersionDisplay(APP_VERSION)
 /** 更新状态卡片 */
 function UpdateCard(): React.ReactElement | null {
@@ -42,7 +42,7 @@ function UpdateCard(): React.ReactElement | null {
   const status = useAtomValue(updateStatusAtom)
   const [checking, setChecking] = React.useState(false)
   const [showReleaseNotes, setShowReleaseNotes] = React.useState(false)
-  const [release, setRelease] = React.useState<import('@proma/shared').GitHubRelease | null>(null)
+  const [release, setRelease] = React.useState<import('@dutydeck/shared').GitHubRelease | null>(null)
 
   // updater 不可用时不渲染
   if (!available) return null
@@ -58,7 +58,7 @@ function UpdateCard(): React.ReactElement | null {
   }
 
   const handleGoToDownload = (): void => {
-    window.electronAPI.openExternal(PROMA_DOWNLOAD_URL)
+    window.electronAPI.openExternal(DUTYDECK_DOWNLOAD_URL)
   }
 
   const handleInstallWhenIdle = (): void => {
@@ -491,19 +491,19 @@ export function AboutSettings(): React.ReactElement {
   return (
     <SettingsSection
       title="关于 DutyDeck"
-      description="本地优先的工程工作台 · 基于 Proma 的修改版"
+      description="本地优先的工程工作台"
     >
       <SettingsCard>
-        <SettingsRow label="上游版本号">
+        <SettingsRow label="DutyDeck 版本">
           <span className="text-sm text-muted-foreground font-mono">
             {APP_VERSION_DISPLAY.upstreamVersion}
           </span>
         </SettingsRow>
-        <SettingsRow label="上游内容基线">
+        <SettingsRow label="内容基线">
           <span className="text-sm text-muted-foreground font-mono">{UPSTREAM_CONTENT_BASELINE}</span>
         </SettingsRow>
         {APP_VERSION_DISPLAY.boneBuild !== null && (
-          <SettingsRow label="Bone 构建">
+          <SettingsRow label="历史构建号">
             <span className="text-sm text-muted-foreground font-mono">
               {APP_VERSION_DISPLAY.boneBuild}
             </span>
@@ -514,7 +514,7 @@ export function AboutSettings(): React.ReactElement {
         </SettingsRow>
         <SettingsRow
           label="开源协议"
-          description="AGPL-3.0-only 开源，与上游一致。本项目是 Proma 的修改版，不提供、也无权提供商业授权豁免。"
+          description="AGPL-3.0-only 开源。"
         >
           <a
             href="https://www.gnu.org/licenses/agpl-3.0.html"
@@ -527,12 +527,12 @@ export function AboutSettings(): React.ReactElement {
         </SettingsRow>
         <SettingsRow label="项目地址">
           <a
-            href={PROMA_RELEASE_REPOSITORY.webUrl}
+            href={DUTYDECK_RELEASE_REPOSITORY.webUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-primary hover:underline"
           >
-            github.com/{PROMA_RELEASE_REPOSITORY.owner}/{PROMA_RELEASE_REPOSITORY.repo}
+            github.com/{DUTYDECK_RELEASE_REPOSITORY.owner}/{DUTYDECK_RELEASE_REPOSITORY.repo}
           </a>
         </SettingsRow>
       </SettingsCard>

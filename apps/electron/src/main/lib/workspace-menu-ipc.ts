@@ -4,8 +4,8 @@ import {
   WORKSPACE_MENU_IPC_CHANNELS,
   isWorkspaceMenuActionId,
   parseWorkspaceMenuInput,
-} from '@proma/shared'
-import type { ShowWorkspaceMenuInput, WorkspaceMenuActionId } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ShowWorkspaceMenuInput, WorkspaceMenuActionId } from '@dutydeck/shared'
 import { getMainWindow } from './main-window-store'
 
 /** 一次打开请求及本轮允许回传的操作白名单。 */

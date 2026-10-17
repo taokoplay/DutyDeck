@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { ChevronLeft, ChevronRight, Download, Film, FolderOpen, Plus, RefreshCw, Settings2, X } from 'lucide-react'
-import { VISUAL_PRODUCTION_RATIOS } from '@proma/shared'
-import type { VisualProductionDraft, VisualProductionKind, VisualProductionSnapshot, VisualProductionSummary } from '@proma/shared'
+import { ChevronLeft, ChevronRight, Film, FolderOpen, Plus, RefreshCw, Settings2, X } from 'lucide-react'
+import { VISUAL_PRODUCTION_RATIOS } from '@dutydeck/shared'
+import type { VisualProductionDraft, VisualProductionKind, VisualProductionSnapshot, VisualProductionSummary } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,6 +18,8 @@ import { VisualProductionRecords } from './VisualProductionRecords'
 import { VisualAssetReference } from './VisualAssetReference'
 import { VisualShotDetails } from './VisualShotDetails'
 import { VisualRelationCanvas } from './VisualRelationCanvas'
+import { VisualProductionDelivery } from './VisualProductionDelivery'
+import { visualDeliveryFileName } from './visual-delivery-model'
 import './visual-production.css'
 
 /** 编辑器冻结作品与版本；后台刷新仅更新正式数据，不覆盖输入草稿。 */
@@ -243,14 +245,17 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   }
   const exportManifest = async (): Promise<void> => {
     if (!document) return
+    setError('')
     const target = context; const epoch = scope.current.capture()
-    try { const result = await window.electronAPI.visualProduction.invoke('exportManifest', { sessionId, productionId: document.id }); if (target === currentContext.current && scope.current.accepts(epoch)) download(new Blob([result.json], { type: 'application/json' }), result.fileName) }
+    try { const result = await window.electronAPI.visualProduction.invoke('exportManifest', { sessionId, productionId: document.id }); if (target === currentContext.current && scope.current.accepts(epoch)) download(new Blob([result.json], { type: 'application/json' }), visualDeliveryFileName(`${document.title}-制作清单`, 'application/json')) }
     catch (cause) { if (target === currentContext.current && scope.current.accepts(epoch)) setError(String(cause)) }
   }
-  const exportMedia = async (mediaId: string): Promise<void> => {
+  /** 使用来源名称命名下载副本，原素材身份与持久化文件名保持稳定。 */
+  const exportMedia = async (mediaId: string, name: string): Promise<void> => {
     if (!document) return
+    setError('')
     const target = context; const epoch = scope.current.capture()
-    try { const result = await window.electronAPI.visualProduction.invoke('mediaContent', { sessionId, productionId: document.id, mediaId }); if (target === currentContext.current && scope.current.accepts(epoch)) download(new Blob([new Uint8Array(result.bytes)], { type: result.mime }), snapshot?.media.find(item => item.id === mediaId)?.name ?? mediaId) }
+    try { const result = await window.electronAPI.visualProduction.invoke('mediaContent', { sessionId, productionId: document.id, mediaId }); if (target === currentContext.current && scope.current.accepts(epoch)) download(new Blob([new Uint8Array(result.bytes)], { type: result.mime }), visualDeliveryFileName(name, result.mime)) }
     catch (cause) { if (target === currentContext.current && scope.current.accepts(epoch)) setError(String(cause)) }
   }
   const editShot = editor?.draft.shots.find(item => item.id === editor.targetId)
@@ -301,7 +306,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
         <X size={12} />
       </Button>
     </div>}
-    {document && <nav className="vp-tabs">{([['project', '项目'], ['assets', '资产'], ['shots', document.kind === 'image' ? '图片' : '分镜'], ['relations', '画布'], ['delivery', '交付'], ['configuration', '制作配置']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={view.tab === tab ? 'secondary' : 'ghost'} onClick={() => updateView({ tab })}>{label}</Button>)}</nav>}
+    {document && <nav className="vp-tabs">{([['project', '项目'], ['assets', '资产'], ['shots', document.kind === 'image' ? '图片' : '分镜'], ['relations', '画布'], ['delivery', '素材导出'], ['configuration', '制作配置']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={view.tab === tab ? 'secondary' : 'ghost'} onClick={() => updateView({ tab })}>{label}</Button>)}</nav>}
     <main className={`vp-body${view.tab === 'relations' && document ? ' vp-body-relations' : ''}`}>
       {!document ? <div className="vp-empty">
         <Film size={32} />
@@ -398,15 +403,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
               </div>
             </section>}</div>}
         {view.tab === 'relations' && snapshot && <VisualRelationCanvas key={document.id} projectId={projectId} sessionId={sessionId} snapshot={snapshot} active={paneActive} onOpenAsset={openAsset} onOpenShots={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} />}
-        {view.tab === 'delivery' && <div className="vp-section">
-          <section className="vp-card">
-            <h3>制作交付</h3>
-            <p className="vp-muted">下载制作清单与已采用素材。第一版不提供自动剪辑、混音或成片合成。</p>
-            <Button className="mt-3" onClick={() => void exportManifest()}>
-              <Download size={14} />下载制作清单</Button>
-            <div className="vp-row mt-3">{Array.from(new Set([...document.shots.map(item => item.mediaId), ...document.assets.map(item => item.mediaId)].filter((id): id is string => !!id))).map(id => <Button key={id} variant="outline" size="sm" onClick={() => void exportMedia(id)}>{snapshot?.media.find(item => item.id === id)?.name ?? id}</Button>)}</div>
-          </section>
-        </div>}
+        {view.tab === 'delivery' && snapshot && <VisualProductionDelivery key={`delivery:${context}`} sessionId={sessionId} snapshot={snapshot} active={paneActive} onExportManifest={exportManifest} onExportMedia={exportMedia} onOpenAsset={openAsset} onOpenShot={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} onOpenShots={() => updateView({ tab: 'shots' })} />}
       </>}
     </main>
     <Dialog open={create} onOpenChange={open => { if (!busy) setCreate(open) }}>

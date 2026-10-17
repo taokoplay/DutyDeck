@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { PATH_MANAGEMENT_IPC_CHANNELS } from '@proma/shared'
-import type { DataRootMigrationProgress, PathManagementState, WorkspaceRelocationProgress } from '@proma/shared'
+import { PATH_MANAGEMENT_IPC_CHANNELS } from '@dutydeck/shared'
+import type { DataRootMigrationProgress, PathManagementState, WorkspaceRelocationProgress } from '@dutydeck/shared'
 import type { IpcRendererEvent } from 'electron'
 import * as pathManagementPreload from './path-management-preload'
 import type { PathManagementPreloadIpc } from './path-management-preload'

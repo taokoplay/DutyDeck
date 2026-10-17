@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DesignJobRecord, DesignTaskDetails as DesignTaskDetailsData } from '@proma/shared'
+import type { DesignJobRecord, DesignTaskDetails as DesignTaskDetailsData } from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createInitialDesignProjectState } from '@/atoms/design-atoms'
 import type { DesignProjectState } from '@/atoms/design-atoms'

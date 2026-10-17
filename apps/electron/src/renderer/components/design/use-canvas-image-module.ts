@@ -7,7 +7,7 @@ import type {
   CanvasImageTarget,
   DesignJobRecord,
   DesignTaskDetails,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
 import {
   canvasImageModuleStatesAtom,

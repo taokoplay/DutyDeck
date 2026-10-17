@@ -1,4 +1,4 @@
-import { inspectCanvasMediaInputConnections } from '@proma/shared'
+import { inspectCanvasMediaInputConnections } from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasMediaModuleConfig,
@@ -6,7 +6,7 @@ import type {
   CanvasMediaTarget,
   CanvasMutation,
   CanvasTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 媒体输入补线在异步边界前后读取的当前权威上下文。 */
 export interface CanvasMediaConnectContext {

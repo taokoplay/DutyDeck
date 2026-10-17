@@ -6,7 +6,7 @@
  * 三件里任何一件没说清，结论都不能归因。
  */
 import * as React from 'react'
-import type { CapabilityRun } from '@proma/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { describeAttemptComparison } from './capability-factory-attempt-diff'

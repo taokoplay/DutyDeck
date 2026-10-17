@@ -9,7 +9,7 @@ import type {
   DesignJobRecord,
   ListCanvasImageActivityInput,
   SaveCanvasMutationsInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { NativeCanvasWorkspace } from '@/components/design/NativeCanvasWorkspace'
 import type { NativeCanvasAdapter } from '@/components/design/NativeCanvasWorkspace'
 import '@/styles/globals.css'

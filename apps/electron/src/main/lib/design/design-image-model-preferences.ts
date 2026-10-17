@@ -3,7 +3,7 @@ import type {
   DesignImageModelSelection,
   DesignImageModelSelectionChangeEvent,
   UpdateDesignImageModelSelectionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { writeJsonFileAtomic } from '../safe-file'
 import type { ImageGenerationModelCatalog } from '../image-generation-model-catalog'
 import type { DesignPathResolver } from './design-paths'

@@ -14,7 +14,7 @@ import type {
   FeishuTestResult,
   FeishuBotConfig,
   AgentSessionMeta,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { FeishuBridge } from './feishu-bridge'
 import { redactSensitiveLogValue } from './bridge-log-redaction'
 import { getFeishuMultiBotConfig, getFeishuBotById } from './feishu-config'

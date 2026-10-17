@@ -10,7 +10,7 @@ import { getSettingsPath } from './config-paths'
 import { writeJsonFileAtomic } from './safe-file'
 import { DEFAULT_THEME_MODE, normalizeProductivityToolsSettings } from '../../types'
 import type { AgentIslandSettings, AppSettings } from '../../types'
-import { getTerminalProfilesForPlatform, isTerminalProfile } from '@proma/shared'
+import { getTerminalProfilesForPlatform, isTerminalProfile } from '@dutydeck/shared'
 
 function sanitizeAgentIslandSettings(input: unknown): AgentIslandSettings | undefined {
   if (!input || typeof input !== 'object') return undefined

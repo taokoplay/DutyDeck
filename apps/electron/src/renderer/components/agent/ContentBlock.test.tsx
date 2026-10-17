@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, SDKMessage, SDKToolUseBlock } from '@proma/shared'
+import type { AgentSessionMeta, SDKMessage, SDKToolUseBlock } from '@dutydeck/shared'
 import { createStore, Provider } from 'jotai'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'

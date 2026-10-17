@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { DesignCanvasDocument } from '@proma/shared'
+import type { DesignCanvasDocument } from '@dutydeck/shared'
 import { RefreshCw, Sparkles, Upload } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { toast } from 'sonner'

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ApiScenario } from '@proma/shared'
+import type { ApiScenario } from '@dutydeck/shared'
 import { ApiScenarioPanel } from './ApiScenarioPanel'
 import { TooltipProvider } from '@/components/ui/tooltip'
 

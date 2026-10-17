@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataSource, ServerOpsHost, ServerOpsProject } from '@proma/shared'
+import type { ServerOpsDataSource, ServerOpsHost, ServerOpsProject } from '@dutydeck/shared'
 import {
   buildServerOpsConnections,
   createServerOpsDataConnectionId,

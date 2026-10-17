@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ServerOpsDatabaseAgentPolicyStore } from './server-ops-database-agent-policy-store'
-import { formatServerOpsPostgresTable } from '@proma/shared'
+import { formatServerOpsPostgresTable } from '@dutydeck/shared'
 
 const temporaryDirectories: string[] = []
 

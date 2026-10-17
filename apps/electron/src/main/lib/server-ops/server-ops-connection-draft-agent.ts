@@ -1,4 +1,4 @@
-import type { AgentSessionMeta, AgentToolMode, ServerOpsConnectionDraft } from '@proma/shared'
+import type { AgentSessionMeta, AgentToolMode, ServerOpsConnectionDraft } from '@dutydeck/shared'
 import { isOrdinaryTopLevelAgentSession } from '../agent-session-visibility'
 import { serverOpsConnectionDraftStore } from './server-ops-connection-draft-store'
 

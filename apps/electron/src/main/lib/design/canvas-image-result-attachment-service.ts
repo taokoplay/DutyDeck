@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import type {
   CanvasDocument, CanvasImageModuleConfig, CanvasImageTarget, CanvasTarget, DesignAsset,
   DesignJobRecord, MediaAssetRecord, MediaAssetRef, MediaGenerationRequest, MediaGenerationSnapshot,
-} from '@proma/shared'
-import { parseCanvasImageModuleConfig, parseMediaGenerationRequest } from '@proma/shared'
+} from '@dutydeck/shared'
+import { parseCanvasImageModuleConfig, parseMediaGenerationRequest } from '@dutydeck/shared'
 import type { CanvasImageCandidateBatchService } from './canvas-image-candidate-batch-service'
 
 /** 只接受同会话统一生成或已登记的本地图片；路径不进入回填协议。 */

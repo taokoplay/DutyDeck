@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import type { CanvasNodeReference } from '@proma/shared'
+import type { CanvasNodeReference } from '@dutydeck/shared'
 import { createStore } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {

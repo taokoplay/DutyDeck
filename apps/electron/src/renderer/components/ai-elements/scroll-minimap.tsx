@@ -19,8 +19,8 @@ import { getModelLogo, resolveModelProvider } from '@/lib/model-logo'
 import { channelsAtom } from '@/atoms/chat-atoms'
 import { useShortcut } from '@/hooks/useShortcut'
 import { cn } from '@/lib/utils'
-import { MAX_SEARCH_QUERY_SOURCE_LENGTH } from '@proma/shared'
-import type { SessionMessageSearchResponse, SessionMessageSearchResult } from '@proma/shared'
+import { MAX_SEARCH_QUERY_SOURCE_LENGTH } from '@dutydeck/shared'
+import type { SessionMessageSearchResponse, SessionMessageSearchResult } from '@dutydeck/shared'
 import type { SessionMessageSearch } from '@/lib/session-message-search'
 
 export interface MinimapItem {

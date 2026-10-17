@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentStreamEvent, SDKMessage } from '@proma/shared'
+import type { AgentStreamEvent, SDKMessage } from '@dutydeck/shared'
 import { AgentStreamForwarder } from './agent-stream-forwarder'
 
 /** 仅收集 main → renderer 的结果，不调用模型或持久化。 */

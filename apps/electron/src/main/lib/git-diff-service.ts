@@ -10,9 +10,9 @@ import { createHash } from 'node:crypto'
 import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync, statSync } from 'fs'
 import { lstat, open, realpath } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'path'
-import type { ChangedFileEntry, UnstagedChangesResult, UntrackedFileEntry } from '@proma/shared'
-import { normalizePathForCompare } from '@proma/shared'
-import type { ChangeSource, ChangedFileStatus } from '@proma/shared'
+import type { ChangedFileEntry, UnstagedChangesResult, UntrackedFileEntry } from '@dutydeck/shared'
+import { normalizePathForCompare } from '@dutydeck/shared'
+import type { ChangeSource, ChangedFileStatus } from '@dutydeck/shared'
 
 /** strict worktree 查询可替换的命令执行边界。 */
 export interface ListWorktreesStrictOptions {
@@ -1004,9 +1004,9 @@ export async function getMainRepoRoot(somePath: string): Promise<string | null> 
  * 会话目录可能是包含多个仓库的父目录。不能只使用第一个发现的仓库，否则前面的
  * 普通仓库会遮蔽后面真正拥有 linked worktree 的仓库。
  */
-export async function listWorktrees(repoPath: string): Promise<import('@proma/shared').WorktreeInfo[]> {
+export async function listWorktrees(repoPath: string): Promise<import('@dutydeck/shared').WorktreeInfo[]> {
   const roots = await findAllGitRoots(repoPath)
-  const worktreesByPath = new Map<string, import('@proma/shared').WorktreeInfo>()
+  const worktreesByPath = new Map<string, import('@dutydeck/shared').WorktreeInfo>()
 
   for (const root of roots) {
     const output = await runGitCommand(['worktree', 'list', '--porcelain'], root, { quiet: true })
@@ -1151,7 +1151,7 @@ async function findAllGitRootsStrict(
 export async function listWorktreesStrict(
   repoPath: string,
   options: ListWorktreesStrictOptions = {},
-): Promise<import('@proma/shared').WorktreeInfo[]> {
+): Promise<import('@dutydeck/shared').WorktreeInfo[]> {
   const runCommand = options.runGitCommand ?? runGitCommandStrict
   const roots = await findAllGitRootsStrict(
     repoPath,
@@ -1159,7 +1159,7 @@ export async function listWorktreesStrict(
     options.maxDiscoveryEntries ?? DEFAULT_STRICT_GIT_DISCOVERY_ENTRIES,
   )
   /** 跨仓库按规范化路径去重后的 worktree。 */
-  const worktreesByPath = new Map<string, import('@proma/shared').WorktreeInfo>()
+  const worktreesByPath = new Map<string, import('@dutydeck/shared').WorktreeInfo>()
   for (const root of roots) {
     /** common dir 在 linked worktree 中仍指向主仓库的 .git。 */
     const commonDir = await runCommand(
@@ -1188,9 +1188,9 @@ function isExplicitNonGitDirectory(error: unknown): boolean {
 function parseStrictWorktreeOutput(
   output: string,
   normalizedMainRoot: string,
-): import('@proma/shared').WorktreeInfo[] {
+): import('@dutydeck/shared').WorktreeInfo[] {
   /** 按规范化路径去重后的 worktree。 */
-  const worktreesByPath = new Map<string, import('@proma/shared').WorktreeInfo>()
+  const worktreesByPath = new Map<string, import('@dutydeck/shared').WorktreeInfo>()
   for (const block of output.split('\n\n').filter(Boolean)) {
     let path = ''
     let head = ''
@@ -1221,7 +1221,7 @@ function parseStrictWorktreeOutput(
 export async function getWorktreeChanges(
   worktreePath: string,
   baseBranch: string = 'origin/main',
-): Promise<import('@proma/shared').UnstagedChangesResult> {
+): Promise<import('@dutydeck/shared').UnstagedChangesResult> {
   if (!existsSync(worktreePath)) {
     return { isGitRepo: false, files: [], untrackedFiles: [], gitRootNames: [] }
   }
@@ -1237,8 +1237,8 @@ export async function getWorktreeChanges(
   const fetchKey = await getGitCommonDir(gitRoot) ?? gitRoot
   await refreshWorktreeRemote(fetchKey, gitRoot)
 
-  const allFiles: import('@proma/shared').ChangedFileEntry[] = []
-  const fileMap = new Map<string, import('@proma/shared').ChangedFileEntry>()
+  const allFiles: import('@dutydeck/shared').ChangedFileEntry[] = []
+  const fileMap = new Map<string, import('@dutydeck/shared').ChangedFileEntry>()
 
   // 1. 已 commit 但未合并的改动: git diff baseBranch...HEAD
   const committedStatus = await runGitCommand(['diff', `${baseBranch}...HEAD`, '--name-status'], gitRoot)
@@ -1250,7 +1250,7 @@ export async function getWorktreeChanges(
       const simpleMatch = line.match(/^([MDAT])\t(.+)$/)
       const renameMatch = line.match(/^([RC])\d*\t([^\t]+)\t(.+)$/)
 
-      let status: import('@proma/shared').ChangedFileStatus
+      let status: import('@dutydeck/shared').ChangedFileStatus
       let filePath: string
 
       if (simpleMatch) {
@@ -1266,7 +1266,7 @@ export async function getWorktreeChanges(
 
       if (!shouldDisplayChangedFile(filePath)) continue
       const stats = committedStats.get(filePath) ?? { additions: 0, deletions: 0 }
-      const entry: import('@proma/shared').ChangedFileEntry = {
+      const entry: import('@dutydeck/shared').ChangedFileEntry = {
         filePath,
         status,
         additions: stats.additions,
@@ -1288,7 +1288,7 @@ export async function getWorktreeChanges(
       const simpleMatch = line.match(/^([MDAT])\t(.+)$/)
       const renameMatch = line.match(/^([RC])\d*\t([^\t]+)\t(.+)$/)
 
-      let status: import('@proma/shared').ChangedFileStatus
+      let status: import('@dutydeck/shared').ChangedFileStatus
       let filePath: string
 
       if (simpleMatch) {

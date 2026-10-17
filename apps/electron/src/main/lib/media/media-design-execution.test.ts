@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DesignAsset, DesignJobRecord, MediaRunSnapshot, MediaWorkflowDefinition } from '@proma/shared'
+import type { DesignAsset, DesignJobRecord, MediaRunSnapshot, MediaWorkflowDefinition } from '@dutydeck/shared'
 import { createMediaDesignImageExecution } from './media-design-execution'
 
 const comfySnapshot: Extract<NonNullable<DesignJobRecord['imageModelSnapshot']>, { executor: 'comfyui' }> = {

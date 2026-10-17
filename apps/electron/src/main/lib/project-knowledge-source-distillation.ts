@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { extname } from 'node:path'
-import type { KnowledgeCategory, KnowledgeEntry, KnowledgeKind } from '@proma/shared'
+import type { KnowledgeCategory, KnowledgeEntry, KnowledgeKind } from '@dutydeck/shared'
 import { containsKnowledgeSecret } from './project-knowledge/sensitive-text'
 
 /** 单次提炼固定引用的扫描条目版本。 */

@@ -1,4 +1,4 @@
-import type { ServerOpsTaskOutputEvent, ServerOpsTaskExitEvent } from '@proma/shared'
+import type { ServerOpsTaskOutputEvent, ServerOpsTaskExitEvent } from '@dutydeck/shared'
 import { describe, expect, test } from 'bun:test'
 import type {
   ServerOpsConnectionState,
@@ -7,7 +7,7 @@ import type {
   ServerOpsHost,
   ServerOpsTerminalExitEvent,
   ServerOpsTerminalOutputEvent,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ServerOpsConnectionService } from './server-ops-connection-service'
 import type { ServerOpsResolvedCredential } from './server-ops-credential-store'
 import type { ServerOpsRuntimeConnectionInput } from './server-ops-runtime-client'

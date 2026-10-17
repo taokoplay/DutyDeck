@@ -1,5 +1,5 @@
-import type { SDKAssistantMessage, SDKMessage, SDKSystemMessage } from '@proma/shared'
-import { isPersistableSDKSystemMessage } from '@proma/shared'
+import type { SDKAssistantMessage, SDKMessage, SDKSystemMessage } from '@dutydeck/shared'
+import { isPersistableSDKSystemMessage } from '@dutydeck/shared'
 
 function isNonEmptyString(value: unknown): boolean {
   return typeof value === 'string' && value.trim().length > 0

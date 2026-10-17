@@ -1,4 +1,4 @@
-import { DEFAULT_ROOT_MIGRATION_IPC_CHANNELS } from '@proma/shared'
+import { DEFAULT_ROOT_MIGRATION_IPC_CHANNELS } from '@dutydeck/shared'
 
 /** 默认根迁移 bridge 使用的最小 IPC 依赖。 */
 export interface DefaultRootMigrationPreloadIpc {

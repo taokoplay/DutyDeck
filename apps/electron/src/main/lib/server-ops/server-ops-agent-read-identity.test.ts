@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataSource, ServerOpsHost } from '@proma/shared'
+import type { ServerOpsDataSource, ServerOpsHost } from '@dutydeck/shared'
 import { ServerOpsAgentAccessStore } from './server-ops-agent-access-store'
 import { captureServerOpsReadBindings, revalidateServerOpsReadBindings } from './server-ops-agent-read-identity'
 

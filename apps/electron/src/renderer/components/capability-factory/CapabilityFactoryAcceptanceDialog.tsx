@@ -1,7 +1,7 @@
 /** 步骤评审标准弹窗：编辑判据、评审提示词与质量指标，并沿用场景版本保存。 */
 import * as React from 'react'
 import { ChevronDown, Plus, Save, Trash2 } from 'lucide-react'
-import { getReviewSteps, getStepAcceptance, type CapabilityScene, type CapabilitySceneDefinition, type SceneAcceptance, type SceneMetric } from '@proma/shared'
+import { getReviewSteps, getStepAcceptance, type CapabilityScene, type CapabilitySceneDefinition, type SceneAcceptance, type SceneMetric } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'

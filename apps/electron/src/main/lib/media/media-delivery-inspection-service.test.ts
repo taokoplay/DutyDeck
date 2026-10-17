@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { MediaAssetFile, MediaSourceContext } from './media-source-service'
-import type { MediaAssetRef } from '@proma/shared'
+import type { MediaAssetRef } from '@dutydeck/shared'
 import {
   createMediaDeliveryInspectionService,
   validateMediaReview,

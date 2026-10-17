@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DesignImageModelSelection, ImageGenerationModelOption } from '@proma/shared'
+import type { DesignImageModelSelection, ImageGenerationModelOption } from '@dutydeck/shared'
 import { createInitialDesignProjectState } from '@/atoms/design-atoms'
 import type { DesignProjectState } from '@/atoms/design-atoms'
 import type { DesignAdapter } from '@/lib/design-adapter'

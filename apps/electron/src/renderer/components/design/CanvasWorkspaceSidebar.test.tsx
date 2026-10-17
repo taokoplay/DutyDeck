@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { LEGACY_DESIGN_CANVAS_ID } from '@proma/shared'
-import type { CanvasSessionMeta } from '@proma/shared'
+import { LEGACY_DESIGN_CANVAS_ID } from '@dutydeck/shared'
+import type { CanvasSessionMeta } from '@dutydeck/shared'
 import {
   CanvasWorkspaceSidebar,
   canDeleteCanvasFromWorkspaceSidebar,

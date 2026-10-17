@@ -6,8 +6,8 @@ import { join } from 'node:path'
 import {
   SERVER_OPS_DATA_WRITE_CHANNELS,
   parseServerOpsDataWriteResult,
-} from '@proma/shared'
-import type { ServerOpsDataWriteInput } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsDataWriteInput } from '@dutydeck/shared'
 import { app } from 'electron'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { ServerOpsAgentAccessStore } from '../src/main/lib/server-ops/server-ops-agent-access-store'

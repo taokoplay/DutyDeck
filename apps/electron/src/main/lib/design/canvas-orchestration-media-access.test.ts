@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { authorizeCanvasMediaActor } from './canvas-orchestration-media-access'
 import type { CanvasMediaActorAccessDependencies } from './canvas-orchestration-media-access'
 

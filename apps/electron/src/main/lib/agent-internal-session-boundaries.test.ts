@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
-import type { AgentSendInput, AgentSessionMeta, FeishuBotConfig, FeishuChatBinding, FeishuMessageContext } from '@proma/shared'
+import type { AgentSendInput, AgentSessionMeta, FeishuBotConfig, FeishuChatBinding, FeishuMessageContext } from '@dutydeck/shared'
 import { readFileSync } from 'node:fs'
 import { agentSessionManagerTestMock } from './agent-session-manager.test-mock'
 

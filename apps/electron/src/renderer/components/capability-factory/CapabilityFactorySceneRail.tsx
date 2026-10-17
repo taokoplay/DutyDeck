@@ -10,7 +10,7 @@
  * 这样抽屉开关一次不会把未提交的输入弄丢。
  */
 import * as React from 'react'
-import type { CapabilityScene } from '@proma/shared'
+import type { CapabilityScene } from '@dutydeck/shared'
 import { MoreHorizontal, PanelLeftClose, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {

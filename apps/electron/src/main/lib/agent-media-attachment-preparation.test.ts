@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import type { AgentSessionMeta, AgentWorkspace, MediaAssetRef, SDKMessage } from '@proma/shared'
+import type { AgentSessionMeta, AgentWorkspace, MediaAssetRef, SDKMessage } from '@dutydeck/shared'
 import { openAuthorizedAgentMediaSource } from './design/design-session-bridge'
 import {
   prepareAgentMediaAttachmentsForSend,

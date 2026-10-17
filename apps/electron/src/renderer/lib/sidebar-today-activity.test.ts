@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, ConversationMeta } from '@proma/shared'
+import type { AgentSessionMeta, ConversationMeta } from '@dutydeck/shared'
 import {
   getTodayStartTimestamp,
   selectTodayAgentSessions,

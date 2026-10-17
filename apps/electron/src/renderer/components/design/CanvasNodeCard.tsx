@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CanvasNodeActivityState, CanvasNodeKind } from '@proma/shared'
+import type { CanvasNodeActivityState, CanvasNodeKind } from '@dutydeck/shared'
 import { Handle, Position } from '@xyflow/react'
 import type { LucideIcon } from 'lucide-react'
 import { AudioLines, Bot, CircleAlert, FileImage, FileText, LoaderCircle, Maximize2, MessageSquareQuote, Monitor, MoreHorizontal, Plus, Video } from 'lucide-react'

@@ -6,7 +6,7 @@ import {
   realpathSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import type { DataRootStartupIssue } from '@proma/shared'
+import type { DataRootStartupIssue } from '@dutydeck/shared'
 import { DataRootLocator } from './data-root-locator'
 import type { DataRootLocatorResult } from './data-root-locator'
 import { prepareNormalDataRoot } from './data-root-marker'

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilityScene } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilityScene } from '@dutydeck/shared'
 import { CapabilityFactorySceneDefinition } from './CapabilityFactorySceneDefinition'
 
 /** 生成当前定义与候选标准不同的场景，检查显示范围不混用版本。 */

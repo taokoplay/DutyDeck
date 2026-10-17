@@ -7,7 +7,7 @@ import type {
   DesignJobRecord,
   MediaRunEvent,
   MediaRunSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createCanvasMediaNodeProgressController,
   createMediaRunProgressController,

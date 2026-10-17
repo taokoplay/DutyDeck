@@ -1,4 +1,4 @@
-import { AGENT_RUNTIME_METHODS } from '@proma/shared'
+import { AGENT_RUNTIME_METHODS } from '@dutydeck/shared'
 
 /** 普通主进程能力的基础设施故障时限。 */
 const DEFAULT_PARENT_REQUEST_TIMEOUT_MS = 120_000

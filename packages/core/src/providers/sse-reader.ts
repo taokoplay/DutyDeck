@@ -11,7 +11,7 @@
  */
 
 import type { ProviderAdapter, ProviderRequest, StreamEventCallback, ThinkingBlock, ToolCall } from './types.ts'
-import type { TokenUsageAmounts } from '@proma/shared'
+import type { TokenUsageAmounts } from '@dutydeck/shared'
 import { emptyUsage, inclusiveAnthropicInput, mergeUsage } from './usage.ts'
 
 /** 单次真实 HTTP 请求的起止时间，单位为 Unix 毫秒，不包含重试等待。 */

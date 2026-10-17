@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Upload, LoaderCircle } from 'lucide-react'
-import type { ServerOpsFileEntry, ServerOpsLocalFileSelection, ServerOpsTransferSnapshot } from '@proma/shared'
+import type { ServerOpsFileEntry, ServerOpsLocalFileSelection, ServerOpsTransferSnapshot } from '@dutydeck/shared'
 import type { ServerOpsTransferPreload } from '../../../preload/server-ops-transfer-preload'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'

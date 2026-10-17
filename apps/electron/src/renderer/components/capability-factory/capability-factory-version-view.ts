@@ -5,8 +5,8 @@
  * 人根本认不出哪一版是"我调好的那版" —— 版本号本身没有语义，
  * 有语义的是**这一版动了什么**。回滚的价值全在这上面。
  */
-import { diffSceneDefinition } from '@proma/shared'
-import type { CapabilitySceneVersion } from '@proma/shared'
+import { diffSceneDefinition } from '@dutydeck/shared'
+import type { CapabilitySceneVersion } from '@dutydeck/shared'
 
 /** 一行版本历史。 */
 export interface SceneVersionRow {

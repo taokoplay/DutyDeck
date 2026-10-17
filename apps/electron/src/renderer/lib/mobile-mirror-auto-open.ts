@@ -1,6 +1,6 @@
 import type { Store } from 'jotai/vanilla/store'
-import type { PromaEvent } from '@proma/shared'
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
+import type { PromaEvent } from '@dutydeck/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { activeViewAtom } from '@/atoms/active-view'
 import { appModeAtom } from '@/atoms/app-mode'
 import { mobileMirrorDeviceRequestsAtom } from '@/atoms/mobile-mirror-atoms'

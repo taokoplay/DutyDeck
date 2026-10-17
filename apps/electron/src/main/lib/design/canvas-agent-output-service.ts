@@ -10,7 +10,7 @@ import type {
   CanvasWorkspaceSnapshot,
   SDKAssistantMessage,
   SDKMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { requireCanvasAgentRunOwner } from './canvas-agent-run-policy'
 import type { CanvasDependencyStateService } from './canvas-dependency-state-service'
 

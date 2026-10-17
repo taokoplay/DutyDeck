@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { PreparedDesignAssetMention } from '@proma/shared'
+import type { PreparedDesignAssetMention } from '@dutydeck/shared'
 import { deliverPendingMentionsToComposer, sendPreparedDesignAssetToSession } from './design-session-actions'
 
 describe('Design 会话发送动作', () => {

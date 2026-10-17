@@ -1,5 +1,5 @@
 /**
- * @proma/shared - Shared types, configs and utilities
+ * @dutydeck/shared - Shared types, configs and utilities
  */
 
 export * from './types/index'

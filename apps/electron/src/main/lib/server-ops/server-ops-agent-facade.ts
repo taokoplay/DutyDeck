@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { isServerOpsId, parseServerOpsDockerResourcesInput, parseServerOpsDockerContainerDetailInput, parseServerOpsDockerActionPrepareInput } from '@proma/shared'
-import { parseServerOpsFilePreviewInput, parseServerOpsFileMutationInput } from '@proma/shared'
+import { isServerOpsId, parseServerOpsDockerResourcesInput, parseServerOpsDockerContainerDetailInput, parseServerOpsDockerActionPrepareInput } from '@dutydeck/shared'
+import { parseServerOpsFilePreviewInput, parseServerOpsFileMutationInput } from '@dutydeck/shared'
 import type {
   AgentSessionMeta,
   ServerOpsAuditAppendInput,
@@ -21,14 +21,14 @@ import type {
   ServerOpsFileListResult,
   ServerOpsFileMutationInput,
   ServerOpsFileMutationResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { isOrdinaryTopLevelAgentSession } from '../agent-session-visibility'
 import { getServerOpsServiceContext } from './server-ops-service-context'
 import type { ServerOpsRuntimeExecResult } from '../../../utility/server-ops/server-ops-runtime-protocol'
 import { getServerOpsAuditErrorCode } from './server-ops-audit-store'
 import { captureServerOpsReadBindings } from './server-ops-agent-read-identity'
 import { normalizeTerminalText } from '../terminal-output-buffer'
-import type { ServerOpsTaskReadResult, ServerOpsTaskSummary } from '@proma/shared'
+import type { ServerOpsTaskReadResult, ServerOpsTaskSummary } from '@dutydeck/shared'
 import type { ServerOpsAgentReadBinding } from './server-ops-agent-access-store'
 
 /** Agent 可见的审计降级警告。 */

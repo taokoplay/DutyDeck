@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { FileIndexEntry } from '@proma/shared'
+import type { FileIndexEntry } from '@dutydeck/shared'
 import { hasMixedFileSources } from './file-search-sources'
 
 function result(source: FileIndexEntry['source']): FileIndexEntry {

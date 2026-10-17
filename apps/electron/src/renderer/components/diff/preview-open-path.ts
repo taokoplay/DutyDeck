@@ -1,4 +1,4 @@
-import type { FileAccessOptions } from '@proma/shared'
+import type { FileAccessOptions } from '@dutydeck/shared'
 import type { PreviewFile } from '@/atoms/preview-atoms'
 import { arePathsEqual } from '@/lib/session-file-changes'
 

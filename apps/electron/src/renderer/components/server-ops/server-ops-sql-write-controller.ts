@@ -1,4 +1,4 @@
-import type { ServerOpsDataSource, ServerOpsDataWriteCancelInput, ServerOpsDataWriteInput, ServerOpsDataWriteResult } from '@proma/shared'
+import type { ServerOpsDataSource, ServerOpsDataWriteCancelInput, ServerOpsDataWriteInput, ServerOpsDataWriteResult } from '@dutydeck/shared'
 import { getServerOpsDataErrorMessage } from './server-ops-data-display'
 import { getServerOpsWriteResultError } from './server-ops-write-outcome'
 

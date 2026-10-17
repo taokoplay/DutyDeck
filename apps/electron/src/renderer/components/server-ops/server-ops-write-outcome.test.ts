@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataWriteOutcome, ServerOpsDataWriteResult } from '@proma/shared'
+import type { ServerOpsDataWriteOutcome, ServerOpsDataWriteResult } from '@dutydeck/shared'
 import { getServerOpsWriteOutcomePresentation, getServerOpsWriteResultError } from './server-ops-write-outcome'
 
 /** 构造不含业务正文的最小写回执。 */

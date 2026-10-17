@@ -5,8 +5,8 @@ import type {
   AgentSendInput,
   AgentSubmitOrEnqueueInput,
   AgentSubmitOrEnqueueResult,
-} from '@proma/shared'
-import { AGENT_IPC_CHANNELS } from '@proma/shared'
+} from '@dutydeck/shared'
+import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 import type { IpcMainInvokeEvent } from 'electron'
 import { prepareAgentCanvasMessageForSend } from './agent-canvas-message-preparation'
 import { registerAgentMessageIpcHandlers } from './agent-message-ipc'

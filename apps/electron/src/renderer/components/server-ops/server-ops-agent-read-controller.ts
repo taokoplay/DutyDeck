@@ -1,5 +1,5 @@
-import { parseServerOpsAgentReadGrant, parseServerOpsDatabaseAgentPolicyUpdate } from '@proma/shared'
-import type { ServerOpsAgentAccessImpact, ServerOpsAgentReadAccess, ServerOpsAgentReadChanged, ServerOpsAgentReadGrant, ServerOpsAgentReadResource, ServerOpsDatabaseAgentExclusion, ServerOpsDatabaseAgentPolicy, ServerOpsDatabaseAgentPolicyUpdate } from '@proma/shared'
+import { parseServerOpsAgentReadGrant, parseServerOpsDatabaseAgentPolicyUpdate } from '@dutydeck/shared'
+import type { ServerOpsAgentAccessImpact, ServerOpsAgentReadAccess, ServerOpsAgentReadChanged, ServerOpsAgentReadGrant, ServerOpsAgentReadResource, ServerOpsDatabaseAgentExclusion, ServerOpsDatabaseAgentPolicy, ServerOpsDatabaseAgentPolicyUpdate } from '@dutydeck/shared'
 import type { ServerOpsAgentCatalogApi } from './server-ops-agent-catalog-controller'
 import { prepareServerOpsReadEditorResources } from './server-ops-agent-table-scope'
 

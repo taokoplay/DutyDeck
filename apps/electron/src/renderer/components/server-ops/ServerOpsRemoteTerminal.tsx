@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import type { ServerOpsTerminalOutputEvent } from '@proma/shared'
+import type { ServerOpsTerminalOutputEvent } from '@dutydeck/shared'
 import '@xterm/xterm/css/xterm.css'
 
 /** 远程终端属性。 */

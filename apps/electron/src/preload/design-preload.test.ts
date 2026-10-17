@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS } from '@proma/shared'
+import { CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS } from '@dutydeck/shared'
 import type { IpcRendererEvent } from 'electron'
 import { createDesignPreloadApi, type DesignPreloadIpc } from './design-preload'
 

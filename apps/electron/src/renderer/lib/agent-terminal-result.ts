@@ -1,4 +1,4 @@
-import type { SDKAssistantMessage, SDKMessage, SDKResultMessage } from '@proma/shared'
+import type { SDKAssistantMessage, SDKMessage, SDKResultMessage } from '@dutydeck/shared'
 
 /** Agent 回合结束后需要向用户明确展示的 Host 终态。 */
 export interface AgentTerminalNotice {

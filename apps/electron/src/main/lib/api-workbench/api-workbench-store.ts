@@ -23,7 +23,7 @@ import {
   parseApiResolvedRequest,
   parseApiRun,
   parseApiScenarioRun,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ApiBodySlice,
   ApiCatalog,
@@ -33,7 +33,7 @@ import type {
   ApiRun,
   ApiScenarioRun,
   ApiValue,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import {

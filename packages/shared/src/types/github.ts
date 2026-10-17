@@ -25,11 +25,11 @@ export interface GitHubRelease {
 }
 
 /** GitHub Release 历史的固定来源。 */
-export type GitHubReleaseHistorySource = 'bone' | 'official'
+export type GitHubReleaseHistorySource = 'dutydeck' | 'official'
 
 /** GitHub Release 列表查询选项 */
 export interface GitHubReleaseListOptions {
-  /** Release 历史来源（默认 Bone） */
+  /** Release 历史来源（默认 DutyDeck） */
   source?: GitHubReleaseHistorySource
   /** 每页数量（默认 10） */
   perPage?: number

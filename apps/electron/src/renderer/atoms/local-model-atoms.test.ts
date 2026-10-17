@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
-import type { LocalModelAsset, LocalModelSnapshot, LocalModelTestInput } from '@proma/shared'
+import type { LocalModelAsset, LocalModelSnapshot, LocalModelTestInput } from '@dutydeck/shared'
 import { acceptLocalModelSnapshotAtom, localModelErrorsAtom, localModelPendingAtom, localModelPromptAtom, localModelSnapshotAtom, localModelTestResultsAtom, performLocalModelActionAtom } from './local-model-atoms'
 
 /** 每个用例隔离全局 bridge，防止影响其他 renderer 测试。 */

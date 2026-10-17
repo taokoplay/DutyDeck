@@ -10,7 +10,7 @@ import {
   type AgentDelegationStatus,
   type AgentSessionMeta,
   type PromaPermissionMode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 const PERMISSION_RANK: Record<PromaPermissionMode, number> = {
   plan: 0,

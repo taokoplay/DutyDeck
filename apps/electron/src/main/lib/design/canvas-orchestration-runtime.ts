@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { CanvasAgentTarget, CanvasDocument, CanvasOrchestrationFollowUp, CanvasOrchestrationRecord, CanvasOrchestrationStep, CanvasTarget, SDKMessage } from '@proma/shared'
+import type { CanvasAgentTarget, CanvasDocument, CanvasOrchestrationFollowUp, CanvasOrchestrationRecord, CanvasOrchestrationStep, CanvasTarget, SDKMessage } from '@dutydeck/shared'
 import { inspectCanvasAgentOutputRecovery } from './canvas-agent-output-service'
 import { createCanvasOrchestrationService } from './canvas-orchestration-service'
 import type { CanvasOrchestrationServiceDependencies } from './canvas-orchestration-service'

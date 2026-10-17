@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { canvasOrchestrationBranch, createCanvasOrchestrationGuard } from './canvas-orchestration-guard'
 import type { CanvasOrchestrationService } from './canvas-orchestration-service'
 import type { CanvasToolRunContext } from './canvas-tool-provider'
-import type { CanvasOrchestrationReport } from '@proma/shared'
+import type { CanvasOrchestrationReport } from '@dutydeck/shared'
 
 /** 有界守卫替身只提供当前任务及可信运行验证，记录属于固定画布。 */
 function fixture(mode?: CanvasToolRunContext['canvasAgentMode']) {

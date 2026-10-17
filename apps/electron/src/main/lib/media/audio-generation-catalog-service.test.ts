@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { AUDIO_GENERATION_CATALOG_FAILURE_MESSAGES, AUDIO_GENERATION_CATALOG_MESSAGES } from '@proma/shared'
+import { AUDIO_GENERATION_CATALOG_FAILURE_MESSAGES, AUDIO_GENERATION_CATALOG_MESSAGES } from '@dutydeck/shared'
 import { AudioGenerationCatalogService, type AudioGenerationCatalogFetch } from './audio-generation-catalog-service'
 
 /** 记录一次上游请求，供断言 URL、方法与请求头。 */

@@ -4,7 +4,7 @@ import type {
   ExitPlanModeRequest,
   PendingRequestsSnapshot,
   PermissionRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createStore } from 'jotai'
 import {
   allPendingAskUserRequestsAtom,

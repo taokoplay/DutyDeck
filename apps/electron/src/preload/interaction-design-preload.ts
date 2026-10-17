@@ -1,5 +1,5 @@
-import { INTERACTION_DESIGN_CHANNELS, assertPrototypeId } from '@proma/shared'
-import type { InteractionDesignApi, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults } from '@proma/shared'
+import { INTERACTION_DESIGN_CHANNELS, assertPrototypeId } from '@dutydeck/shared'
+import type { InteractionDesignApi, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults } from '@dutydeck/shared'
 
 /** 构造 renderer 窄桥，不向页面传递 Electron 事件或路径权限。 */
 export function createInteractionDesignPreload(

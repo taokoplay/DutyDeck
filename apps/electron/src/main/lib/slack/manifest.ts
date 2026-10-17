@@ -1,4 +1,4 @@
-import type { SlackAppManifestResult } from '@proma/shared'
+import type { SlackAppManifestResult } from '@dutydeck/shared'
 
 export interface SlackManifestOptions {
   botName?: string

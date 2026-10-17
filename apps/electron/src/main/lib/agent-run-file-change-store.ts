@@ -6,7 +6,7 @@
 
 import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { AgentRunFileChange, AgentRunFileChangesSnapshot } from '@proma/shared'
+import type { AgentRunFileChange, AgentRunFileChangesSnapshot } from '@dutydeck/shared'
 import { shouldTrackAgentRunFilePath } from './agent-run-file-change-path-policy'
 import { getAgentSessionMessagesPath } from './config-paths'
 import { readJsonFileSafe, writeJsonFileAtomic } from './safe-file'

@@ -1,6 +1,6 @@
 /** 优化比较纯逻辑由 shared 统一维护；此文件保留 UI 既有导入路径。 */
-import { isPromptOnlyOptimization, optimizationKey, sceneStandardsKey } from '@proma/shared'
-import type { CapabilityFactoryApi, CapabilitySavedTask, CapabilityScene, OptimizationPair } from '@proma/shared'
+import { isPromptOnlyOptimization, optimizationKey, sceneStandardsKey } from '@dutydeck/shared'
+import type { CapabilityFactoryApi, CapabilitySavedTask, CapabilityScene, OptimizationPair } from '@dutydeck/shared'
 
 export {
   canAdoptOptimization,
@@ -12,7 +12,7 @@ export {
   optimizationKey,
   sceneStandardsKey,
   type OptimizationPair,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 顺序执行两版，降低并发调用开销；页面离开后不启动剩余任务。 */
 export async function runOptimizationBatch(options: {

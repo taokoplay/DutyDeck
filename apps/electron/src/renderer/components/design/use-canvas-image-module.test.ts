@@ -7,7 +7,7 @@ import type {
   ReleaseCanvasImageMediaInput,
   DesignJobRecord,
   DesignTaskDetails,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createCanvasImageModuleController,
   createCanvasImageModuleLifecycleCoordinator,

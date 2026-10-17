@@ -7,7 +7,7 @@ import type {
   DataRootStartupMode,
   PathManagementState,
   RecoverDataRootInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   DataRootMigrationPreloadApi,
   DataRootRecoveryPreloadApi,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@proma/shared'
+import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@dutydeck/shared'
 import type {
   CanvasImageCandidateBatch,
   CanvasImageModuleConfig,
@@ -9,7 +9,7 @@ import type {
   CanvasRunWorkflowInput,
   CreateDesignJobInput,
   DesignJobRecord,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanvasAgentExecutionResult } from './canvas-agent-execution-service'
 import {
   createCanvasImageCandidateBatchService,

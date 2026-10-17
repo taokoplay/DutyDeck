@@ -10,14 +10,14 @@ import type {
   AudioGenerationPublicCatalog,
   AudioGenerationPublicProfile,
   ReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AUDIO_GENERATION_API_KEY_MAX_LENGTH,
   AUDIO_GENERATION_CATALOG_SCHEMA_VERSION,
   LEGACY_AUDIO_GENERATION_CATALOG_SCHEMA_VERSIONS,
   parseAudioGenerationProfile,
   parseReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AtomicDestinationExpectation } from '../safe-file'
 import { writeJsonFileAtomicSecure } from '../safe-file'
 import { SecureProfileCatalogFile } from './secure-profile-catalog-file'

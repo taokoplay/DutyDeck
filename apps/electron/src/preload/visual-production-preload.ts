@@ -1,5 +1,5 @@
-import { VISUAL_PRODUCTION_CHANNELS, assertVisualProductionId } from '@proma/shared'
-import type { VisualProductionApi, VisualProductionInputs, VisualProductionMethod, VisualProductionResults } from '@proma/shared'
+import { VISUAL_PRODUCTION_CHANNELS, assertVisualProductionId } from '@dutydeck/shared'
+import type { VisualProductionApi, VisualProductionInputs, VisualProductionMethod, VisualProductionResults } from '@dutydeck/shared'
 
 /** 构造 renderer 窄桥，不向页面传递 Electron 事件或路径权限。 */
 export function createVisualProductionPreload(

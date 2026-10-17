@@ -22,7 +22,7 @@ import {
   parseDreaminaLogoutResult,
   parseDreaminaStatus,
   parseReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AudioGenerationCatalogFetchInput,
   AudioGenerationCatalogFetchResult,
@@ -44,7 +44,7 @@ import type {
   MediaSettingsSnapshot,
   UnifiedMediaModelOption,
   ReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AudioGenerationConfigStore } from './audio-generation-config-store'
 import type { AudioGenerationTestService } from './audio-generation-test-service'
 import type { AudioGenerationCatalogService } from './audio-generation-catalog-service'

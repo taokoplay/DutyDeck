@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { DEFAULT_ROOT_MIGRATION_IPC_CHANNELS } from '@proma/shared'
+import { DEFAULT_ROOT_MIGRATION_IPC_CHANNELS } from '@dutydeck/shared'
 import { createDefaultRootMigrationPreloadApi, type DefaultRootMigrationPreloadIpc } from './default-root-migration-preload'
 
 describe('默认数据根迁移 preload API', () => {

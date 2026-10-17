@@ -12,14 +12,14 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createEmptyDesignDocument } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
 import type {
   AgentMessage,
   AgentSessionMeta,
   DesignAsset,
   DesignCanvasDocument,
   DesignMutation,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import sharp from 'sharp'
 import type { DesignAssetImportBatch, DesignAuthorizedImageSource } from './design-asset-service'
 import { DesignSessionBridge, openAuthorizedAgentImageSource } from './design-session-bridge'

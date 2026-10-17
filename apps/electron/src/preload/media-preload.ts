@@ -1,5 +1,5 @@
-import { MEDIA_IPC_CHANNELS } from '@proma/shared'
-import type { MediaPreloadApi } from '@proma/shared'
+import { MEDIA_IPC_CHANNELS } from '@dutydeck/shared'
+import type { MediaPreloadApi } from '@dutydeck/shared'
 
 /** Renderer 只能通过结构化 IPC 访问媒体配置和运行投影。 */
 export function createMediaPreloadApi(invoke: (channel: string, input?: unknown) => Promise<unknown>, listen: (channel: string, callback: (value: unknown) => void) => () => void): MediaPreloadApi {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ServerOpsAuditAppendInput } from '@proma/shared'
+import type { ServerOpsAuditAppendInput } from '@dutydeck/shared'
 import {
   isServerOpsId,
   parseServerOpsDockerActionCandidate,
@@ -11,7 +11,7 @@ import {
   parseServerOpsDockerContainerDetailResult,
   parseServerOpsDockerResourcesInput,
   parseServerOpsDockerResourcesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDockerAction,
   ServerOpsDockerActionCandidate,
@@ -28,7 +28,7 @@ import type {
   ServerOpsDockerPortBinding,
   ServerOpsDockerResourcesInput,
   ServerOpsDockerResourcesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'
 import type { ServerOpsRuntimeExecResult } from '../../../utility/server-ops/server-ops-runtime-protocol'
 

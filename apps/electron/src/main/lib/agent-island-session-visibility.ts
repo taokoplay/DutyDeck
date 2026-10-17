@@ -1,4 +1,4 @@
-import type { AgentIslandPhase } from '@proma/shared'
+import type { AgentIslandPhase } from '@dutydeck/shared'
 
 /** 影响 Island 会话保留的最小状态；保持为纯函数以便回归测试。 */
 export interface AgentIslandSessionVisibilityInput {

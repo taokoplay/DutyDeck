@@ -10,8 +10,8 @@ import {
   parseServerOpsDataWriteResult,
   SERVER_OPS_DATA_WRITE_MAX_TIMEOUT_MS,
   SERVER_OPS_DATA_WRITE_STATEMENT_LIMIT,
-} from '@proma/shared'
-import type { ServerOpsDataWriteResult } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsDataWriteResult } from '@dutydeck/shared'
 import type { ServerOpsRuntimeDataReadRequest, ServerOpsRuntimeDataReadResult } from './server-ops-runtime-protocol'
 import {
   createServerOpsSqliteExecutionPayload,

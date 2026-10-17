@@ -9,7 +9,7 @@ import { Plug, CheckCircle2, XCircle, Trash2, CircleDashed, KeyRound } from 'luc
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { McpServerEntry } from '@proma/shared'
+import type { McpServerEntry } from '@dutydeck/shared'
 
 const TRANSPORT_LABELS: Record<string, string> = { stdio: 'stdio', http: 'HTTP', sse: 'SSE' }
 

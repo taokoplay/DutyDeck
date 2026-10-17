@@ -1,4 +1,4 @@
-import type { CapabilityFactoryApi, CapabilityFactoryBatch, CapabilityFactoryBatchStatus, CapabilityRun } from '@proma/shared'
+import type { CapabilityFactoryApi, CapabilityFactoryBatch, CapabilityFactoryBatchStatus, CapabilityRun } from '@dutydeck/shared'
 
 /** 返回真实批次终态文案；“完成”仅指执行结束，质量另行展示。 */
 export function describeFactoryBatchStatus(status: CapabilityFactoryBatchStatus): string {

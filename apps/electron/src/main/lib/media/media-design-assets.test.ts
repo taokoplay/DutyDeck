@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { DesignAsset, DesignCanvasDocument } from '@proma/shared'
+import type { DesignAsset, DesignCanvasDocument } from '@dutydeck/shared'
 import type { DesignAssetImportBatch } from '../design/design-asset-service'
 import { MediaDesignAssets } from './media-design-assets'
 

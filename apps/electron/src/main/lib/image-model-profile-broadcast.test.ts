@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { DESIGN_IPC_CHANNELS } from '@proma/shared'
+import { DESIGN_IPC_CHANNELS } from '@dutydeck/shared'
 import * as broadcastModule from './image-model-profile-broadcast'
 
 /** 创建广播测试使用的窗口发送目标。 */

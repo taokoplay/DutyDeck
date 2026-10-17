@@ -1,4 +1,4 @@
-import type { ServerOpsDataSource, ServerOpsDataSourceSetDefaultDatabaseInput, ServerOpsDataSourceUpsertResult } from '@proma/shared'
+import type { ServerOpsDataSource, ServerOpsDataSourceSetDefaultDatabaseInput, ServerOpsDataSourceUpsertResult } from '@dutydeck/shared'
 import { getServerOpsDatabaseReadIdentity } from '@/atoms/server-ops-database-atoms'
 
 /** 选库记忆依赖；只接收已成功打开的库，不承担目录查询。 */

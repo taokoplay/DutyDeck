@@ -4,7 +4,7 @@ import type {
   SDKAssistantMessage,
   SDKResultMessage,
   SDKUserMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { isPartialSDKMessage } from '../bridge-agent-message-utils'
 
 /**

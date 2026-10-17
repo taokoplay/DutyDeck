@@ -1,5 +1,5 @@
-import { validateMediaWorkflowFieldValue } from '@proma/shared'
-import type { CanvasImageMediaWorkflow, ImageGenerationModelOption, ImageGenerationModelSnapshot, MediaAssetRef, MediaInputValue, MediaWorkflowBinding, MediaWorkflowDefinition, MediaProfile, MediaWorkflowVersion } from '@proma/shared'
+import { validateMediaWorkflowFieldValue } from '@dutydeck/shared'
+import type { CanvasImageMediaWorkflow, ImageGenerationModelOption, ImageGenerationModelSnapshot, MediaAssetRef, MediaInputValue, MediaWorkflowBinding, MediaWorkflowDefinition, MediaProfile, MediaWorkflowVersion } from '@dutydeck/shared'
 import type { ImageGenerationMediaCatalogAdapter } from '../image-generation-model-catalog'
 import type { MediaConfigStore } from './media-config-store'
 import { MediaWorkflowValidationError } from './media-workflow-error'

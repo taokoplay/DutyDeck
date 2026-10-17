@@ -1,4 +1,4 @@
-import { IMAGE_GENERATION_MODEL_ID_MAX_LENGTH } from '@proma/shared'
+import { IMAGE_GENERATION_MODEL_ID_MAX_LENGTH } from '@dutydeck/shared'
 import { isSafeDesignStableId } from './design-paths'
 
 /** 请求外发前持久化的元数据；不包含路径、凭据或图片正文。 */

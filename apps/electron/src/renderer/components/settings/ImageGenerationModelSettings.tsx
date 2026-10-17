@@ -3,11 +3,11 @@ import type {
   ImageGenerationChannelOption,
   ImageGenerationModelCatalogResult,
   ImageGenerationModelProfile,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_MODEL_ID_MAX_LENGTH,
   IMAGE_GENERATION_MODEL_NAME_MAX_LENGTH,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Copy, Loader2, Pencil, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'

@@ -7,7 +7,7 @@ import type {
   LanBridgeAutomationDto,
   LanBridgeAgentSessionRuntimeStatus,
   LanBridgeConversationDto,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { isAgentSessionUserVisible } from '../agent-session-visibility'
 
 /** LAN Bridge 对外暴露的稳定工作区摘要。 */

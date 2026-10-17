@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentWorkspace } from '@proma/shared'
+import type { AgentWorkspace } from '@dutydeck/shared'
 import { resolveAutomationWorkspace, summarizeAutomationWorkspace } from './automation-workspace'
 
 /** 构造测试用工作区，只填解析与摘要真正消费的字段。 */

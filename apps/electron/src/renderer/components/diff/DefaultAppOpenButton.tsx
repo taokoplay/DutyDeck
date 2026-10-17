@@ -8,7 +8,7 @@
 
 import * as React from 'react'
 import { ExternalLink } from 'lucide-react'
-import type { FileAccessOptions } from '@proma/shared'
+import type { FileAccessOptions } from '@dutydeck/shared'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useDefaultAppForFile } from '@/hooks/useDefaultAppForFile'
 import { getDefaultAppOpenLabel } from '@/lib/default-app-open-label'

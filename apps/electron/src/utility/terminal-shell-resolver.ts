@@ -1,6 +1,6 @@
 import { accessSync, constants } from 'node:fs'
 import { join } from 'node:path'
-import { assertTerminalProfileSupported, type TerminalProfile } from '@proma/shared'
+import { assertTerminalProfileSupported, type TerminalProfile } from '@dutydeck/shared'
 
 export interface ResolvedTerminalShell {
   file: string

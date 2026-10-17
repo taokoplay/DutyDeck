@@ -1,4 +1,4 @@
-import type { CanvasNode } from '@proma/shared'
+import type { CanvasNode } from '@dutydeck/shared'
 import { expect, test } from 'bun:test'
 import { createCanvasViewRequestHandler, createCanvasViewUpdate, resolveCanvasViewArrangeScope } from './native-canvas-view-command'
 import { createInitialAgentCanvasViewState } from '../../atoms/agent-canvas-atoms'

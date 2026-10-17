@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import type { CanvasNode } from '@proma/shared'
+import type { CanvasNode } from '@dutydeck/shared'
 import { assertCanvasTaskMediaInspection } from './canvas-task-media-evidence'
 
 /** 交付验证维度；配置保存、媒体采用和内容检查不能互相替代。 */

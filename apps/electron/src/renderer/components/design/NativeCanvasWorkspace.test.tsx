@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import type {
   CanvasAgentNodeCreationResult,
   CanvasChangeEvent,
@@ -21,7 +21,7 @@ import type {
   DesignJobRecord,
   DesignTaskDetails,
   RebuildCanvasAgentNodeResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createStore, Provider } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { NativeCanvasState as GraphNativeCanvasState } from '@/atoms/native-canvas-atoms'
@@ -1043,7 +1043,7 @@ describe('原生 Canvas 单工作台切换', () => {
       loadCanvas: async () => snapshot,
       saveCanvas: async () => snapshot.document,
       onCanvasChanged: () => () => {},
-      loadCanvasTextArtifact: async (input: import('@proma/shared').CanvasTextArtifactTarget) => ({
+      loadCanvasTextArtifact: async (input: import('@dutydeck/shared').CanvasTextArtifactTarget) => ({
         target: input,
         revision: {
           kind: 'document' as const, contentId: input.contentId, revision: input.contentRevision,

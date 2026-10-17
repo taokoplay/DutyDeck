@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ChannelPlanQuotaResult } from '@proma/shared'
+import type { ChannelPlanQuotaResult } from '@dutydeck/shared'
 import { fetchChannelPlanQuota, getCachedPlanQuota, supportsChannelPlanQuota } from './channel-plan-quota'
 
 /** 创建可手动结束的 Promise，用于覆盖并发和换号竞态。 */

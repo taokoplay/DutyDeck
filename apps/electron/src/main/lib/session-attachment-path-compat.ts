@@ -1,6 +1,6 @@
 import { posix, win32 } from 'node:path'
 import { isDataRootReference } from './data-root-reference'
-import type { AgentMessage, SDKMessage } from '@proma/shared'
+import type { AgentMessage, SDKMessage } from '@dutydeck/shared'
 
 /** 判断输入是否为可读取字段的普通消息记录，不接受数组或空值。 */
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { GitBashStatus, RuntimeStatus, ShellEnvironmentStatus, WslStatus } from '@proma/shared'
+import type { GitBashStatus, RuntimeStatus, ShellEnvironmentStatus, WslStatus } from '@dutydeck/shared'
 import { buildAgentRuntimeEnv, mergeRuntimeEnv } from './agent-runtime-env'
 
 function runtimeStatus(shell: ShellEnvironmentStatus): RuntimeStatus {

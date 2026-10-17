@@ -1,4 +1,4 @@
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import type { ServerOpsDataPanelApi } from './ServerOpsDataServicesPanel'
 
 /** 数据源列表加载状态。 */

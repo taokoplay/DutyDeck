@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
-import type { DesignContextEntry } from '@proma/shared'
+import type { DesignContextEntry } from '@dutydeck/shared'
 import type { DesignContextCatalogContract } from './design-context-catalog'
 import {
   DESIGN_CONTEXT_TOOL_NAMES,

@@ -8,7 +8,7 @@
  */
 
 import { powerMonitor } from 'electron'
-import type { FeishuPresenceReport } from '@proma/shared'
+import type { FeishuPresenceReport } from '@dutydeck/shared'
 import { getMainWindow } from './main-window-store'
 
 /** 内部在场状态 */

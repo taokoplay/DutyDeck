@@ -2,7 +2,7 @@ import {
   AGENT_RUNTIME_METHODS,
   createAgentRuntimeRequest,
   type AgentRuntimeRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /**
  * 基于原始能力请求创建精确取消消息，避免迟到取消读取到新运行代次。

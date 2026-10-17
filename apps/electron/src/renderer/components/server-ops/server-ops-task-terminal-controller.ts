@@ -1,4 +1,4 @@
-import type { ServerOpsTaskSummary } from '@proma/shared'
+import type { ServerOpsTaskSummary } from '@dutydeck/shared'
 import type { ServerOpsTaskPreloadApi } from '../../../preload/server-ops-task-preload'
 
 /** xterm 最小接口；生产与测试使用同一读取生命周期。 */

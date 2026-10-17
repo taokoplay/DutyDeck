@@ -9,7 +9,7 @@ import type {
   MediaAssetRecord,
   MediaConnectionSummary,
   MediaWorkflowVersion,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import * as React from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'

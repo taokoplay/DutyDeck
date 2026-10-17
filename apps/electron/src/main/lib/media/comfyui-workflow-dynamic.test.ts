@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ComfyObjectInfo, JsonObject, MediaWorkflowDefinition } from '@proma/shared'
+import type { ComfyObjectInfo, JsonObject, MediaWorkflowDefinition } from '@dutydeck/shared'
 import { compileComfyWorkflow, expandComfyNodeInputs, validateComfyWorkflow } from './comfyui-workflow'
 
 /** 官方 SaveVideo 的 codec 动态分支；普通 crf 字段仍必须随所选分支校验。 */

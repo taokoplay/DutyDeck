@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { atom, useAtom, useSetAtom, useStore } from 'jotai'
 import { MoreHorizontal, Pencil, PlugZap, Trash2 } from 'lucide-react'
-import type { ServerOpsAgentReference, ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsAgentReference, ServerOpsDataSource } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'

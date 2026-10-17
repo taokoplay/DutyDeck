@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { ApiAssertion, ApiTransportResult } from '@proma/shared'
-import type { ApiSseEvent } from '@proma/shared'
+import type { ApiAssertion, ApiTransportResult } from '@dutydeck/shared'
+import type { ApiSseEvent } from '@dutydeck/shared'
 import { evaluateApiAssertions } from './api-assertions'
 import { redactApiBody, redactApiRequest } from './api-redaction'
 

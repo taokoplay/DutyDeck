@@ -1,7 +1,7 @@
 import '@fontsource-variable/inter/index.css'
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
-import type { MediaAssetRecord, MediaAssetRef, MediaPreloadApi } from '@proma/shared'
+import type { MediaAssetRecord, MediaAssetRef, MediaPreloadApi } from '@dutydeck/shared'
 import { CanvasMediaWorkflowForm, type CanvasMediaWorkflowInputDraft } from '../src/renderer/components/design/CanvasMediaWorkbench'
 import '../src/renderer/styles/globals.css'
 

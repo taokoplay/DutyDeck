@@ -1,4 +1,4 @@
-import type { BrowserViewState } from '@proma/shared'
+import type { BrowserViewState } from '@dutydeck/shared'
 
 /** 仅复用用户的空白初始标签，绝不导航 Agent 的工作标签。 */
 export function shouldReuseInitialBrowserTab(state: BrowserViewState): boolean {

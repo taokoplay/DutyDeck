@@ -3,8 +3,8 @@ import type {
   CanvasBatchOperationEnvelope,
   CanvasDocument,
   CanvasMutation,
-} from '@proma/shared'
-import { createEmptyCanvasDocument } from '@proma/shared'
+} from '@dutydeck/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import {
   createCanvasArtifactCreationService,
   type CanvasArtifactCreationDependencies,

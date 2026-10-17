@@ -5,7 +5,7 @@ import type {
   ServerOpsTrustCandidate,
   ServerOpsTrustResult,
   ServerOpsTrustSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

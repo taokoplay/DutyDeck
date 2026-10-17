@@ -1,4 +1,4 @@
-import type { DataRootStartupMode } from '@proma/shared'
+import type { DataRootStartupMode } from '@dutydeck/shared'
 
 /** second-instance 启动门依赖的窗口动作。 */
 export interface DataRootStartupRouterOptions {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { buildVisualRetryPrompt, copyVisualDraft, groupVisualRecords, reorderVisualShot, VisualRequestGate, VisualScopeEpoch } from './model'
-import type { VisualCandidate, VisualJob, VisualProductionDraft, VisualShot } from '@proma/shared'
+import type { VisualCandidate, VisualJob, VisualProductionDraft, VisualShot } from '@dutydeck/shared'
 /** 最小镜头夹具用于验证跨集排序边界。 */
 const shot = (id: string, episodeId: string): VisualShot => ({ id, episodeId, title: id, duration: 3, scene: '', motion: '', dialogue: '', assetIds: [], mediaId: null })
 describe('影像创作编辑模型', () => {

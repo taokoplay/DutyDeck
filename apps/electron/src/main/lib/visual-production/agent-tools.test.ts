@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { buildVisualProductionAgentTools, VISUAL_PRODUCTION_AGENT_TOOL_NAMES } from './agent-tools'
-import type { VisualProductionResults } from '@proma/shared'
-import { parseVisualProductionDraft } from '@proma/shared'
+import type { VisualProductionResults } from '@dutydeck/shared'
+import { parseVisualProductionDraft } from '@dutydeck/shared'
 
 describe('Given 主 Agent 影像工具', () => {
   test('When 注册工具 Then 不提供正式保存采纳且写操作检查权限', async () => {
@@ -17,7 +17,7 @@ describe('Given 主 Agent 影像工具', () => {
 })
 
 /** 构造大型正式内容与候选，证明工具不会重复输出整个历史草稿。 */
-function largeSnapshot(): import('@proma/shared').VisualProductionSnapshot {
+function largeSnapshot(): import('@dutydeck/shared').VisualProductionSnapshot {
   const document = { schemaVersion: 1 as const, id: 'production', revision: 1, createdAt: 1, updatedAt: 1, title: '作品', kind: 'film' as const, brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [{ id: 'episode', title: '第一集' }], assets: [], shots: Array.from({ length: 12 }, (_, index) => ({ id: `shot${index}`, episodeId: 'episode', title: '镜头', duration: 5, scene: '画'.repeat(7000), motion: '', dialogue: '', assetIds: [], mediaId: null })) }
   return { document, media: [], assetVersions: {}, shotStates: {}, jobs: [], candidates: [{ id: 'candidate', baseRevision: 1, jobId: 'job', createdAt: 1, status: 'ready', summary: '候选', draft: document }] }
 }

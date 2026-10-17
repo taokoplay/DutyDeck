@@ -1,5 +1,5 @@
-import { SERVER_OPS_AGENT_ACCESS_MANAGEMENT_CHANNELS } from '@proma/shared'
-import type { ServerOpsAgentAccessImpact } from '@proma/shared'
+import { SERVER_OPS_AGENT_ACCESS_MANAGEMENT_CHANNELS } from '@dutydeck/shared'
+import type { ServerOpsAgentAccessImpact } from '@dutydeck/shared'
 import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import {
@@ -130,7 +130,7 @@ import {
   parseServerOpsServiceDetailResult,
   parseServerOpsServiceListInput,
   parseServerOpsServiceListResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AgentSessionMeta,
   ServerOpsConnectInput,
@@ -166,17 +166,17 @@ import type {
   ServerOpsServiceDetailResult,
   ServerOpsServiceListInput,
   ServerOpsServiceListResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { requireOrdinaryTopLevelAgentSession } from '../agent-session-visibility'
 import { SERVER_OPS_TASK_IPC_CHANNELS, parseServerOpsTaskTarget, parseServerOpsTaskReadInput,
-  parseServerOpsTaskUserInput, parseServerOpsTaskUserResize, parseServerOpsTaskSummary, parseServerOpsTaskReadResult } from '@proma/shared'
+  parseServerOpsTaskUserInput, parseServerOpsTaskUserResize, parseServerOpsTaskSummary, parseServerOpsTaskReadResult } from '@dutydeck/shared'
 import type { ServerOpsTaskService } from './server-ops-task-service'
 import type { ServerOpsAgentAccessStore } from './server-ops-agent-access-store'
-import { SERVER_OPS_AGENT_READ_CHANNELS, parseServerOpsAgentReadGrant, parseServerOpsAgentReadSession } from '@proma/shared'
-import { SERVER_OPS_DATABASE_AGENT_POLICY_CHANNELS, parseServerOpsDatabaseAgentPolicyUpdate } from '@proma/shared'
+import { SERVER_OPS_AGENT_READ_CHANNELS, parseServerOpsAgentReadGrant, parseServerOpsAgentReadSession } from '@dutydeck/shared'
+import { SERVER_OPS_DATABASE_AGENT_POLICY_CHANNELS, parseServerOpsDatabaseAgentPolicyUpdate } from '@dutydeck/shared'
 import type { ServerOpsDatabaseAgentPolicyStore } from './server-ops-database-agent-policy-store'
-import { SERVER_OPS_CONNECTION_DRAFT_CHANNELS, parseServerOpsConnectionDraftDismiss, parseServerOpsConnectionDraftSession } from '@proma/shared'
+import { SERVER_OPS_CONNECTION_DRAFT_CHANNELS, parseServerOpsConnectionDraftDismiss, parseServerOpsConnectionDraftSession } from '@dutydeck/shared'
 import {
   SERVER_OPS_SCRIPT_CHANNELS,
   SERVER_OPS_SCRIPT_DRAFT_CHANNELS,
@@ -194,8 +194,8 @@ import {
   parseServerOpsScriptDraftListResult,
   parseServerOpsScriptDraftSession,
   parseServerOpsScriptDraftDismiss,
-} from '@proma/shared'
-import type { ServerOpsScript, ServerOpsScriptSaveInput, ServerOpsScriptRun, ServerOpsScriptRunListInput, ServerOpsScriptDraft } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsScript, ServerOpsScriptSaveInput, ServerOpsScriptRun, ServerOpsScriptRunListInput, ServerOpsScriptDraft } from '@dutydeck/shared'
 import { serverOpsConnectionDraftStore } from './server-ops-connection-draft-store'
 import { captureServerOpsReadBindings, revalidateServerOpsReadBindings } from './server-ops-agent-read-identity'
 import type { ServerOpsTrustService } from './server-ops-trust-service'
@@ -214,9 +214,9 @@ import { ServerOpsQueryRegistry } from './server-ops-query-registry'
 import { runAuditedServerOpsQuery } from './server-ops-query-audit'
 import { runAuditedServerOpsDataWrite } from './server-ops-query-audit'
 import { createServerOpsWriteFailureResult } from './server-ops-write-result'
-import type { ServerOpsDataWriteResult } from '@proma/shared'
+import type { ServerOpsDataWriteResult } from '@dutydeck/shared'
 import { SERVER_OPS_DATA_WRITE_CHANNELS, parseServerOpsDataWriteInput, parseServerOpsDataWriteCancelInput,
-  parseServerOpsDataWriteResult } from '@proma/shared'
+  parseServerOpsDataWriteResult } from '@dutydeck/shared'
 
 /** 运维 IPC handler 的最小签名。 */
 type ServerOpsIpcHandler = (event: IpcMainInvokeEvent, input?: unknown) => unknown

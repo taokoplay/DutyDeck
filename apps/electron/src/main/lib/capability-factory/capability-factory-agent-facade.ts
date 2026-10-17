@@ -1,4 +1,4 @@
-import type { CapabilityExperimentCreateRequest, CapabilityExperimentAdvanceRequest, CapabilityFactoryExperiment, CapabilityFactoryExperimentView } from '@proma/shared'
+import type { CapabilityExperimentCreateRequest, CapabilityExperimentAdvanceRequest, CapabilityFactoryExperiment, CapabilityFactoryExperimentView } from '@dutydeck/shared'
 /**
  * Agent 操控面。
  *
@@ -26,8 +26,8 @@ import type {
   CapabilitySceneDefinition,
   CapabilitySceneDraft,
   CapabilitySceneVersion,
-} from '@proma/shared'
-import { diffSceneDefinition, stableCapabilityValueKey, type CapabilitySceneChange, type CapabilityStub } from '@proma/shared'
+} from '@dutydeck/shared'
+import { diffSceneDefinition, stableCapabilityValueKey, type CapabilitySceneChange, type CapabilityStub } from '@dutydeck/shared'
 import { validateCapabilitySceneDraft, type CapabilityFactoryService } from './capability-factory-service'
 import type { CapabilityFactoryRunOptions } from './capability-factory-run'
 import {

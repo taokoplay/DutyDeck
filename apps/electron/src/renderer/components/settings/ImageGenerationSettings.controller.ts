@@ -20,8 +20,8 @@ import type {
   ImageGenerationSettingsResult,
   ImageGenerationPublicProfile,
   ReplaceImageGenerationCatalogRequest,
-} from '@proma/shared'
-import { DREAMINA_LOGIN_MESSAGES, IMAGE_GENERATION_CATALOG_FAILURE_MESSAGES, parseImageGenerationCatalogFetchInput } from '@proma/shared'
+} from '@dutydeck/shared'
+import { DREAMINA_LOGIN_MESSAGES, IMAGE_GENERATION_CATALOG_FAILURE_MESSAGES, parseImageGenerationCatalogFetchInput } from '@dutydeck/shared'
 import {
   copyImageGenerationProfile,
   createImageGenerationDraft,

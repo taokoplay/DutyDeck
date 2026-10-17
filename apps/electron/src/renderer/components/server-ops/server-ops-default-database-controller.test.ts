@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import { getServerOpsDatabaseReadIdentity } from '@/atoms/server-ops-database-atoms'
 import { createServerOpsDefaultDatabaseController } from './server-ops-default-database-controller'
 

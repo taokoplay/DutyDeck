@@ -1,4 +1,4 @@
-import type { CanvasTarget, MediaRunSnapshot } from '@proma/shared'
+import type { CanvasTarget, MediaRunSnapshot } from '@dutydeck/shared'
 
 /** 异步准备后必须在删除同一同步栈执行的检查及幂等清理。 */
 export interface CanvasSessionIdleCheck {

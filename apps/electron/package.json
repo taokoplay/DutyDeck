@@ -1,6 +1,6 @@
 {
-  "name": "@proma/electron",
-  "version": "0.19.53-bone.28",
+  "name": "@dutydeck/electron",
+  "version": "0.20.0",
   "description": "DutyDeck，为专业用户设计的 Agent - Electron App",
   "homepage": "https://github.com/taokoplay/DutyDeck",
   "main": "dist/main.cjs",
@@ -34,7 +34,7 @@
     "build:server-ops-config-lock": "bun run scripts/build-server-ops-config-lock.ts",
     "build:native-helpers": "bun run build:stable-directory-native && bun run build:agent-island-native && bun run build:eventkit-native && bun run build:server-ops-config-lock",
     "build:cli": "bun run scripts/build-cli.ts",
-    "build:mobile": "bun run --filter='@proma/mobile' build",
+    "build:mobile": "bun run --filter='@dutydeck/mobile' build",
     "check:fork-compat": "bun run scripts/check-fork-compat.ts",
     "check:data-root": "bun run scripts/check-data-root-contract.ts",
     "prepare:officecli": "bun run scripts/prepare-officecli.ts",
@@ -100,10 +100,10 @@
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
     "@larksuiteoapi/node-sdk": "^1.65.0",
-    "@proma/core": "workspace:*",
-    "@proma/session-core": "workspace:*",
-    "@proma/shared": "workspace:*",
-    "@proma/ui": "workspace:*",
+    "@dutydeck/core": "workspace:*",
+    "@dutydeck/session-core": "workspace:*",
+    "@dutydeck/shared": "workspace:*",
+    "@dutydeck/ui": "workspace:*",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-context-menu": "^2.2.16",
@@ -198,7 +198,7 @@
     "word-extractor": "1.0.4",
     "ws": "8.19.0",
     "zod": "^4.0.0",
-    "@proma/capability-runner": "workspace:*"
+    "@dutydeck/capability-runner": "workspace:*"
   },
   "electronmon": {
     "patterns": [

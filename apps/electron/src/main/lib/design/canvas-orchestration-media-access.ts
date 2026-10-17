@@ -1,4 +1,4 @@
-import type { CanvasOrchestrationRecord, CanvasTarget } from '@proma/shared'
+import type { CanvasOrchestrationRecord, CanvasTarget } from '@dutydeck/shared'
 import type { MediaRunOrigin, MediaRunServiceDependencies } from '../media/media-run-service'
 import type { CanvasToolAccessFacade } from './canvas-tool-access-facade'
 import type { CanvasToolRunContext } from './canvas-tool-provider'

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilitySceneVersion, Step } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilitySceneVersion, Step } from '@dutydeck/shared'
 import { describeRollbackEffect, describeVersionHistory } from './capability-factory-version-view'
 
 /** 造一版历史记录。 */

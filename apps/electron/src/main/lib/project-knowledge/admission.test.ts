@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { assessKnowledgeAdmission, knowledgeEvidenceHash } from './admission'
-import type { KnowledgeAdmissionInput } from '@proma/shared'
+import type { KnowledgeAdmissionInput } from '@dutydeck/shared'
 
 /** 可追溯的规则评估样本。 */
 const assessment: KnowledgeAdmissionInput = {

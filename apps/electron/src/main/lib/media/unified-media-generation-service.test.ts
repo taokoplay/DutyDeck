@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { MediaGenerationRequest, UnifiedMediaModelOption } from '@proma/shared'
+import type { MediaGenerationRequest, UnifiedMediaModelOption } from '@dutydeck/shared'
 import { UnifiedMediaGenerationService, type UnifiedMediaGenerationAdapter } from './unified-media-generation-service'
 
 const model: UnifiedMediaModelOption = {

@@ -37,7 +37,7 @@ import {
   markdownToHtml,
 } from '@/lib/markdown-rich-text'
 import type { QuotedSelection } from '@/atoms/preview-atoms'
-import type { ServerOpsAgentReference } from '@proma/shared'
+import type { ServerOpsAgentReference } from '@dutydeck/shared'
 import {
   buildAgentHistoryQuoteLabel,
   buildQuotedSelectionLabel,

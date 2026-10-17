@@ -2,7 +2,7 @@ import { accessSync, constants, lstatSync, mkdirSync, opendirSync } from 'node:f
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
-import { PATH_MANAGEMENT_IPC_CHANNELS } from '@proma/shared'
+import { PATH_MANAGEMENT_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   DataRootMigrationPreview,
   DataRootMigrationProgress,
@@ -22,7 +22,7 @@ import type {
   WorkspaceRelocationRecoveryInput,
   WorkspaceTargetPurpose,
   WorkspaceTargetSelection,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { previewDefaultDataRootMove, requestDefaultDataRootMove } from './data-root-default-move'
 import { DataRootLocator } from './data-root-locator'
 import type { DataRootLocatorResult } from './data-root-locator'

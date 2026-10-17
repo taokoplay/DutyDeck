@@ -9,7 +9,7 @@
  * 与未发送首条消息的草稿会话（避免侧栏冒出空会话）。
  */
 
-import type { AgentSessionMeta, ConversationMeta } from '@proma/shared'
+import type { AgentSessionMeta, ConversationMeta } from '@dutydeck/shared'
 import { sortAgentSessionsByUpdatedAtDesc } from './agent-session-list'
 
 /**

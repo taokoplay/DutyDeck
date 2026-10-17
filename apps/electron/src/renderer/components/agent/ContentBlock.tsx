@@ -34,7 +34,7 @@ import { importAgentToolResultImagesToDesign } from '@/lib/agent-design-actions'
 import { getTaskGetStatusLabel, parseTaskGetResult, type ParsedTaskGetResult } from './tool-result-renderers/task-get-result'
 import { parseTaskListResult, type ParsedTaskListItem } from './tool-result-renderers/task-list-result'
 import { formatDuration } from './AgentMessages'
-import { useSmoothStream } from '@proma/ui'
+import { useSmoothStream } from '@dutydeck/ui'
 import type {
   SDKContentBlock,
   SDKMessage,
@@ -45,7 +45,7 @@ import type {
   SDKToolResultBlock,
   SDKSystemMessage,
   AgentToolResultImage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 // ===== useToolResult Hook =====
 

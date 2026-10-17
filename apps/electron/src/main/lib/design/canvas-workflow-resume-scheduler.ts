@@ -1,4 +1,4 @@
-import type { CanvasWorkflowRun } from '@proma/shared'
+import type { CanvasWorkflowRun } from '@dutydeck/shared'
 
 /** 仅由持久工作流服务提供的绝对恢复时刻，不接收 Renderer 的任意计时请求。 */
 export interface CanvasWorkflowResumeSchedule {

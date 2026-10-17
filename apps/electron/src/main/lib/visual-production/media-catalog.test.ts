@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import type { MediaInputValue, MediaSettingsSnapshot, UnifiedMediaModelOption } from '@proma/shared'
+import type { MediaInputValue, MediaSettingsSnapshot, UnifiedMediaModelOption } from '@dutydeck/shared'
 import { buildVisualProductionMediaCatalog, mergeVisualMediaInputs, validateVisualMediaInputs, resolveVisualProductionMediaWorkflow } from './media-catalog'
 
 /** 无服务器和工作流时仍可显示真实 API 模型。 */

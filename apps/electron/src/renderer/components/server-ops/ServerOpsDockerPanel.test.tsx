@@ -7,7 +7,7 @@ import type {
   ServerOpsDockerActionResult,
   ServerOpsDockerContainerDetail,
   ServerOpsDockerResourcesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createServerOpsDockerController,
   getServerOpsDockerErrorMessage,

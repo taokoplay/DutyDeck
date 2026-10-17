@@ -94,4 +94,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 import {
   LAN_BRIDGE_MAX_PROTOCOL_VERSION,
   LAN_BRIDGE_MIN_PROTOCOL_VERSION,
-} from '@proma/shared'
+} from '@dutydeck/shared'

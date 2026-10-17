@@ -2,7 +2,7 @@ import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ImageGenerationModelOption } from '@proma/shared'
+import type { ImageGenerationModelOption } from '@dutydeck/shared'
 import { DesignImageModelPreferences } from './design-image-model-preferences'
 import type { DesignPaths } from './design-paths'
 

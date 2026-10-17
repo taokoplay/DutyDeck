@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { describe, expect, mock, test } from 'bun:test'
-import type { CanvasNodeKind } from '@proma/shared'
+import type { CanvasNodeKind } from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Tooltip } from '@/components/ui/tooltip'
 import { NativeCanvasNodeNavigator } from './NativeCanvasNodeNavigator'

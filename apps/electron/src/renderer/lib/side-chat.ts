@@ -1,4 +1,4 @@
-import type { ConversationMeta } from '@proma/shared'
+import type { ConversationMeta } from '@dutydeck/shared'
 
 /**
  * Deduplicate concurrent first-use requests for an Agent session's side Chat.

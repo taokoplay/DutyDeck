@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsAgentReadAccess, ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsAgentReadAccess, ServerOpsDataSource } from '@dutydeck/shared'
 import { ServerOpsAgentDatabaseExclusions, ServerOpsAgentTableExclusions } from './ServerOpsAgentTablePicker'
 import { summarizeServerOpsReadAccess } from './server-ops-agent-read-summary'
 import { createServerOpsQueryableScope } from './server-ops-agent-table-scope'

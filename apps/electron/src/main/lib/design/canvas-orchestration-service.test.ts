@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasOrchestrationRecord, CanvasOrchestrationRequest, CanvasOrchestrationStep } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasOrchestrationRecord, CanvasOrchestrationRequest, CanvasOrchestrationStep } from '@dutydeck/shared'
 import { createCanvasOrchestrationService, type CanvasOrchestrationServiceDependencies } from './canvas-orchestration-service'
 
 /** 构造同画布的受控运行边界，真实模型执行由单独集成测试覆盖。 */

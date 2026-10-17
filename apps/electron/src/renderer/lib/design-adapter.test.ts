@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { CANVAS_MEDIA_IPC_CHANNELS, createEmptyCanvasDocument, createEmptyDesignDocument } from '@proma/shared'
+import { CANVAS_MEDIA_IPC_CHANNELS, createEmptyCanvasDocument, createEmptyDesignDocument } from '@dutydeck/shared'
 import { createCanvasMediaPreloadApi } from '../../preload/canvas-media-preload'
 import type {
   CanvasChangeEvent,
@@ -11,7 +11,7 @@ import type {
   CanvasOrchestrationRecord,
   DesignJobRecord,
   SaveDesignMutationsInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   CanvasPublicOperationError,
   createDesignAdapter,
@@ -440,7 +440,7 @@ describe('Design renderer adapter', () => {
   })
 
   test('Given 多个关联事件 When 订阅指定 Agent Then 双身份过滤且释放幂等', () => {
-    let sourceListener: ((event: import('@proma/shared').AgentCanvasBindingChangeEvent) => void) | undefined
+    let sourceListener: ((event: import('@dutydeck/shared').AgentCanvasBindingChangeEvent) => void) | undefined
     let releaseCalls = 0
     const adapter = createDesignAdapter({
       onAgentCanvasBindingChanged: (listener) => {
@@ -448,7 +448,7 @@ describe('Design renderer adapter', () => {
         return () => { releaseCalls += 1 }
       },
     })
-    const received: import('@proma/shared').AgentCanvasBindingChangeEvent[] = []
+    const received: import('@dutydeck/shared').AgentCanvasBindingChangeEvent[] = []
     const release = adapter.onAgentCanvasBindingChanged(
       { projectId: 'project-1', sessionId: 'session-1' },
       (event) => received.push(event),

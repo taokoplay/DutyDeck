@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ApiCatalog, ApiCryptoProfile, ApiField } from '@proma/shared'
+import type { ApiCatalog, ApiCryptoProfile, ApiField } from '@dutydeck/shared'
 import { ApiWorkbenchStore } from './api-workbench-store'
 
 /** 假 safeStorage：不做真实加密，只把明文包一层，便于断言「落盘文件里没有明文」。 */

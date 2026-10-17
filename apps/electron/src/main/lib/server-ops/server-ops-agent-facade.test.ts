@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, ServerOpsAuditAppendInput, ServerOpsAuditRecord, ServerOpsConnectionState, ServerOpsFileListResult, ServerOpsHost } from '@proma/shared'
+import type { AgentSessionMeta, ServerOpsAuditAppendInput, ServerOpsAuditRecord, ServerOpsConnectionState, ServerOpsFileListResult, ServerOpsHost } from '@dutydeck/shared'
 import {
   createServerOpsAgentFacade,
   type ServerOpsAgentFacadeDependencies,

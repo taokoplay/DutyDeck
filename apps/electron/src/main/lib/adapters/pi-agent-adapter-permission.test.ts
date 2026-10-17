@@ -6,7 +6,7 @@ import type { ExtensionToolContext, ToolDefinition } from '@earendil-works/pi-co
 import type { ServerOpsAgentFacade } from '../server-ops/server-ops-agent-facade'
 import type { ServerOpsAgentReadFacade } from '../server-ops/server-ops-agent-read-facade'
 import { AgentPermissionService, revalidateSingleApprovalResult } from '../agent-permission-service'
-import type { PermissionRequest, PromaPermissionMode } from '@proma/shared'
+import type { PermissionRequest, PromaPermissionMode } from '@dutydeck/shared'
 import { buildServerOpsReadWriteTools } from './pi-server-ops-read-tools'
 
 type PiAdapterModule = typeof import('./pi-agent-adapter')

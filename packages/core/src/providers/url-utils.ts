@@ -5,7 +5,7 @@
  * 所有 Anthropic URL 规范化逻辑统一收口在此文件，避免分散重复。
  */
 
-import type { ProviderType } from '@proma/shared'
+import type { ProviderType } from '@dutydeck/shared'
 
 function trimTrailingUrlPathSlash(rawUrl: string): string {
   const trimmed = rawUrl.trim()

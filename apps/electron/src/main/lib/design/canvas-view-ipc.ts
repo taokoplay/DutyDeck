@@ -1,5 +1,5 @@
-import { CANVAS_VIEW_IPC_CHANNELS, isCanvasViewCommandTarget } from '@proma/shared'
-import type { CanvasViewCommandTarget } from '@proma/shared'
+import { CANVAS_VIEW_IPC_CHANNELS, isCanvasViewCommandTarget } from '@dutydeck/shared'
+import type { CanvasViewCommandTarget } from '@dutydeck/shared'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { CanvasViewCommandService } from './canvas-view-command-service'
 import { isSafeDesignStableId } from './design-paths'

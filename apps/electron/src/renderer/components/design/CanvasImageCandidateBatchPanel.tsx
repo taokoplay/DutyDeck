@@ -3,7 +3,7 @@ import type {
   AdoptCanvasImageCandidateBatchInput,
   CanvasImageCandidateBatchEntry,
   CanvasImageCandidateBatchSummary,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Check, CircleAlert, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

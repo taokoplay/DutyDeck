@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { PATH_MANAGEMENT_IPC_CHANNELS } from '@proma/shared'
-import type { WorkspaceRelocationProgress } from '@proma/shared'
+import { PATH_MANAGEMENT_IPC_CHANNELS } from '@dutydeck/shared'
+import type { WorkspaceRelocationProgress } from '@dutydeck/shared'
 import { registerPathManagementIpcHandlers } from './path-management-ipc'
 
 /** 创建 workspace IPC 测试使用的最小 normal coordinator。 */

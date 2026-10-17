@@ -2,8 +2,8 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilityScene, Step } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilityScene, Step } from '@dutydeck/shared'
 import { CapabilityFactoryStepForm } from './CapabilityFactoryStepDialog'
 
 /** 覆盖用户输入和前序步骤输出两种变量关系。 */

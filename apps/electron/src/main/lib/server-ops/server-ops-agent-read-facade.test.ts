@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { formatServerOpsPostgresTable, isServerOpsAuditRecord, parseServerOpsAgentReadGrant } from '@proma/shared'
+import { formatServerOpsPostgresTable, isServerOpsAuditRecord, parseServerOpsAgentReadGrant } from '@dutydeck/shared'
 import type {
   AgentSessionMeta,
   ServerOpsAgentReadAccess,
@@ -9,7 +9,7 @@ import type {
   ServerOpsAuditRecord,
   ServerOpsDataSource,
   ServerOpsHost,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { buildServerOpsReadTools } from '../adapters/pi-server-ops-read-tools'
 import { ServerOpsAgentAccessStore } from './server-ops-agent-access-store'
 import { captureServerOpsReadBindings } from './server-ops-agent-read-identity'

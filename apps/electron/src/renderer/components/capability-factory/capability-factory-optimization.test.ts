@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptySceneDefinition, parseCapabilityFactoryCommand } from '@proma/shared'
-import type { CapabilityFactoryApi, CapabilityRun, CapabilityScene } from '@proma/shared'
+import { createEmptySceneDefinition, parseCapabilityFactoryCommand } from '@dutydeck/shared'
+import type { CapabilityFactoryApi, CapabilityRun, CapabilityScene } from '@dutydeck/shared'
 import { compareOptimizationPair, groupOptimizationRuns, canAdoptOptimization, isAdoptableOptimizationBatch, isAdoptableOptimizationComparison, isPromptOnlyOptimization, runOptimizationBatch } from './capability-factory-optimization'
 
 /** 已采纳定义与候选只在提示词上不同，评审标准固定。 */

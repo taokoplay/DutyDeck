@@ -1,4 +1,4 @@
-import type { AgentRunFileChange } from '@proma/shared'
+import type { AgentRunFileChange } from '@dutydeck/shared'
 import { createHash } from 'node:crypto'
 import { lstat, open, opendir, realpath } from 'node:fs/promises'
 import { constants, realpathSync } from 'node:fs'

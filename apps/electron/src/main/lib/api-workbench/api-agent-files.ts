@@ -7,7 +7,7 @@
  * - 工具 schema 与这里保持同一份约束（数量、身份白名单、路径长度）。
  */
 
-import { API_LIMITS, apiRecord, parseApiId } from '@proma/shared'
+import { API_LIMITS, apiRecord, parseApiId } from '@dutydeck/shared'
 
 /** 一个由 Agent 声明的待上传文件；路径只在审批快照与文件仓库里出现。 */
 export interface ApiAgentDeclaredFile {

@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { safeStorage } from 'electron'
 import { getWeChatConfigPath } from './config-paths'
 import { redactSensitiveLogValue } from './bridge-log-redaction'
-import type { WeChatConfig, WeChatCredentials } from '@proma/shared'
+import type { WeChatConfig, WeChatCredentials } from '@dutydeck/shared'
 
 /** 默认配置 */
 const DEFAULT_CONFIG: WeChatConfig = {

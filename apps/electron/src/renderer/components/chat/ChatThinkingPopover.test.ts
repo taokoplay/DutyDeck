@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ReasoningCapability } from '@proma/shared'
+import type { ReasoningCapability } from '@dutydeck/shared'
 import { resolveChatThinkingControlState } from './ChatThinkingPopover'
 
 /** 支持关闭的测试能力。 */

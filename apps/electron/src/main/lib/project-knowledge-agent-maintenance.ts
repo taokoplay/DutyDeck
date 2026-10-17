@@ -15,7 +15,7 @@ import type {
   KnowledgeReadResult,
   KnowledgeSnapshot,
   KnowledgeWorkflow,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { PersistedAgentEvidenceRecord } from './agent-session-manager'
 import { emptyKnowledgeMaintenance } from './project-knowledge-maintenance-types'
 import {

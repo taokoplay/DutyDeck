@@ -4,11 +4,11 @@ import {
   isServerOpsId,
   parseServerOpsDataSourceTableResult,
   parseServerOpsDataSourceTablesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDataSourceTableResult,
   ServerOpsDataSourceTablesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { readAtomicFileState, readJsonFileStrict, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicDestinationExpectation, ReadJsonFileStrictOptions } from '../safe-file'

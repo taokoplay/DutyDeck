@@ -1,16 +1,16 @@
-import { SERVER_OPS_AGENT_ACCESS_MANAGEMENT_CHANNELS, SERVER_OPS_TASK_IPC_CHANNELS } from '@proma/shared'
+import { SERVER_OPS_AGENT_ACCESS_MANAGEMENT_CHANNELS, SERVER_OPS_TASK_IPC_CHANNELS } from '@dutydeck/shared'
 import { describe, expect, spyOn, test } from 'bun:test'
-import { SERVER_OPS_IPC_CHANNELS, SERVER_OPS_TRUST_CHANNELS, SERVER_OPS_DOCKER_CHANNELS, SERVER_OPS_DEPLOYMENT_CHANNELS, SERVER_OPS_FILE_CHANNELS, SERVER_OPS_CONSOLE_IPC_CHANNELS, SERVER_OPS_TRANSFER_CHANNELS, SERVER_OPS_DATA_CHANNELS, SERVER_OPS_DATA_SCHEMA_CHANNELS, SERVER_OPS_PROJECT_CHANNELS, SERVER_OPS_SCRIPT_CHANNELS, SERVER_OPS_SCRIPT_DRAFT_CHANNELS, SERVER_OPS_DATA_WRITE_CHANNELS } from '@proma/shared'
-import type { AgentSessionMeta, ServerOpsAuditListResult, ServerOpsConnectionState, ServerOpsHost, ServerOpsLogExitEvent, ServerOpsLogOutputEvent, ServerOpsTerminalExitEvent, ServerOpsTerminalOutputEvent, ServerOpsUpsertHostInput } from '@proma/shared'
+import { SERVER_OPS_IPC_CHANNELS, SERVER_OPS_TRUST_CHANNELS, SERVER_OPS_DOCKER_CHANNELS, SERVER_OPS_DEPLOYMENT_CHANNELS, SERVER_OPS_FILE_CHANNELS, SERVER_OPS_CONSOLE_IPC_CHANNELS, SERVER_OPS_TRANSFER_CHANNELS, SERVER_OPS_DATA_CHANNELS, SERVER_OPS_DATA_SCHEMA_CHANNELS, SERVER_OPS_PROJECT_CHANNELS, SERVER_OPS_SCRIPT_CHANNELS, SERVER_OPS_SCRIPT_DRAFT_CHANNELS, SERVER_OPS_DATA_WRITE_CHANNELS } from '@dutydeck/shared'
+import type { AgentSessionMeta, ServerOpsAuditListResult, ServerOpsConnectionState, ServerOpsHost, ServerOpsLogExitEvent, ServerOpsLogOutputEvent, ServerOpsTerminalExitEvent, ServerOpsTerminalOutputEvent, ServerOpsUpsertHostInput } from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { registerServerOpsIpcHandlers } from './server-ops-ipc'
 import type { ServerOpsIpcOptions } from './server-ops-ipc'
 import { ServerOpsAgentAccessStore } from './server-ops-agent-access-store'
 import { ServerOpsFileService } from './server-ops-file-service'
 import { ServerOpsSftpRuntimeError } from '../../../utility/server-ops/server-ops-sftp-runtime'
-import { SERVER_OPS_AGENT_READ_CHANNELS, SERVER_OPS_DATABASE_AGENT_POLICY_CHANNELS, SERVER_OPS_DATA_QUERY_CHANNELS, SERVER_OPS_DATA_QUERY_HISTORY_CHANNELS, isServerOpsAuditRecord } from '@proma/shared'
-import type { ServerOpsDataWriteResult } from '@proma/shared'
-import { SERVER_OPS_CONNECTION_DRAFT_CHANNELS } from '@proma/shared'
+import { SERVER_OPS_AGENT_READ_CHANNELS, SERVER_OPS_DATABASE_AGENT_POLICY_CHANNELS, SERVER_OPS_DATA_QUERY_CHANNELS, SERVER_OPS_DATA_QUERY_HISTORY_CHANNELS, isServerOpsAuditRecord } from '@dutydeck/shared'
+import type { ServerOpsDataWriteResult } from '@dutydeck/shared'
+import { SERVER_OPS_CONNECTION_DRAFT_CHANNELS } from '@dutydeck/shared'
 import { serverOpsConnectionDraftStore } from './server-ops-connection-draft-store'
 
 /** 测试 IPC handler 的最小签名。 */
@@ -440,7 +440,7 @@ describe('服务器运维 IPC', () => {
     const grant = { sessionId: 'session-1', resources: [{ kind: 'ssh', hostId: 'host-1' }] }
     await invoke(fixture.handlers, SERVER_OPS_AGENT_READ_CHANNELS.SET, fixture.sender, grant)
     const preview = await invoke(fixture.handlers, SERVER_OPS_AGENT_ACCESS_MANAGEMENT_CHANNELS.IMPACT, fixture.sender) as { token: string }
-    fixture.access.grantRead({ ...grant, sessionId: 'session-2' } as import('@proma/shared').ServerOpsAgentReadGrant,
+    fixture.access.grantRead({ ...grant, sessionId: 'session-2' } as import('@dutydeck/shared').ServerOpsAgentReadGrant,
       [{ key: 'ssh:host-1', fingerprint: 'other-host', hostId: 'host-1' }])
     const access = { sessionId: 'session-1', hostId: 'host-1', granted: true }
     await expect(invoke(fixture.handlers, SERVER_OPS_IPC_CHANNELS.SET_AGENT_ACCESS, fixture.sender, { access, impactToken: preview.token })).rejects.toThrow('SERVER_OPS_ACCESS_IMPACT_CHANGED')

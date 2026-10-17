@@ -7,7 +7,7 @@ import type {
   DesignMutation,
   DesignPoint,
   DesignViewport,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { DesignProjectState } from '@/atoms/design-atoms'
 import type { DesignAssetFlowNode, DesignAssetNodeData } from './DesignAssetNode'
 

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { CanvasNode } from '@proma/shared'
+import type { CanvasNode } from '@dutydeck/shared'
 import type { CanvasToolProviderDependencies } from './canvas-tool-provider'
 import type { CanvasTaskAbsentArtifact, CanvasTaskEvidence } from './canvas-task-contract'
 import { hasCanvasTextArtifactContent } from './canvas-text-artifact-content'

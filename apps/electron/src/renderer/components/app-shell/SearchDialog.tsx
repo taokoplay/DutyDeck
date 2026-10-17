@@ -40,8 +40,8 @@ import {
 import type {
   MessageSearchResult,
   AgentMessageSearchResult,
-} from '@proma/shared'
-import { findBestSearchMatch } from '@proma/shared'
+} from '@dutydeck/shared'
+import { findBestSearchMatch } from '@dutydeck/shared'
 
 /** 标题搜索结果项 */
 interface TitleResult {

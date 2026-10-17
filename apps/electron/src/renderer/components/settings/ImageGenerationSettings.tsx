@@ -10,12 +10,12 @@ import type {
   ImageGenerationModelEntry,
   ImageGenerationPublicProfile,
   ImageGenerationProvider,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_CAPABILITY_LABELS,
   IMAGE_GENERATION_PROVIDER_DESCRIPTORS,
   imageGenerationModelKind,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { toast } from 'sonner'
 import { CheckCircle2, Copy, Download, ExternalLink, Eye, EyeOff, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'

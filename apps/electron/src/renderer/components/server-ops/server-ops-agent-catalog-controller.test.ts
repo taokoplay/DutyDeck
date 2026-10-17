@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataSourceTablesResult } from '@proma/shared'
+import type { ServerOpsDataSourceTablesResult } from '@dutydeck/shared'
 import { createServerOpsAgentCatalogController } from './server-ops-agent-catalog-controller'
 
 /** 控制异步回执，用于验证目标切换与卸载后的发布边界。 */

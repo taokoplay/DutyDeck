@@ -4,7 +4,7 @@
  * 评测页最容易做成"一个孤零零的百分比"，那样等于没评测 —— 百分比只有**跟谁比**才有意义：
  * 跟同一数据集的上一次比（提示词改了有没有进步），以及说清哪几次不可比。
  */
-import type { CapabilityEvaluation, CapabilityJudgeResult } from '@proma/shared'
+import type { CapabilityEvaluation, CapabilityJudgeResult } from '@dutydeck/shared'
 
 /** 合规率的展示：百分比 + 有效样本数（分母也要给人看，否则 1/1 和 20/20 看起来一样）。 */
 export function describeCompliance(evaluation: CapabilityEvaluation): { percent: string; detail: string } {

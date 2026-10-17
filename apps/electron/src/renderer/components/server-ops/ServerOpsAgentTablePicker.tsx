@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { atom, useAtom } from 'jotai'
 import { ChevronDown, LoaderCircle, RefreshCw, Search, X } from 'lucide-react'
-import type { ServerOpsAgentDatabaseScope, ServerOpsAgentReadResource, ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsAgentDatabaseScope, ServerOpsAgentReadResource, ServerOpsDataSource } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'

@@ -3,7 +3,7 @@ import { open, realpath } from 'node:fs/promises'
 import { isAbsolute, relative, join } from 'node:path'
 import { createReadStream } from 'node:fs'
 import { createHash } from 'node:crypto'
-import type { TokenUsageRecord } from '@proma/shared'
+import type { TokenUsageRecord } from '@dutydeck/shared'
 import type { TokenUsageStore } from './token-usage-store'
 
 /** 并发页面查询共用一次恢复任务，失败可再次尝试。 */

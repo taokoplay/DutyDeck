@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CapabilityFactoryBatch, CapabilityFactoryBatchKind, CapabilityFactoryBatchRequest, CapabilityFactoryBatchSummary, CapabilityRun } from '@proma/shared'
+import type { CapabilityFactoryBatch, CapabilityFactoryBatchKind, CapabilityFactoryBatchRequest, CapabilityFactoryBatchSummary, CapabilityRun } from '@dutydeck/shared'
 import { loadFactoryBatchRuns } from './capability-factory-batch-view'
 
 /** UI 与 Agent 共读后端批次；事件刷新不重放执行，迟到结果按作用域和请求代次丢弃。 */

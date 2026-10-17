@@ -6,8 +6,8 @@ import {
   MAX_SERVER_OPS_ROW_FILTER_VALUE_LENGTH,
   isServerOpsSqlSensitiveColumn,
   parseServerOpsDataRowFilters,
-} from '@proma/shared'
-import type { ServerOpsDataRowFilterOperator, ServerOpsDataRowFilters, ServerOpsDataSchemaColumn } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsDataRowFilterOperator, ServerOpsDataRowFilters, ServerOpsDataSchemaColumn } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'

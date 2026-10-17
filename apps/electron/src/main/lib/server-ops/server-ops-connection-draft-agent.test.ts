@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, AgentToolMode } from '@proma/shared'
+import type { AgentSessionMeta, AgentToolMode } from '@dutydeck/shared'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { createServerOpsConnectionDraftAgent } from './server-ops-connection-draft-agent'
 import { ServerOpsConnectionDraftStore } from './server-ops-connection-draft-store'

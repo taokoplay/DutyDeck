@@ -1,6 +1,6 @@
 import type { Duplex } from 'node:stream'
 import { createConnection as createMysqlConnection } from 'mysql2'
-import type { ServerOpsDataWriteResult } from '@proma/shared'
+import type { ServerOpsDataWriteResult } from '@dutydeck/shared'
 import type { ServerOpsRuntimeDataWriteRequest } from './server-ops-runtime-protocol'
 import { openServerOpsMySqlConnection } from './server-ops-mysql-connection'
 import { openServerOpsPostgresqlConnection } from './server-ops-postgresql-adapter'

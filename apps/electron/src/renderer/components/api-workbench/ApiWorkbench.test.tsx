@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai/vanilla'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createApiRequestDraft } from '@proma/shared'
-import type { ApiMethod, ApiRequestDefinition, ApiRun } from '@proma/shared'
+import { createApiRequestDraft } from '@dutydeck/shared'
+import type { ApiMethod, ApiRequestDefinition, ApiRun } from '@dutydeck/shared'
 import {
   apiWorkbenchOpenRunTargetAtom,
   apiWorkbenchSessionStateAtomFamily,

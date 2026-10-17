@@ -1,4 +1,4 @@
-import { AGENT_IPC_CHANNELS } from '@proma/shared'
+import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   AgentSendInput,
   AgentSessionMeta,
@@ -6,7 +6,7 @@ import type {
   AgentStreamCompletePayload,
   AgentStreamSessionMeta,
   PromaEvent,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 type AgentStreamCompletionPayloadDetails = Omit<
   AgentStreamCompletePayload,

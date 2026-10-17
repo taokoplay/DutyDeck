@@ -2,9 +2,9 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { diagnoseCapabilityRun, getReviewSteps, getStepAcceptance, stableCapabilityValueKey } from '@proma/shared'
+import { diagnoseCapabilityRun, getReviewSteps, getStepAcceptance, stableCapabilityValueKey } from '@dutydeck/shared'
 import type { CapabilityFactoryReviewRetryLimits, CapabilityFactoryReviewRetryRecord, CapabilityFactoryReviewRetryRequest,
-  CapabilityFactoryRunDiagnosis, CapabilityRun, CapabilityRunModelBinding } from '@proma/shared'
+  CapabilityFactoryRunDiagnosis, CapabilityRun, CapabilityRunModelBinding } from '@dutydeck/shared'
 import { ensureDirectoryDurable, writeJsonFileAtomicSecure } from '../safe-file'
 import type { CapabilityFactoryService } from './capability-factory-service'
 import type { CapabilityFactoryModelCall, CapabilityFactoryModelResolution } from './capability-factory-model-call'

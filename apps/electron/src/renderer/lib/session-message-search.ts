@@ -4,8 +4,8 @@ import {
   MAX_SEARCH_QUERY_SOURCE_LENGTH,
   findBestSearchMatchInNormalized,
   normalizeSearchText,
-} from '@proma/shared'
-import type { SessionMessageSearchResponse, SessionMessageSearchResult } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { SessionMessageSearchResponse, SessionMessageSearchResult } from '@dutydeck/shared'
 
 /**
  * 搜索数据源与迷你地图展示解耦：数据源只返回命中元数据，不向 UI 泄露完整历史正文。

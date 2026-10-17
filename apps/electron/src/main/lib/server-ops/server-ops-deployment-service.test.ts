@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDeploymentTarget } from '@proma/shared'
+import type { ServerOpsDeploymentTarget } from '@dutydeck/shared'
 import { ServerOpsDeploymentService } from './server-ops-deployment-service'
 
 /** 使用纯内存边界验证准入检查，测试不连接用户的服务器。 */

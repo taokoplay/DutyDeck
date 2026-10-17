@@ -1,5 +1,5 @@
-import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, AgentEvent, CanvasToolNavigationResult } from '@proma/shared'
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
+import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, AgentEvent, CanvasToolNavigationResult } from '@dutydeck/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { atom } from 'jotai'
 import type { Store } from 'jotai/vanilla/store'
 import {

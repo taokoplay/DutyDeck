@@ -5,7 +5,7 @@ import type {
   CanvasImageTarget,
   DesignAsset,
   DesignJobRecord,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   StableDirectoryNativeRequest,
   StableDirectoryNativeResult,

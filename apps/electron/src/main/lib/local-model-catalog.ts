@@ -1,4 +1,4 @@
-import type { LocalModelCatalogEntry } from '@proma/shared'
+import type { LocalModelCatalogEntry } from '@dutydeck/shared'
 
 /**
  * 首期目录锁定官方 Qwen 仓库 revision 与 LFS 对象摘要；实际下载始终访问官方源并校验摘要。

@@ -41,14 +41,14 @@ import type {
   MediaWorkflowVersion,
   SaveMediaConnectionInput,
   SaveMediaWorkflowInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createMediaWorkflowFieldBinding,
   listMediaWorkflowFields,
   parseComfyPrompt,
   parseMediaWorkflowDefinition,
   validateMediaWorkflowFieldBindings,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { mediaSettingsFocusAtom } from '@/atoms/settings-tab'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'

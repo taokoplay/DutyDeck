@@ -1,5 +1,5 @@
-import { KNOWLEDGE_SOURCE_KINDS, PROJECT_KNOWLEDGE_IPC_CHANNELS } from '@proma/shared'
-import type { KnowledgeExecutionStartInput, KnowledgeImportMode, KnowledgeIndexPreview, KnowledgeIndexRebuildInput, KnowledgeIndexRebuildResult, KnowledgeImportResult, KnowledgeMemoryOrganizationPreview, KnowledgeCategory, KnowledgeMaintenanceInput, KnowledgePlanConfirmInput, KnowledgeReviewInput, KnowledgeReadInput, KnowledgeReadResult, KnowledgeSearchInput, KnowledgeSearchResult, KnowledgeSnapshot, KnowledgeSourceKind, KnowledgeWorkflowPauseInput } from '@proma/shared'
+import { KNOWLEDGE_SOURCE_KINDS, PROJECT_KNOWLEDGE_IPC_CHANNELS } from '@dutydeck/shared'
+import type { KnowledgeExecutionStartInput, KnowledgeImportMode, KnowledgeIndexPreview, KnowledgeIndexRebuildInput, KnowledgeIndexRebuildResult, KnowledgeImportResult, KnowledgeMemoryOrganizationPreview, KnowledgeCategory, KnowledgeMaintenanceInput, KnowledgePlanConfirmInput, KnowledgeReviewInput, KnowledgeReadInput, KnowledgeReadResult, KnowledgeSearchInput, KnowledgeSearchResult, KnowledgeSnapshot, KnowledgeSourceKind, KnowledgeWorkflowPauseInput } from '@dutydeck/shared'
 
 /** 主进程知识服务的 IPC 最小端口。 */
 export interface ProjectKnowledgeIpcService {

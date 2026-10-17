@@ -5,8 +5,8 @@ import {
   SERVER_OPS_SCRIPT_GLOBAL_LIMIT,
   SERVER_OPS_SCRIPT_PROJECT_LIMIT,
   parseServerOpsScript,
-} from '@proma/shared'
-import type { ServerOpsScript, ServerOpsScriptSaveInput, ServerOpsScriptUsage } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsScript, ServerOpsScriptSaveInput, ServerOpsScriptUsage } from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { readAtomicFileState, readJsonFileSafe, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicDestinationExpectation, ReadJsonFileSafeOptions } from '../safe-file'

@@ -16,7 +16,7 @@ import type {
   ExitPlanModeResponse,
   ExitPlanAllowedPrompt,
   PromaPermissionMode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** ExitPlanMode 审批结果（扩展 SDK PermissionResult，附加 targetMode） */
 export type ExitPlanPermissionResult = {

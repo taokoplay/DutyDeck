@@ -1,5 +1,5 @@
-import { PROJECT_KNOWLEDGE_IPC_CHANNELS } from '@proma/shared'
-import type { KnowledgeImportResult, KnowledgeIndexPreview, KnowledgeIndexRebuildInput, KnowledgeIndexRebuildResult, KnowledgeMemoryOrganizationPreview, KnowledgeReadResult, KnowledgeSearchResult, KnowledgeSnapshot, ProjectKnowledgeApi } from '@proma/shared'
+import { PROJECT_KNOWLEDGE_IPC_CHANNELS } from '@dutydeck/shared'
+import type { KnowledgeImportResult, KnowledgeIndexPreview, KnowledgeIndexRebuildInput, KnowledgeIndexRebuildResult, KnowledgeMemoryOrganizationPreview, KnowledgeReadResult, KnowledgeSearchResult, KnowledgeSnapshot, ProjectKnowledgeApi } from '@dutydeck/shared'
 
 /** 创建知识库窄桥接；参数合法性与访问范围由主进程核验。 */
 export function createProjectKnowledgePreload(

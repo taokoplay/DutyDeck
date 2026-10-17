@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { createTrayMenuModel } from './tray-menu-model'
 
 /** 创建托盘测试使用的最小 Agent 会话。 */

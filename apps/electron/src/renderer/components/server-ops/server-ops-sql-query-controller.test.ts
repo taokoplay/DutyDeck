@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataQueryInput, ServerOpsDataQueryResult } from '@proma/shared'
+import type { ServerOpsDataQueryInput, ServerOpsDataQueryResult } from '@dutydeck/shared'
 import { createServerOpsSqlQueryController, getServerOpsSqlQueryErrorMessage, getServerOpsSqlQueryWarningMessage } from './server-ops-sql-query-controller'
 
 /** 手动控制查询与取消回执，验证切库和用户取消竞态。 */

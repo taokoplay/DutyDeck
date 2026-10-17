@@ -14,7 +14,7 @@ import type {
   CreateDesignJobInput,
   DesignJobRecord,
   SaveCanvasImageModuleInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasImageCandidateBatchChangedListener,
   CanvasImageCandidateBatchService,

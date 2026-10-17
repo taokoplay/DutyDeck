@@ -4,12 +4,12 @@ import type {
   AudioGenerationProfile,
   AudioGenerationPublicCatalog,
   AudioGenerationTestInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AUDIO_GENERATION_CATALOG_FAILURE_MESSAGES,
   AUDIO_GENERATION_CATALOG_MESSAGES,
   AUDIO_GENERATION_TEST_MESSAGES,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AudioGenerationTestService,
   type AudioGenerationProviderTester,

@@ -12,7 +12,7 @@ import type {
   ServerOpsLogStartInput,
   ServerOpsLogStartResult,
   ServerOpsOverviewResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createServerOpsAuditController,
   isServerOpsCredentialRecoveryState,

@@ -9,7 +9,7 @@ import type {
   AgentExternalRunSource,
   AgentMessage,
   AgentSendInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AgentRunExtensions } from './agent-run-extensions'
 
 /** Headless 调用方用于判定本轮是否可提交业务结果的有界终态。 */

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, test } from 'bun:test'
-import type { CanvasNode } from '@proma/shared'
+import type { CanvasNode } from '@dutydeck/shared'
 import type { CanvasToolProviderDependencies } from './canvas-tool-provider'
 import { createCanvasTaskEvidence, resolveCanvasTaskBaseline, resolveCanvasTaskEvidence } from './canvas-task-evidence'
 

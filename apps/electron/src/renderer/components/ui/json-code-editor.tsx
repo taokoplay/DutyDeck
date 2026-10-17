@@ -10,7 +10,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
-import { highlightCode, highlightToTokens } from '@proma/core'
+import { highlightCode, highlightToTokens } from '@dutydeck/core'
 import { cn } from '@/lib/utils'
 
 export interface JsonCodeEditorProps {

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ImageOff } from 'lucide-react'
-import type { VisualAsset, VisualMedia } from '@proma/shared'
+import type { VisualAsset, VisualMedia } from '@dutydeck/shared'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisualMediaView } from './VisualMediaView'
 

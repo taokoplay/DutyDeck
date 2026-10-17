@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { lstatSync, readdirSync, readFileSync, watch, type FSWatcher } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import type { WorkspaceMemoryFileChange } from '@proma/shared'
+import type { WorkspaceMemoryFileChange } from '@dutydeck/shared'
 import { getWorkspaceAutoMemoryDir } from './agent-workspace-manager'
 
 const MAX_DIFF_FILE_BYTES = 96 * 1024

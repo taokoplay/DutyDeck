@@ -1,4 +1,4 @@
-import type { Todo } from '@proma/shared'
+import type { Todo } from '@dutydeck/shared'
 
 function isSameTodo(current: Todo, incoming: Todo): boolean {
   if (current === incoming) return true

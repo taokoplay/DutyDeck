@@ -1,6 +1,6 @@
 /** 单框任务输入与场景变量之间的转换；复用时不改变原始测试材料。 */
-import type { CapabilitySceneDefinition } from '@proma/shared'
-import { validateValue } from '@proma/capability-runner'
+import type { CapabilitySceneDefinition } from '@dutydeck/shared'
+import { validateValue } from '@dutydeck/capability-runner'
 import { initialFieldDraft, namedFields, type NamedField } from './capability-factory-run-view'
 
 /** 默认自动识别；手动选择和旧任务回填可固定变量映射，避免误拆 JSON 正文。 */

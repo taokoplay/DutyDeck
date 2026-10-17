@@ -5,7 +5,7 @@ import type {
   DesignAsset,
   DesignMutation,
   DesignPoint,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanvasArtifactCreationService, CanvasArtifactCreationResult } from './canvas-artifact-creation'
 import { CanvasArtifactPreflightError } from './canvas-artifact-preflight'
 import type {

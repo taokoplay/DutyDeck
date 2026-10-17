@@ -1,5 +1,5 @@
-import { isServerOpsSqlSensitiveColumn, parseServerOpsDataRowFilters } from '@proma/shared'
-import type { ServerOpsDataRowFilters } from '@proma/shared'
+import { isServerOpsSqlSensitiveColumn, parseServerOpsDataRowFilters } from '@dutydeck/shared'
+import type { ServerOpsDataRowFilters } from '@dutydeck/shared'
 
 /** 根据引擎选择标识符引用规则，筛选值始终使用绑定参数。 */
 type FilterDialect = 'mysql' | 'postgresql' | 'sqlite'

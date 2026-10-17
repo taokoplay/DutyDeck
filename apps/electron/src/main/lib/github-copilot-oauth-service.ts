@@ -10,7 +10,7 @@ import type {
   ChannelTestResult,
   GithubCopilotOAuthCredentials,
   GithubCopilotOAuthDeviceCode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { normalizeRequestError } from './channel-test-error'
 import { runWithOAuthProxyScope } from './oauth-proxy-scope'
 

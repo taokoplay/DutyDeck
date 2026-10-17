@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { activeViewAtom } from '@/atoms/active-view'
 import { appModeAtom } from '@/atoms/app-mode'
 import {

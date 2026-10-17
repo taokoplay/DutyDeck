@@ -21,8 +21,8 @@ import type {
   KnowledgeIndexPreview,
   KnowledgeIndexRebuildInput,
   KnowledgeIndexRebuildResult,
-} from '@proma/shared'
-import { KNOWLEDGE_SOURCE_KINDS } from '@proma/shared'
+} from '@dutydeck/shared'
+import { KNOWLEDGE_SOURCE_KINDS } from '@dutydeck/shared'
 import {
   organizeManagedKnowledge,
   reviewManagedKnowledge,

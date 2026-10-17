@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync, symlinkSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { VisualMedia, VisualProductionDraft } from '@proma/shared'
+import type { VisualMedia, VisualProductionDraft } from '@dutydeck/shared'
 import { VisualProductionService } from './store'
 /** 隔离测试项目，不读取用户数据。 */
 const roots: string[] = []

@@ -4,8 +4,8 @@ import type {
   DesignCanvasNode,
   DesignGroup,
   DesignMutation,
-} from '@proma/shared'
-import { applyDesignEntityPatch } from '@proma/shared'
+} from '@dutydeck/shared'
+import { applyDesignEntityPatch } from '@dutydeck/shared'
 
 /** 复制选区命令，副本 ID 必须由调用方按节点顺序提供。 */
 export interface DuplicateSelectionCommand {

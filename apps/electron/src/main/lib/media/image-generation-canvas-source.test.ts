@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { ImageGenerationPublicCatalog } from '@proma/shared'
-import { buildCanvasGenerationModelId } from '@proma/shared'
+import type { ImageGenerationPublicCatalog } from '@dutydeck/shared'
+import { buildCanvasGenerationModelId } from '@dutydeck/shared'
 import { ImageGenerationCanvasSource, isGenerationSnapshot } from './image-generation-canvas-source'
 
 /** 构造独立生成目录：一条可执行的 OpenAI 配置与一条未接执行器的即梦配置。 */

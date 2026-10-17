@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { lstatSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { createCanvasOrchestrationStore } from './canvas-orchestration-store'
 import { createDesignPathResolver } from './design-paths'
 

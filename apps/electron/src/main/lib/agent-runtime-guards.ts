@@ -10,7 +10,7 @@
 
 import type { AgentMessage, AgentToolResult } from '@earendil-works/pi-agent-core'
 import type { JsonValue } from '@earendil-works/pi-ai'
-import type { JsonSchemaOutputFormat, SDKResultMessage } from '@proma/shared'
+import type { JsonSchemaOutputFormat, SDKResultMessage } from '@dutydeck/shared'
 
 export type RuntimeGuardStopReason = 'max_turns' | 'max_budget_usd' | 'output_validation_failed'
 

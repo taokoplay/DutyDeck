@@ -3,7 +3,7 @@ import type {
   CanvasWebviewDevicePreset,
   CanvasWebviewPreviewSnapshot,
   CanvasWebviewPreviewTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { LoaderCircle, Monitor, RotateCcw, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {

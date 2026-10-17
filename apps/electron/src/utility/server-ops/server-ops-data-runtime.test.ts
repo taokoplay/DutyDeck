@@ -6,7 +6,7 @@ import { connect as connectTcp, type AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { createServer as createMySqlServer } from 'mysql2'
 import { createConnection as createMysqlClient } from 'mysql2/promise'
-import { parseServerOpsDataSourceRowsResult } from '@proma/shared'
+import { parseServerOpsDataSourceRowsResult } from '@dutydeck/shared'
 import type { ServerOpsDataRuntimeNonQueryInput } from './server-ops-data-runtime'
 import {
   buildMySqlDatabaseTable,

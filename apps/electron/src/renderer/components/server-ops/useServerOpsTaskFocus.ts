@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { atom, useSetAtom, useStore } from 'jotai'
-import type { ServerOpsTaskSummary } from '@proma/shared'
+import type { ServerOpsTaskSummary } from '@dutydeck/shared'
 import { createServerOpsTaskFocusGate } from './server-ops-task-terminal-controller'
 import { currentAgentSessionIdAtom } from '@/atoms/agent-atoms'
 

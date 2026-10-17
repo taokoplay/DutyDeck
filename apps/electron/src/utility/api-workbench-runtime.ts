@@ -2,7 +2,7 @@ import { createCipheriv, randomBytes, type CipherGCM } from 'node:crypto'
 import { createWriteStream, type WriteStream } from 'node:fs'
 import { once } from 'node:events'
 import { join } from 'node:path'
-import { API_LIMITS, type ApiSseEvent, type ApiTransportResult } from '@proma/shared'
+import { API_LIMITS, type ApiSseEvent, type ApiTransportResult } from '@dutydeck/shared'
 import { executeApiTransport } from '../main/lib/api-workbench/api-transport.ts'
 import {
   parseApiRuntimeRequest,

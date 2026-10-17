@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { CanvasMediaModelOption, CanvasMutation } from '@proma/shared'
-import { parseCanvasBatchOperationEnvelope, parseCanvasMediaModelScope } from '@proma/shared'
+import type { CanvasMediaModelOption, CanvasMutation } from '@dutydeck/shared'
+import { parseCanvasBatchOperationEnvelope, parseCanvasMediaModelScope } from '@dutydeck/shared'
 import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import { Value } from 'typebox/value'

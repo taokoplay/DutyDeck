@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CalendarEvent, Todo } from '@proma/shared'
+import type { CalendarEvent, Todo } from '@dutydeck/shared'
 import {
   buildPlanningReferenceItems,
   filterPlanningReferenceItems,

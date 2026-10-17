@@ -14,7 +14,7 @@ import type {
   ApiTestCase,
   ApiValue,
   ApiWorkbenchApi,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createApiCaseReportRow,
   createApiRequestDraft,
@@ -22,7 +22,7 @@ import {
   detectApiWorkbenchImportKind,
   parseApiCatalogSnapshot,
   parseCurlCommands,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { formatServerOpsJsonLosslessly } from '@/components/server-ops/server-ops-json-formatter'
 
 /** 工作台单个请求标签保存的编辑和执行状态。 */

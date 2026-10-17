@@ -12,7 +12,7 @@ import {
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, test } from 'bun:test'
-import type { KnowledgeEntry, KnowledgePlanGroup } from '@proma/shared'
+import type { KnowledgeEntry, KnowledgePlanGroup } from '@dutydeck/shared'
 import { createProjectKnowledgeStore } from './store'
 import type { ProjectKnowledgeServiceDependencies, ResolvedKnowledgeProject } from './types'
 import { createKnowledgeVault, readVaultDocument } from './vault'

@@ -8,7 +8,7 @@ import {
   parseServerOpsDataQueryHistoryScope,
   parseServerOpsDataWriteInput,
   parseServerOpsDataWriteResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDataQueryHistoryEntry,
   ServerOpsDataQueryHistoryRecordInput,
@@ -16,7 +16,7 @@ import type {
   ServerOpsDataQueryHistoryScope,
   ServerOpsDataWriteInput,
   ServerOpsDataWriteResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { readAtomicFileState, readJsonFileStrict, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicDestinationExpectation, ReadJsonFileStrictOptions } from '../safe-file'

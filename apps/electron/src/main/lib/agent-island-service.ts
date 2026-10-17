@@ -23,8 +23,8 @@ import {
   type NativeAgentIslandEvent,
   type NativeAgentIslandSnapshot,
   type LanBridgeAgentSessionRuntimeStatus,
-} from '@proma/shared'
-import type { AgentStreamPayload } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { AgentStreamPayload } from '@dutydeck/shared'
 import { agentEventBus } from './agent-service'
 import { getAgentSessionMeta, listAgentSessions } from './agent-session-manager'
 import { isAgentSessionUserVisible } from './agent-session-visibility'
@@ -181,7 +181,7 @@ function handleAgentEvent(sessionId: string, payload: AgentStreamPayload): void 
   }
 }
 
-function handlePromaEvent(sessionId: string, event: import('@proma/shared').PromaEvent): void {
+function handlePromaEvent(sessionId: string, event: import('@dutydeck/shared').PromaEvent): void {
   switch (event.type) {
     case 'permission_request': {
       const session = ensureSession(sessionId)
@@ -300,10 +300,10 @@ function handlePromaEvent(sessionId: string, event: import('@proma/shared').Prom
   }
 }
 
-function handleSdkMessage(sessionId: string, message: import('@proma/shared').SDKMessage): void {
+function handleSdkMessage(sessionId: string, message: import('@dutydeck/shared').SDKMessage): void {
   switch (message.type) {
     case 'assistant': {
-      const aMsg = message as import('@proma/shared').SDKAssistantMessage
+      const aMsg = message as import('@dutydeck/shared').SDKAssistantMessage
       if (aMsg.isReplay) return
       if (aMsg.error) {
         const session = ensureSession(sessionId)
@@ -334,7 +334,7 @@ function handleSdkMessage(sessionId: string, message: import('@proma/shared').SD
       break
     }
     case 'user': {
-      const uMsg = message as import('@proma/shared').SDKUserMessage
+      const uMsg = message as import('@dutydeck/shared').SDKUserMessage
       const session = sessions.get(sessionId)
       if (!session) break
       const content = uMsg.message?.content
@@ -353,7 +353,7 @@ function handleSdkMessage(sessionId: string, message: import('@proma/shared').SD
       break
     }
     case 'result': {
-      const rMsg = message as import('@proma/shared').SDKResultMessage
+      const rMsg = message as import('@dutydeck/shared').SDKResultMessage
       const session = ensureSession(sessionId)
       const isChildSession = isDelegatedChildSession(sessionId)
       if (rMsg.subtype === 'success') {
@@ -375,7 +375,7 @@ function handleSdkMessage(sessionId: string, message: import('@proma/shared').SD
       break
     }
     case 'system': {
-      const sMsg = message as import('@proma/shared').SDKSystemMessage
+      const sMsg = message as import('@dutydeck/shared').SDKSystemMessage
       const session = ensureSession(sessionId)
       switch (sMsg.subtype) {
         case 'task_started': {
@@ -777,7 +777,7 @@ function requiresImmediateAgentIslandPush(payload: AgentStreamPayload): boolean 
   }
   if (payload.kind !== 'sdk_message') return false
   const message = payload.message
-  return message.type === 'result' || (message.type === 'assistant' && Boolean((message as import('@proma/shared').SDKAssistantMessage).error))
+  return message.type === 'result' || (message.type === 'assistant' && Boolean((message as import('@dutydeck/shared').SDKAssistantMessage).error))
 }
 
 // ===== 事件订阅与初始化 =====

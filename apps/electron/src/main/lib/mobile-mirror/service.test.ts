@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import sharp from 'sharp'
 import { MobileMirrorService } from './service'
-import type { McpServerEntry } from '@proma/shared'
+import type { McpServerEntry } from '@dutydeck/shared'
 /** 测试面板身份与可切换配置。 */
 const input = { sessionId: 's1', mirrorId: 'bb4b7738-8ded-4af4-8309-377f741f66db' }
 /** 创建隔离服务及工具桩，记录真实参数，不访问设备。 */

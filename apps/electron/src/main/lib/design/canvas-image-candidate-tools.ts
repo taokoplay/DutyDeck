@@ -1,6 +1,6 @@
 import type { ImageContent, TextContent } from '@earendil-works/pi-ai'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { CanvasImageCandidateBatch, CanvasTarget, CanvasToolNavigationResult } from '@proma/shared'
+import type { CanvasImageCandidateBatch, CanvasTarget, CanvasToolNavigationResult } from '@dutydeck/shared'
 import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import { createCanvasImageCandidateHash } from './canvas-image-candidate-batch-service'

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, AgentWorkspace } from '@proma/shared'
+import type { AgentSessionMeta, AgentWorkspace } from '@dutydeck/shared'
 import { createStore, Provider } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { agentSessionsAtom, agentWorkspacesAtom } from '@/atoms/agent-atoms'

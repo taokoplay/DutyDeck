@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Channel, ImageGenerationModelProfile, MediaApiModelProfile } from '@proma/shared'
+import type { Channel, ImageGenerationModelProfile, MediaApiModelProfile } from '@dutydeck/shared'
 import { ImageGenerationModelCatalog } from './image-generation-model-catalog'
 
 /** 测试目录与用户真实模型目录隔离。 */

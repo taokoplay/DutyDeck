@@ -1,4 +1,4 @@
-import type { KnowledgeSnapshot } from '@proma/shared'
+import type { KnowledgeSnapshot } from '@dutydeck/shared'
 
 /** 串行轮询只在前一请求完成后排下一次，生命周期结束后停止投递。 */
 export function startKnowledgePolling(options: {

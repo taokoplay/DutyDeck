@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { PROJECT_KNOWLEDGE_IPC_CHANNELS } from '@proma/shared'
-import type { KnowledgeSnapshot } from '@proma/shared'
+import { PROJECT_KNOWLEDGE_IPC_CHANNELS } from '@dutydeck/shared'
+import type { KnowledgeSnapshot } from '@dutydeck/shared'
 import { parseKnowledgeImportMode, parseKnowledgeSearchInput, registerProjectKnowledgeIpc } from './project-knowledge-ipc'
 
 /** 无 Electron 的 IPC 替身，用真实分派验证窗口与参数边界。 */

@@ -2,8 +2,8 @@ import type { EditorState } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 import { MySQL, PostgreSQL, SQLite, keywordCompletionSource, schemaCompletionSource } from '@codemirror/lang-sql'
 import type { Completion, CompletionContext, CompletionResult, CompletionSource } from '@codemirror/autocomplete'
-import type { ServerOpsDataSchemaColumn, ServerOpsDataSchemaTableSummary } from '@proma/shared'
-import { formatServerOpsPostgresTable } from '@proma/shared'
+import type { ServerOpsDataSchemaColumn, ServerOpsDataSchemaTableSummary } from '@dutydeck/shared'
+import { formatServerOpsPostgresTable } from '@dutydeck/shared'
 
 /** 当前连接/数据库的结构快照；不保存数据行或密码。 */
 export interface ServerOpsSqlCompletionSchema {

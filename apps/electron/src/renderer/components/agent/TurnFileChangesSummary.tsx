@@ -27,7 +27,7 @@ import type {
   SDKUserMessage,
   SDKToolUseBlock,
   SDKToolResultBlock,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ChevronDown, FileX2 } from 'lucide-react'
 import { FilePathChip } from '@/components/ai-elements/file-path-chip'
 import { groupAgentFileChangesByCategory, mergeTurnFilePaths } from '@/lib/agent-run-file-changes'

@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { MediaAssetRef, MediaGenerationRequest, MediaInputValue } from '@proma/shared'
+import type { MediaAssetRef, MediaGenerationRequest, MediaInputValue } from '@dutydeck/shared'
 import { generateDreaminaImages } from '../chat-tools/dreamina-image-generation'
 import type { DreaminaImageGenerationDependencies } from '../chat-tools/dreamina-image-generation'
 import { detectMediaFileSignature } from './media-file-probe'

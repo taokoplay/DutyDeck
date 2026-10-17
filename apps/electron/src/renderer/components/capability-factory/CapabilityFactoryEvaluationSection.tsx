@@ -13,7 +13,7 @@ import * as React from 'react'
 import { LoaderCircle, Play, Plus, Trash2 } from 'lucide-react'
 import type {
   CapabilityDataset, CapabilityEvaluation, CapabilityRun, CapabilityScene,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

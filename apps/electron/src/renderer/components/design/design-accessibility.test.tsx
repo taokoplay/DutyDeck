@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { createEmptyDesignDocument } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
 import { createStore, Provider } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createInitialDesignProjectState, designProjectStatesAtom } from '@/atoms/design-atoms'

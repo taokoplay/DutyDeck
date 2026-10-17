@@ -1,5 +1,5 @@
 import { Type } from 'typebox'
-import { SERVER_OPS_DATA_QUERY_TIMEOUT_MS } from '@proma/shared'
+import { SERVER_OPS_DATA_QUERY_TIMEOUT_MS } from '@dutydeck/shared'
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { ServerOpsAgentReadFacade } from '../server-ops/server-ops-agent-read-facade'

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
-import type { AgentQueuedMessageSnapshot, AgentQueuedMessageStatus, CanvasNodeReference, SDKUserMessage } from '@proma/shared'
+import type { AgentQueuedMessageSnapshot, AgentQueuedMessageStatus, CanvasNodeReference, SDKUserMessage } from '@dutydeck/shared'
 import type { QuotedSelection } from '@/atoms/preview-atoms'
 import {
   agentCanvasNodeReferencesAtomFamily,

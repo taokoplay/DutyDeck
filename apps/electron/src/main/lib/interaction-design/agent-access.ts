@@ -1,5 +1,5 @@
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
-import type { AgentSessionMeta } from '@proma/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import type { InteractionDesignExecutor } from './access'
 
 /** 前台运行事实由编排器提供，不允许工具参数声明来源。 */

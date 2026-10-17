@@ -1,4 +1,4 @@
-import { isServerOpsLoopbackAddress } from '@proma/shared'
+import { isServerOpsLoopbackAddress } from '@dutydeck/shared'
 import type {
   ServerOpsDataCredentialDiscoveryInput,
   ServerOpsDataCredentialDiscoveryResult,
@@ -6,7 +6,7 @@ import type {
   ServerOpsDiscoveredCredentialApplyInput,
   ServerOpsDiscoveredCredentialApplyResult,
   ServerOpsDiscoveredCredentialCandidate,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { execFileAsync } from '../async-command'
 
 /**

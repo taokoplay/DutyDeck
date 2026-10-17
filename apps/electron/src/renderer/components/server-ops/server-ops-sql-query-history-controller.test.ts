@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type {
   ServerOpsDataQueryHistoryRecordInput,
   ServerOpsDataQueryHistoryResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createServerOpsSqlQueryHistoryController,
   createServerOpsSqlQueryHistoryIdleProjection,

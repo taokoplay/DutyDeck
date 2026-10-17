@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataProbeResult, ServerOpsDataSource, ServerOpsDataSourceUpsertInput } from '@proma/shared'
+import type { ServerOpsDataProbeResult, ServerOpsDataSource, ServerOpsDataSourceUpsertInput } from '@dutydeck/shared'
 import {
   createServerOpsLocalSqliteImportInput,
   importServerOpsLocalSqlite,

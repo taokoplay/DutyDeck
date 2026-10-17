@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataDiagnoseInput, ServerOpsDataDiagnosticsResult } from '@proma/shared'
+import type { ServerOpsDataDiagnoseInput, ServerOpsDataDiagnosticsResult } from '@dutydeck/shared'
 import { createServerOpsDiagnosticsController } from './server-ops-diagnostics-controller'
 
 /** 可控诊断结果，不访问真实数据库。 */

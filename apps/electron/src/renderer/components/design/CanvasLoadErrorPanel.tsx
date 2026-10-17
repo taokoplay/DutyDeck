@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { formatCanvasErrorDiagnostic } from '@proma/shared'
-import type { CanvasPublicError } from '@proma/shared'
+import { formatCanvasErrorDiagnostic } from '@dutydeck/shared'
+import type { CanvasPublicError } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { copyTextToClipboard } from '@/lib/clipboard'
 

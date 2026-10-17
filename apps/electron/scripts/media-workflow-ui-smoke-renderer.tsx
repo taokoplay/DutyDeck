@@ -2,7 +2,7 @@ import '@fontsource-variable/inter/index.css'
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { EditorView } from '@codemirror/view'
-import type { MediaRemoteWorkflow, MediaResourceQuery, MediaSettingsSnapshot, MediaWorkflowVersion } from '@proma/shared'
+import type { MediaRemoteWorkflow, MediaResourceQuery, MediaSettingsSnapshot, MediaWorkflowVersion } from '@dutydeck/shared'
 import { MediaSettings } from '../src/renderer/components/settings/MediaSettings'
 import '../src/renderer/styles/globals.css'
 

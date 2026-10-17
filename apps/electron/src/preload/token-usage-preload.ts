@@ -1,6 +1,6 @@
 /** Token 统计桥只提供固定 IPC，无任意文件写入能力。 */
-import { TOKEN_USAGE_IPC } from '@proma/shared'
-import type { TokenUsageAPI, TokenUsageSnapshot, TokenUsageTaskDetail } from '@proma/shared'
+import { TOKEN_USAGE_IPC } from '@dutydeck/shared'
+import type { TokenUsageAPI, TokenUsageSnapshot, TokenUsageTaskDetail } from '@dutydeck/shared'
 
 /** 创建可注入的 preload API，参数仍由主进程做完整验证。 */
 export function createTokenUsagePreload(invoke: (channel: string, ...args: unknown[]) => Promise<unknown>): TokenUsageAPI {

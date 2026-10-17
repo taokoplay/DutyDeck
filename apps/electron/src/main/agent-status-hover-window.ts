@@ -1,7 +1,7 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { WINDOWS_AGENT_ISLAND_IPC_CHANNELS } from '../types'
-import type { NativeAgentIslandSnapshot } from '@proma/shared'
+import type { NativeAgentIslandSnapshot } from '@dutydeck/shared'
 import { calculateHoverWindowBounds } from './agent-status-hover-bounds'
 
 const HOVER_WINDOW_WIDTH = 320

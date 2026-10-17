@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { createStore, Provider } from 'jotai'
-import type { InteractionDesignApi, InteractionDesignChanged, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeAsset, PrototypeCandidate, PrototypeDocument, PrototypeHandoff, PrototypeSnapshot } from '@proma/shared'
+import type { InteractionDesignApi, InteractionDesignChanged, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeAsset, PrototypeCandidate, PrototypeDocument, PrototypeHandoff, PrototypeSnapshot } from '@dutydeck/shared'
 import { agentPendingPromptAtom } from '../src/renderer/atoms/agent-atoms'
 import { TooltipProvider } from '../src/renderer/components/ui/tooltip'
 import '../src/renderer/styles/globals.css'

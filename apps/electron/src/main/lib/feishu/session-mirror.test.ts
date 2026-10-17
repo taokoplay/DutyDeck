@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { FeishuBotConfig } from '@proma/shared'
+import type { FeishuBotConfig } from '@dutydeck/shared'
 import {
   buildSessionMirrorGroupName,
   normalizeFeishuSessionMirrorSettings,

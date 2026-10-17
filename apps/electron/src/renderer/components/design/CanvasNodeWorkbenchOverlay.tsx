@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CanvasLayoutRect, CanvasNode, CanvasNodeKind, DesignViewport } from '@proma/shared'
+import type { CanvasLayoutRect, CanvasNode, CanvasNodeKind, DesignViewport } from '@dutydeck/shared'
 import { MoveDiagonal2, RotateCcw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { bindCanvasWorkbenchWheel } from './canvas-workbench-wheel'

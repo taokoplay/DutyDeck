@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   applyCanvasMutations,
   createEmptyCanvasDocument,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasMutation,
@@ -11,7 +11,7 @@ import type {
   CanvasOrchestrationRequest,
   CanvasOrchestrationStep,
   CanvasTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   StableDirectoryNativeRequest,
   StableDirectoryNativeResult,

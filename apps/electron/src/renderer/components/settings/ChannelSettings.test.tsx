@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import type { Channel } from '@proma/shared'
+import type { Channel } from '@dutydeck/shared'
 import * as channelSettingsModule from './ChannelSettings'
 
 /** 设置页加载状态测试期望的新模块合同。 */

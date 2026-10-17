@@ -10,10 +10,10 @@ describe('关于页版本显示', () => {
     })
   })
 
-  test('Given 非 Bone 版本 When 格式化 Then 保留完整版本且不伪造构建号', () => {
-    expect(createAppVersionDisplay('0.17.42')).toEqual({
-      fullVersion: '0.17.42',
-      upstreamVersion: '0.17.42',
+  test('Given 独立 DutyDeck 版本 When 格式化 Then 保留完整版本且不伪造构建号', () => {
+    expect(createAppVersionDisplay('0.20.0')).toEqual({
+      fullVersion: '0.20.0',
+      upstreamVersion: '0.20.0',
       boneBuild: null,
     })
   })

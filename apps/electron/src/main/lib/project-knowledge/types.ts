@@ -1,4 +1,4 @@
-import type { KnowledgeEntry, KnowledgeOperationSummary, KnowledgeScanProgress, KnowledgeWorkflow } from '@proma/shared'
+import type { KnowledgeEntry, KnowledgeOperationSummary, KnowledgeScanProgress, KnowledgeWorkflow } from '@dutydeck/shared'
 import type { KnowledgeMaintenanceRecord } from '../project-knowledge-maintenance-types'
 import type { ProjectKnowledgeSources } from '../project-knowledge-sources'
 

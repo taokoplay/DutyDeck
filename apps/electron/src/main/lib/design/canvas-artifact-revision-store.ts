@@ -4,7 +4,7 @@ import type {
   CanvasDocument,
   CanvasTarget,
   CanvasTextArtifactKind,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type {
   StableDirectoryNativeRequest,

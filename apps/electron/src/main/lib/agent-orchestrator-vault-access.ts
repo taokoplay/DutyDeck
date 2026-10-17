@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { normalizePathForCompare } from '@proma/shared'
+import { normalizePathForCompare } from '@dutydeck/shared'
 
 function normalizeRuntimeDirectoryPath(directory: string): string {
   const normalized = normalizePathForCompare(resolve(directory))

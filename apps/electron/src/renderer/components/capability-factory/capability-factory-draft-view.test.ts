@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptySceneDefinition, diffSceneDefinition, type CapabilityScene } from '@proma/shared'
+import { createEmptySceneDefinition, diffSceneDefinition, type CapabilityScene } from '@dutydeck/shared'
 import { buildSceneStepRows, findSceneStep, getStepDraftChange, updateStepPrompt } from './capability-factory-draft-view'
 
 /** 当前版与草案同时修改提示词及评审，用于验证编辑不会丢其他改动。 */

@@ -8,7 +8,7 @@ import type {
   DataRootMigrationProgress,
   WorkspaceRelocationProgress,
   WorktreeInfo,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { inspectDataRootVolume, scanDataRootBytes, type DataRootVolumeSnapshot } from './data-root-storage'
 import { ensureDirectoryDurable, removeFileAtomic, readJsonFileSafe, writeJsonFileAtomicSecure } from './safe-file'
 import type { DurabilityResult } from './safe-file'

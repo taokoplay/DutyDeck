@@ -2,7 +2,7 @@ import type {
   AgentSubmitOrEnqueueInput,
   AgentToolMode,
   PromaPermissionMode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AgentPendingPrompt } from '@/atoms/agent-atoms'
 
 export interface AutoPendingPromptContext {

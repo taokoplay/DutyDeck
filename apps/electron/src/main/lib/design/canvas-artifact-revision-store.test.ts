@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import type { CanvasDocument, CanvasTarget } from '@proma/shared'
+import type { CanvasDocument, CanvasTarget } from '@dutydeck/shared'
 import type {
   StableDirectoryNativeRequest,
   StableDirectoryNativeResult,

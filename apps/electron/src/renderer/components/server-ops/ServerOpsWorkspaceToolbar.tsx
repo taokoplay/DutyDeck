@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ArrowLeftRight, ChevronDown, FolderOpen } from 'lucide-react'
-import type { ServerOpsProject } from '@proma/shared'
+import type { ServerOpsProject } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { WorkspaceEntitySelector } from '@/components/common/WorkspaceEntitySelector'

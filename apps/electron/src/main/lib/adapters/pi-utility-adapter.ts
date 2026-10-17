@@ -7,10 +7,10 @@ import type {
   SDKMessage,
   SDKUserMessageInput,
   SendQueuedMessageOptions,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AGENT_RUNTIME_METHODS,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { PermissionResult, CanUseToolOptions } from '../agent-permission-service'
 import { AgentRuntimeClient } from '../agent-runtime-client'
 import type { PiAgentQueryOptions } from './pi-agent-adapter'
@@ -217,7 +217,7 @@ export class PiUtilityAdapter {
     }
 
     if (request.method === AGENT_RUNTIME_METHODS.CAPABILITY_FILE_CHANGE) {
-      await pending.input.onFileChangeCapture?.(payload?.capture as import('@proma/shared').AgentFileChangeCapture)
+      await pending.input.onFileChangeCapture?.(payload?.capture as import('@dutydeck/shared').AgentFileChangeCapture)
       return { accepted: true }
     }
 

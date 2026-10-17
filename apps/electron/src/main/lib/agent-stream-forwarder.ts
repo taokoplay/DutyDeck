@@ -1,4 +1,4 @@
-import type { AgentStreamEvent, AgentStreamPayload, SDKMessage } from '@proma/shared'
+import type { AgentStreamEvent, AgentStreamPayload, SDKMessage } from '@dutydeck/shared'
 import { projectSDKMessageForDisplay } from './agent-message-display'
 
 export const FOREGROUND_PARTIAL_INTERVAL_MS = 50

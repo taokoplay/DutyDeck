@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   validate-release:
-    name: validate Bone release
+    name: validate DutyDeck release
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.release.outputs.version }}
@@ -41,7 +41,7 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: 校验 Bone 发布版本
+      - name: 校验 DutyDeck 发布版本
         id: release
         run: bun run apps/electron/scripts/validate-release-version.ts
 
@@ -70,7 +70,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: 准备 OfficeCLI（macOS arm64）
-        run: bun run --filter='@proma/electron' prepare:officecli
+        run: bun run --filter='@dutydeck/electron' prepare:officecli
 
       - name: 检测 macOS 签名配置
         id: mac_signing
@@ -107,7 +107,7 @@ jobs:
           rm $RUNNER_TEMP/cert.p12
 
       - name: 准备 Electron 打包资源
-        run: bun run --filter='@proma/electron' package:prepare
+        run: bun run --filter='@dutydeck/electron' package:prepare
 
       - name: 打包 (macOS arm64)
         env:
@@ -164,7 +164,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: 准备 OfficeCLI（macOS x64）
-        run: bun run --filter='@proma/electron' prepare:officecli
+        run: bun run --filter='@dutydeck/electron' prepare:officecli
 
       - name: 检测 macOS 签名配置
         id: mac_signing
@@ -201,7 +201,7 @@ jobs:
           rm $RUNNER_TEMP/cert.p12
 
       - name: 准备 Electron 打包资源
-        run: bun run --filter='@proma/electron' package:prepare
+        run: bun run --filter='@dutydeck/electron' package:prepare
 
       - name: 打包 (macOS x64)
         env:
@@ -271,7 +271,7 @@ jobs:
           "PROMA_FIRST_STARTUP_SMOKE_ELECTRON=$electronBinary" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: 准备 Electron 打包资源
-        run: bun run --filter='@proma/electron' package:prepare:win
+        run: bun run --filter='@dutydeck/electron' package:prepare:win
 
       - name: 首次与再次启动真实客户端回归
         timeout-minutes: 5
@@ -310,7 +310,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: 准备 Electron 打包资源
-        run: bun run --filter='@proma/electron' package:prepare
+        run: bun run --filter='@dutydeck/electron' package:prepare
 
       - name: 打包 (Linux x64)
         env:

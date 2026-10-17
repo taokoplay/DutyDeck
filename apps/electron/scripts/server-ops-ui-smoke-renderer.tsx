@@ -10,7 +10,7 @@ import type {
   ServerOpsFileMutationInput,
   ServerOpsHost,
   ServerOpsTransferSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsFilesPreload } from '../src/preload/server-ops-files-preload'
 import type { ServerOpsTransferPreload } from '../src/preload/server-ops-transfer-preload'
 import { ServerOpsDockerPanel } from '../src/renderer/components/server-ops/ServerOpsDockerPanel'

@@ -1,4 +1,4 @@
-import type { VaultReadResult, VaultRenameInput } from '@proma/shared'
+import type { VaultReadResult, VaultRenameInput } from '@dutydeck/shared'
 
 interface VaultTitleCommitOptions {
   name: string

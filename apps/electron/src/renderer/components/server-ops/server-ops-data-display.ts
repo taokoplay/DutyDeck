@@ -1,4 +1,4 @@
-import type { ServerOpsDataCapability, ServerOpsDataProbeResult, ServerOpsDataTlsMode } from '@proma/shared'
+import type { ServerOpsDataCapability, ServerOpsDataProbeResult, ServerOpsDataTlsMode } from '@dutydeck/shared'
 
 /** 能力状态到中文说明的稳定映射。 */
 export const SERVER_OPS_DATA_CAPABILITY_LABELS: Record<ServerOpsDataCapability, string> = {

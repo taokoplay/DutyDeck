@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { opendirSync, lstatSync } from 'node:fs'
 import { basename, extname, join, posix } from 'node:path'
-import type { PrototypeProjectInspection } from '@proma/shared'
+import type { PrototypeProjectInspection } from '@dutydeck/shared'
 import { containsKnowledgeSecret } from '../project-knowledge/sensitive-text'
 import { interactionSourcePath, readInteractionFile } from './paths'
 

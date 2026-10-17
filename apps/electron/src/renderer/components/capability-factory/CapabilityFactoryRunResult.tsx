@@ -1,7 +1,7 @@
 /** 一次运行的结果视图：先看输出与结论，需要排查时再展开流程细节。 */
 import * as React from 'react'
 import { Check, ChevronDown, Circle, CircleAlert, LoaderCircle, Minus } from 'lucide-react'
-import type { CapabilityRun, CapabilityRunReview, StepTrace } from '@proma/shared'
+import type { CapabilityRun, CapabilityRunReview, StepTrace } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

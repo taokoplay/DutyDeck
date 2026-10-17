@@ -9,7 +9,7 @@ import type {
   CanvasTextArtifactTarget,
   CanvasWorkspaceSnapshot,
   ListCanvasSessionsInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { containsKnowledgeSecret } from './project-knowledge/sensitive-text'
 
 /** 单次最多返回的受控业务来源，避免 Canvas 或接口目录无界占用主进程。 */

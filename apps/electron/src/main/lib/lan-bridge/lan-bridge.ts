@@ -23,13 +23,13 @@ import type { LanBridgeDevice } from './lan-bridge-device-store'
 import { getConfigDir } from '../config-paths'
 import { LanBridgeSessionManager } from './lan-bridge-session'
 import { dispatch } from './lan-bridge-router'
-import type { LanBridgeConfig, LanBridgeRuntimeState } from '@proma/shared'
+import type { LanBridgeConfig, LanBridgeRuntimeState } from '@dutydeck/shared'
 import {
   isLanBridgeWebSocketClientIp,
   isRfc1918Ipv4,
   LAN_BRIDGE_IPC_CHANNELS,
   selectRfc1918Ipv4,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 import {
   createLanBridgeConnectedPayload,

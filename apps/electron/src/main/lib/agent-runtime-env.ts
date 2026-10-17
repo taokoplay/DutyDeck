@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { delimiter, dirname, join, win32 } from 'node:path'
-import type { RuntimeStatus, WindowsShellPreference } from '@proma/shared'
+import type { RuntimeStatus, WindowsShellPreference } from '@dutydeck/shared'
 import { getBundledCliPath, getConfigDir } from './config-paths'
 import { selectWindowsShell, type WindowsShellKind } from './windows-shell-selection'
 
@@ -191,10 +191,14 @@ export function buildAgentRuntimeEnv(options: BuildAgentRuntimeEnvOptions = {}):
   const bundledCliPath = options.bundledCliPath ?? getBundledCliPath()
   const env: Record<string, string> = {}
 
-  /** bundled CLI 与 PATH 中的 proma 都必须继承 Electron 已解析的同一业务根。 */
-  env.PROMA_CONFIG_DIR = options.configDir ?? getConfigDir()
+  /** bundled CLI 与 PATH 中的 DutyDeck 都必须继承 Electron 已解析的同一业务根。 */
+  const configDir = options.configDir ?? getConfigDir()
+  env.DUTYDECK_CONFIG_DIR = configDir
+  // 旧变量继续注入，确保升级中的旧 skill 与外部脚本仍能读取同一数据根。
+  env.PROMA_CONFIG_DIR = configDir
 
   if (bundledCliPath) {
+    env.DUTYDECK_CLI = bundledCliPath
     env.PROMA_CLI = bundledCliPath
   }
 

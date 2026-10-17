@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DesignAnnotation, DesignPoint } from '@proma/shared'
+import type { DesignAnnotation, DesignPoint } from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   DesignAnnotationLayer,

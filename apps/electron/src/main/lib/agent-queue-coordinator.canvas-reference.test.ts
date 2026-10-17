@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentDeferredQueueMessageInput, AgentQueuedMessageStatus } from '@proma/shared'
+import type { AgentDeferredQueueMessageInput, AgentQueuedMessageStatus } from '@dutydeck/shared'
 import type { WebContents } from 'electron'
 import { AgentQueueCoordinator } from './agent-queue-coordinator'
 

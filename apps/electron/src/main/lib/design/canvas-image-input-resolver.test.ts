@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasDocument, CanvasImageTarget, MediaAssetRef, SDKMessage } from '@proma/shared'
+import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasImageTarget, MediaAssetRef, SDKMessage } from '@dutydeck/shared'
 import {
   CANVAS_IMAGE_INPUT_MAX_MEDIA,
   CANVAS_IMAGE_INPUT_MAX_REFERENCES,

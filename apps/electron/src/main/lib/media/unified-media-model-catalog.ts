@@ -5,8 +5,8 @@ import type {
   MediaApiModelCapability,
   MediaModelRef,
   UnifiedMediaModelOption,
-} from '@proma/shared'
-import { formatMediaModelRef, imageGenerationModelKind, parseMediaModelRef, IMAGE_GENERATION_PROVIDER_DEFAULTS } from '@proma/shared'
+} from '@dutydeck/shared'
+import { formatMediaModelRef, imageGenerationModelKind, parseMediaModelRef, IMAGE_GENERATION_PROVIDER_DEFAULTS } from '@dutydeck/shared'
 
 /** 统一媒体目录解析出的主进程路由；API Key 只在此对象生命周期内存在。 */
 export interface UnifiedMediaModelRoute {

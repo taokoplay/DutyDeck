@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { ChevronDown, ChevronRight, ClipboardCheck, Download, Expand, Folder, FolderPlus, History, ListTree, Monitor, MoreHorizontal, MousePointer2, PanelLeftClose, Play, Plus, RefreshCw, Route, Search, Smartphone, Workflow, X } from 'lucide-react'
-import type { PrototypeCandidate, PrototypeDraft, PrototypeFlow, PrototypeSnapshot, PrototypeSummary } from '@proma/shared'
+import type { PrototypeCandidate, PrototypeDraft, PrototypeFlow, PrototypeSnapshot, PrototypeSummary } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'

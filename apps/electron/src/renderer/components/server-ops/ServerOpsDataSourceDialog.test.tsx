@@ -4,8 +4,8 @@ import * as React from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { parseServerOpsDataSourceProbeInput } from '@proma/shared'
-import type { ServerOpsDataProbeResult, ServerOpsDataSource, ServerOpsDataSourceProbeDraft } from '@proma/shared'
+import { parseServerOpsDataSourceProbeInput } from '@dutydeck/shared'
+import type { ServerOpsDataProbeResult, ServerOpsDataSource, ServerOpsDataSourceProbeDraft } from '@dutydeck/shared'
 import {
   applyServerOpsDataConnectionModeChange,
   applyServerOpsDataSourceEngineChange,
@@ -20,7 +20,7 @@ import {
   validateServerOpsDataSourceDraft,
 } from './ServerOpsDataSourceDialog'
 import type { ServerOpsDataSourceCredentialDiscovery } from './ServerOpsDataSourceDialog'
-import type { ServerOpsDataCredentialDiscoveryInput, ServerOpsDiscoveredCredentialCandidate } from '@proma/shared'
+import type { ServerOpsDataCredentialDiscoveryInput, ServerOpsDiscoveredCredentialCandidate } from '@dutydeck/shared'
 
 test('Given Agent 提议 Redis 与 SQLite 连接 When 预填新建表单 Then 不出现数据库密码或 MySQL 库名', () => {
   const redis = createServerOpsDataSourceDraft(null, 'redis', { kind: 'redis', label: '缓存', address: 'cache.internal', port: 6379, transport: 'ssh', hostId: 'host-a', database: '3' })

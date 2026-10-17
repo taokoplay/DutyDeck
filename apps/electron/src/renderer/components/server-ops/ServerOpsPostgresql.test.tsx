@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { EditorState } from '@codemirror/state'
 import { CompletionContext } from '@codemirror/autocomplete'
 import { PostgreSQL, sql } from '@codemirror/lang-sql'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import {
   applyServerOpsDataSourceEngineChange,
   buildServerOpsDataSourceProbeDraft,

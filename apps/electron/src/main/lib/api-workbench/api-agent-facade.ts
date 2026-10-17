@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { API_LIMITS, apiRecord, apiInteger, apiDraftFromDefinition, createApiRequestDraft, extractApiBaseUrlVariable, isOrdinaryTopLevelAgentSession, parseApiCryptoStep, parseApiFields, parseApiId, parseApiRequestDraft, parseApiScenario } from '@proma/shared'
-import type { AgentSessionMeta, ApiCatalog, ApiCryptoProfile, ApiCryptoStep, ApiEnvironment, ApiField, ApiPreparedPreview, ApiRequestDraft, ApiRun, ApiScenario, ApiScenarioPreparedPreview, ApiScenarioRun } from '@proma/shared'
+import { API_LIMITS, apiRecord, apiInteger, apiDraftFromDefinition, createApiRequestDraft, extractApiBaseUrlVariable, isOrdinaryTopLevelAgentSession, parseApiCryptoStep, parseApiFields, parseApiId, parseApiRequestDraft, parseApiScenario } from '@dutydeck/shared'
+import type { AgentSessionMeta, ApiCatalog, ApiCryptoProfile, ApiCryptoStep, ApiEnvironment, ApiField, ApiPreparedPreview, ApiRequestDraft, ApiRun, ApiScenario, ApiScenarioPreparedPreview, ApiScenarioRun } from '@dutydeck/shared'
 import type { ApiWorkbenchService } from './api-workbench-service'
 import { stampApiAgentCases } from './api-agent-case-ownership'
 import type { ApiAgentCaseChange } from './api-agent-case-ownership'

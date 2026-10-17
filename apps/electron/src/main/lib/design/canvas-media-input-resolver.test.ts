@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, test } from 'bun:test'
-import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@proma/shared'
+import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasMediaInputBinding,
@@ -8,7 +8,7 @@ import type {
   CanvasNode,
   MediaAssetRecord,
   MediaAssetRef,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanvasMediaModuleState } from './canvas-media-service'
 import {
   createCanvasMediaInputResolver,

@@ -1,4 +1,4 @@
-import type { VisualProductionDraft, VisualProductionDocument, VisualShot, VisualJob, VisualCandidate, VisualProductionKind, VisualProductionSnapshot } from '@proma/shared'
+import type { VisualProductionDraft, VisualProductionDocument, VisualShot, VisualJob, VisualCandidate, VisualProductionKind, VisualProductionSnapshot } from '@dutydeck/shared'
 
 /** 作品类型名称由编辑入口和候选预览共用。 */
 export const VISUAL_KIND_LABELS: Record<VisualProductionKind, string> = { comic: '漫剧', film: '影片', promo: '宣传片', image: '图片' }

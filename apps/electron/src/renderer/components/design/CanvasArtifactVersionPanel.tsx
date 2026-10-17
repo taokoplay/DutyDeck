@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CanvasArtifactRevisionSummary } from '@proma/shared'
+import type { CanvasArtifactRevisionSummary } from '@dutydeck/shared'
 import { Check, History, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'

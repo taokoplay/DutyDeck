@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { createAgentCanvasDecisionSender } from './agent-canvas-decision'
 
 /** 决策卡片使用不依赖真实会话的完整委托。 */

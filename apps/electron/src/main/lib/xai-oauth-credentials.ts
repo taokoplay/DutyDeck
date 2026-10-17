@@ -5,7 +5,7 @@
  * 必须按 Proma channelId 串行刷新，避免并行会话各自消费旧 refresh token。
  */
 
-import type { XaiOAuthCredentials } from '@proma/shared'
+import type { XaiOAuthCredentials } from '@dutydeck/shared'
 
 const inflightCredentialRefreshes = new Map<string, Promise<XaiOAuthCredentials>>()
 const latestCredentialsByChannel = new Map<string, XaiOAuthCredentials>()

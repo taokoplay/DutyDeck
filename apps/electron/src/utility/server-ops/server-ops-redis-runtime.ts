@@ -1,7 +1,7 @@
 import { Redis } from 'ioredis'
 import type { Duplex } from 'node:stream'
-import { isServerOpsRedisWriteCommand, parseServerOpsRedisCommandInput, SERVER_OPS_REDIS_MAX_RESULT_BYTES } from '@proma/shared'
-import type { ServerOpsRedisCommandResult } from '@proma/shared'
+import { isServerOpsRedisWriteCommand, parseServerOpsRedisCommandInput, SERVER_OPS_REDIS_MAX_RESULT_BYTES } from '@dutydeck/shared'
+import type { ServerOpsRedisCommandResult } from '@dutydeck/shared'
 import type { ServerOpsRuntimeRedisRequest } from './server-ops-runtime-protocol'
 import { createRedisTunnelConnector } from './server-ops-data-runtime'
 

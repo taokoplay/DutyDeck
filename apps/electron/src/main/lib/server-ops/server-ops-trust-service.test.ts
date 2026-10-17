@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsAuditAppendInput, ServerOpsConnectionState, ServerOpsHost, ServerOpsHostKey } from '@proma/shared'
+import type { ServerOpsAuditAppendInput, ServerOpsConnectionState, ServerOpsHost, ServerOpsHostKey } from '@dutydeck/shared'
 import { ServerOpsTrustService } from './server-ops-trust-service'
 import { AtomicWritePostCommitError } from '../safe-file'
 import { ServerOpsConfigOutcomeUnknownError } from './server-ops-config-transaction'

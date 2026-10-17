@@ -1,4 +1,4 @@
-import type { AgentSessionMeta, AgentWorkspace, ConversationMeta } from '@proma/shared'
+import type { AgentSessionMeta, AgentWorkspace, ConversationMeta } from '@dutydeck/shared'
 import type { SessionIndicatorStatus } from '@/atoms/agent-atoms'
 
 export type SwitchSectionId = 'collaboration' | 'recent'

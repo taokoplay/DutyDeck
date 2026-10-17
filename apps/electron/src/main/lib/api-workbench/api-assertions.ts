@@ -1,4 +1,4 @@
-import type { ApiAssertion, ApiAssertionResult, ApiSseEvent, ApiTransportResult } from '@proma/shared'
+import type { ApiAssertion, ApiAssertionResult, ApiSseEvent, ApiTransportResult } from '@dutydeck/shared'
 import { apiJsonValueToText, apiJsonValueType, readApiJsonPath } from './api-json-path'
 import type { ApiJsonValueType } from './api-json-path'
 

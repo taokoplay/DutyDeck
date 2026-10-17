@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CanvasImageMediaWorkflow, Channel, ImageGenerationModelOption, ImageGenerationModelProfile, ImageGenerationModelSnapshot } from '@proma/shared'
+import type { CanvasImageMediaWorkflow, Channel, ImageGenerationModelOption, ImageGenerationModelProfile, ImageGenerationModelSnapshot } from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_MODEL_ID_MAX_LENGTH,
   IMAGE_GENERATION_MODEL_NAME_MAX_LENGTH,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ImageGenerationModelCatalog } from './image-generation-model-catalog'
 
 /** 测试使用的临时目录，避免模型配置污染真实用户目录。 */

@@ -1,6 +1,6 @@
 import { lstat, mkdir, opendir, readlink, realpath, rmdir, unlink } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
-import type { DataRootMigrationProgress } from '@proma/shared'
+import type { DataRootMigrationProgress } from '@dutydeck/shared'
 import {
   assertDirectoryIdentity,
   captureDirectoryIdentity,

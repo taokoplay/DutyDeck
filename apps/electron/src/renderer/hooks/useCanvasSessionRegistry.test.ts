@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasSessionMeta } from '@proma/shared'
+import type { CanvasSessionMeta } from '@dutydeck/shared'
 import { createCanvasSessionRegistryController } from './useCanvasSessionRegistry'
 
 /** 构造同步测试使用的 Canvas 会话。 */

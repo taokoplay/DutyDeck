@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test'
-import type { AgentSessionMeta, Automation, AutomationRun } from '@proma/shared'
+import type { AgentSessionMeta, Automation, AutomationRun } from '@dutydeck/shared'
 import { acquireWorkspaceOperation } from './workspace-operation-lock'
 import { agentSessionManagerTestMock } from './agent-session-manager.test-mock'
 

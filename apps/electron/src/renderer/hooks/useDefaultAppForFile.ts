@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react'
-import type { DefaultAppInfo, FileAccessOptions } from '@proma/shared'
+import type { DefaultAppInfo, FileAccessOptions } from '@dutydeck/shared'
 
 const rendererCache = new Map<string, DefaultAppInfo>()
 

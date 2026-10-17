@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@proma/shared'
-import type { AgentSessionMeta, CanvasDocument, SkillMeta } from '@proma/shared'
+import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { AgentSessionMeta, CanvasDocument, SkillMeta } from '@dutydeck/shared'
 import type { AgentRunExtensions } from '../agent-run-extensions'
 import type { CanvasAgentConfig } from './canvas-agent-config-store'
 import type { CanvasToolRun, CanvasToolRunContext } from './canvas-tool-provider'

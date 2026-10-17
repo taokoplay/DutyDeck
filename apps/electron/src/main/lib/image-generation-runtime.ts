@@ -1,4 +1,4 @@
-import type { ImageGenerationModelSnapshot } from '@proma/shared'
+import type { ImageGenerationModelSnapshot } from '@dutydeck/shared'
 
 /** 已完成实时校验、只允许在主进程本轮调用内存在的生图路由。 */
 export type ResolvedImageGenerationRoute =

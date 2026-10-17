@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { applyCanvasMutations, CANVAS_IMAGE_NODE_MAX_HEIGHT, createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasDocument, CanvasMutation } from '@proma/shared'
+import { applyCanvasMutations, CANVAS_IMAGE_NODE_MAX_HEIGHT, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasMutation } from '@dutydeck/shared'
 import { Position } from '@xyflow/react'
 import ELK from 'elkjs/lib/elk-api'
 import {

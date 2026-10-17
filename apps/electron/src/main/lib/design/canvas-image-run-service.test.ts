@@ -7,7 +7,7 @@ import type {
   CreateDesignJobInput,
   DesignJobRecord,
   SaveCanvasImageModuleInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { DesignJobChangedListener } from './design-job-manager'
 import {
   createCanvasImageRunService,

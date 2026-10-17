@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasLayoutRect } from '@proma/shared'
+import type { CanvasLayoutRect } from '@dutydeck/shared'
 import { arrangeNativeCanvasLayout } from './native-canvas-layout'
 import type { NativeCanvasLayoutInput } from './native-canvas-layout'
 import { withNativeCanvasLayoutEngine } from './native-canvas-layout-client'

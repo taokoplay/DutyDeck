@@ -1,5 +1,5 @@
-import { assertCanvasViewSnapshotBudget } from '@proma/shared'
-import type { CanvasNode, CanvasViewCommand, CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewSnapshot, CanvasViewSize } from '@proma/shared'
+import { assertCanvasViewSnapshotBudget } from '@dutydeck/shared'
+import type { CanvasNode, CanvasViewCommand, CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewSnapshot, CanvasViewSize } from '@dutydeck/shared'
 import { createAgentCanvasWorkbenchChangeUpdate, createAgentCanvasWorkbenchGeometryUpdate, createClosedAgentCanvasWorkbenchUpdate } from '../../atoms/agent-canvas-atoms'
 import type { AgentCanvasViewState } from '../../atoms/agent-canvas-atoms'
 import { createNativeCanvasChangedNodesFocusUpdate } from './native-canvas-navigation'

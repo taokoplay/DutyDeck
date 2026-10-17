@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { getStepAcceptance, type CapabilitySceneDefinition, type Step } from '@proma/shared'
+import { getStepAcceptance, type CapabilitySceneDefinition, type Step } from '@dutydeck/shared'
 import { CapabilityFactoryStore } from './capability-factory-store'
 import { CapabilityFactoryService } from './capability-factory-service'
 

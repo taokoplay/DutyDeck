@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react'
-import type { BrowserStateChange, BrowserTabFocusChange } from '@proma/shared'
+import type { BrowserStateChange, BrowserTabFocusChange } from '@dutydeck/shared'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import {
   tabsAtom,

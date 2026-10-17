@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useAtom } from 'jotai'
 import { BarChart3, ChevronRight, Download, Info, RefreshCw, Search } from 'lucide-react'
-import { TOKEN_USAGE_SOURCE_LABELS } from '@proma/shared'
+import { TOKEN_USAGE_SOURCE_LABELS } from '@dutydeck/shared'
 import type {
   TokenUsageAPI,
   TokenUsageOption,
@@ -10,7 +10,7 @@ import type {
   TokenUsageSource,
   TokenUsageTaskDetail,
   TokenUsageTotals,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'

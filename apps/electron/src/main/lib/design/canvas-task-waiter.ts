@@ -1,4 +1,4 @@
-import type { DesignJobRecord, DesignJobStatus } from '@proma/shared'
+import type { DesignJobRecord, DesignJobStatus } from '@dutydeck/shared'
 import type { DesignJobChangedEvent, DesignJobChangedListener } from './design-job-manager'
 
 /** 等待器只接受由 Canvas 文档解析出的完整图片任务身份。 */

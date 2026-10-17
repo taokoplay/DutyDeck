@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { KnowledgeAdmissionInput, KnowledgeAdmissionRecord, KnowledgeEntry } from '@proma/shared'
+import type { KnowledgeAdmissionInput, KnowledgeAdmissionRecord, KnowledgeEntry } from '@dutydeck/shared'
 
 /** 对正文或证据绑定串计算稳定摘要。 */
 function hash(value: string): string {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CapabilityRun } from '@proma/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 import { describeAttemptComparison, diffTextLines } from './capability-factory-attempt-diff'
 
 /** 造一次单步尝试；只关心对比用到的那几个字段。 */

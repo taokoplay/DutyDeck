@@ -2,7 +2,7 @@ import { afterEach, describe, expect, mock, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { calculateContextUsageRatio, inferContextWindow } from '@proma/shared'
+import { calculateContextUsageRatio, inferContextWindow } from '@dutydeck/shared'
 
 let sessionPath = ''
 const temporaryDirectories: string[] = []

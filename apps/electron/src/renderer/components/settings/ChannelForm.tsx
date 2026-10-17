@@ -39,7 +39,7 @@ import {
   parseCodexCredentials,
   parseGithubCopilotCredentials,
   parseXaiCredentials,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   Channel,
   ChannelCreateInput,
@@ -50,13 +50,13 @@ import type {
   FetchModelsResult,
   ProviderType,
   XaiOAuthDeviceCode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   normalizeBaseUrl,
   resolveAnthropicMessagesUrl,
   resolveOpenAIChatCompletionsUrl,
   resolveOpenAIResponsesUrl,
-} from '@proma/core'
+} from '@dutydeck/core'
 import { getProviderLogo } from '@/lib/model-logo'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {

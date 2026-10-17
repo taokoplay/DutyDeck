@@ -1,4 +1,4 @@
-import type { ServerOpsConsoleAck, ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleInput, ServerOpsConsoleOutputEvent, ServerOpsConsoleResizeInput } from '@proma/shared'
+import type { ServerOpsConsoleAck, ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleInput, ServerOpsConsoleOutputEvent, ServerOpsConsoleResizeInput } from '@dutydeck/shared'
 import { acknowledgeRuntimeOutput, createRuntimeOutputState, enqueueRuntimeOutput, takeRuntimeOutput } from './server-ops-runtime-core'
 
 /** 固定 Docker 环境与 socket，禁止继承用户远程环境中的 context/TLS 配置。 */

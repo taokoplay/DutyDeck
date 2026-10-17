@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasSessionMeta } from '@proma/shared'
+import type { CanvasSessionMeta } from '@dutydeck/shared'
 import { createCanvasOperationSerializer } from './canvas-document-ipc'
 import { createCanvasSessionManagement, type CanvasSessionManagementDependencies } from './canvas-session-management'
 

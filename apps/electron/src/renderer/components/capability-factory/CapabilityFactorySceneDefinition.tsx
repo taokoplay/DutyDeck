@@ -1,7 +1,7 @@
 /** 当前场景的流程与评审依据并排展示，两侧均读取已采纳版本。 */
 import { Fragment } from 'react'
 import type * as React from 'react'
-import { getReviewSteps, getStepAcceptance, type CapabilityScene, type Step } from '@proma/shared'
+import { getReviewSteps, getStepAcceptance, type CapabilityScene, type Step } from '@dutydeck/shared'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

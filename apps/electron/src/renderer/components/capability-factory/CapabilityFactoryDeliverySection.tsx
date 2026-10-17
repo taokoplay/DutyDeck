@@ -10,8 +10,8 @@
  */
 import * as React from 'react'
 import { Download, FolderOpen } from 'lucide-react'
-import { describePackageReadiness } from '@proma/shared'
-import type { CapabilityDelivery, CapabilityRun, CapabilityScene } from '@proma/shared'
+import { describePackageReadiness } from '@dutydeck/shared'
+import type { CapabilityDelivery, CapabilityRun, CapabilityScene } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

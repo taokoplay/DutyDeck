@@ -2,7 +2,7 @@ import {
   parseCanvasImageModuleConfig,
   parseCanvasNodeContentMeta,
   parseSaveCanvasImageModuleInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasImageArtifactVersion,
   CanvasImageModuleConfig,
@@ -10,7 +10,7 @@ import type {
   DesignAsset,
   DesignJobRecord,
   SaveCanvasImageModuleInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type {
   StableDirectoryNativeRequest,

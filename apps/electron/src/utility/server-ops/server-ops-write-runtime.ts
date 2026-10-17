@@ -1,4 +1,4 @@
-import type { ServerOpsDataWriteOutcome, ServerOpsDataWriteStatementResult } from '@proma/shared'
+import type { ServerOpsDataWriteOutcome, ServerOpsDataWriteStatementResult } from '@dutydeck/shared'
 
 /**
  * 执行器实际消费的语句形状。

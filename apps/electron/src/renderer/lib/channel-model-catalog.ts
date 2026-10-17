@@ -1,4 +1,4 @@
-import type { ChannelModel, ProviderType } from '@proma/shared'
+import type { ChannelModel, ProviderType } from '@dutydeck/shared'
 
 /**
  * 合并供应商拉取的权威模型目录，返回供选择器和渠道保存使用的模型列表。

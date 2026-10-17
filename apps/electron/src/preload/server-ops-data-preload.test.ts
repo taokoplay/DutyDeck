@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVER_OPS_DATA_CHANNELS, SERVER_OPS_DATA_QUERY_HISTORY_CHANNELS, SERVER_OPS_DATA_SCHEMA_CHANNELS } from '@proma/shared'
-import type { ServerOpsDataSource, ServerOpsDataSourceRowsInput } from '@proma/shared'
+import { SERVER_OPS_DATA_CHANNELS, SERVER_OPS_DATA_QUERY_HISTORY_CHANNELS, SERVER_OPS_DATA_SCHEMA_CHANNELS } from '@dutydeck/shared'
+import type { ServerOpsDataSource, ServerOpsDataSourceRowsInput } from '@dutydeck/shared'
 import { createServerOpsDataPreload } from './server-ops-data-preload'
 
 describe('Server Ops 数据服务 preload 边界', () => {

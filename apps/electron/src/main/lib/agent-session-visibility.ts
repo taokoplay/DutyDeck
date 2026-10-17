@@ -1,14 +1,14 @@
 import { hasAnyCanvasSourceField, hasValidCanvasAgentOwnership, isAgentSessionUserVisible }
-  from '@proma/shared'
+  from '@dutydeck/shared'
 import type {
   AgentSessionMeta,
   AgentSessionOwnershipFields,
   CanvasAgentActiveRunSnapshot,
   ProjectAgentEligibilityFields,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /**
- * 会话归属与可见性判定已下沉到 `@proma/shared`，渲染层复用同一份规则。
+ * 会话归属与可见性判定已下沉到 `@dutydeck/shared`，渲染层复用同一份规则。
  * 这里继续重导出，保持既有主进程调用点不变。
  */
 export {
@@ -20,7 +20,7 @@ export {
   isInternalDesignSession,
   isOrdinaryTopLevelAgentSession,
   requireOrdinaryTopLevelAgentSession,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /**
  * 从全量会话索引构造 Renderer 重载所需的最小运行快照。

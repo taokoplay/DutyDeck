@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsAuditAppendInput, ServerOpsAuditRecord, ServerOpsDataWriteResult } from '@proma/shared'
+import type { ServerOpsAuditAppendInput, ServerOpsAuditRecord, ServerOpsDataWriteResult } from '@dutydeck/shared'
 import { runAuditedServerOpsDataWrite } from './server-ops-query-audit'
 
 /** 合成提交回执，审计测试不读取或修改数据库。 */

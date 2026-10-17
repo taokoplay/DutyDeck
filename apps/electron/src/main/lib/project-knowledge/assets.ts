@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, relative } from 'node:path'
-import type { KnowledgeAssetCopyInput, KnowledgeAssetCopyResult } from '@proma/shared'
+import type { KnowledgeAssetCopyInput, KnowledgeAssetCopyResult } from '@dutydeck/shared'
 import { ensureDirectoryDurable, syncDirectoryDurable } from '../safe-file'
 import { assertActualDirectory, normalizeSourceRelativePath, resolveSourcePath, validateResolvedProject } from './paths'
 import { createMetadataRevision } from './source-reader'

@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test'
-import { PATH_MANAGEMENT_IPC_CHANNELS } from '@proma/shared'
+import { PATH_MANAGEMENT_IPC_CHANNELS } from '@dutydeck/shared'
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'

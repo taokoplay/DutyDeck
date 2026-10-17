@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs'
-import type { VisualProductionChanged, MediaAssetRef, VisualMedia, VisualProductionMediaOption, VisualProductionMediaExecution, VisualProductionMediaExecutionSource, VisualProductionMediaKind } from '@proma/shared'
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
+import type { VisualProductionChanged, MediaAssetRef, VisualMedia, VisualProductionMediaOption, VisualProductionMediaExecution, VisualProductionMediaExecutionSource, VisualProductionMediaKind } from '@dutydeck/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { getAgentSessionMeta } from '../agent-session-manager'
 import { isEligibleProjectAgent } from '../agent-session-visibility'
 import { getAgentWorkspace, getProjectFilesPath } from '../agent-workspace-manager'

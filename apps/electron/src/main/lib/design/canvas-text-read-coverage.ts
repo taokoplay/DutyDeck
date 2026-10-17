@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { CANVAS_TEXT_ARTIFACT_CONTENT_MAX_BYTES } from '@proma/shared'
+import { CANVAS_TEXT_ARTIFACT_CONTENT_MAX_BYTES } from '@dutydeck/shared'
 
 /** 只累计有界的本轮分页摘要，不缓存正文或进行后台扫描。 */
 const MAX_TRACKED_TEXTS = 32

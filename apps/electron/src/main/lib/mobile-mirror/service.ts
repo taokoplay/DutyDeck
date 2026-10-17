@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { McpServerEntry, MobileMirrorSessionInput, MobileMirrorCaptureInput, MobileMirrorActionInput, MobileMirrorDevice, MobileMirrorFrame, MobileMirrorOpenResult } from '@proma/shared'
-import { parseMobileMirrorSessionInput, parseMobileMirrorCaptureInput, parseMobileMirrorActionInput } from '@proma/shared'
+import type { McpServerEntry, MobileMirrorSessionInput, MobileMirrorCaptureInput, MobileMirrorActionInput, MobileMirrorDevice, MobileMirrorFrame, MobileMirrorOpenResult } from '@dutydeck/shared'
+import { parseMobileMirrorSessionInput, parseMobileMirrorCaptureInput, parseMobileMirrorActionInput } from '@dutydeck/shared'
 import { decodeScreenshot, parseDevices, parseScreenSize, toolContent } from './protocol'
 /** 服务仅调用白名单适配器构造的工具参数。 */
 export interface MobileMirrorConnection { callTool(input: { name: string; arguments: Record<string, unknown> }): Promise<unknown>; close(): Promise<void> }

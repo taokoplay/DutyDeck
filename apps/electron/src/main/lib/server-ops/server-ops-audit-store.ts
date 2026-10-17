@@ -5,13 +5,13 @@ import {
   isServerOpsAuditRecord,
   isServerOpsId,
   parseServerOpsAuditListInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsAuditAppendInput,
   ServerOpsAuditListInput,
   ServerOpsAuditListResult,
   ServerOpsAuditRecord,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicDestinationExpectation } from '../safe-file'

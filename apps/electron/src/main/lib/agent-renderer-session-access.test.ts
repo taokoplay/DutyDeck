@@ -1,9 +1,9 @@
-import { isAgentToolMode } from '@proma/shared'
+import { isAgentToolMode } from '@dutydeck/shared'
 import { describe, expect, test } from 'bun:test'
 import { closeSync, constants, existsSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join, resolve } from 'node:path'
-import type { AgentQueuedMessageSnapshot, AgentSessionMeta, FileAccessOptions } from '@proma/shared'
+import type { AgentQueuedMessageSnapshot, AgentSessionMeta, FileAccessOptions } from '@dutydeck/shared'
 import ts from 'typescript'
 import { requireUserVisibleAgentSession } from './agent-session-visibility'
 

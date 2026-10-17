@@ -31,7 +31,7 @@ import type {
   AgentToolCallDelta,
   SDKUserMessageInput,
   SkillActivation,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   applyAgentCompletionPolicy,
   type AgentCompletionEvaluation,
@@ -42,7 +42,7 @@ import {
   isCodexFastModeSupportedModel,
   resolveReasoningProfile,
   createSkillActivationFromPath,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanUseToolOptions, PermissionResult } from '../agent-permission-service'
 import { isPromptTooLongError } from '../agent-error-utils'
 import { resolveAgentModeToolNames } from '../agent-run-tool-policy'
@@ -278,7 +278,7 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
   /** 每个真实 assistant/provider 调用结束时回调；观察器异常不得影响业务。 */
   onUsageAttempt?: TokenUsageObserver
   /** 权限已通过后的前后采集；失败不得改变工具结果。 */
-  onFileChangeCapture?: (capture: import('@proma/shared').AgentFileChangeCapture) => Promise<void>
+  onFileChangeCapture?: (capture: import('@dutydeck/shared').AgentFileChangeCapture) => Promise<void>
   onRetry?: (update: import('./pi-retry-control').PiRetryUpdate) => void
   /** 渲染进程创建的本轮流式开始时间，用于隔离迟到的 native retry 事件。 */
   retryRunStartedAt?: number
@@ -849,7 +849,7 @@ export function wrapToolWithPermission<TParams extends TSchema, TDetails, TState
       const filePath = (definition.name === 'write' || definition.name === 'edit')
         && typeof updatedParams.path === 'string' ? updatedParams.path : undefined
       /** 采集错误只影响统计可信度，不能把成功的业务写入变成工具失败。 */
-      const capture = async (phase: import('@proma/shared').AgentFileChangeCapture['phase']): Promise<boolean> => {
+      const capture = async (phase: import('@dutydeck/shared').AgentFileChangeCapture['phase']): Promise<boolean> => {
         try { await options.onFileChangeCapture?.({ phase, path: filePath }); return true }
         catch (error) { console.warn('[本轮文件统计] 工具采集失败', error); return false }
       }
@@ -1270,6 +1270,8 @@ function buildPromaProductToolDefinitions(sdk: PiSdk, canUseTool: PiAgentQueryOp
 }
 
 const WSL_EXPORT_ENV_KEYS = [
+  'DUTYDECK_CLI',
+  'DUTYDECK_CONFIG_DIR',
   'PROMA_CLI',
   'PROMA_CONFIG_DIR',
   'HTTP_PROXY',
@@ -1303,13 +1305,15 @@ function isWindowsCliExecutable(value: string | undefined): boolean {
 }
 
 function buildWslCommand(command: string, env: NodeJS.ProcessEnv | undefined): string {
-  /** Windows exe 内部仍按 Win32 语义解析 PROMA_CONFIG_DIR。 */
-  const usesWindowsCliInterop = isWindowsCliExecutable(env?.PROMA_CLI)
+  /** Windows exe 内部仍按 Win32 语义解析 DutyDeck 配置目录。 */
+  const cliPath = env?.DUTYDECK_CLI ?? env?.PROMA_CLI
+  const usesWindowsCliInterop = isWindowsCliExecutable(cliPath)
   const exportLines: string[] = []
   for (const key of WSL_EXPORT_ENV_KEYS) {
     const rawValue = env?.[key]
     if (!rawValue) continue
-    const value = key === 'PROMA_CLI' || (key === 'PROMA_CONFIG_DIR' && !usesWindowsCliInterop)
+    const value = (key === 'DUTYDECK_CLI' || key === 'PROMA_CLI')
+      || ((key === 'DUTYDECK_CONFIG_DIR' || key === 'PROMA_CONFIG_DIR') && !usesWindowsCliInterop)
       ? windowsPathToWslPath(rawValue)
       : rawValue
     exportLines.push(`export ${key}=${shellQuote(value)}`)

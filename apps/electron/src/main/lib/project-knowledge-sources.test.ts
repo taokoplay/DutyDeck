@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createApiRequestDraft, createEmptyCanvasDocument } from '@proma/shared'
-import type { ApiCatalog, CanvasDocument, CanvasSessionMeta } from '@proma/shared'
+import { createApiRequestDraft, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { ApiCatalog, CanvasDocument, CanvasSessionMeta } from '@dutydeck/shared'
 import {
   createProjectKnowledgeSources,
   PROJECT_KNOWLEDGE_CONTROLLED_CONTENT_BYTES,

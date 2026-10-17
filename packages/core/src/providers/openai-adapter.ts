@@ -11,7 +11,7 @@ import { normalizeProviderUsage, usageObject } from './usage.ts'
  * - 认证：Authorization: Bearer
  */
 
-import type { ProviderType, TokenUsageAmounts } from '@proma/shared'
+import type { ProviderType, TokenUsageAmounts } from '@dutydeck/shared'
 import type {
   ProviderAdapter,
   ProviderRequest,

@@ -1,4 +1,4 @@
-import type { AgentMessageInvokeResult } from '@proma/shared'
+import type { AgentMessageInvokeResult } from '@dutydeck/shared'
 
 /** Preload 调用 Agent 消息 IPC 所需的最小 ipcRenderer 表面。 */
 export interface AgentMessageIpcInvoker {

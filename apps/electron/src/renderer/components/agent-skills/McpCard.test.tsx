@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { McpCard } from './McpCard'
-import type { McpServerEntry } from '@proma/shared'
+import type { McpServerEntry } from '@dutydeck/shared'
 
 interface InteractiveElementProps {
   children?: React.ReactNode

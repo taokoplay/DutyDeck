@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { AGENT_RUNTIME_METHODS } from '@proma/shared'
+import { AGENT_RUNTIME_METHODS } from '@dutydeck/shared'
 import {
   CANVAS_EXECUTION_TOOL_TIMEOUT_MS,
   DESIGN_IMAGE_TOOL_TIMEOUT_MS,

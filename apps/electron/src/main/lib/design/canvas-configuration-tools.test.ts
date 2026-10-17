@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { applyCanvasMutations, createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasMediaModelOption, CanvasMutation } from '@proma/shared'
+import { applyCanvasMutations, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasMediaModelOption, CanvasMutation } from '@dutydeck/shared'
 import type { CanvasToolRunContext } from './canvas-tool-provider'
 import { createCanvasConfigurationTools, type CanvasConfigurationToolDependencies } from './canvas-configuration-tools'
 

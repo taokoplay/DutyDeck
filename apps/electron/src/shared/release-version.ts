@@ -1,4 +1,16 @@
-/** Bone 发布版本的结构化信息。 */
+/** DutyDeck 独立发布版本的结构化信息。 */
+export interface DutyDeckReleaseVersion {
+  /** 完整应用版本。 */
+  fullVersion: string
+  /** SemVer 主版本。 */
+  major: number
+  /** SemVer 次版本。 */
+  minor: number
+  /** SemVer 补丁版本。 */
+  patch: number
+}
+
+/** 历史 Bone 发布版本的结构化信息，仅用于读取旧 Release。 */
 export interface BoneReleaseVersion {
   /** 完整应用版本。 */
   fullVersion: string
@@ -8,8 +20,56 @@ export interface BoneReleaseVersion {
   boneBuild: number
 }
 
+/** 独立 DutyDeck 发布只接受无预发布后缀的标准 SemVer。 */
+const DUTYDECK_RELEASE_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+
 /** 只接受无前导零且构建号从 1 开始的 Bone SemVer。 */
 const BONE_RELEASE_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-bone\.([1-9]\d*)$/
+
+/**
+ * 解析独立 DutyDeck 发布版本。
+ *
+ * @param version package.json 中的版本字符串。
+ * @returns 合法的标准 SemVer；旧 Bone 版本返回 null。
+ */
+export function parseReleaseVersion(version: string): DutyDeckReleaseVersion | null {
+  /** 标准 SemVer 的三个数值段。 */
+  const match = DUTYDECK_RELEASE_PATTERN.exec(version)
+  if (!match) return null
+  return {
+    fullVersion: version,
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  }
+}
+
+/**
+ * 校验独立发布版本与 Git 标签严格一致。
+ *
+ * @param version package.json 中的标准 SemVer。
+ * @param tag GitHub Actions 触发标签。
+ * @returns 已解析的独立版本。
+ */
+export function assertReleaseTag(version: string, tag: string): DutyDeckReleaseVersion {
+  /** 经过格式校验的独立发布信息。 */
+  const release = parseReleaseVersion(version)
+  if (!release) throw new Error(`应用版本 ${version} 不是合法的 DutyDeck 发布版本`)
+  if (tag !== `v${version}`) throw new Error(`发布标签 ${tag} 与应用版本 ${version} 不一致`)
+  return release
+}
+
+/**
+ * 生成独立 DutyDeck Release 标题。
+ *
+ * @param version package.json 中的标准 SemVer。
+ * @returns 用户可读的 Release 标题。
+ */
+export function createReleaseTitle(version: string): string {
+  /** 先验证格式，避免把任意输入写入公开 Release。 */
+  assertReleaseTag(version, `v${version}`)
+  return `DutyDeck ${version}`
+}
 
 /**
  * 解析完整 Bone 发布版本。

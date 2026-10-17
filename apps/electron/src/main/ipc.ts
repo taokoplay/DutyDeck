@@ -1,12 +1,12 @@
 import { createCanvasSessionIdleGuard } from './lib/design/canvas-session-idle-guard'
-import type { CanvasViewCommandTarget } from '@proma/shared'
+import type { CanvasViewCommandTarget } from '@dutydeck/shared'
 import { createCanvasViewCommandService } from './lib/design/canvas-view-command-service'
 import { registerCanvasViewIpcHandlers } from './lib/design/canvas-view-ipc'
 import { registerTokenUsageIpc } from './lib/token-usage-ipc'
 import { initializeTokenUsageRecording } from './lib/token-usage-recorder'
 import { agentTokenUsageContext } from './lib/token-usage-context'
 import { readAgentRunFileChanges } from './lib/agent-run-file-change-store'
-import { API_WORKBENCH_CHANNELS, apiWorkbenchManualDenialReason, isOrdinaryTopLevelAgentSession } from '@proma/shared'
+import { API_WORKBENCH_CHANNELS, apiWorkbenchManualDenialReason, isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { registerApiWorkbenchIpc } from './lib/api-workbench/api-ipc'
 import { registerMobileMirrorIpc } from './lib/mobile-mirror/mobile-mirror-ipc'
 import { MobileMirrorService } from './lib/mobile-mirror/service'
@@ -18,9 +18,9 @@ import { registerVisualProductionIpc } from './lib/visual-production/ipc'
 import { createProductionVisualProductionAccess, setVisualProductionHost } from './lib/visual-production/integration'
 import { buildVisualProductionMediaCatalog, resolveVisualProductionMediaWorkflow } from './lib/visual-production/media-catalog'
 import { visualMediaExecutionContext, visualMediaOrigin, assertVisualMediaOrigin } from './lib/visual-production/media-execution-context'
-import type { MediaInputValue, VisualProductionMediaExecutionSource } from '@proma/shared'
-import { INTERACTION_DESIGN_CHANNELS, VISUAL_PRODUCTION_CHANNELS, VISUAL_PRODUCTION_LIMITS } from '@proma/shared'
-import { CAPABILITY_FACTORY_CHANNELS } from '@proma/shared'
+import type { MediaInputValue, VisualProductionMediaExecutionSource } from '@dutydeck/shared'
+import { INTERACTION_DESIGN_CHANNELS, VISUAL_PRODUCTION_CHANNELS, VISUAL_PRODUCTION_LIMITS } from '@dutydeck/shared'
+import { CAPABILITY_FACTORY_CHANNELS } from '@dutydeck/shared'
 import { createCapabilityFactorySessionRuntime } from './lib/capability-factory/capability-factory-session-runtime'
 import { setCapabilityFactoryChangeSink } from './lib/capability-factory/capability-factory-events'
 import { registerProjectKnowledgeIpc } from './lib/project-knowledge-ipc'
@@ -61,9 +61,9 @@ import {
 import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createHash, randomUUID } from 'node:crypto'
-import { IPC_CHANNELS, CHANNEL_IPC_CHANNELS, CHAT_IPC_CHANNELS, AGENT_IPC_CHANNELS, AGENT_ISLAND_IPC_CHANNELS, ENVIRONMENT_IPC_CHANNELS, INSTALLER_IPC_CHANNELS, PROXY_IPC_CHANNELS, GITHUB_RELEASE_IPC_CHANNELS, SYSTEM_PROMPT_IPC_CHANNELS, CHAT_TOOL_IPC_CHANNELS, FEISHU_IPC_CHANNELS, DINGTALK_IPC_CHANNELS, SLACK_IPC_CHANNELS, WECHAT_IPC_CHANNELS, AUTOMATION_IPC_CHANNELS, PLANNING_IPC_CHANNELS, VAULT_IPC_CHANNELS, PLANNING_CONFLICT_ERROR, MAX_ATTACHMENT_SIZE, CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS, isPromaPermissionMode, isAgentToolMode, normalizePathForCompare, removeMcpServerFromConfig, TERMINAL_IPC_CHANNELS } from '@proma/shared'
+import { IPC_CHANNELS, CHANNEL_IPC_CHANNELS, CHAT_IPC_CHANNELS, AGENT_IPC_CHANNELS, AGENT_ISLAND_IPC_CHANNELS, ENVIRONMENT_IPC_CHANNELS, INSTALLER_IPC_CHANNELS, PROXY_IPC_CHANNELS, GITHUB_RELEASE_IPC_CHANNELS, SYSTEM_PROMPT_IPC_CHANNELS, CHAT_TOOL_IPC_CHANNELS, FEISHU_IPC_CHANNELS, DINGTALK_IPC_CHANNELS, SLACK_IPC_CHANNELS, WECHAT_IPC_CHANNELS, AUTOMATION_IPC_CHANNELS, PLANNING_IPC_CHANNELS, VAULT_IPC_CHANNELS, PLANNING_CONFLICT_ERROR, MAX_ATTACHMENT_SIZE, CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS, isPromaPermissionMode, isAgentToolMode, normalizePathForCompare, removeMcpServerFromConfig, TERMINAL_IPC_CHANNELS } from '@dutydeck/shared'
 import { USER_PROFILE_IPC_CHANNELS, SETTINGS_IPC_CHANNELS, SCRATCH_PAD_IPC_CHANNELS, QUICK_TASK_IPC_CHANNELS, VOICE_DICTATION_IPC_CHANNELS, APP_ICON_IPC_CHANNELS, DOCK_BADGE_IPC_CHANNELS, STORAGE_IPC_CHANNELS, WINDOWS_AGENT_ISLAND_IPC_CHANNELS, TRAY_IPC_CHANNELS } from '../types'
-import { buildCanvasGenerationModelOptions, isCanvasMediaModelAllowed } from '@proma/shared'
+import { buildCanvasGenerationModelOptions, isCanvasMediaModelAllowed } from '@dutydeck/shared'
 import type {
   QuickTaskSubmitInput,
   VoiceDictationAudioChunkInput,
@@ -221,7 +221,7 @@ import type {
   CanvasWebviewPreviewTarget,
   ExportCanvasArtifactInput,
   ImageGenerationPublicCatalog,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { UserProfile, AppSettings } from '../types'
 import { getRuntimeStatus, getGitRepoStatus, reinitializeRuntime } from './lib/runtime-init'
 import { browserController } from './lib/browser-controller'
@@ -380,10 +380,10 @@ import { loginCodexOAuth, cancelCodexOAuthLogin } from './lib/codex-oauth-servic
 import { loginGithubCopilotOAuth, cancelGithubCopilotOAuthLogin, normalizeGithubCopilotOAuthError } from './lib/github-copilot-oauth-service'
 import { loginXaiOAuth, cancelXaiOAuthLogin } from './lib/xai-oauth-service'
 import { resolvePiReasoningCapability } from './lib/adapters/pi-model-registry'
-import { serializeCodexCredentials, serializeGithubCopilotCredentials, serializeXaiCredentials } from '@proma/shared'
+import { serializeCodexCredentials, serializeGithubCopilotCredentials, serializeXaiCredentials } from '@dutydeck/shared'
 import type {
   CapabilitySceneDefinition, CodexOAuthDeviceCode, CodexOAuthLoginMethod, GithubCopilotOAuthDeviceCode, XaiOAuthDeviceCode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   listConversations,
   createConversation,
@@ -561,8 +561,8 @@ import { ServerOpsDataQueryHistoryStore } from './lib/server-ops/server-ops-data
 import { ServerOpsDataSourceCredentialStore } from './lib/server-ops/server-ops-data-credential-store'
 import { ServerOpsDataSchemaCache } from './lib/server-ops/server-ops-data-schema-cache'
 import { ServerOpsDataService } from './lib/server-ops/server-ops-data-service'
-import { SERVER_OPS_TRANSFER_CHANNELS, parseServerOpsTransferSnapshot } from '@proma/shared'
-import { SERVER_OPS_CONSOLE_IPC_CHANNELS, parseServerOpsConsoleOutputEvent, parseServerOpsConsoleExitEvent } from '@proma/shared'
+import { SERVER_OPS_TRANSFER_CHANNELS, parseServerOpsTransferSnapshot } from '@dutydeck/shared'
+import { SERVER_OPS_CONSOLE_IPC_CHANNELS, parseServerOpsConsoleOutputEvent, parseServerOpsConsoleExitEvent } from '@dutydeck/shared'
 import { ServerOpsLogService } from './lib/server-ops/server-ops-log-service'
 import { serverOpsRuntimeClient } from './lib/server-ops/server-ops-runtime-client'
 import { ensureDirectoryDurable, readJsonFileSafe, writeJsonFileAtomicSecure, writeTextFileAtomic } from './lib/safe-file'
@@ -664,7 +664,7 @@ import { deleteMcpCredential, startMcpOAuth, saveMcpApiKey, saveMcpOAuthClientSe
  * 该代数仅用于进程内竞态保护，不写入用户的 mcp.json。
  */
 const workspaceMcpRefreshGenerations = new Map<string, number>()
-const workspaceMcpPendingValidations = new Map<string, Map<string, import('@proma/shared').McpServerEntry>>()
+const workspaceMcpPendingValidations = new Map<string, Map<string, import('@dutydeck/shared').McpServerEntry>>()
 
 function advanceWorkspaceMcpRefreshGeneration(workspaceSlug: string): number {
   const generation = (workspaceMcpRefreshGenerations.get(workspaceSlug) ?? 0) + 1
@@ -672,12 +672,12 @@ function advanceWorkspaceMcpRefreshGeneration(workspaceSlug: string): number {
   return generation
 }
 
-function getWorkspaceMcpPendingValidation(workspaceSlug: string, name: string): import('@proma/shared').McpServerEntry | undefined {
+function getWorkspaceMcpPendingValidation(workspaceSlug: string, name: string): import('@dutydeck/shared').McpServerEntry | undefined {
   return workspaceMcpPendingValidations.get(workspaceSlug)?.get(name)
 }
 
-function setWorkspaceMcpPendingValidation(workspaceSlug: string, name: string, entry: import('@proma/shared').McpServerEntry): void {
-  const pending = workspaceMcpPendingValidations.get(workspaceSlug) ?? new Map<string, import('@proma/shared').McpServerEntry>()
+function setWorkspaceMcpPendingValidation(workspaceSlug: string, name: string, entry: import('@dutydeck/shared').McpServerEntry): void {
+  const pending = workspaceMcpPendingValidations.get(workspaceSlug) ?? new Map<string, import('@dutydeck/shared').McpServerEntry>()
   pending.set(name, entry)
   workspaceMcpPendingValidations.set(workspaceSlug, pending)
 }
@@ -1633,7 +1633,7 @@ async function ensurePathAllowedWithWorktree(
       if (authorizedRoot === targetMainRepo) return true
     }
     for (const workspaceSlug of getWorkspaceSlugsForAccess(options, snapshot)) {
-      let repos: import('@proma/shared').WorkspaceWorktreeRepo[]
+      let repos: import('@dutydeck/shared').WorkspaceWorktreeRepo[]
       try {
         repos = await getWorktreeRepos(workspaceSlug)
       } catch {
@@ -1672,7 +1672,7 @@ function getBundledResourcesDir(): string {
  * 默认 App 探测结果按文件后缀缓存，避免反复 spawn Swift / 注册表查询。
  * 成功结果会落盘；失败只做短暂内存冷却，避免一次瞬时失败导致整会话都隐藏按钮。
  */
-const defaultAppCache = new Map<string, import('@proma/shared').DefaultAppInfo>()
+const defaultAppCache = new Map<string, import('@dutydeck/shared').DefaultAppInfo>()
 const defaultAppFailureCache = new Map<string, number>()
 const DEFAULT_APP_FAILURE_RETRY_MS = 60_000
 
@@ -1792,13 +1792,13 @@ async function runCliCommand(bin: string, args: string[], opts: { timeoutMs?: nu
 interface McpRefreshValidation {
   name: string
   fingerprint: string
-  lastTestResult: NonNullable<import('@proma/shared').McpServerEntry['lastTestResult']>
+  lastTestResult: NonNullable<import('@dutydeck/shared').McpServerEntry['lastTestResult']>
 }
 
 /**
  * 生成 MCP 可运行配置的稳定摘要。摘要只用于内存中比较，绝不记录或返回，避免暴露 headers/env 中的敏感值。
  */
-export function getMcpEntryFingerprint(entry: import('@proma/shared').McpServerEntry): string {
+export function getMcpEntryFingerprint(entry: import('@dutydeck/shared').McpServerEntry): string {
   const sortedEntries = (record: Record<string, string> | undefined): Array<[string, string]> =>
     Object.entries(record ?? {}).sort(([left], [right]) => left.localeCompare(right))
 
@@ -1843,9 +1843,9 @@ export async function mapWithConcurrency<T, R>(
  * 因而同名服务器被编辑、禁用、删除或被后一次刷新取代时，旧结果不会落盘。
  */
 export function mergeMcpRefreshResults(
-  currentConfig: import('@proma/shared').WorkspaceMcpConfig,
+  currentConfig: import('@dutydeck/shared').WorkspaceMcpConfig,
   validations: readonly McpRefreshValidation[],
-): import('@proma/shared').WorkspaceMcpConfig {
+): import('@dutydeck/shared').WorkspaceMcpConfig {
   const servers = { ...currentConfig.servers }
   for (const validation of validations) {
     const currentEntry = servers[validation.name]
@@ -1869,10 +1869,10 @@ export function mergeMcpRefreshResults(
 async function validateAndConditionallyPersistMcp(
   workspaceSlug: string,
   name: string,
-  candidateEntry: import('@proma/shared').McpServerEntry,
+  candidateEntry: import('@dutydeck/shared').McpServerEntry,
   expectedPersistedFingerprint: string,
   expectedRefreshGeneration: number,
-): Promise<import('@proma/shared').McpConnectionMutationResult> {
+): Promise<import('@dutydeck/shared').McpConnectionMutationResult> {
   const { validateMcpServer } = await import('./lib/mcp-validator')
   const result = await validateMcpServer(name, candidateEntry, workspaceSlug)
   const verification = {
@@ -1937,7 +1937,7 @@ function isDingTalkCliAuthenticated(result: CliCommandResult): boolean {
 export async function getCliIntegrationStatuses(
   runner: CliCommandRunner = runCliCommand,
   disabledIds: ReadonlySet<string> = new Set(),
-): Promise<import('@proma/shared').CliIntegrationStatus[]> {
+): Promise<import('@dutydeck/shared').CliIntegrationStatus[]> {
   const [wecom, dingtalk, github, feishu] = await Promise.all([
     runCliProbe(runner, 'wecom-cli', ['auth', 'show', '--status']),
     runCliProbe(runner, 'dws', ['auth', 'status', '--format', 'json']),
@@ -2124,7 +2124,7 @@ async function getWindowsDefaultAppInfo(filePath: string): Promise<{ appPath: st
 
 async function getDefaultAppInfoForFile(
   absPath: string,
-): Promise<import('@proma/shared').DefaultAppInfo | null> {
+): Promise<import('@dutydeck/shared').DefaultAppInfo | null> {
   const cacheKey = `${process.platform}:${extOf(absPath) || absPath}`
   const cachedInfo = defaultAppCache.get(cacheKey) ?? getCachedDefaultAppInfo(cacheKey)
   if (cachedInfo) {
@@ -2197,7 +2197,7 @@ if let appUrl = NSWorkspace.shared.urlForApplication(toOpen: url) {
   console.log('[DefaultApp] iconDataUrl 长度:', iconDataUrl?.length)
   if (!iconDataUrl) return cacheNull(cacheKey)
 
-  const info: import('@proma/shared').DefaultAppInfo = { name: appName, appPath, iconDataUrl }
+  const info: import('@dutydeck/shared').DefaultAppInfo = { name: appName, appPath, iconDataUrl }
   defaultAppCache.set(cacheKey, info)
   defaultAppFailureCache.delete(cacheKey)
   saveCachedDefaultAppInfo(cacheKey, info)
@@ -4083,6 +4083,12 @@ export function registerIpcHandlers(): void {
     },
   })
   app.once('before-quit', () => canvasMediaIpc.dispose())
+  /** Canvas 各类失败共用同一有界日志记录器，确保绑定错误也能关联到前端诊断编号。 */
+  const recordCanvasLoadError = createCanvasLoadErrorRecorder({
+    directory: () => app.getPath('logs'),
+    version: () => app.getVersion(),
+    platform: process.platform,
+  })
   /** 删除生命周期与 LIST 对账共用同一 Store 和固定广播边界。 */
   const agentCanvasBindingCleanup = {
     store: agentCanvasBindingStore,
@@ -4109,6 +4115,7 @@ export function registerIpcHandlers(): void {
         throw new Error('无权访问 Agent-Canvas 关联')
       }
     },
+    recordLoadError: recordCanvasLoadError,
     broadcast: agentCanvasBindingCleanup.broadcast,
   })
   registerCanvasSessionIpcHandlers({
@@ -4332,11 +4339,11 @@ export function registerIpcHandlers(): void {
     onBackgroundError: (message, error) => console.error(message, error),
   })
   /** 正式采用只唤醒原已授权工作流，保留其 owner、预算和固定范围。 */
-  const resumeAdoptedCanvasWorkflows = async (target: import('@proma/shared').CanvasTarget): Promise<void> => {
+  const resumeAdoptedCanvasWorkflows = async (target: import('@dutydeck/shared').CanvasTarget): Promise<void> => {
     await resumeCanvasWorkflowRuns(canvasWorkflowRuns.list(target))
   }
   /** 先注册所有原期限，再以两个并发恢复，单任务等待不会延误后续 deadline。 */
-  const resumeCanvasWorkflowRuns = async (runs: import('@proma/shared').CanvasWorkflowRun[]): Promise<void> => {
+  const resumeCanvasWorkflowRuns = async (runs: import('@dutydeck/shared').CanvasWorkflowRun[]): Promise<void> => {
     const pending = runs.filter(shouldResumeCanvasWorkflow)
     for (const run of pending) canvasWorkflowResumeScheduler.changed(run)
     let nextIndex = 0
@@ -4357,7 +4364,7 @@ export function registerIpcHandlers(): void {
   /** 启动只遍历已登记 Canvas 的有界 journal；恢复仍逐次复核原主体和固定预算。 */
   queueMicrotask(() => {
     void (async () => {
-      const runs: import('@proma/shared').CanvasWorkflowRun[] = []
+      const runs: import('@dutydeck/shared').CanvasWorkflowRun[] = []
       for (const workspace of listAgentWorkspaces()) {
         try {
           for (const canvas of canvasSessionStore.list({ projectId: workspace.id })) {
@@ -4416,11 +4423,7 @@ export function registerIpcHandlers(): void {
   })
   registerCanvasDocumentIpcHandlers({
     /** 日志使用 Electron 自身目录，避免画布数据目录不可访问时连诊断一起丢失。 */
-    recordLoadError: createCanvasLoadErrorRecorder({
-      directory: () => app.getPath('logs'),
-      version: () => app.getVersion(),
-      platform: process.platform,
-    }),
+    recordLoadError: recordCanvasLoadError,
     viewCommands: canvasViewCommands,
     configurationCatalog: (projectId) => ({
       models: buildCanvasGenerationModelOptions(readIndependentGenerationCatalog(), imageModels.listOptions(projectId)),
@@ -4995,7 +4998,7 @@ export function registerIpcHandlers(): void {
   // 扫描系统中的编辑器应用（仅 macOS）
   ipcMain.handle(
     IPC_CHANNELS.SCAN_EDITORS,
-    async (): Promise<import('@proma/shared').EditorApp[]> => {
+    async (): Promise<import('@dutydeck/shared').EditorApp[]> => {
       if (process.platform !== 'darwin') return []
       const { existsSync } = await import('node:fs')
       const { homedir } = await import('node:os')
@@ -5017,7 +5020,7 @@ export function registerIpcHandlers(): void {
   // 查询某个文件在本机的默认打开应用信息（带图标）
   ipcMain.handle(
     IPC_CHANNELS.GET_DEFAULT_APP_FOR_FILE,
-    async (_, filePath: string, access?: FileAccessOptions | string[]): Promise<import('@proma/shared').DefaultAppInfo | null> => {
+    async (_, filePath: string, access?: FileAccessOptions | string[]): Promise<import('@dutydeck/shared').DefaultAppInfo | null> => {
       if (!filePath || typeof filePath !== 'string') return null
       const accessSnapshot = requireVisibleFileAccess(access, [filePath])
       const options = accessSnapshot.options
@@ -5116,7 +5119,7 @@ export function registerIpcHandlers(): void {
   // 查询订阅 Plan 额度（用于 Agent Context 圆环 hover 信息）
   ipcMain.handle(
     CHANNEL_IPC_CHANNELS.GET_PLAN_QUOTA,
-    async (_, channelId: string): Promise<import('@proma/shared').ChannelPlanQuotaResult> => {
+    async (_, channelId: string): Promise<import('@dutydeck/shared').ChannelPlanQuotaResult> => {
       return getChannelPlanQuota(channelId)
     }
   )
@@ -5126,7 +5129,7 @@ export function registerIpcHandlers(): void {
   // apiKey 传给 create/update，channel-manager 加密后存储——与现有 apiKey 明文回传模式一致。
   ipcMain.handle(
     CHANNEL_IPC_CHANNELS.CODEX_OAUTH_LOGIN,
-    async (event, requestedMethod?: CodexOAuthLoginMethod): Promise<import('@proma/shared').CodexOAuthLoginResult> => {
+    async (event, requestedMethod?: CodexOAuthLoginMethod): Promise<import('@dutydeck/shared').CodexOAuthLoginResult> => {
       const method: CodexOAuthLoginMethod = requestedMethod === 'device_code' ? 'device_code' : 'browser'
       try {
         const credentials = await loginCodexOAuth({
@@ -5167,7 +5170,7 @@ export function registerIpcHandlers(): void {
   // Copilot 授权后的凭据沿用渠道加密存储，模型目录由当前订阅和组织策略决定。
   ipcMain.handle(
     CHANNEL_IPC_CHANNELS.GITHUB_COPILOT_OAUTH_LOGIN,
-    async (event, enterpriseUrl?: string): Promise<import('@proma/shared').GithubCopilotOAuthLoginResult> => {
+    async (event, enterpriseUrl?: string): Promise<import('@dutydeck/shared').GithubCopilotOAuthLoginResult> => {
       assertMainCredentialRenderer(event.sender.id)
       /** 当前 IPC 登录所属代次。 */
       const generation = ++githubCopilotLoginGeneration
@@ -5203,7 +5206,7 @@ export function registerIpcHandlers(): void {
   // 预填的浏览器授权链接；成功后的凭据沿用 Channel.apiKey 加密存储。
   ipcMain.handle(
     CHANNEL_IPC_CHANNELS.XAI_OAUTH_LOGIN,
-    async (event): Promise<import('@proma/shared').XaiOAuthLoginResult> => {
+    async (event): Promise<import('@dutydeck/shared').XaiOAuthLoginResult> => {
       try {
         const credentials = await loginXaiOAuth({
           onDeviceCode: (deviceCode) => {
@@ -6243,7 +6246,7 @@ export function registerIpcHandlers(): void {
   // 创建 Agent 工作区（保留给迁移与低层管理调用；交互式项目创建应使用 CREATE_PROJECT）。
   ipcMain.handle(
     AGENT_IPC_CHANNELS.CREATE_WORKSPACE,
-    async (_, input: import('@proma/shared').CreateAgentWorkspaceInput): Promise<AgentWorkspace> => {
+    async (_, input: import('@dutydeck/shared').CreateAgentWorkspaceInput): Promise<AgentWorkspace> => {
       const workspace = await createAgentWorkspace(input)
       if (workspace.projectRootPath) watchAttachedDirectory(workspace.projectRootPath)
       return workspace
@@ -6253,7 +6256,7 @@ export function registerIpcHandlers(): void {
   // 创建项目时同时生成其首个 Agent 会话，避免项目以无会话状态进入界面。
   ipcMain.handle(
     AGENT_IPC_CHANNELS.CREATE_PROJECT,
-    async (_, input: import('@proma/shared').CreateAgentWorkspaceInput, channelId?: string, modelId?: string): Promise<import('@proma/shared').CreateAgentProjectResult> => {
+    async (_, input: import('@dutydeck/shared').CreateAgentWorkspaceInput, channelId?: string, modelId?: string): Promise<import('@dutydeck/shared').CreateAgentProjectResult> => {
       const workspace = await createAgentWorkspace(input)
       if (workspace.projectRootPath) watchAttachedDirectory(workspace.projectRootPath)
 
@@ -6428,11 +6431,11 @@ export function registerIpcHandlers(): void {
   // card toggle before they can become enabled.
   ipcMain.handle(
     AGENT_IPC_CHANNELS.SAVE_MCP_CONFIG,
-    async (_, workspaceSlug: string, config: WorkspaceMcpConfig, options?: import('@proma/shared').SaveWorkspaceMcpConfigOptions): Promise<void> => {
+    async (_, workspaceSlug: string, config: WorkspaceMcpConfig, options?: import('@dutydeck/shared').SaveWorkspaceMcpConfigOptions): Promise<void> => {
       for (const name of options?.explicitlyDisabledServerNames ?? []) {
         clearWorkspaceMcpPendingValidation(workspaceSlug, name)
       }
-      const pendingValidations: Array<{ name: string; candidate: import('@proma/shared').McpServerEntry }> = []
+      const pendingValidations: Array<{ name: string; candidate: import('@dutydeck/shared').McpServerEntry }> = []
       const servers: WorkspaceMcpConfig['servers'] = {}
 
       const configServerNames = new Set(Object.keys(config.servers))
@@ -6498,7 +6501,7 @@ export function registerIpcHandlers(): void {
   // generation, while fingerprint matching protects this entry's validation writeback.
   ipcMain.handle(
     AGENT_IPC_CHANNELS.SET_MCP_ENABLED_AND_VALIDATE,
-    async (_, workspaceSlug: string, name: string, enabled: boolean): Promise<import('@proma/shared').McpConnectionMutationResult> => {
+    async (_, workspaceSlug: string, name: string, enabled: boolean): Promise<import('@dutydeck/shared').McpConnectionMutationResult> => {
       const current = getWorkspaceMcpConfig(workspaceSlug)
       const entry = current.servers[name]
       if (!entry) throw new Error('找不到 MCP 配置')
@@ -6537,7 +6540,7 @@ export function registerIpcHandlers(): void {
   // replaced by a stale renderer snapshot.
   ipcMain.handle(
     AGENT_IPC_CHANNELS.INSTALL_MCP_AND_VALIDATE,
-    async (_, workspaceSlug: string, name: string, entry: import('@proma/shared').McpServerEntry): Promise<import('@proma/shared').McpInstallMutationResult> => {
+    async (_, workspaceSlug: string, name: string, entry: import('@dutydeck/shared').McpServerEntry): Promise<import('@dutydeck/shared').McpInstallMutationResult> => {
       const current = getWorkspaceMcpConfig(workspaceSlug)
       if (current.servers[name]) {
         return {
@@ -6610,14 +6613,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.START_MCP_OAUTH,
-    async (_, input: import('@proma/shared').StartMcpOAuthInput): Promise<import('@proma/shared').McpOAuthStartResult> => {
+    async (_, input: import('@dutydeck/shared').StartMcpOAuthInput): Promise<import('@dutydeck/shared').McpOAuthStartResult> => {
       return startMcpOAuth(input)
     }
   )
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.SAVE_MCP_OAUTH_CLIENT_SECRET,
-    async (event, input: import('@proma/shared').SaveMcpOAuthClientSecretInput): Promise<void> => {
+    async (event, input: import('@dutydeck/shared').SaveMcpOAuthClientSecretInput): Promise<void> => {
       assertMainCredentialRenderer(event.sender.id)
       await workspaceOperationGuard.runWorkspaceSlugWrite(input.workspaceSlug, () => saveMcpOAuthClientSecret(input))
     },
@@ -6625,7 +6628,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.SAVE_MCP_API_KEY,
-    async (_, input: import('@proma/shared').SaveMcpApiKeyInput): Promise<void> => {
+    async (_, input: import('@dutydeck/shared').SaveMcpApiKeyInput): Promise<void> => {
       return saveMcpApiKey(input)
     }
   )
@@ -6641,14 +6644,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.GET_CLI_INTEGRATION_STATUSES,
-    async (_, workspaceSlug: string): Promise<import('@proma/shared').CliIntegrationStatus[]> => {
+    async (_, workspaceSlug: string): Promise<import('@dutydeck/shared').CliIntegrationStatus[]> => {
       return getCliIntegrationStatuses(undefined, getDisabledCliIntegrationIds(workspaceSlug))
     }
   )
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.SET_CLI_INTEGRATION_ENABLED,
-    async (_, workspaceSlug: string, id: string, enabled: boolean): Promise<import('@proma/shared').CliIntegrationStatus[]> => {
+    async (_, workspaceSlug: string, id: string, enabled: boolean): Promise<import('@dutydeck/shared').CliIntegrationStatus[]> => {
       setCliIntegrationEnabled(workspaceSlug, id, enabled)
       return getCliIntegrationStatuses(undefined, getDisabledCliIntegrationIds(workspaceSlug))
     },
@@ -6657,7 +6660,7 @@ export function registerIpcHandlers(): void {
   // 测试 MCP 服务器连接
   ipcMain.handle(
     AGENT_IPC_CHANNELS.TEST_MCP_SERVER,
-    async (_, workspaceSlug: string, name: string, entry: import('@proma/shared').McpServerEntry): Promise<{ success: boolean; message: string }> => {
+    async (_, workspaceSlug: string, name: string, entry: import('@dutydeck/shared').McpServerEntry): Promise<{ success: boolean; message: string }> => {
       const { validateMcpServer } = await import('./lib/mcp-validator')
       const result = await validateMcpServer(name, entry, workspaceSlug)
       return {
@@ -6956,7 +6959,7 @@ export function registerIpcHandlers(): void {
   // 中止 Agent 执行
   ipcMain.handle(
     AGENT_IPC_CHANNELS.STOP_AGENT,
-    async (_, sessionId: string): Promise<import('@proma/shared').AgentStopResult> => {
+    async (_, sessionId: string): Promise<import('@dutydeck/shared').AgentStopResult> => {
       requireVisibleSession(sessionId)
       feishuBridgeManager.stopSessionMirrorRun(sessionId)
       return stopAgent(sessionId)
@@ -6968,7 +6971,7 @@ export function registerIpcHandlers(): void {
   // Renderer reload 后只能恢复普通可见会话的 deferred queue 投影。
   ipcMain.handle(
     AGENT_IPC_CHANNELS.GET_QUEUED_MESSAGES,
-    async (_, sessionId: string): Promise<import('@proma/shared').AgentQueuedMessageSnapshot[]> => {
+    async (_, sessionId: string): Promise<import('@dutydeck/shared').AgentQueuedMessageSnapshot[]> => {
       if (typeof sessionId !== 'string' || sessionId.length === 0) throw new Error('会话 ID 非法')
       requireVisibleSession(sessionId)
       return listQueuedAgentMessages(sessionId)
@@ -6978,7 +6981,7 @@ export function registerIpcHandlers(): void {
   // 兼容旧调用：将消息交给主进程 deferred queue。
   ipcMain.handle(
     AGENT_IPC_CHANNELS.ENQUEUE_QUEUED_MESSAGE,
-    async (event, input: import('@proma/shared').AgentDeferredQueueMessageInput): Promise<void> => {
+    async (event, input: import('@dutydeck/shared').AgentDeferredQueueMessageInput): Promise<void> => {
       requireVisibleSession(input.sessionId)
       enqueueAgentQueuedMessage(input, event.sender)
     },
@@ -6986,7 +6989,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.CANCEL_QUEUED_MESSAGE,
-    async (_, input: import('@proma/shared').AgentQueuedMessageControlInput): Promise<boolean> => {
+    async (_, input: import('@dutydeck/shared').AgentQueuedMessageControlInput): Promise<boolean> => {
       requireVisibleSession(input.sessionId)
       return cancelAgentQueuedMessage(input)
     },
@@ -6994,7 +6997,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.MOVE_QUEUED_MESSAGE,
-    async (_, input: import('@proma/shared').AgentMoveQueuedMessageInput): Promise<boolean> => {
+    async (_, input: import('@dutydeck/shared').AgentMoveQueuedMessageInput): Promise<boolean> => {
       requireVisibleSession(input.sessionId)
       return moveAgentQueuedMessage(input)
     },
@@ -7290,7 +7293,7 @@ export function registerIpcHandlers(): void {
   // 获取所有待处理的交互请求快照（渲染进程重载后恢复状态）
   ipcMain.handle(
     AGENT_IPC_CHANNELS.GET_PENDING_REQUESTS,
-    async (): Promise<import('@proma/shared').PendingRequestsSnapshot> => {
+    async (): Promise<import('@dutydeck/shared').PendingRequestsSnapshot> => {
       const visibleSessionIds = createVisibleSessionIdSet()
       return {
         permissions: getUserVisiblePendingRequests(permissionService.getPendingRequests(), visibleSessionIds),
@@ -7515,7 +7518,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     AGENT_IPC_CHANNELS.ADD_WORKTREE_REPO,
-    async (_, workspaceSlug: string, repo: import('@proma/shared').WorkspaceWorktreeRepo) => {
+    async (_, workspaceSlug: string, repo: import('@dutydeck/shared').WorkspaceWorktreeRepo) => {
       return addWorktreeRepo(workspaceSlug, repo)
     }
   )
@@ -7679,7 +7682,7 @@ export function registerIpcHandlers(): void {
   // 解析文件路径并读取内容（供内联预览使用）
   ipcMain.handle(
     'file:resolve-and-read',
-    async (_, filePath: string, access?: FileAccessOptions | string[]): Promise<import('@proma/shared').FilePreviewReadResult | null> => {
+    async (_, filePath: string, access?: FileAccessOptions | string[]): Promise<import('@dutydeck/shared').FilePreviewReadResult | null> => {
       const maxSize = 5 * 1024 * 1024
       const accessSnapshot = requireVisibleFileReadAccess(access, filePath, undefined, maxSize)
       const authorizedFile = accessSnapshot.authorizedFiles.get(filePath)
@@ -7891,7 +7894,7 @@ export function registerIpcHandlers(): void {
   // Office 文件转高保真 HTML（内联预览；失败时由服务层降级到内置解析器）
   ipcMain.handle(
     'file:office-to-html',
-    async (_, filePath: string, access?: FileAccessOptions | string[]): Promise<import('@proma/shared').OfficePreviewResult | null> => {
+    async (_, filePath: string, access?: FileAccessOptions | string[]): Promise<import('@dutydeck/shared').OfficePreviewResult | null> => {
       const accessSnapshot = requireVisibleFileReadAccess(access, filePath, undefined, 50 * 1024 * 1024)
       const authorizedFile = accessSnapshot.authorizedFiles.get(filePath)
       if (!authorizedFile) return null
@@ -8422,7 +8425,7 @@ export function registerIpcHandlers(): void {
   // 保存单个 Bot 配置
   ipcMain.handle(
     FEISHU_IPC_CHANNELS.SAVE_BOT_CONFIG,
-    async (_, input: import('@proma/shared').FeishuBotConfigInput) => {
+    async (_, input: import('@dutydeck/shared').FeishuBotConfigInput) => {
       const saved = saveFeishuBotConfig(input)
       feishuBridgeManager.setSessionMirrorOperator(saved.id, input.operatorOpenId)
       // 配置变更后自动重启或停止（不阻塞保存结果）
@@ -8481,7 +8484,7 @@ export function registerIpcHandlers(): void {
   // 测试飞书连接
   ipcMain.handle(
     FEISHU_IPC_CHANNELS.TEST_CONNECTION,
-    async (_, appId: string, appSecret: string, domain?: import('@proma/shared').FeishuDomain): Promise<FeishuTestResult> => {
+    async (_, appId: string, appSecret: string, domain?: import('@dutydeck/shared').FeishuDomain): Promise<FeishuTestResult> => {
       return feishuBridgeManager.testConnection(appId, appSecret, domain)
     }
   )
@@ -8668,7 +8671,7 @@ export function registerIpcHandlers(): void {
   // 保存单个 Bot 配置
   ipcMain.handle(
     DINGTALK_IPC_CHANNELS.SAVE_BOT_CONFIG,
-    async (_, input: import('@proma/shared').DingTalkBotConfigInput) => {
+    async (_, input: import('@dutydeck/shared').DingTalkBotConfigInput) => {
       const saved = saveDingTalkBotConfig(input)
       // 配置变更后自动重启或停止（不阻塞保存结果）
       if (saved.enabled && saved.clientId && saved.clientSecret) {
@@ -8735,7 +8738,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     SLACK_IPC_CHANNELS.SAVE_BOT_CONFIG,
-    async (event, input: import('@proma/shared').SlackBotConfigInput) => {
+    async (event, input: import('@dutydeck/shared').SlackBotConfigInput) => {
       assertMainSettingsRenderer(event.sender.id)
       const saved = saveSlackBotConfig(input)
       if (saved.enabled && saved.botToken && saved.appToken) {

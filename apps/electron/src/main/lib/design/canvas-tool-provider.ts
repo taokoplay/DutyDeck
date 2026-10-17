@@ -29,7 +29,7 @@ import type {
   DesignJobRecord,
   DesignAsset,
   DesignPoint,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   parseCanvasBatchOperationEnvelope,
   parseAdoptCanvasMediaCandidateInput,
@@ -38,7 +38,7 @@ import {
   parseCanvasRunWorkflowResult,
   parseSaveCanvasMediaModuleInput,
   inspectCanvasMediaInputConnections,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import type { AgentRunExtensions } from '../agent-run-extensions'

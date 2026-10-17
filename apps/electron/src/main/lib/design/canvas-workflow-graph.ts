@@ -4,7 +4,7 @@ import {
   CANVAS_WORKFLOW_START_NODE_LIMIT,
   compareCanvasStableIds,
   resolveCanvasEdgeBinding,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasEdge,
@@ -12,7 +12,7 @@ import type {
   CanvasNode,
   CanvasNodeKind,
   CanvasWorkflowNodeStatus,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { canvasNodeCapabilityRegistry } from './canvas-node-capability-registry'
 
 /** 单次工作流可达范围允许包含的最大 Agent 数。 */

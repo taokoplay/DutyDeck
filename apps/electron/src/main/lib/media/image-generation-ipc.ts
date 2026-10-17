@@ -16,7 +16,7 @@ import type {
   LegacyImageProfileSummary,
   MediaApiModelCatalogResult,
   ReplaceImageGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   DREAMINA_LOGIN_MESSAGES,
   IMAGE_GENERATION_LEGACY_WARNING,
@@ -29,7 +29,7 @@ import {
   parseDreaminaLogoutResult,
   parseDreaminaStatus,
   parseReplaceImageGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ImageGenerationDreaminaService } from './image-generation-dreamina-service'
 import type { ImageGenerationConfigStore } from './image-generation-config-store'
 import type { ImageGenerationCatalogService } from './image-generation-catalog-service'

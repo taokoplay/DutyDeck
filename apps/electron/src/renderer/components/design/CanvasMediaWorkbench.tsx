@@ -18,8 +18,8 @@ import type {
   MediaRunSnapshot,
   MediaSettingsSnapshot,
   MediaWorkflowVersion,
-} from '@proma/shared'
-import { inspectCanvasMediaInputConnections, validateMediaWorkflowFieldValue } from '@proma/shared'
+} from '@dutydeck/shared'
+import { inspectCanvasMediaInputConnections, validateMediaWorkflowFieldValue } from '@dutydeck/shared'
 import { AudioLines, Check, Download, Eye, FileUp, Film, History, LoaderCircle, Play, RefreshCw, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

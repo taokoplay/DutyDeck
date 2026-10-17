@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test'
-import { applyCanvasMutations, createEmptyCanvasDocument } from '@proma/shared'
-import type { AgentSessionMeta, CanvasBatchOperationEnvelope, CanvasDocument, CanvasMutation, CanvasTrashEntry } from '@proma/shared'
+import { applyCanvasMutations, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { AgentSessionMeta, CanvasBatchOperationEnvelope, CanvasDocument, CanvasMutation, CanvasTrashEntry } from '@dutydeck/shared'
 import {
   createCanvasAgentBatchOperationService,
   type CanvasAgentBatchOperationDependencies,

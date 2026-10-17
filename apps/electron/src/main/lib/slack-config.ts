@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { safeStorage } from 'electron'
-import type { SlackBotConfig, SlackBotConfigInput, SlackConfig, SlackBotSettingsConfig, SlackSettingsConfig } from '@proma/shared'
+import type { SlackBotConfig, SlackBotConfigInput, SlackConfig, SlackBotSettingsConfig, SlackSettingsConfig } from '@dutydeck/shared'
 import { getSlackConfigPath } from './config-paths'
 import { redactSensitiveLogValue } from './bridge-log-redaction'
 import { readJsonFileSafe, writeJsonFileAtomic } from './safe-file'

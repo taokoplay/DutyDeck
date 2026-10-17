@@ -7,7 +7,7 @@
 import { execFileAsync } from './async-command'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import type { NodeRuntimeStatus } from '@proma/shared'
+import type { NodeRuntimeStatus } from '@dutydeck/shared'
 import { getNodeInstallPathFromRegistry } from './windows-env'
 
 async function findNodePath(): Promise<string | null> {

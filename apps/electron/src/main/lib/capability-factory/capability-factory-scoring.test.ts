@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CapabilityEvaluationProtocol, CapabilityExperimentSample, CapabilityRun } from '@proma/shared'
+import type { CapabilityEvaluationProtocol, CapabilityExperimentSample, CapabilityRun } from '@dutydeck/shared'
 import { assertCapabilityScoringLabels, scoreCapabilityCase, summarizeCapabilityScores } from './capability-factory-scoring'
 
 /** 测试用冻结集合匹配规范。 */

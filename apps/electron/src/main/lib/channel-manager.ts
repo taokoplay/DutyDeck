@@ -28,7 +28,7 @@ import type {
   FetchModelsInput,
   FetchModelsResult,
   ProviderType,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   extractZhipuCodingTeamApiToken,
   parseZhipuTeamCredentials,
@@ -43,7 +43,7 @@ import {
   serializeXaiCredentials,
   isXaiCredentialExpired,
   VOLCENGINE_CODING_PLAN_MODELS,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { refreshCodexOAuth } from './codex-oauth-service'
 import { normalizeGithubCopilotOAuthError, refreshGithubCopilotOAuth } from './github-copilot-oauth-service'
 import { refreshXaiOAuth } from './xai-oauth-service'
@@ -60,7 +60,7 @@ import {
   resolveAnthropicMessagesUrl,
   resolveAnthropicModelsUrl,
   resolveOpenAIModelsUrl,
-} from '@proma/core'
+} from '@dutydeck/core'
 import { normalizeHttpResponse, normalizeRequestError } from './channel-test-error'
 import { writeJsonFileAtomic } from './safe-file'
 import pkg from '../../../package.json' with { type: 'json' }
@@ -1659,7 +1659,7 @@ async function fetchZhipuQuota(
 }
 
 async function fetchZhipuTeamQuota(
-  credentials: import('@proma/shared').ZhipuTeamCredentials,
+  credentials: import('@dutydeck/shared').ZhipuTeamCredentials,
   proxyUrl?: string,
 ): Promise<ZhipuQuotaResponse | { error: string }> {
   const fetchFn = getFetchFn(proxyUrl)

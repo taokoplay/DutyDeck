@@ -1,7 +1,7 @@
 import { lstat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { resolve } from 'node:path'
-import type { AgentFileChangeCapture, AgentRunFileChangesSnapshot } from '@proma/shared'
+import type { AgentFileChangeCapture, AgentRunFileChangesSnapshot } from '@dutydeck/shared'
 import { shouldTrackAgentFileObservationPath, shouldTrackAgentRunFilePath } from './agent-run-file-change-path-policy'
 import { AgentRunFileTracker } from './agent-run-file-tracker'
 import { subscribeAgentFileObservations } from './agent-file-observation-bus'

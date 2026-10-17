@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition, type CapabilityFactoryExperimentView } from '@proma/shared'
+import { createEmptySceneDefinition, type CapabilityFactoryExperimentView } from '@dutydeck/shared'
 import { CapabilityFactoryExperimentSummary } from './CapabilityFactoryExperimentSummary'
 
 /** 最小持久实验快照；不调用模型或读取用户数据。 */

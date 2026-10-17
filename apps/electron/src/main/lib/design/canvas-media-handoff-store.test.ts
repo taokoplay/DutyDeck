@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CanvasMediaTarget, CanvasWorkflowRun } from '@proma/shared'
+import type { CanvasMediaTarget, CanvasWorkflowRun } from '@dutydeck/shared'
 import type { MediaRunOrigin } from '../media/media-run-service'
 import { createCanvasMediaHandoffStore, type CanvasMediaPreparedHandoff } from './canvas-media-handoff-store'
 

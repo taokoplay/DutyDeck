@@ -57,7 +57,7 @@ import type {
   ApiRuntimeVariable,
   ApiSseEvent,
   ApiWorkbenchApi,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   API_LIMITS,
   apiDraftFromDefinition,
@@ -68,7 +68,7 @@ import {
   formatApiCaseReportCells,
   formatApiCaseReportMarkdown,
   mergeApiCatalogSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

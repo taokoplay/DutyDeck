@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { LanBridgeAutomationDto } from '@proma/shared'
+import type { LanBridgeAutomationDto } from '@dutydeck/shared'
 import type { AgentRuntimeStatus } from '../lib/session-runtime-state'
 
 // ===== 消息类型 =====

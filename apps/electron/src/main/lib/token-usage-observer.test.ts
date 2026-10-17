@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { normalizePiTokenUsage, createTokenUsageObserver } from './token-usage-observer'
-import type { TokenUsageRecord } from '@proma/shared'
+import type { TokenUsageRecord } from '@dutydeck/shared'
 
 describe('模型调用统计观察器', () => {
   it('Given Pi 分离缓存 When 归一化 Then 输入包含缓存且未报告保持未知', () => {

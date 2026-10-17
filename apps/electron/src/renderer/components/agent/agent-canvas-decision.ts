@@ -1,5 +1,5 @@
-import { getCanvasOrchestrationPendingDecision } from '@proma/shared'
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import { getCanvasOrchestrationPendingDecision } from '@dutydeck/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 
 /** 决策入口只依赖最新委托和普通聊天提交，不获得任何制作写权限。 */
 export interface AgentCanvasDecisionDependencies {

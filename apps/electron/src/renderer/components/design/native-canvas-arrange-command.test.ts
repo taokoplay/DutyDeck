@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasDocument, CanvasMutation } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasMutation } from '@dutydeck/shared'
 import {
   createNativeCanvasRelatedArrangeNodeIds,
   createNativeCanvasArrangeCommand,

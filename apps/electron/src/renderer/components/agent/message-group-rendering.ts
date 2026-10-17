@@ -1,5 +1,5 @@
-import type { SDKMessage, SDKUserMessage } from '@proma/shared'
-import { groupIntoTurns, isUserInputMessage, type MessageGroup } from '@proma/session-core'
+import type { SDKMessage, SDKUserMessage } from '@dutydeck/shared'
+import { groupIntoTurns, isUserInputMessage, type MessageGroup } from '@dutydeck/session-core'
 
 export interface MessageGroupRenderCache {
   prefixLength: number

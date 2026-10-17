@@ -20,7 +20,7 @@ import type {
   FeishuBotConfig,
   FeishuMultiBotConfig,
   FeishuBotConfigInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 // ===== 加密/解密 =====
 

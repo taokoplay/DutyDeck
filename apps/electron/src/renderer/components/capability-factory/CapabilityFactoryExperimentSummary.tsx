@@ -1,6 +1,6 @@
 /** 优化实验只读摘要；运行完成与采纳资格分开，不把未知费用显示为零。 */
 import * as React from 'react'
-import type { CapabilityFactoryExperimentView, CapabilityExperimentStatus } from '@proma/shared'
+import type { CapabilityFactoryExperimentView, CapabilityExperimentStatus } from '@dutydeck/shared'
 
 /** 三组顺序固定，避免事后选择更好看的集合。 */
 const splits = [{ id: 'optimization', label: '优化' }, { id: 'validation', label: '验证' }, { id: 'held-out', label: '留出' }] as const

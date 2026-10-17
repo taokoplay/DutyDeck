@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { resolveCanvasEdgeBinding } from '@proma/shared'
+import { resolveCanvasEdgeBinding } from '@dutydeck/shared'
 import type {
   CanvasArtifactInputSlot,
   CanvasArtifactOutputCapability,
@@ -9,7 +9,7 @@ import type {
   CanvasNode,
   MediaAssetRef,
   SDKMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanvasDocumentStore } from './canvas-document-store'
 import type { CanvasImageModuleStore } from './canvas-image-module-store'
 

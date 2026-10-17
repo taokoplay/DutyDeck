@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Channel, LocalModelAsset, LocalModelSnapshot } from '@proma/shared'
+import type { Channel, LocalModelAsset, LocalModelSnapshot } from '@dutydeck/shared'
 import { projectLocalModelChannel } from './local-model-channel'
 import { LOCAL_MODEL_CATALOG } from './local-model-catalog'
 

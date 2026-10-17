@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ChevronDown, Film, ImageIcon, ImageOff, Music2 } from 'lucide-react'
-import type { VisualAsset, VisualMedia, VisualShot, VisualShotState } from '@proma/shared'
+import type { VisualAsset, VisualMedia, VisualShot, VisualShotState } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { VisualMediaView } from './VisualMediaView'

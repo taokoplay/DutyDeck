@@ -24,7 +24,7 @@ import { projectListHeightAtom } from '@/atoms/sidebar-atoms'
 import { useProjectActions } from '@/hooks/useProjectActions'
 import { LocalProjectBadge } from './LocalProjectBadge'
 import { agentSessionsAtom, agentWorkspacesAtom } from '@/atoms/agent-atoms'
-import type { AgentWorkspace } from '@proma/shared'
+import type { AgentWorkspace } from '@dutydeck/shared'
 
 export function WorkspaceSelector(): React.ReactElement {
   const { workspaces, currentWorkspaceId, selectProject, createProject, createProjectFromFolder } = useProjectActions()

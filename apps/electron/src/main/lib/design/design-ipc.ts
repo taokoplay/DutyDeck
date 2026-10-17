@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { DESIGN_IPC_CHANNELS, createEmptyDesignDocument } from '@proma/shared'
+import { DESIGN_IPC_CHANNELS, createEmptyDesignDocument } from '@dutydeck/shared'
 import type {
   CreateDesignJobInput,
   DeleteDesignAssetInput,
@@ -37,7 +37,7 @@ import type {
   UpsertDesignContextDocumentInput,
   UpdateDesignContextEntryInput,
   UpdateDesignImageModelSelectionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import type { WorkspaceOperationGuard } from '../workspace-operation-guard'
 import type { ImageGenerationModelCatalog } from '../image-generation-model-catalog'

@@ -1,4 +1,4 @@
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { createHash } from 'node:crypto'
 import type { CanvasTaskRequirement, CanvasTaskState } from './canvas-task-contract'
 

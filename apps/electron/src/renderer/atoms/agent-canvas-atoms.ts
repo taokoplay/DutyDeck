@@ -1,4 +1,4 @@
-import type { AgentCanvasBinding, CanvasChangeEvent, CanvasDocument } from '@proma/shared'
+import type { AgentCanvasBinding, CanvasChangeEvent, CanvasDocument } from '@dutydeck/shared'
 import { atom } from 'jotai'
 
 /** 独立 Canvas 入口在迁入普通 Agent 前使用的稳定宿主会话前缀。 */

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { getCanvasOrchestrationPendingDecision, parseCanvasOrchestrationReportInput, parseCanvasOrchestrationRequest, parseCanvasOrchestrationRecord } from '@proma/shared'
-import type { CanvasAgentTarget, CanvasDocument, CanvasOrchestrationFollowUp, CanvasOrchestrationRecord, CanvasOrchestrationReportInput, CanvasOrchestrationRequest, CanvasOrchestrationStep, CanvasTarget } from '@proma/shared'
+import { getCanvasOrchestrationPendingDecision, parseCanvasOrchestrationReportInput, parseCanvasOrchestrationRequest, parseCanvasOrchestrationRecord } from '@dutydeck/shared'
+import type { CanvasAgentTarget, CanvasDocument, CanvasOrchestrationFollowUp, CanvasOrchestrationRecord, CanvasOrchestrationReportInput, CanvasOrchestrationRequest, CanvasOrchestrationStep, CanvasTarget } from '@dutydeck/shared'
 import type { CanvasAgentExecutionResult } from './canvas-agent-execution-service'
 import type { CanvasExecutionOwnership } from './canvas-execution-ownership'
 

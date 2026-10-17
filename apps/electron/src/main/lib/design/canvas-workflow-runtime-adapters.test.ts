@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasDocument, CanvasMediaAdoptedOutput, MediaRunSnapshot } from '@proma/shared'
+import type { CanvasDocument, CanvasMediaAdoptedOutput, MediaRunSnapshot } from '@dutydeck/shared'
 import { createCanvasWorkflowAgentRecovery, createCanvasWorkflowMediaAdapter, findCanvasWorkflowConfirmedMediaOutput } from './canvas-workflow-runtime-adapters'
 import type { CanvasWorkflowMediaAdapterDependencies } from './canvas-workflow-runtime-adapters'
 import type { MediaRunOrigin } from '../media/media-run-service'

@@ -7,7 +7,7 @@
 import { execFileAsync } from './async-command'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import type { GitRuntimeStatus, GitRepoStatus } from '@proma/shared'
+import type { GitRuntimeStatus, GitRepoStatus } from '@dutydeck/shared'
 import { getGitForWindowsInstallPath } from './windows-env'
 
 async function findGitPath(): Promise<string | null> {

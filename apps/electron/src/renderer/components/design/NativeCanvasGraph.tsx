@@ -16,7 +16,7 @@ import type {
   CanvasWebviewPreviewTarget,
   DesignPoint,
   DesignViewport,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   Background,
   Controls,

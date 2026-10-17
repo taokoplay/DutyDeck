@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentStreamPayload } from '@proma/shared'
+import type { AgentStreamPayload } from '@dutydeck/shared'
 import { renderCard } from './card-renderer-v2'
 import { createInitialState, reduce } from './card-run-state'
 

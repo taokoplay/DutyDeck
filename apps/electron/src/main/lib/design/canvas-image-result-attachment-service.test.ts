@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasDocument, CanvasImageModuleConfig, DesignAsset, DesignJobRecord, MediaAssetRecord, MediaGenerationRequest, MediaGenerationSnapshot } from '@proma/shared'
+import type { CanvasDocument, CanvasImageModuleConfig, DesignAsset, DesignJobRecord, MediaAssetRecord, MediaGenerationRequest, MediaGenerationSnapshot } from '@dutydeck/shared'
 import { createCanvasImageResultAttachmentService } from './canvas-image-result-attachment-service'
 import type { CanvasImageAttachmentReceipt, PrepareCanvasImageAttachmentInput } from './canvas-image-result-attachment-service'
 import type { CanvasImageCandidateJobTerminalEvent, CreateCanvasImageCandidateBatchInput } from './canvas-image-candidate-batch-service'

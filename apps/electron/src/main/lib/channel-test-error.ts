@@ -13,7 +13,7 @@
  * 仅 HTTP 2xx 才算连接成功。
  */
 
-import type { ChannelTestErrorType, ChannelTestResult } from '@proma/shared'
+import type { ChannelTestErrorType, ChannelTestResult } from '@dutydeck/shared'
 
 /** 脱敏后原始错误摘要的最大长度 */
 const MAX_DETAIL_LENGTH = 500

@@ -8,7 +8,7 @@ import {
   createAgentRuntimeResponse,
   type AgentRuntimeRequest,
   type AgentRuntimeState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { UTILITY_PROCESS_EXIT_TIMEOUT_CODE } from './utility-process-lifecycle'
 
 /** Bun 测试中的可控 MessagePort，保留真实消息监听和关闭语义。 */

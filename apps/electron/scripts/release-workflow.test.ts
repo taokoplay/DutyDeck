@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { parseBoneReleaseVersion } from '../src/shared/release-version'
+import { parseReleaseVersion } from '../src/shared/release-version'
 import { validateReleaseNotes } from './validate-release-version'
 
 interface WorkflowJob {
@@ -108,7 +108,7 @@ function workflowCommands(job: WorkflowJob | undefined): string[] {
 /** 输入 Windows job，将聚合准备脚本展开为有序命令，返回用于检查依赖安装和打包先后关系的列表。 */
 function windowsPreparationCommands(job: WorkflowJob | undefined): string[] {
   /** 正式发布使用的聚合入口；独立预检会把同样的步骤拆开执行。 */
-  const aggregateCommand = "bun run --filter='@proma/electron' package:prepare:win"
+  const aggregateCommand = "bun run --filter='@dutydeck/electron' package:prepare:win"
   /** 聚合入口对应的实际脚本，缺失时保留为空并由调用处断言失败。 */
   const aggregateScript = readElectronPackageMetadata().scripts?.['package:prepare:win'] ?? ''
   return workflowCommands(job).flatMap((command) => (
@@ -215,7 +215,7 @@ test('Windows 打包先安装并校验 win32-x64 Sharp 运行时依赖', () => {
     expect(commands.indexOf('bun run rebuild:node-pty')).toBeLessThan(commands.indexOf(installWindowsDependencies))
     expect(commands.indexOf(installWindowsDependencies)).toBeLessThan(commands.indexOf(syncWindowsDependencies))
     expect(commands.indexOf(syncWindowsDependencies)).toBeLessThan(commands.indexOf('bun run builder --win --x64 --publish never'))
-    expect(commands).not.toContain("bun run --filter='@proma/electron' package:prepare")
+    expect(commands).not.toContain("bun run --filter='@dutydeck/electron' package:prepare")
   }
 })
 
@@ -261,7 +261,7 @@ test('Release 原生依赖工具链使用固定 Bun 与 node-gyp 版本', () => 
   expect(windowsWorkflow.match(/bun-version: 1\.3\.14/g)).toHaveLength(1)
 })
 
-test('Bone 应用版本与更新频道保持一致', () => {
+test('DutyDeck 应用版本与更新频道保持一致', () => {
   /** Electron workspace 的发布元数据。 */
   const metadata = readElectronPackageMetadata()
   /** Electron Builder 的正式打包配置。 */
@@ -272,7 +272,7 @@ test('Bone 应用版本与更新频道保持一致', () => {
     'utf8',
   )
 
-  expect(parseBoneReleaseVersion(metadata.version ?? '')).not.toBeNull()
+  expect(parseReleaseVersion(metadata.version ?? '')).not.toBeNull()
   expect(() => validateReleaseNotes(`v${metadata.version}`, resolve(import.meta.dir, '../../..'))).not.toThrow()
   expect(config.detectUpdateChannel).toBe(false)
   expect(config.publish).toEqual({
@@ -288,7 +288,7 @@ test('正式安装包名称包含完整版本、平台和架构', () => {
   /** Electron Builder 的正式打包配置。 */
   const config = readElectronBuilderConfig()
   expect(readFileSync(resolve(import.meta.dir, '../electron-builder.yml'), 'utf8').match(/^linux:$/gm)).toHaveLength(1)
-  expect(config.appId).toBe('com.bone.proma.app')
+  expect(config.appId).toBe('com.taokoplay.dutydeck.app')
   expect(config.productName).toBe('DutyDeck')
   expect(config.mac?.artifactName).toBe('DutyDeck-${version}-macos-${arch}.${ext}')
   expect(config.win?.artifactName).toBe('DutyDeck-${version}-windows-${arch}.${ext}')
@@ -369,7 +369,7 @@ test('Windows 升级安装器展示既有版本和目录并保留完整性校验
   expect(installerSource).not.toContain('/NCRC')
 })
 
-test('Release 工作流在全平台构建前校验 Bone 发布合同', () => {
+test('Release 工作流在全平台构建前校验 DutyDeck 发布合同', () => {
   /** Release 工作流原始文本，用于验证 Release 标题和成功门禁。 */
   const source = readReleaseWorkflow()
   /** Bun YAML 解析后的 Release 工作流。 */
@@ -396,7 +396,7 @@ test('Release 工作流在全平台构建前校验 Bone 发布合同', () => {
   expect(source).toContain('--title "${RELEASE_TITLE}"')
 })
 
-test('Release 工作流使用仓库内 Bone 说明并在重跑时更新正文', () => {
+test('Release 工作流使用仓库内 DutyDeck 说明并在重跑时更新正文', () => {
   /** Release 工作流原始文本，用于校验说明文件发布合同。 */
   const source = readReleaseWorkflow()
   /** Bun YAML 解析后的 Release 工作流。 */

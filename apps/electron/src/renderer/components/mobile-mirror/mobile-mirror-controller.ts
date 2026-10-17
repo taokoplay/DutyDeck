@@ -1,5 +1,5 @@
 import { atom, createStore } from 'jotai';
-import type { MobileMirrorAction, MobileMirrorActionInput, MobileMirrorCaptureInput, MobileMirrorDevice, MobileMirrorFrame, MobileMirrorOpenResult, MobileMirrorSessionInput } from '@proma/shared';
+import type { MobileMirrorAction, MobileMirrorActionInput, MobileMirrorCaptureInput, MobileMirrorDevice, MobileMirrorFrame, MobileMirrorOpenResult, MobileMirrorSessionInput } from '@dutydeck/shared';
 
 /** 面板只依赖五个受限 IPC，测试可注入不访问设备的实现。 */
 export interface MirrorApi {

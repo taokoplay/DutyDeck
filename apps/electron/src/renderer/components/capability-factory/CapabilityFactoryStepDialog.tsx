@@ -1,7 +1,7 @@
 /** 步骤定义弹窗：只编辑提示词与查看变量来源，执行和记录统一放在运行页。 */
 import * as React from 'react'
 import { ChevronDown, Save } from 'lucide-react'
-import type { CapabilityScene, CapabilitySceneDefinition, Step } from '@proma/shared'
+import type { CapabilityScene, CapabilitySceneDefinition, Step } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'

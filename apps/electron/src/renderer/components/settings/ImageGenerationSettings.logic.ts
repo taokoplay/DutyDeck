@@ -9,13 +9,13 @@ import type {
   ImageGenerationProfile,
   ImageGenerationProvider,
   ImageGenerationPublicProfile,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_PROVIDER_DEFAULTS,
   IMAGE_GENERATION_PROVIDER_DESCRIPTORS,
   imageGenerationModelKind,
   parseImageGenerationProfile,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 编辑草稿只在 Renderer 内短暂持有明文 API Key。 */
 export type ImageGenerationDraft = ImageGenerationProfile & {

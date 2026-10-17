@@ -7,7 +7,7 @@
  * 最后写标记文件保证只跑一次；任何失败都只记录日志，绝不阻塞启动。
  */
 import { existsSync } from 'node:fs'
-import type { MediaApiModelCatalogEntry, MediaApiModelCatalogResult, MediaApiModelProfile } from '@proma/shared'
+import type { MediaApiModelCatalogEntry, MediaApiModelCatalogResult, MediaApiModelProfile } from '@dutydeck/shared'
 import { writeJsonFileAtomic } from './safe-file'
 
 /** 需要清理的旧条目：统一媒体目录里借用渠道凭据的生图条目。 */

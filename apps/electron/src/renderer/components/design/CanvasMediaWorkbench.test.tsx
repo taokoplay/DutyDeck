@@ -8,7 +8,7 @@ import type {
   MediaRunSnapshot,
   MediaSettingsSnapshot,
   MediaWorkflowVersion,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import * as React from 'react'
 import { act } from 'react'

@@ -18,7 +18,7 @@ import type {
   RegisterDesignContextAssetInput,
   UpdateDesignContextEntryInput,
   UpsertDesignContextDocumentInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   ensureDirectoryDurable,
   readJsonFileSafe,

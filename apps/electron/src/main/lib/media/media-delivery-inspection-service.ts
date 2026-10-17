@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { closeSync, openSync, readSync } from 'node:fs'
-import type { MediaAssetRef } from '@proma/shared'
+import type { MediaAssetRef } from '@dutydeck/shared'
 import { probeMediaFile, type ProbedMediaFile } from './media-file-probe'
 import type { MediaAssetFile, MediaSourceContext } from './media-source-service'
 

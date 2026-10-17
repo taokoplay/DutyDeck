@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ChannelPlanQuotaResult } from '@proma/shared'
+import type { ChannelPlanQuotaResult } from '@dutydeck/shared'
 import {
   currentPlanQuota,
   formatPlanQuotaWindowValue,

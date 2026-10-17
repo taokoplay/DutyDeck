@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseCanvasErrorDiagnostic } from '@proma/shared'
-import type { CanvasErrorDiagnostic } from '@proma/shared'
+import { parseCanvasErrorDiagnostic } from '@dutydeck/shared'
+import type { CanvasErrorDiagnostic } from '@dutydeck/shared'
 import { redactSensitiveLogText } from '../bridge-log-redaction'
 import { writeJsonFileAtomicSecure } from '../safe-file'
 

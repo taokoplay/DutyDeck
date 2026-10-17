@@ -18,7 +18,7 @@ import { getServerOpsRowFilterPublicError } from './server-ops/server-ops-row-fi
 import type { ServerOpsRuntimeDataReadRequest } from './server-ops/server-ops-runtime-protocol'
 import type { ServerOpsRuntimeDataWriteRequest } from './server-ops/server-ops-runtime-protocol'
 import { createConnection as createMysqlConnection } from 'mysql2'
-import type { ServerOpsDataWriteResult, ServerOpsTerminalExitEvent } from '@proma/shared'
+import type { ServerOpsDataWriteResult, ServerOpsTerminalExitEvent } from '@dutydeck/shared'
 import { ServerOpsConsoleRuntimeController } from './server-ops/server-ops-console-runtime'
 import type { ServerOpsConsoleRuntimeChannel } from './server-ops/server-ops-console-runtime'
 import {

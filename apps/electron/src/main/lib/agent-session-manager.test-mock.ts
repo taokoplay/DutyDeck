@@ -1,5 +1,5 @@
 import { mock } from 'bun:test'
-import type { AgentSessionMeta, SDKMessage } from '@proma/shared'
+import type { AgentSessionMeta, SDKMessage } from '@dutydeck/shared'
 
 /** Agent 会话管理器共享测试替身状态，避免 Bun 进程级 mock.module 相互覆盖。 */
 class AgentSessionManagerTestMock {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsTransferSnapshot } from '@proma/shared'
+import type { ServerOpsTransferSnapshot } from '@dutydeck/shared'
 import { ServerOpsTransfersPanel } from './ServerOpsTransfersPanel'
 
 /** 创建公开传输快照。 */

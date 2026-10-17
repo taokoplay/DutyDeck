@@ -1,6 +1,6 @@
 import { accessSync, constants, lstatSync, realpathSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import type { DataRootMigrationProgress } from '@proma/shared'
+import type { DataRootMigrationProgress } from '@dutydeck/shared'
 import type { DataRootMigrationCoordinator } from './data-root-migration'
 import type { DataRootMigrationGuard } from './data-root-instance-lease'
 import { DataRootLocator } from './data-root-locator'

@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { LocalModelProgressEvent, LocalModelSnapshot, LocalModelTestResult } from '@proma/shared'
+import type { LocalModelProgressEvent, LocalModelSnapshot, LocalModelTestResult } from '@dutydeck/shared'
 
 /** 权威快照及过程进度跨设置页保留，重新进入时仍会向主进程校准。 */
 export const localModelSnapshotAtom = atom<LocalModelSnapshot | null>(null)

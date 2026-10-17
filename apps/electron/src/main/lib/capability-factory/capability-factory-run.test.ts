@@ -9,7 +9,7 @@ import type { CapabilityFactoryModelInvocation } from './capability-factory-mode
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CapabilitySceneDefinition, Channel } from '@proma/shared'
+import type { CapabilitySceneDefinition, Channel } from '@dutydeck/shared'
 import { CapabilityFactoryStore } from './capability-factory-store'
 import { CapabilityFactoryService } from './capability-factory-service'
 import { createCapabilityFactoryRunner } from './capability-factory-run'

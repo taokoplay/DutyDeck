@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilityRun } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 import { CapabilityFactoryRunResult, type CapabilityFactoryRunResultProps } from './CapabilityFactoryRunResult'
 
 /** 一次成功但约束不通过的运行：两轴给出不同结论，正是最容易被做错的那种。 */

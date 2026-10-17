@@ -1,4 +1,4 @@
-import type { MediaRunSnapshot } from '@proma/shared'
+import type { MediaRunSnapshot } from '@dutydeck/shared'
 import { ComfyProgressStream } from './comfyui-progress-stream'
 import type { ComfyProgressEvent } from './comfyui-progress-stream'
 import type { MediaRunService } from './media-run-service'

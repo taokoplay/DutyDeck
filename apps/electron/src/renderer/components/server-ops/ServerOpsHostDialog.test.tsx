@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsAuthMethod } from '@proma/shared'
+import type { ServerOpsAuthMethod } from '@dutydeck/shared'
 import { ServerOpsCredentialFields } from './ServerOpsHostDialog'
 import { buildServerOpsHostTestInput } from './ServerOpsHostDialog'
 import { describeServerOpsHostTestFailure } from './ServerOpsHostDialog'

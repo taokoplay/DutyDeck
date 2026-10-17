@@ -4,7 +4,7 @@ import {
   resolveReasoningProfile,
   type AgentThinkingLevel,
   type ReasoningProfile,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 type ProviderPayload = Record<string, unknown>
 

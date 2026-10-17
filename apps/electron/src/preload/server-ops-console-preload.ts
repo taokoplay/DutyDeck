@@ -1,8 +1,8 @@
 import { SERVER_OPS_CONSOLE_IPC_CHANNELS, parseServerOpsConsoleAck, parseServerOpsConsoleExitEvent,
   parseServerOpsConsoleIdentity, parseServerOpsConsoleInput, parseServerOpsConsoleOutputEvent,
-  parseServerOpsConsoleResizeInput, parseServerOpsConsoleStartInput } from '@proma/shared'
+  parseServerOpsConsoleResizeInput, parseServerOpsConsoleStartInput } from '@dutydeck/shared'
 import type { ServerOpsConsoleAck, ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleInput,
-  ServerOpsConsoleOutputEvent, ServerOpsConsoleResizeInput, ServerOpsConsoleStartInput } from '@proma/shared'
+  ServerOpsConsoleOutputEvent, ServerOpsConsoleResizeInput, ServerOpsConsoleStartInput } from '@dutydeck/shared'
 
 export interface ServerOpsConsolePreloadIpc {
   invoke(channel: string, input: unknown): Promise<unknown>

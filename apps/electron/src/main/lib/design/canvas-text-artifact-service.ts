@@ -2,7 +2,7 @@ import { isAbsolute, extname } from 'node:path'
 import {
   CANVAS_TEXT_ARTIFACT_CONTENT_MAX_BYTES,
   parseCanvasBatchOperationEnvelope,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AdoptCanvasTextArtifactRevisionInput,
   CanvasArtifactAuthor,
@@ -20,7 +20,7 @@ import type {
   CanvasWebviewNode,
   CanvasWorkspaceSnapshot,
   UpdateCanvasTextArtifactInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { writeTextFileAtomic } from '../safe-file'
 import type { CanvasDocumentStore } from './canvas-document-store'
 import type {

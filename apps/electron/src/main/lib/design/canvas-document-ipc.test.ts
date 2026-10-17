@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS, createEmptyCanvasDocument, parseGetCanvasImageCandidateBatchInput } from '@proma/shared'
+import { CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS, createEmptyCanvasDocument, parseGetCanvasImageCandidateBatchInput } from '@dutydeck/shared'
 import type {
   AgentSessionMeta,
   CanvasAgentTarget,
@@ -29,7 +29,7 @@ import type {
   SaveCanvasImageModuleInput,
   RebuildCanvasAgentNodeResult,
   SDKMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { parseCanvasDocument } from './canvas-document-store'
 import type { CanvasBatchPublication } from './canvas-agent-batch-operation'
@@ -216,7 +216,7 @@ function createDocument(revision: number): CanvasDocument {
 /** 创建主进程 IPC 测试上下文。 */
 function createContext(options: {
   /** 用于验证诊断落盘状态以及记录器故障不能遮蔽 LOAD 原因。 */
-  recordLoadError?: (diagnostic: import('@proma/shared').CanvasErrorDiagnostic, error: unknown) => 'saved' | 'unavailable'
+  recordLoadError?: (diagnostic: import('@dutydeck/shared').CanvasErrorDiagnostic, error: unknown) => 'saved' | 'unavailable'
   authorized?: TestWebContents[]
   readOnlyReason?: string
   loadResult?: CanvasWorkspaceSnapshot
@@ -287,7 +287,7 @@ function createContext(options: {
   /** 测试可注入候选摘要读取行为，证明普通 Canvas LOAD 不再依赖它。 */
   imageCandidateListActiveSummaries?: (
     target: CanvasTarget,
-  ) => Promise<import('@proma/shared').CanvasImageCandidateBatchSummary[]>
+  ) => Promise<import('@dutydeck/shared').CanvasImageCandidateBatchSummary[]>
   imageCandidateRetry?: (input: CanvasImageTarget & { batchId: string; jobId: string }) => Promise<string>
   /** 允许测试用生产严格解析器验证 Service.load 的精确三字段合同。 */
   imageCandidateLoad?: (input: CanvasTarget & { batchId: string }) => Promise<CanvasImageCandidateBatch>
@@ -374,7 +374,7 @@ function createContext(options: {
   /** 文本产物测试适配器同时供旧工具 runtime 与新增 Registry IPC 路由。 */
   const textArtifactAdapter = {
     descriptor: DOCUMENT_ARTIFACT_DESCRIPTOR,
-    read: async (input: import('@proma/shared').CanvasTextArtifactTarget) => {
+    read: async (input: import('@dutydeck/shared').CanvasTextArtifactTarget) => {
       calls.push('artifact:read')
       if (options.textArtifactRead) return options.textArtifactRead(input)
       return {
@@ -387,7 +387,7 @@ function createContext(options: {
         content: '<main>首页</main>',
       }
     },
-    listVersions: async (input: import('@proma/shared').CanvasTextArtifactIdentity) => {
+    listVersions: async (input: import('@dutydeck/shared').CanvasTextArtifactIdentity) => {
       calls.push('artifact:list')
       if (options.textArtifactListVersions) return options.textArtifactListVersions(input)
       return [{
@@ -424,7 +424,7 @@ function createContext(options: {
         },
       }
     },
-    adopt: async (input: import('@proma/shared').AdoptCanvasTextArtifactRevisionInput) => {
+    adopt: async (input: import('@dutydeck/shared').AdoptCanvasTextArtifactRevisionInput) => {
       if (options.loadResult && options.loadResult.document.revision !== input.expectedCanvasRevision) throw new Error('CANVAS_REVISION_CONFLICT')
       calls.push('artifact:adopt')
       /** 测试采用沿用 update 的权威结果结构。 */
@@ -438,7 +438,7 @@ function createContext(options: {
       calls.splice(nestedCallIndex, 1)
       return result
     },
-    export: async (input: import('@proma/shared').CanvasTextArtifactTarget & { targetPath: string }) => {
+    export: async (input: import('@dutydeck/shared').CanvasTextArtifactTarget & { targetPath: string }) => {
       calls.push('artifact:export')
       artifactCalls.push({ type: 'export', value: structuredClone(input) })
     },
@@ -561,7 +561,7 @@ function createContext(options: {
       requireCapability: (kind) => kind === 'image'
         ? {
             descriptor: IMAGE_ARTIFACT_DESCRIPTOR,
-            export: async (input: import('@proma/shared').ExportCanvasArtifactInput & { targetPath: string }) => {
+            export: async (input: import('@dutydeck/shared').ExportCanvasArtifactInput & { targetPath: string }) => {
               artifactCalls.push({ type: 'export', value: structuredClone(input) })
             },
           }
@@ -4097,7 +4097,7 @@ describe('原生 Canvas 文档 IPC', () => {
         sourceToolCallId: input.source.toolCallId,
       }),
       textArtifacts: {
-        read: async (input: import('@proma/shared').CanvasTextArtifactTarget) => ({
+        read: async (input: import('@dutydeck/shared').CanvasTextArtifactTarget) => ({
           target: input,
           revision: {
             kind: input.kind, contentId: input.contentId, revision: input.contentRevision,
@@ -4112,10 +4112,10 @@ describe('原生 Canvas 文档 IPC', () => {
         export: async () => undefined,
       },
       artifactRegistry: {
-        describe: (kind: import('@proma/shared').CanvasContentKind) => kind === 'document'
+        describe: (kind: import('@dutydeck/shared').CanvasContentKind) => kind === 'document'
           ? DOCUMENT_ARTIFACT_DESCRIPTOR
           : kind === 'webview' ? WEBVIEW_ARTIFACT_DESCRIPTOR : IMAGE_ARTIFACT_DESCRIPTOR,
-        requireCapability: (kind: import('@proma/shared').CanvasContentKind) => ({
+        requireCapability: (kind: import('@dutydeck/shared').CanvasContentKind) => ({
           descriptor: kind === 'document'
             ? DOCUMENT_ARTIFACT_DESCRIPTOR
             : kind === 'webview' ? WEBVIEW_ARTIFACT_DESCRIPTOR : IMAGE_ARTIFACT_DESCRIPTOR,
@@ -4210,7 +4210,7 @@ describe('原生 Canvas 文档 IPC', () => {
         continueBatch: async (input: CanvasTarget & { batchId: string }) => createImageCandidateBatch(input.batchId),
         retryJobLocked: async () => 'job-retry',
         adoptExistingAssetLocked: async (input: import('./canvas-image-candidate-batch-service').AdoptExistingCanvasImageAssetInput) => createImageCandidateBatch(input.batchId),
-        adopt: async (input: import('@proma/shared').AdoptCanvasImageCandidateBatchInput) => createImageCandidateBatch(input.batchId),
+        adopt: async (input: import('@dutydeck/shared').AdoptCanvasImageCandidateBatchInput) => createImageCandidateBatch(input.batchId),
         abandon: async (input: CanvasTarget & { batchId: string }) => createImageCandidateBatch(input.batchId),
       },
       imageAssets: {

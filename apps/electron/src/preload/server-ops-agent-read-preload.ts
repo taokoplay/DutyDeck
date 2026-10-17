@@ -1,9 +1,9 @@
-import { SERVER_OPS_AGENT_ACCESS_MANAGEMENT_CHANNELS, parseServerOpsAgentAccessImpact } from '@proma/shared'
-import type { ServerOpsAgentAccessImpact } from '@proma/shared'
-import { SERVER_OPS_AGENT_READ_CHANNELS, parseServerOpsAgentReadAccess, parseServerOpsAgentReadChanged, parseServerOpsAgentReadGrant, parseServerOpsAgentReadSession } from '@proma/shared'
-import type { ServerOpsAgentReadAccess, ServerOpsAgentReadChanged, ServerOpsAgentReadGrant } from '@proma/shared'
-import { SERVER_OPS_DATABASE_AGENT_POLICY_CHANNELS, parseServerOpsDatabaseAgentPolicy, parseServerOpsDatabaseAgentPolicyUpdate } from '@proma/shared'
-import type { ServerOpsDatabaseAgentPolicy, ServerOpsDatabaseAgentPolicyUpdate } from '@proma/shared'
+import { SERVER_OPS_AGENT_ACCESS_MANAGEMENT_CHANNELS, parseServerOpsAgentAccessImpact } from '@dutydeck/shared'
+import type { ServerOpsAgentAccessImpact } from '@dutydeck/shared'
+import { SERVER_OPS_AGENT_READ_CHANNELS, parseServerOpsAgentReadAccess, parseServerOpsAgentReadChanged, parseServerOpsAgentReadGrant, parseServerOpsAgentReadSession } from '@dutydeck/shared'
+import type { ServerOpsAgentReadAccess, ServerOpsAgentReadChanged, ServerOpsAgentReadGrant } from '@dutydeck/shared'
+import { SERVER_OPS_DATABASE_AGENT_POLICY_CHANNELS, parseServerOpsDatabaseAgentPolicy, parseServerOpsDatabaseAgentPolicyUpdate } from '@dutydeck/shared'
+import type { ServerOpsDatabaseAgentPolicy, ServerOpsDatabaseAgentPolicyUpdate } from '@dutydeck/shared'
 
 /** 只读授权桥接与旧单服务器授权隔离；不接受配置或凭据材料。 */
 export interface ServerOpsAgentReadPreload {

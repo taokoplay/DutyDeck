@@ -1,5 +1,5 @@
 import type { Agent } from '@earendil-works/pi-agent-core'
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 import { createDataRootReferenceCodec } from '../data-root-reference'
 import type { DataRootPathSnapshot } from '../data-root-reference'
 import { projectSessionAttachmentPaths } from '../session-attachment-path-compat'

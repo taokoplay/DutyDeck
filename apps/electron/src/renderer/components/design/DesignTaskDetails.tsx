@@ -3,7 +3,7 @@ import type {
   DesignJobRecord,
   DesignTaskDetails as DesignTaskDetailsData,
   DesignTraceEntry,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ChevronDown, Copy, LoaderCircle, RotateCcw } from 'lucide-react'
 import type {
   DesignProjectState,

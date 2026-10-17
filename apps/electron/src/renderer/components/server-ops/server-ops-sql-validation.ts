@@ -1,5 +1,5 @@
-import { getServerOpsSqlDiagnostic, planServerOpsSqlWrite, validateServerOpsSqlQuery } from '@proma/shared'
-import type { ServerOpsSqlDiagnostic } from '@proma/shared'
+import { getServerOpsSqlDiagnostic, planServerOpsSqlWrite, validateServerOpsSqlQuery } from '@dutydeck/shared'
+import type { ServerOpsSqlDiagnostic } from '@dutydeck/shared'
 import type { ServerOpsSqlCompletionProjection } from './server-ops-sql-completion-controller'
 import type { ServerOpsSqlDialect } from './server-ops-sql-completion'
 

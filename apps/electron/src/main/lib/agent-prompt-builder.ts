@@ -3,7 +3,7 @@
  * 静态提示词只保留 Proma 独有、且未由运行时或工具 schema 强制的行为契约。
  */
 
-import type { PromaPermissionMode, SessionWorkbenchLayout } from '@proma/shared'
+import type { PromaPermissionMode, SessionWorkbenchLayout } from '@dutydeck/shared'
 import { lstatSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { getUserProfile } from './user-profile-service'

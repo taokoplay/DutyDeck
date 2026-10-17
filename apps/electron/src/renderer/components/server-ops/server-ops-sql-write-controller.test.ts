@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createServerOpsSqlWriteController } from './server-ops-sql-write-controller'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import type { ServerOpsSqlWriteContext, ServerOpsSqlWriteProjection } from './server-ops-sql-write-controller'
 
 /** 公开数据源快照；不含密码或凭据引用。 */

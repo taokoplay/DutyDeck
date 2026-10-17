@@ -1,9 +1,28 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  assertReleaseTag,
   assertBoneReleaseTag,
+  createReleaseTitle,
   createBoneReleaseTitle,
+  parseReleaseVersion,
   parseBoneReleaseVersion,
 } from './release-version'
+
+test('独立 DutyDeck 版本使用标准 SemVer', () => {
+  expect(parseReleaseVersion('0.20.0')).toEqual({
+    fullVersion: '0.20.0',
+    major: 0,
+    minor: 20,
+    patch: 0,
+  })
+  expect(assertReleaseTag('0.20.0', 'v0.20.0').fullVersion).toBe('0.20.0')
+  expect(createReleaseTitle('0.20.0')).toBe('DutyDeck 0.20.0')
+})
+
+test('独立版本解析器拒绝 Bone 后缀与预发布标签', () => {
+  expect(parseReleaseVersion('0.20.0-bone.1')).toBeNull()
+  expect(parseReleaseVersion('0.20.0-rc.1')).toBeNull()
+})
 
 describe('Bone 发布版本', () => {
   test('Given 合法 Bone SemVer When 解析 Then 返回官方版本与构建号', () => {

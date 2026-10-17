@@ -1,6 +1,6 @@
 import { accessSync, constants, lstatSync, opendirSync, renameSync, rmdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import type { DataRootMigrationPreview } from '@proma/shared'
+import type { DataRootMigrationPreview } from '@dutydeck/shared'
 import { DataRootLocator } from './data-root-locator'
 import type { DataRootMigrationGuard } from './data-root-instance-lease'
 import { inspectPromaDataRootIdentity } from './data-root-marker'

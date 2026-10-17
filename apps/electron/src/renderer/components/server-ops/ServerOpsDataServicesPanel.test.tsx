@@ -6,7 +6,7 @@ import type {
   ServerOpsDataProbeResult,
   ServerOpsDataSource,
   ServerOpsDataSourceUpsertInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createServerOpsDataIdleProjection,
   createServerOpsDataServicesController,

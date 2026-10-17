@@ -12,7 +12,7 @@
 
 import { execFileAsync } from './async-command'
 import iconv from 'iconv-lite'
-import type { WslStatus } from '@proma/shared'
+import type { WslStatus } from '@dutydeck/shared'
 
 const WSL_NOT_READY_ERROR = 'WSL 未就绪，如已安装 Git Bash 可不安装'
 

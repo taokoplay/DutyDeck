@@ -6,7 +6,7 @@ import {
   type CanvasImageModuleConfig,
   type CanvasNode,
   type CanvasTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createCanvasImageCandidateBatchService, createCanvasImageCandidateHash } from './canvas-image-candidate-batch-service'
 import type { CanvasImageCandidateAdoptionPublication } from './canvas-image-candidate-batch-service'
 import { parseCanvasImageCandidateAdoptionIntent, type CanvasImageCandidateAdoptionIntent } from './canvas-image-candidate-batch-store'

@@ -19,7 +19,7 @@ import { join } from 'node:path'
 import type {
   CapabilityDataset, CapabilityDelivery, CapabilityEvaluation, CapabilityPackage, CapabilityRun, CapabilityRunReview,
   CapabilitySavedTask, CapabilityScene, CapabilitySceneVersion, CapabilityStub,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { readJsonFileSafe, readJsonFileStrict, writeJsonFileAtomic, writeJsonLinesFileAtomic } from '../safe-file'
 
 /** 场景索引文件的版本号；结构变更时递增并写迁移。 */

@@ -7,7 +7,7 @@ import type {
   DesignJobRecord,
   ExportCanvasImageArtifactInput,
   SaveCanvasImageModuleInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   deriveCanvasImageArtifactVersions,
 } from './canvas-image-module-store'

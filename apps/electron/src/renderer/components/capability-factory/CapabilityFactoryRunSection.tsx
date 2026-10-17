@@ -9,7 +9,7 @@ import { ChevronDown, LoaderCircle, Play } from 'lucide-react'
 import type {
   CapabilityFactoryApi, CapabilityFactoryCommandInputs, CapabilityRun, CapabilityScene,
   CapabilitySavedTask, CapabilityStub, CapabilityStubSource,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'

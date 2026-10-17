@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import type { ApiCryptoOverrides, ApiCryptoProfile, ApiCryptoStep } from '@proma/shared'
+import type { ApiCryptoOverrides, ApiCryptoProfile, ApiCryptoStep } from '@dutydeck/shared'
 import { ApiCryptoError, decryptValue, digestValue, encryptValue, evaluateCryptoTemplate, isAuthenticatedCipher } from './api-crypto'
 import type { ApiCryptoTemplateContext, ApiCryptoTemplateGroup } from './api-crypto'
 

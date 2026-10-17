@@ -51,11 +51,11 @@ import type {
   AgentCwdMode,
   AgentActiveWorktree,
   SessionWorkbenchLayout,
-} from '@proma/shared'
-import { migratePermissionMode, mergeSkillActivations, findBestSearchMatch, insertTopSearchResult, isAgentToolMode, isOrdinaryTopLevelAgentSession } from '@proma/shared'
+} from '@dutydeck/shared'
+import { migratePermissionMode, mergeSkillActivations, findBestSearchMatch, insertTopSearchResult, isAgentToolMode, isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { getConversationMessages } from './conversation-manager'
-// 旧格式 → SDKMessage 的转换逻辑下沉到 @proma/session-core 作为唯一真源，避免主进程与渲染层各存一份。
-import { convertLegacyMessage } from '@proma/session-core'
+// 旧格式 → SDKMessage 的转换逻辑下沉到 @dutydeck/session-core 作为唯一真源，避免主进程与渲染层各存一份。
+import { convertLegacyMessage } from '@dutydeck/session-core'
 import { clearNanoBananaAgentHistory } from './chat-tools/nano-banana-mcp'
 import { assertEnabledModelForChannel } from './agent-model-selection'
 import { copyForkWorkspaceFiles } from './agent-fork-workspace-copy'
@@ -1326,7 +1326,7 @@ export async function getAgentSessionSDKMessagesForDisplay(id: string): Promise<
 }
 
 /**
- * convertLegacyMessage 已迁移至 @proma/session-core（本文件从该包 import 使用）。
+ * convertLegacyMessage 已迁移至 @dutydeck/session-core（本文件从该包 import 使用）。
  */
 
 /**

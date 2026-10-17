@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { createEmptyCanvasDocument } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import type {
   AgentCanvasBinding,
   AgentSessionMeta,
   CanvasDocument,
   CanvasNodeReference,
   CanvasSessionMeta,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   CANVAS_WORKSPACE_SUMMARY_MAX_LENGTH,
   CanvasReferenceInvalidError,

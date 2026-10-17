@@ -7,13 +7,13 @@ import type {
   MediaWorkflowBinding,
   MediaWorkflowDefinition,
   MediaWorkflowFieldControlType,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createMediaWorkflowFieldBinding,
   listMediaWorkflowFields,
   parseComfyPrompt,
   parseMediaWorkflowDefinition,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { COMFY_CORE_NODE_CONTRACTS, expandComfyNodeInputs, validateComfyWorkflow } from './comfyui-workflow'
 import { flattenComfyUiSubgraphs } from './media-ui-workflow-subgraphs'
 

@@ -9,7 +9,7 @@ import type {
   PlanningNativeConnection,
   PlanningNativeSyncConflict,
   PlanningSyncProfile,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'

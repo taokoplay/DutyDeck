@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsDataRowFilters } from '@proma/shared'
+import type { ServerOpsDataRowFilters } from '@dutydeck/shared'
 import {
   parseServerOpsRuntimeMessage,
   parseServerOpsRuntimeRequest,

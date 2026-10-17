@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CanvasNodeKind } from '@proma/shared'
+import type { CanvasNodeKind } from '@dutydeck/shared'
 import {
   AlertDialog,
   AlertDialogAction,

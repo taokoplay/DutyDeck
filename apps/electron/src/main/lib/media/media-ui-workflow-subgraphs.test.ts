@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import type { JsonObject } from '@proma/shared'
+import type { JsonObject } from '@dutydeck/shared'
 import * as subgraphModule from './media-ui-workflow-subgraphs'
 
 interface ExpectedSubgraphModule {
   flattenComfyUiSubgraphs(body: JsonObject): {
     definition: JsonObject
-    inputOverrides: Record<string, Record<string, import('@proma/shared').JsonValue>>
+    inputOverrides: Record<string, Record<string, import('@dutydeck/shared').JsonValue>>
     issues: Array<{ code: string; message: string; nodeId?: string; input?: string }>
   }
 }
@@ -72,7 +72,7 @@ describe('ComfyUI canonical 子图展开', () => {
     secondHost.outputs = [{ id: 'host-output-2', name: 'IMAGE', type: 'IMAGE', links: [13] }]
     ;(((first.nodes as JsonObject[])[0]!.outputs as JsonObject[])[0]!).links = [10, 12]
     ;(first.nodes as JsonObject[]).push(secondHost, { id: 201, type: 'Sink', inputs: [{ name: 'images', link: 13 }], outputs: [], widgets_values: [] })
-    ;(first.links as import('@proma/shared').JsonValue[]).push([12, 1, 0, 101, 0, 'IMAGE'], [13, 101, 0, 201, 0, 'IMAGE'])
+    ;(first.links as import('@dutydeck/shared').JsonValue[]).push([12, 1, 0, 101, 0, 'IMAGE'], [13, 101, 0, 201, 0, 'IMAGE'])
     const result = subject().flattenComfyUiSubgraphs(first)
     expect(result.issues).toEqual([])
     expect((result.definition.nodes as JsonObject[]).map((node) => node.id)).toEqual(expect.arrayContaining(['100::2', '101::2']))
@@ -95,8 +95,8 @@ describe('ComfyUI canonical 子图展开', () => {
   test('Given MiniMax 旧图的 host 仅有部分接口且根 link 槽位冲突 When 展开 Then 不猜测修复并精确报告接口问题', () => {
     const body = canonicalBody(105)
     const host = (body.nodes as JsonObject[])[1]!
-    host.inputs = (host.inputs as import('@proma/shared').JsonValue[]).slice(0, 1)
-    ;(body.links as import('@proma/shared').JsonValue[])[0] = [10, 1, 0, 105, 2, 'IMAGE']
+    host.inputs = (host.inputs as import('@dutydeck/shared').JsonValue[]).slice(0, 1)
+    ;(body.links as import('@dutydeck/shared').JsonValue[])[0] = [10, 1, 0, 105, 2, 'IMAGE']
     const result = subject().flattenComfyUiSubgraphs(body)
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'UI_SUBGRAPH_INPUT_MISMATCH', nodeId: '105' }))
     expect(result.inputOverrides).toEqual({})

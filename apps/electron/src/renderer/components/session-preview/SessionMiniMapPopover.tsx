@@ -25,8 +25,8 @@ import type {
   SDKSystemMessage,
   SDKUserContentBlock,
   SDKUserMessage,
-} from '@proma/shared'
-import { getSDKCompactStatus } from '@proma/shared'
+} from '@dutydeck/shared'
+import { getSDKCompactStatus } from '@dutydeck/shared'
 
 export type SessionMiniMapType = 'chat' | 'agent'
 

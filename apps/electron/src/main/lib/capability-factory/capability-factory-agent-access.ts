@@ -1,5 +1,5 @@
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
-import type { AgentSessionMeta } from '@proma/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 
 /** 宿主事实：来源、当前会话与存储根均不由模型提供。 */
 interface CapabilityFactoryAccessOptions {

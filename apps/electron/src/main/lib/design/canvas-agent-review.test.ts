@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasDocument } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasDocument } from '@dutydeck/shared'
 import { createCanvasAgentReviewTracker, resolveCanvasAgentReviewContext } from './canvas-agent-review'
 
 /** 构造同一视频内含孤立节点的审核快照，未连线不意味着范围外。 */

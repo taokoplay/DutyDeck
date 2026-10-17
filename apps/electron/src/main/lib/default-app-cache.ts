@@ -6,7 +6,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import type { DefaultAppInfo } from '@proma/shared'
+import type { DefaultAppInfo } from '@dutydeck/shared'
 import { getDefaultAppsCachePath } from './config-paths'
 
 interface DefaultAppCacheEntry extends DefaultAppInfo {

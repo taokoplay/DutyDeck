@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createApiRequestDraft } from '@proma/shared'
-import type { ApiRequestDefinition } from '@proma/shared'
+import { createApiRequestDraft } from '@dutydeck/shared'
+import type { ApiRequestDefinition } from '@dutydeck/shared'
 import { ApiRequestDocumentation } from './ApiRequestDocumentation'
 
 /** 创建包含公开值、秘密值和响应约束的已保存接口定义。 */

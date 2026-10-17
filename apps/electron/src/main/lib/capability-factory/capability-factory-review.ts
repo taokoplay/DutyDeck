@@ -1,5 +1,5 @@
 /** 工厂专属评审器：执行后核对内容，评审提示词与报告均不进入能力包。 */
-import type { CapabilityRun, CapabilityRunModelBinding, CapabilityRunReview, SceneAcceptance } from '@proma/shared'
+import type { CapabilityRun, CapabilityRunModelBinding, CapabilityRunReview, SceneAcceptance } from '@dutydeck/shared'
 import type { CapabilityFactoryModelCall } from './capability-factory-model-call'
 
 /** 一次评审的全部材料；规则由运行开始时的快照提供。 */

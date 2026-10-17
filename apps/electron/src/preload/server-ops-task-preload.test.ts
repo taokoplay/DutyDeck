@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { createServerOpsTaskPreload } from './server-ops-task-preload'
-import type { ServerOpsTaskSummary } from '@proma/shared'
+import type { ServerOpsTaskSummary } from '@dutydeck/shared'
 
 /** 有效任务夹具，不含真实主机或凭据。 */
 const task: ServerOpsTaskSummary = { taskId: 't', sessionId: 's', hostId: 'h', connectionId: 'c', command: 'echo ok', state: 'running', createdAt: 1 }

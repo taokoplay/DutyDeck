@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@proma/shared'
-import type { AgentSessionMeta, CanvasDocument, CanvasNode, SDKMessage } from '@proma/shared'
+import { createCanvasBoundEdge, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { AgentSessionMeta, CanvasDocument, CanvasNode, SDKMessage } from '@dutydeck/shared'
 import { createCanvasDependencyStateService } from './canvas-dependency-state-service'
 import {
   createCanvasAgentOutputService,

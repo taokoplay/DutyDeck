@@ -19,8 +19,8 @@ import {
   CANVAS_DOCUMENT_VERSION,
   CANVAS_UPSTREAM_CHANGE_MAX_SOURCE_IDS,
   createEmptyCanvasDocument,
-} from '@proma/shared'
-import type { CanvasAgentNode, CanvasDocument, CanvasMutation, CanvasNode } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { CanvasAgentNode, CanvasDocument, CanvasMutation, CanvasNode } from '@dutydeck/shared'
 import {
   createCanvasDocumentStore,
   isOpenedRootSameDirectoryIdentity,

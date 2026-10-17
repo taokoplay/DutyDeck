@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { DesignJobRecord, ImageGenerationModelSnapshot } from '@proma/shared'
+import type { DesignJobRecord, ImageGenerationModelSnapshot } from '@dutydeck/shared'
 import type { ResolveImageGenerationRoute } from './image-generation-runtime'
 import type { AgentCompletionEvaluation } from './agent-completion-policy'
 import type { ImageRequestAudit } from './chat-tools/image-request-context'

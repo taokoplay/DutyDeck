@@ -1,4 +1,4 @@
-import type { CanvasDocument, CanvasMediaAdoptedOutput, CanvasTarget, MediaRunSnapshot } from '@proma/shared'
+import type { CanvasDocument, CanvasMediaAdoptedOutput, CanvasTarget, MediaRunSnapshot } from '@dutydeck/shared'
 import type { MediaRunService } from '../media/media-run-service'
 import type { MediaRunSupervisor } from '../media/media-run-supervisor'
 import type { CanvasAgentOutputService } from './canvas-agent-output-service'

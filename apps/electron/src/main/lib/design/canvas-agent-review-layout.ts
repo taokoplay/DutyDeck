@@ -3,14 +3,14 @@ import {
   CANVAS_IMAGE_NODE_MAX_HEIGHT,
   createCanvasLayoutSpatialIndex,
   findCompactCanvasSlot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasLayoutRect,
   CanvasLayoutSize,
   CanvasNode,
   DesignPoint,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 普通 Agent 和无预览节点的稳定卡片尺寸。 */
 const STANDARD_NODE_SIZE: CanvasLayoutSize = { width: 288, height: 144 }

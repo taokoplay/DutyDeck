@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { atom, createStore, Provider, useAtomValue } from 'jotai'
-import type { ServerOpsDataQueryInput, ServerOpsDataSource, ServerOpsDataWriteInput, ServerOpsDataWriteResult } from '@proma/shared'
+import type { ServerOpsDataQueryInput, ServerOpsDataSource, ServerOpsDataWriteInput, ServerOpsDataWriteResult } from '@dutydeck/shared'
 import { applyThemeToDOM } from '../src/renderer/atoms/theme'
 import { ServerOpsSqlQueryPanel } from '../src/renderer/components/server-ops/ServerOpsSqlQueryPanel'
 import type { ServerOpsSqlQueryPanelApi } from '../src/renderer/components/server-ops/ServerOpsSqlQueryPanel'

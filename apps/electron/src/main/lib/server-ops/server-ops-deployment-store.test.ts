@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ServerOpsDeploymentRun, ServerOpsDeploymentTarget, ServerOpsDeploymentTargetSaveInput } from '@proma/shared'
+import type { ServerOpsDeploymentRun, ServerOpsDeploymentTarget, ServerOpsDeploymentTargetSaveInput } from '@dutydeck/shared'
 import { ServerOpsDeploymentStore } from './server-ops-deployment-store'
 
 const projectId = '10000000-0000-4000-8000-000000000001'

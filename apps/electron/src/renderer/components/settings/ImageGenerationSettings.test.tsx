@@ -13,7 +13,7 @@ mock.module('@/lib/model-logo', () => ({
   resolveModelDisplayName: (modelId: string) => modelId,
   resolveModelProvider: () => 'unknown',
 }))
-import type { ImageGenerationSettingsResult } from '@proma/shared'
+import type { ImageGenerationSettingsResult } from '@dutydeck/shared'
 import { EMPTY_DREAMINA_LOGIN } from './ImageGenerationSettings.controller'
 import type { ImageGenerationController } from './ImageGenerationSettings.controller'
 /** 位图 mock 必须先于组件模块加载，因此这里使用动态导入。 */

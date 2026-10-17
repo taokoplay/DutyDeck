@@ -23,7 +23,7 @@ import {
   parseCanvasMediaModelScope,
   parseCanvasEdgeRelation,
   resolveCanvasEdgeBinding,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasEdge,
@@ -31,8 +31,8 @@ import type {
   CanvasNode,
   CanvasTarget,
   CanvasWorkspaceSnapshot,
-} from '@proma/shared'
-export type { CanvasTarget, CanvasWorkspaceSnapshot } from '@proma/shared'
+} from '@dutydeck/shared'
+export type { CanvasTarget, CanvasWorkspaceSnapshot } from '@dutydeck/shared'
 import {
   AtomicDestinationConflictError,
   AtomicWritePostCommitError,

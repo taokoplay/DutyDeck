@@ -22,7 +22,7 @@ import {
   calculatePiAutoCompactionThresholdTokens,
   type ChannelPlanQuotaWindow,
   type ProviderType,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { fetchChannelPlanQuota } from '@/lib/channel-plan-quota'
 import { currentPlanQuota, formatPlanQuotaWindowValue, planQuotaAccountKey } from '@/lib/channel-plan-quota-display'
 import type { LoadedPlanQuota } from '@/lib/channel-plan-quota-display'

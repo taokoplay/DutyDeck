@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CanvasDocument, CanvasEdgeRelation, CanvasNodeKind } from '@proma/shared'
+import type { CanvasDocument, CanvasEdgeRelation, CanvasNodeKind } from '@dutydeck/shared'
 import { atom, useAtom } from 'jotai'
 import { useCommandState } from 'cmdk'
 import { Bot, Check, FileImage, FileText, ListTree, Monitor, Music, Video } from 'lucide-react'

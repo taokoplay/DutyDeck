@@ -6,7 +6,7 @@ import type {
   DataRootSelection,
   DataRootMigrationStatus,
   PathManagementState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { readFileSync } from 'node:fs'
 import * as migrationSettingsModule from './PathManagementSettings'
 

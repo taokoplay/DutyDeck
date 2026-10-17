@@ -1,5 +1,5 @@
 {
-  "name": "proma",
+  "name": "dutydeck",
   "version": "0.1.1",
   "description": "DutyDeck，为专业用户设计的 Agent",
   "type": "module",
@@ -10,13 +10,13 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "bun run --filter='@proma/electron' dev",
-    "electron:dev": "bun run --filter='@proma/electron' dev",
-    "electron:build": "bun run --filter='@proma/electron' build",
-    "electron:start": "bun run --filter='@proma/electron' start",
-    "dist:mac": "bun run --filter='@proma/electron' dist:mac",
-  "dist:win": "bun run --filter='@proma/electron' dist:win",
-  "dist:linux": "bun run --filter='@proma/electron' dist:linux",
+    "dev": "bun run --filter='@dutydeck/electron' dev",
+    "electron:dev": "bun run --filter='@dutydeck/electron' dev",
+    "electron:build": "bun run --filter='@dutydeck/electron' build",
+    "electron:start": "bun run --filter='@dutydeck/electron' start",
+    "dist:mac": "bun run --filter='@dutydeck/electron' dist:mac",
+  "dist:win": "bun run --filter='@dutydeck/electron' dist:win",
+  "dist:linux": "bun run --filter='@dutydeck/electron' dist:linux",
     "build": "bun run --filter='*' build",
     "typecheck": "bun run --filter='*' typecheck",
     "test": "bun test"

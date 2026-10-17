@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasWorkflowRun } from '@proma/shared'
+import type { CanvasWorkflowRun } from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   NativeCanvasWorkflowRunEntries,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 import { isVisibleRunMessage } from './agent-run-message-visibility'
 
 describe('Agent 本轮可见消息判定', () => {

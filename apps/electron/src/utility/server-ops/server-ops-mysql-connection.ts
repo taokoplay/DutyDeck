@@ -1,6 +1,6 @@
 import type { Duplex } from 'node:stream'
 import type { Connection, ConnectionOptions } from 'mysql2'
-import type { ServerOpsDataTlsMode, ServerOpsDataTlsStatus } from '@proma/shared'
+import type { ServerOpsDataTlsMode, ServerOpsDataTlsStatus } from '@dutydeck/shared'
 
 /**
  * MySQL 连接构造的**唯一实现**。

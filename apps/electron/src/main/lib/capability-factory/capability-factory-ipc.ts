@@ -1,4 +1,4 @@
-import type { CapabilityExperimentAdvanceRequest } from '@proma/shared'
+import type { CapabilityExperimentAdvanceRequest } from '@dutydeck/shared'
 import type { createCapabilityFactorySessionRuntime } from './capability-factory-session-runtime'
 import { resolveCapabilityDraftAdoption } from './capability-factory-draft-adoption'
 /**
@@ -13,8 +13,8 @@ import { resolveCapabilityDraftAdoption } from './capability-factory-draft-adopt
  * （可能几十秒），跑完才返回。渲染层因此用"运行中"状态遮住这段时间，
  * 而不是把 runner 搬到渲染层 —— 模型调用与凭据都只能在主进程里发生。
  */
-import { CAPABILITY_FACTORY_CHANNELS, parseCapabilityFactoryCommand, stableCapabilityValueKey } from '@proma/shared'
-import type { CapabilityFactoryModelSelection, CapabilityEvaluation, CapabilityRun, CapabilitySceneDefinition, CapabilityFactoryBatch } from '@proma/shared'
+import { CAPABILITY_FACTORY_CHANNELS, parseCapabilityFactoryCommand, stableCapabilityValueKey } from '@dutydeck/shared'
+import type { CapabilityFactoryModelSelection, CapabilityEvaluation, CapabilityRun, CapabilitySceneDefinition, CapabilityFactoryBatch } from '@dutydeck/shared'
 import type { CapabilityFactoryService } from './capability-factory-service'
 import type { CapabilityFactoryRunOptions } from './capability-factory-run'
 import type { CapabilityFactoryBatchRunner } from './capability-factory-batch'

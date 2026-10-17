@@ -1,4 +1,4 @@
-import type { CanvasChangeEvent, DesignJobTarget } from '@proma/shared'
+import type { CanvasChangeEvent, DesignJobTarget } from '@dutydeck/shared'
 import type { CanvasDocumentStore } from './canvas-document-store'
 import type { CanvasImageModuleStore } from './canvas-image-module-store'
 

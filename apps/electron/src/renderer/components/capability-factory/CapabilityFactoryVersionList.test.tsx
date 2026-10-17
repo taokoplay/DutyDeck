@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilitySceneVersion } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilitySceneVersion } from '@dutydeck/shared'
 import { CapabilityFactoryVersionList } from './CapabilityFactoryVersionList'
 
 /** 造一版历史记录。 */

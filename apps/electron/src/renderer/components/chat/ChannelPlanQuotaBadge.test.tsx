@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Channel, ProviderType } from '@proma/shared'
+import type { Channel, ProviderType } from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ChannelPlanQuotaBadge } from './ChannelPlanQuotaBadge'

@@ -1,4 +1,4 @@
-import type { VaultFileEntry, VaultTreeEntry } from '@proma/shared'
+import type { VaultFileEntry, VaultTreeEntry } from '@dutydeck/shared'
 
 /** A fresh file tree intentionally reveals no nested folders. */
 export function getInitialVaultExpandedFolders(): ReadonlySet<string> {

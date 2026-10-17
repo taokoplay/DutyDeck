@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
 import { CapabilityFactorySubmitDialog, CapabilityFactorySubmitForm } from './CapabilityFactorySubmitDialog'
 
 /** 一个带四类输入的场景：在同一编辑框内保留各字段的类型。 */

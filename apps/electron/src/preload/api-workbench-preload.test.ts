@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { API_WORKBENCH_CHANNELS } from '@proma/shared'
+import { API_WORKBENCH_CHANNELS } from '@dutydeck/shared'
 import { createApiWorkbenchPreload } from './api-workbench-preload'
 
 test('Given 合法会话 When 读取目录 Then 通过唯一IPC通道并校验回执', async () => {

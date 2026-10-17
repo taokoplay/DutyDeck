@@ -12,7 +12,7 @@ import {
 import { ServerOpsSqlQueryHistory } from './ServerOpsSqlQueryHistory'
 import { createServerOpsSqlQueryHistoryIdleProjection } from './server-ops-sql-query-history-controller'
 import { createServerOpsSqlWriteIdleProjection } from './server-ops-sql-write-controller'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 
 /** 面板写入链使用的完整公开数据源快照。 */
 const mysqlSource: ServerOpsDataSource = {

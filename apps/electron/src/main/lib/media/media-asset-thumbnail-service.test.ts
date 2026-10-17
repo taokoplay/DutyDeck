@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { MediaAssetRecord, MediaAssetRef } from '@proma/shared'
+import type { MediaAssetRecord, MediaAssetRef } from '@dutydeck/shared'
 import { MediaAssetThumbnailService } from './media-asset-thumbnail-service'
 
 /** 构造固定图片记录，模拟统一媒体资产服务的权威返回。 */

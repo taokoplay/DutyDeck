@@ -1,4 +1,4 @@
-import type { LanBridgeRuntimeState } from '@proma/shared'
+import type { LanBridgeRuntimeState } from '@dutydeck/shared'
 import type { AgentEventBus } from '../agent-event-bus'
 
 /** LAN Bridge 恢复控制器依赖，仅描述现有服务生命周期。 */

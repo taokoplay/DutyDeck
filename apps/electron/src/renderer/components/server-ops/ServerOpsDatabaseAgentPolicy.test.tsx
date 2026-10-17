@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import { ServerOpsDatabaseAgentPolicy } from './ServerOpsDatabaseAgentPolicy'
 
 /** 不含凭据的合成 MySQL 连接，模拟从项目首页打开弹窗。 */

@@ -11,7 +11,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
-import type { CanvasViewCommand, CanvasViewCommandResponse } from '@proma/shared'
+import type { CanvasViewCommand, CanvasViewCommandResponse } from '@dutydeck/shared'
 
 /** 独立Vite fixture URL，不加载用户应用入口。 */
 const fixtureUrl = `http://127.0.0.1:${process.env.PROMA_CANVAS_SMOKE_PORT ?? '5197'}/@fs${join(process.cwd(), 'scripts/canvas-agent-view-smoke.html')}`

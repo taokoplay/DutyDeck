@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { DesignAsset, DesignCanvasDocument } from '@proma/shared'
-import { createEmptyDesignDocument } from '@proma/shared'
+import type { DesignAsset, DesignCanvasDocument } from '@dutydeck/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
 import type { DesignAssetImportBatch } from './design-asset-service'
 import { CanvasArtifactPreflightError } from './canvas-artifact-preflight'
 import { createCanvasImportedImageService } from './canvas-imported-image-service'

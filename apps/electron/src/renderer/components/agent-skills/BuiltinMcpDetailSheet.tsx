@@ -7,7 +7,7 @@ import { ArrowLeft, CheckCircle2, Plug, Settings2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import type { BuiltinMcpServerSummary } from '@proma/shared'
+import type { BuiltinMcpServerSummary } from '@dutydeck/shared'
 
 interface BuiltinMcpDetailSheetProps {
   open: boolean

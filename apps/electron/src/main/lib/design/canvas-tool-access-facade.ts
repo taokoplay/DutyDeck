@@ -7,7 +7,7 @@ import type {
   CanvasTarget,
   CanvasWorkspaceSnapshot,
   UpdateCanvasSessionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { hasValidCanvasAgentOwnership, isEligibleProjectAgent } from '../agent-session-visibility'
 import type { AgentCanvasBindingMutationResult } from './agent-canvas-binding-store'
 import {

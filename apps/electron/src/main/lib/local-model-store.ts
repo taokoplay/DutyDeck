@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, lstatSync, constants } from 'node:
 import { open } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-import type { LocalModelAsset, LocalModelCapabilityEvidence, LocalModelLifecycleState } from '@proma/shared'
+import type { LocalModelAsset, LocalModelCapabilityEvidence, LocalModelLifecycleState } from '@dutydeck/shared'
 import { getLocalModelsDir, getLocalModelsManifestPath } from './config-paths'
 import { readJsonFileSafe, writeJsonFileAtomic } from './safe-file'
 

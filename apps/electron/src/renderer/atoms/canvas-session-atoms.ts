@@ -1,4 +1,4 @@
-import type { CanvasSessionMeta } from '@proma/shared'
+import type { CanvasSessionMeta } from '@dutydeck/shared'
 import { atom } from 'jotai'
 
 /** Canvas registry 写操作使用的双重稳定身份。 */

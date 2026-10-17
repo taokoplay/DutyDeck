@@ -11,14 +11,14 @@ import {
   parseServerOpsTransferSnapshot,
   parseServerOpsTransferSnapshots,
   parseServerOpsTransferStartInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsAuditAppendInput,
   ServerOpsTransferDirection,
   ServerOpsTransferListInput,
   ServerOpsTransferSnapshot,
   ServerOpsTransferStartInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ServerOpsSftpRuntimeError } from '../../../utility/server-ops/server-ops-sftp-runtime'
 import type { ServerOpsSftpResult, ServerOpsSftpStat } from '../../../utility/server-ops/server-ops-sftp-runtime'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'

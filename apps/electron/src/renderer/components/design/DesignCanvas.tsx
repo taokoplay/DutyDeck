@@ -4,7 +4,7 @@ import type {
   DesignCanvasDocument,
   DesignJobRecord,
   DesignMutation,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   Background,
   Controls,

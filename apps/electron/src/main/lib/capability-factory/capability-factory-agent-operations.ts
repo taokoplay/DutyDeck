@@ -10,8 +10,8 @@ import type {
   CapabilitySceneDraft,
   CapabilityStub,
   SceneAcceptance,
-} from '@proma/shared'
-import { getReviewSteps, getStepAcceptance, stableCapabilityValueKey } from '@proma/shared'
+} from '@dutydeck/shared'
+import { getReviewSteps, getStepAcceptance, stableCapabilityValueKey } from '@dutydeck/shared'
 import type { CapabilityFactoryService } from './capability-factory-service'
 import {
   createCapabilityFactoryAdoptionSummary,

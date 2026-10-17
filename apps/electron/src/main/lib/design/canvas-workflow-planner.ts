@@ -3,7 +3,7 @@ import {
   CANVAS_WORKFLOW_IMAGE_RUN_LIMIT,
   CANVAS_WORKFLOW_RUN_NODE_LIMIT,
   resolveCanvasEdgeBinding,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasNode,
@@ -12,7 +12,7 @@ import type {
   CanvasWorkflowRunInputBinding,
   CanvasWorkflowRunNode,
   MediaInputValue,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createCanvasWorkflowGraphPlan } from './canvas-workflow-graph'
 
 /** 首次规划输出，可直接交给 workflow run store 创建不可变计划。 */

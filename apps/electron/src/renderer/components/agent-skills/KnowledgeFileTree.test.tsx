@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Children, isValidElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { KnowledgeEntry, KnowledgeOutline, KnowledgeOutlineItem } from '@proma/shared'
+import type { KnowledgeEntry, KnowledgeOutline, KnowledgeOutlineItem } from '@dutydeck/shared'
 import { KnowledgeFileTree } from './KnowledgeFileTree'
 
 /** 创建独立于来源路径的知识文件夹具，入参覆盖身份和真实文件位置。 */

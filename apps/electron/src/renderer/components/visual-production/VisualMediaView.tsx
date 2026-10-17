@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { VisualMedia } from '@proma/shared'
+import type { VisualMedia } from '@dutydeck/shared'
 
 /** 每个预览只在进入视口后读取媒体；释放时回收 Blob URL，避免整库驻留。 */
 export function VisualMediaView({ sessionId, productionId, media, active = true, playing = false, controls = false, onEnded, onError, onReady, className = '' }: { sessionId: string; productionId: string; media?: VisualMedia; active?: boolean; playing?: boolean; controls?: boolean; onEnded?: () => void; onError?: () => void; onReady?: () => void; className?: string }): React.ReactElement {

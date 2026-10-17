@@ -8,11 +8,11 @@
  * api-workbench 有对应的 `parseApiResponse`，本模块还没有 ——
  * 在补上之前，主进程返回的结构异常会以原始形态到达渲染层。
  */
-import { CAPABILITY_FACTORY_CHANNELS } from '@proma/shared'
+import { CAPABILITY_FACTORY_CHANNELS } from '@dutydeck/shared'
 import type {
   CapabilityFactoryApi, CapabilityFactoryCommandInputs, CapabilityFactoryCommandMethod,
   CapabilityFactoryCommandResults, CapabilityFactoryRunProgress, CapabilityFactoryChanged,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** invoke 只依赖这一个能力，便于测试替身。 */
 export type CapabilityFactoryInvoke = (channel: string, input: unknown) => Promise<unknown>

@@ -10,7 +10,7 @@ import type {
   ImageGenerationCatalogFetchResult,
   ImageGenerationModelEntry,
   ImageGenerationProvider,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_CATALOG_FAILURE_MESSAGES,
   IMAGE_GENERATION_CATALOG_MESSAGES,
@@ -18,7 +18,7 @@ import {
   IMAGE_PROVIDER_MODEL_LIMIT,
   parseImageGenerationCatalogFetchInput,
   parseImageGenerationCatalogFetchResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 单个响应体允许占用的最大 UTF-8 字节数。 */
 const CATALOG_RESPONSE_MAX_BYTES = 1024 * 1024

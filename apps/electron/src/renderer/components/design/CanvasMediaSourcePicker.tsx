@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { getCanvasMediaSourcePort } from '@proma/shared'
-import type { CanvasDocument, CanvasImagePreview, CanvasNode } from '@proma/shared'
+import { getCanvasMediaSourcePort } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasImagePreview, CanvasNode } from '@dutydeck/shared'
 import { ImageOff, LoaderCircle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 

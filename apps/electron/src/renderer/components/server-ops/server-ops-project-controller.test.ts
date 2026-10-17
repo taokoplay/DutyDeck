@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsProject } from '@proma/shared'
+import type { ServerOpsProject } from '@dutydeck/shared'
 import {
   createServerOpsProjectController,
   describeServerOpsProjectMutationFailure,

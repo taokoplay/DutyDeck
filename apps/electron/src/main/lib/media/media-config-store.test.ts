@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { MediaAuthorizationMode, MediaRemoteDescriptor, MediaWorkflowDefinition } from '@proma/shared'
+import type { MediaAuthorizationMode, MediaRemoteDescriptor, MediaWorkflowDefinition } from '@dutydeck/shared'
 import { writeJsonFileAtomic } from '../safe-file'
 import { MediaConfigStore } from './media-config-store'
 

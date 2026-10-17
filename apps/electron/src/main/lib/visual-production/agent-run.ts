@@ -1,4 +1,4 @@
-import type { VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualJob } from '@proma/shared'
+import type { VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualJob } from '@dutydeck/shared'
 import type { VisualProductionExecutor } from './access'
 
 /** 单轮主会话只结算本轮签发的任务；不扫描、接管其他运行的任务。 */

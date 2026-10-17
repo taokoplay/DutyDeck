@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { AgentCanvasBinding, AgentSessionMeta } from '@proma/shared'
+import type { AgentCanvasBinding, AgentSessionMeta } from '@dutydeck/shared'
 import type { CanvasAgentOwner } from '@/lib/canvas-agent-event-routing'
 import { resolveCanvasAgentWorkspaceOwner } from './useGlobalAgentListeners'
 

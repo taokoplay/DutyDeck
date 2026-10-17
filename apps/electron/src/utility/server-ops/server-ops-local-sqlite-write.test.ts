@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { planServerOpsSqlWrite } from '@proma/shared'
+import { planServerOpsSqlWrite } from '@dutydeck/shared'
 import { runServerOpsLocalSqliteWrite } from './server-ops-local-sqlite-runtime'
 
 /** 本次用例的临时目录，用例结束后整体回收。 */

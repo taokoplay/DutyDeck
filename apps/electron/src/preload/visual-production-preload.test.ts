@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { VISUAL_PRODUCTION_CHANNELS } from '@proma/shared'
+import { VISUAL_PRODUCTION_CHANNELS } from '@dutydeck/shared'
 import { createVisualProductionPreload } from './visual-production-preload'
 
 describe('影像创作窄桥', () => {

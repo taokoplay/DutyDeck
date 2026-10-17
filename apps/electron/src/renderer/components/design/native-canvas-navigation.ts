@@ -1,4 +1,4 @@
-import type { CanvasEdge, CanvasEdgeRelation, CanvasNode, CanvasNodeKind, DesignViewport } from '@proma/shared'
+import type { CanvasEdge, CanvasEdgeRelation, CanvasNode, CanvasNodeKind, DesignViewport } from '@dutydeck/shared'
 
 /** 导航关系保留稳定身份和方向，不复制节点内容或执行数据。 */
 export interface NativeCanvasNavigationRelation {

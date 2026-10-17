@@ -23,9 +23,9 @@ import {
   isPromptOnlyOptimization,
   validateCapabilityFactoryRunLimits,
   type CapabilityFactoryRunLimits,
-} from '@proma/shared'
-import type { CapabilityBinding, CapabilityStepProgress, RunResult } from '@proma/capability-runner'
-import { createCapabilityRunner } from '@proma/capability-runner'
+} from '@dutydeck/shared'
+import type { CapabilityBinding, CapabilityStepProgress, RunResult } from '@dutydeck/capability-runner'
+import { createCapabilityRunner } from '@dutydeck/capability-runner'
 import { randomUUID } from 'node:crypto'
 import {
   CapabilityFactoryError, stableCapabilityValueKey, type CapabilityFactoryService,

@@ -34,9 +34,9 @@ import { findAllGitRoots, normalizeGitRoot } from './git-diff-service'
 import { listBuiltinMcpServers } from './builtin-mcp/catalog'
 import { RESERVED_BUILTIN_KEYS } from './builtin-mcp/baseline'
 import { createWorkspaceSlug } from './workspace-slug'
-import { inferMcpTransportType, normalizeMcpTransportType } from '@proma/shared'
+import { inferMcpTransportType, normalizeMcpTransportType } from '@dutydeck/shared'
 import { isAgentWorkspacesIndex, isWorkspaceConfig } from './owned-path-rebaser-schema'
-import type { AgentWorkspace, CreateAgentWorkspaceInput, LocalProjectRootStatus, WorkspaceMcpConfig, SkillMeta, SkillImportSource, OtherWorkspaceSkillsGroup, WorkspaceCapabilities, SkillFileNode, SkillFileContent, WorkspaceMemorySummary, BulkImportSkillItemResult, BulkImportSkillsResult, BulkImportWorkspaceSelection } from '@proma/shared'
+import type { AgentWorkspace, CreateAgentWorkspaceInput, LocalProjectRootStatus, WorkspaceMcpConfig, SkillMeta, SkillImportSource, OtherWorkspaceSkillsGroup, WorkspaceCapabilities, SkillFileNode, SkillFileContent, WorkspaceMemorySummary, BulkImportSkillItemResult, BulkImportSkillsResult, BulkImportWorkspaceSelection } from '@dutydeck/shared'
 import { getLocalProjectRootStatus } from './project-root-health'
 export { getLocalProjectRootStatus } from './project-root-health'
 
@@ -1968,7 +1968,7 @@ function isNewerVersion(a: string, b: string): boolean {
 interface WorkspaceConfig {
   attachedDirectories?: string[]
   attachedFiles?: string[]
-  worktreeRepos?: import('@proma/shared').WorkspaceWorktreeRepo[]
+  worktreeRepos?: import('@dutydeck/shared').WorkspaceWorktreeRepo[]
   /** CLI integrations disabled only for Proma in this workspace; third-party CLI credentials stay untouched. */
   disabledCliIntegrationIds?: string[]
   /** User consent for Agent-initiated maintenance of the two AGENTS.md files. */
@@ -2226,11 +2226,11 @@ export function detachWorkspaceFile(workspaceSlug: string, filePath: string): st
  * 静默找不到 worktree）。同时保留 config 中仍然存在的手动配置项（如不在附加
  * 目录内的额外仓库），并自动过滤掉路径已不存在的陈旧条目。
  */
-export async function getWorktreeRepos(workspaceSlug: string): Promise<import('@proma/shared').WorkspaceWorktreeRepo[]> {
+export async function getWorktreeRepos(workspaceSlug: string): Promise<import('@dutydeck/shared').WorkspaceWorktreeRepo[]> {
   const config = readWorkspaceConfig(workspaceSlug)
 
   // repoPath 归一化后去重
-  const byPath = new Map<string, import('@proma/shared').WorkspaceWorktreeRepo>()
+  const byPath = new Map<string, import('@dutydeck/shared').WorkspaceWorktreeRepo>()
 
   // 1. 从附加目录自动探测 git 仓库根
   const attachedDirs = config.attachedDirectories ?? []
@@ -2264,7 +2264,7 @@ export async function getWorktreeRepos(workspaceSlug: string): Promise<import('@
   return Array.from(byPath.values()).sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
 }
 
-export function addWorktreeRepo(workspaceSlug: string, repo: import('@proma/shared').WorkspaceWorktreeRepo): import('@proma/shared').WorkspaceWorktreeRepo[] {
+export function addWorktreeRepo(workspaceSlug: string, repo: import('@dutydeck/shared').WorkspaceWorktreeRepo): import('@dutydeck/shared').WorkspaceWorktreeRepo[] {
   const config = readWorkspaceConfig(workspaceSlug)
   const existing = config.worktreeRepos ?? []
 
@@ -2278,7 +2278,7 @@ export function addWorktreeRepo(workspaceSlug: string, repo: import('@proma/shar
   return updated
 }
 
-export function removeWorktreeRepo(workspaceSlug: string, repoPath: string): import('@proma/shared').WorkspaceWorktreeRepo[] {
+export function removeWorktreeRepo(workspaceSlug: string, repoPath: string): import('@dutydeck/shared').WorkspaceWorktreeRepo[] {
   const config = readWorkspaceConfig(workspaceSlug)
   const existing = config.worktreeRepos ?? []
   const updated = existing.filter((r) => r.repoPath !== repoPath)

@@ -1,4 +1,4 @@
-import type { PromaPermissionMode } from '@proma/shared'
+import type { PromaPermissionMode } from '@dutydeck/shared'
 import type { CapabilityFactoryAgentApproval } from './capability-factory-agent-facade'
 
 /** 按宿主真实快照决定写操作权限；自动优化可连续执行，采纳始终交给用户。 */

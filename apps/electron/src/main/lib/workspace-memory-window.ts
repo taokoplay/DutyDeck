@@ -2,7 +2,7 @@ import { app, BrowserWindow, screen, shell } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { AGENT_IPC_CHANNELS } from '@proma/shared'
+import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 
 const DEFAULT_WIDTH = 980
 const DEFAULT_HEIGHT = 720

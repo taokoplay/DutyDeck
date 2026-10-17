@@ -1,12 +1,12 @@
 /** DutyDeck Release 仓库的唯一配置。 */
-export const PROMA_RELEASE_REPOSITORY = {
+export const DUTYDECK_RELEASE_REPOSITORY = {
   owner: 'taokoplay',
   repo: 'DutyDeck',
   webUrl: 'https://github.com/taokoplay/DutyDeck',
 } as const
 
 /** DutyDeck 的最新 Release 页面，更新下载入口统一跳转到这里。 */
-export const PROMA_DOWNLOAD_URL = `${PROMA_RELEASE_REPOSITORY.webUrl}/releases/latest`
+export const DUTYDECK_DOWNLOAD_URL = `${DUTYDECK_RELEASE_REPOSITORY.webUrl}/releases/latest`
 
 /** Proma 官方版本历史的固定 Release 仓库配置。 */
 export const PROMA_OFFICIAL_RELEASE_REPOSITORY = {
@@ -23,3 +23,8 @@ export const PROMA_OFFICIAL_RELEASE_REPOSITORY = {
  * 否则「关于」页会对用户给出错误的上游进度。
  */
 export const UPSTREAM_CONTENT_BASELINE = 'v0.19.31（2026-09-05）'
+
+/** 旧常量别名，供尚未迁移的内部扩展保持编译兼容。 */
+export const PROMA_RELEASE_REPOSITORY = DUTYDECK_RELEASE_REPOSITORY
+/** 旧常量别名，供尚未迁移的内部扩展保持编译兼容。 */
+export const PROMA_DOWNLOAD_URL = DUTYDECK_DOWNLOAD_URL

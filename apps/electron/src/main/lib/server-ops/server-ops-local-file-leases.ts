@@ -6,9 +6,9 @@ import { basename, dirname, join } from 'node:path'
 import {
   SERVER_OPS_TRANSFER_CHUNK_LIMIT_BYTES,
   SERVER_OPS_TRANSFER_FILE_LIMIT_BYTES,
-} from '@proma/shared'
-import type { ServerOpsTransferDirection } from '@proma/shared'
-import type { ServerOpsLocalFileSelection } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsTransferDirection } from '@dutydeck/shared'
+import type { ServerOpsLocalFileSelection } from '@dutydeck/shared'
 import type { ServerOpsLocalFileLease } from './server-ops-file-transfer-service'
 
 /** 未领取系统文件 lease 的有效期。 */

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import type { AudioGenerationPublicCatalog } from '@proma/shared'
-import type { ImageGenerationPublicCatalog } from '@proma/shared'
-import { formatMediaModelRef } from '@proma/shared'
+import type { AudioGenerationPublicCatalog } from '@dutydeck/shared'
+import type { ImageGenerationPublicCatalog } from '@dutydeck/shared'
+import { formatMediaModelRef } from '@dutydeck/shared'
 import { UnifiedMediaModelCatalog } from './unified-media-model-catalog'
 
 const imageCatalog: ImageGenerationPublicCatalog = {

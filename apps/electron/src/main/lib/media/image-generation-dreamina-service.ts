@@ -10,7 +10,7 @@ import type {
   ImageGenerationDreaminaLoginStartResult,
   ImageGenerationDreaminaLogoutResult,
   ImageGenerationDreaminaStatus,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   DREAMINA_LOGIN_MESSAGES,
   parseDreaminaCliInput,
@@ -20,7 +20,7 @@ import {
   parseDreaminaLoginStartResult,
   parseDreaminaLogoutResult,
   parseDreaminaStatus,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** CLI 单次调用结果；只保留判定所需字段，不向上暴露原始输出。 */
 export interface DreaminaCliRunResult {

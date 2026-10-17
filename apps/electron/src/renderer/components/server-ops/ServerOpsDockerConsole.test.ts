@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleOutputEvent } from '@proma/shared'
+import type { ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleOutputEvent } from '@dutydeck/shared'
 import type { ServerOpsConsolePreloadApi } from '../../../preload/server-ops-console-preload'
 import {
   attachServerOpsDockerConsole,

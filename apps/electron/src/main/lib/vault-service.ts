@@ -27,7 +27,7 @@ import type {
   VaultSummary,
   VaultWriteInput,
   VaultWriteResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { getDefaultVaultDir, getVaultConfigPath, resolveDefaultVaultDir } from './config-paths'
 import { readJsonFileSafe, writeJsonFileAtomic, writeTextFileAtomic } from './safe-file'
 import { isValidImageBytes } from './image-content-validation'

@@ -7,7 +7,7 @@ import type {
   AudioGenerationTestResult,
   MediaPreloadApi,
   ReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AudioGenerationSettings,
 } from '../src/renderer/components/settings/AudioGenerationSettings'

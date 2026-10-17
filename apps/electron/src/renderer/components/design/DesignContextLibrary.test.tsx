@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DesignAsset, DesignContextEntry } from '@proma/shared'
+import type { DesignAsset, DesignContextEntry } from '@dutydeck/shared'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {

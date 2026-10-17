@@ -7,9 +7,9 @@
  * 飞书 Bridge 使用独立的卡片消息格式，暂不接入此模块。
  */
 
-import type { AgentStreamPayload } from '@proma/shared'
+import type { AgentStreamPayload } from '@dutydeck/shared'
 import { getMainWindow } from './main-window-store'
-import { AGENT_IPC_CHANNELS } from '@proma/shared'
+import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 import { createAgentSession, listVisibleAgentSessions, getAgentSessionMeta } from './agent-session-manager'
 import { isAgentSessionUserVisible } from './agent-session-visibility'
 import {

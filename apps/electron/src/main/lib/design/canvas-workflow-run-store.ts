@@ -11,7 +11,7 @@ import {
   CANVAS_WORKFLOW_RETRY_HISTORY_LIMIT,
   CANVAS_WORKFLOW_RUN_NODE_LIMIT,
   parseCanvasWorkflowRun,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasTarget,
   CanvasWorkflowRun,
@@ -20,7 +20,7 @@ import type {
   CanvasWorkflowRunOwner,
   CanvasWorkflowRunPage,
   CanvasWorkflowResumeAmendment,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ensureDirectoryDurable, writeJsonFileAtomicSecure } from '../safe-file'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readMediaJsonFile } from '../media/media-json-file'

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Provider, createStore } from 'jotai'
-import type { LocalModelSnapshot } from '@proma/shared'
+import type { LocalModelSnapshot } from '@dutydeck/shared'
 import { localModelErrorsAtom, localModelPendingAtom, localModelSnapshotAtom } from '@/atoms/local-model-atoms'
 import { LocalModelEngineCard } from './LocalModelEngineCard'
 

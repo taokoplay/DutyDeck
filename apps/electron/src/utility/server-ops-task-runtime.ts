@@ -1,5 +1,5 @@
 import { StringDecoder } from 'node:string_decoder'
-import type { ServerOpsTaskAck, ServerOpsTaskExitEvent, ServerOpsTaskIdentity, ServerOpsTaskInput, ServerOpsTaskOutputEvent, ServerOpsTaskResizeInput, ServerOpsTaskStartInput } from '@proma/shared'
+import type { ServerOpsTaskAck, ServerOpsTaskExitEvent, ServerOpsTaskIdentity, ServerOpsTaskInput, ServerOpsTaskOutputEvent, ServerOpsTaskResizeInput, ServerOpsTaskStartInput } from '@dutydeck/shared'
 import type { ServerOpsConsoleRuntimeChannel } from './server-ops/server-ops-console-runtime'
 import { acknowledgeRuntimeOutput, createRuntimeOutputState, enqueueRuntimeOutput, takeRuntimeOutput } from './server-ops/server-ops-runtime-core'
 

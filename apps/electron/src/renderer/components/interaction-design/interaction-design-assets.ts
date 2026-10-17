@@ -1,4 +1,4 @@
-import type { PrototypeAsset } from '@proma/shared'
+import type { PrototypeAsset } from '@dutydeck/shared'
 
 /** 已读取的预览资源正文。 */
 export interface PrototypePreviewAssetData {

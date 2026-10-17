@@ -10,7 +10,7 @@ import {
   parseServerOpsFileOwnerInput,
   parseServerOpsFilePreviewInput,
   parseServerOpsFilePreviewResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsFileCancelInput,
   ServerOpsFileCandidate,
@@ -22,7 +22,7 @@ import type {
   ServerOpsFileOwnerInput,
   ServerOpsFilePreviewInput,
   ServerOpsFilePreviewResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 export interface ServerOpsFilesPreload {
   listServerOpsFiles(input: ServerOpsFileListInput): Promise<ServerOpsFileListResult>

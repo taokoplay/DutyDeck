@@ -1,4 +1,4 @@
-import type { ServerOpsTaskIdentity, ServerOpsTaskStartInput, ServerOpsTaskInput, ServerOpsTaskResizeInput, ServerOpsTaskAck, ServerOpsTaskOutputEvent, ServerOpsTaskExitEvent } from '@proma/shared'
+import type { ServerOpsTaskIdentity, ServerOpsTaskStartInput, ServerOpsTaskInput, ServerOpsTaskResizeInput, ServerOpsTaskAck, ServerOpsTaskOutputEvent, ServerOpsTaskExitEvent } from '@dutydeck/shared'
 import { randomUUID } from 'node:crypto'
 import { parseServerOpsSftpRequest, ServerOpsSftpRuntimeError } from '../../../utility/server-ops/server-ops-sftp-runtime'
 import type { ServerOpsSftpRequest, ServerOpsSftpResult } from '../../../utility/server-ops/server-ops-sftp-runtime'
@@ -18,10 +18,10 @@ import { join } from 'node:path'
 import type { MessagePortMain } from 'electron'
 import type { ServerOpsConsoleAck, ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleInput,
   ServerOpsConsoleOutputEvent, ServerOpsConsoleResizeInput, ServerOpsTerminalExitEvent, ServerOpsTerminalOutputAck,
-  ServerOpsTerminalOutputEvent } from '@proma/shared'
+  ServerOpsTerminalOutputEvent } from '@dutydeck/shared'
 import type { ServerOpsConsoleRuntimeStart } from '../../../utility/server-ops/server-ops-console-runtime'
-import type { ServerOpsDataWriteResult } from '@proma/shared'
-import type { ServerOpsRedisCommandResult } from '@proma/shared'
+import type { ServerOpsDataWriteResult } from '@dutydeck/shared'
+import type { ServerOpsRedisCommandResult } from '@dutydeck/shared'
 import type { ServerOpsRuntimeRedisRequest } from '../../../utility/server-ops/server-ops-runtime-protocol'
 import {
   parseServerOpsRuntimeMessage,

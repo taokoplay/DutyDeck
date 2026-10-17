@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { applyCanvasMutations, createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasChangeEvent, CanvasDocument, CanvasImageModuleConfig } from '@proma/shared'
+import { applyCanvasMutations, createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasChangeEvent, CanvasDocument, CanvasImageModuleConfig } from '@dutydeck/shared'
 import { createCanvasImageJobTargetAdapter } from './canvas-image-job-target'
 import type { CanvasImageJobTarget } from './canvas-image-job-target'
 

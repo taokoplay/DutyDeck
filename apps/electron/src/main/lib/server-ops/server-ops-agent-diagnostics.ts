@@ -1,4 +1,4 @@
-import type { ServerOpsAgentDiscoveryResult, ServerOpsDockerResourcesResult, ServerOpsServiceListResult } from '@proma/shared'
+import type { ServerOpsAgentDiscoveryResult, ServerOpsDockerResourcesResult, ServerOpsServiceListResult } from '@dutydeck/shared'
 
 /** 仅依赖现有列表服务；不发起网络扫描或加载容器配置、环境变量。 */
 export interface ServerOpsAgentDiscoveryServices {

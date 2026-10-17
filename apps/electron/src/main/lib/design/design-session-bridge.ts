@@ -22,7 +22,7 @@ import type {
   ImportAgentImageInput,
   PrepareDesignAssetForSessionInput,
   PreparedDesignAssetMention,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   DesignAssetImportBatch,
   DesignAssetService,

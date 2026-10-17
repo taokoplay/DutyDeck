@@ -5,7 +5,7 @@
  * Python 侧再次执行路径、对象、authorizer、VM 步数、wall clock 与输出预算校验，避免 TypeScript
  * 调用链变化后扩大读取边界。
  */
-import { SERVER_OPS_DATA_QUERY_TIMEOUT_MS } from '@proma/shared'
+import { SERVER_OPS_DATA_QUERY_TIMEOUT_MS } from '@dutydeck/shared'
 
 export const SERVER_OPS_SQLITE_REMOTE_SCRIPT = String.raw`
 import hashlib, json, math, os, re, signal, stat, sys, threading, time, urllib.parse

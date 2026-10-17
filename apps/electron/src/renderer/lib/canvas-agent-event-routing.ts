@@ -1,4 +1,4 @@
-import type { AgentStreamSessionMeta } from '@proma/shared'
+import type { AgentStreamSessionMeta } from '@dutydeck/shared'
 
 /** Renderer 可公开持有的最小 Canvas Agent owner，不包含路径或存储形态。 */
 export interface CanvasAgentOwner {

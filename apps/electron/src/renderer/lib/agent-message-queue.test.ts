@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { formatMediaModelRef } from '@proma/shared'
-import type { CanvasNodeReference } from '@proma/shared'
+import { formatMediaModelRef } from '@dutydeck/shared'
+import type { CanvasNodeReference } from '@dutydeck/shared'
 import { runAgentMessageInvoke } from '../../main/lib/agent-canvas-message-preparation'
 import { CanvasReferenceInvalidError } from '../../main/lib/design/canvas-node-reference-resolver'
 import { unwrapAgentMessageInvokeResult } from '../../preload/agent-message-preload'

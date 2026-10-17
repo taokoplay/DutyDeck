@@ -3,7 +3,7 @@ import type {
   CanvasSessionChangeEvent,
   CanvasSessionMeta,
   ListCanvasSessionsInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { useSetAtom } from 'jotai'
 import {
   replaceCanvasSessionsAtom,

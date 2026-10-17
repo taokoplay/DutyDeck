@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { CAPABILITY_FACTORY_CHANNELS } from '@proma/shared'
+import { CAPABILITY_FACTORY_CHANNELS } from '@dutydeck/shared'
 import { createCapabilityFactoryPreload } from './capability-factory-preload'
 
 describe('编排工厂 preload', () => {

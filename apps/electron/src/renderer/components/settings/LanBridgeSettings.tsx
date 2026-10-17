@@ -39,7 +39,7 @@ import type {
   LanBridgeDeviceDto,
   LanBridgeGetPairingQrResponse,
   LanBridgeRuntimeState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 const STATUS_CONFIG: Record<LanBridgeRuntimeState['status'], { color: string; label: string }> = {
   stopped: { color: 'bg-gray-400', label: '已停止' },

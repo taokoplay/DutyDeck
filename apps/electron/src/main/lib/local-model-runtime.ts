@@ -26,7 +26,7 @@ import type {
   LocalModelSnapshot,
   LocalModelTestInput,
   LocalModelTestResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { downloadModelFile } from './local-model-download'
 import { getLocalModelDownloadNetworkMessage, type LocalModelDownloadTransport } from './local-model-download-network'
 import { LocalModelStore } from './local-model-store'

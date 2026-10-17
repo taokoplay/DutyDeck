@@ -9,7 +9,7 @@ import {
   parseApiRun,
   parseApiScenarioPreparedPreview,
   parseApiScenarioRun,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ApiBodySlice,
   ApiCatalog,
@@ -44,7 +44,7 @@ import type {
   ApiWorkspaceVariablesSaveResult,
   ApiAttachmentSummary,
   ApiTransportResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { evaluateApiAssertions } from './api-assertions'
 import { isCookieExpired, parseApiSetCookie, MAX_COOKIE_JAR_ENTRIES } from './api-cookies'
 import type { ApiCookieJarRecord } from './api-cookies'

@@ -1,4 +1,4 @@
-import type { MediaAssetRecord, MediaAssetRef } from '@proma/shared'
+import type { MediaAssetRecord, MediaAssetRef } from '@dutydeck/shared'
 import type { StoredDesignThumbnail } from '../design/design-asset-service'
 
 /** Renderer 单次可读取的最大缩略图字节数。 */

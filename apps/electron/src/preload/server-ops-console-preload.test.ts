@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVER_OPS_CONSOLE_IPC_CHANNELS } from '@proma/shared'
+import { SERVER_OPS_CONSOLE_IPC_CHANNELS } from '@dutydeck/shared'
 import { createServerOpsConsolePreload } from './server-ops-console-preload'
 
 const session = { consoleId: 'console-1', hostId: 'host-1', connectionId: 'connection-1', containerId: 'a'.repeat(64) }

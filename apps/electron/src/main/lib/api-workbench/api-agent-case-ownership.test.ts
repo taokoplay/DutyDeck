@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ApiAssertion, ApiTestCase } from '@proma/shared'
+import type { ApiAssertion, ApiTestCase } from '@dutydeck/shared'
 import { stampApiAgentCases } from './api-agent-case-ownership'
 
 /** 最小断言，只用于构造用例。 */

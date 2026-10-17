@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasImageCandidateBatch, CanvasImageCandidateBatchSummary } from '@proma/shared'
+import type { CanvasImageCandidateBatch, CanvasImageCandidateBatchSummary } from '@dutydeck/shared'
 import {
   createCanvasImageCandidateBatchController,
   createInitialCanvasImageCandidateBatchState,

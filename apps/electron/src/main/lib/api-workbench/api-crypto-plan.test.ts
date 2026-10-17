@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { digestValue, encryptValue } from './api-crypto'
 import { applyRequestSteps, applyResponseSteps } from './api-crypto-plan'
-import type { ApiCryptoProfile, ApiCryptoStep } from '@proma/shared'
+import type { ApiCryptoProfile, ApiCryptoStep } from '@dutydeck/shared'
 
 const AES_KEY = '9f2c8a1d4b6e7f03'
 const AES_IV = '1029384756abcdef'

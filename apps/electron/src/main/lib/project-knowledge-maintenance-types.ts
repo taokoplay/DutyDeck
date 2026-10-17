@@ -1,4 +1,4 @@
-import type { KnowledgeMaintenanceSettings } from '@proma/shared'
+import type { KnowledgeMaintenanceSettings } from '@dutydeck/shared'
 import type { SDKMessageAppendReceipt } from './agent-session-manager'
 
 /** 已成功回合的持久化任务；只保存消息定位，不保存隐藏会话副本。 */

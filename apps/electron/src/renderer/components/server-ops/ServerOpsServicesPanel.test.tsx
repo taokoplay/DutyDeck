@@ -7,7 +7,7 @@ import type {
   ServerOpsServiceDetailResult,
   ServerOpsServiceListResult,
   ServerOpsServiceSummary,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createServerOpsServicesController,
   ServerOpsServicesPanelView,

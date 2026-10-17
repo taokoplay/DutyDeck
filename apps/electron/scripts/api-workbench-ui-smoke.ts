@@ -6,7 +6,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { BrowserWindow } from 'electron'
-import { createApiCatalogSnapshotExport, createApiRequestDraft } from '@proma/shared'
+import { createApiCatalogSnapshotExport, createApiRequestDraft } from '@dutydeck/shared'
 
 /** 等待真实 DOM 条件成立。 */
 async function waitFor(window: BrowserWindow, expression: string, message: string): Promise<void> {

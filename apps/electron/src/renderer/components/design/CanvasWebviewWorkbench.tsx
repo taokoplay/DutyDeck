@@ -10,7 +10,7 @@ import type {
   CanvasWebviewSnapshot,
   CanvasWebviewTarget,
   UpdateCanvasTextArtifactInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Code2, Download, Eye, LoaderCircle, RefreshCw, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'

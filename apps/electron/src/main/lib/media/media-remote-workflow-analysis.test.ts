@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { ComfyObjectInfo, MediaRemoteWorkflow } from '@proma/shared'
-import { parseMediaWorkflowDefinition } from '@proma/shared'
+import type { ComfyObjectInfo, MediaRemoteWorkflow } from '@dutydeck/shared'
+import { parseMediaWorkflowDefinition } from '@dutydeck/shared'
 import { compileComfyWorkflow, validateComfyWorkflow } from './comfyui-workflow'
 import { analyzeRemoteWorkflow, getRemoteWorkflowClassTypes } from './media-remote-workflow-analysis'
 

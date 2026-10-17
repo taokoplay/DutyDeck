@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { parseServerOpsConnectionDraft, parseServerOpsConnectionDraftInput, parseServerOpsConnectionDraftSession } from '@proma/shared'
-import type { ServerOpsConnectionDraft, ServerOpsConnectionDraftChanged } from '@proma/shared'
+import { parseServerOpsConnectionDraft, parseServerOpsConnectionDraftInput, parseServerOpsConnectionDraftSession } from '@dutydeck/shared'
+import type { ServerOpsConnectionDraft, ServerOpsConnectionDraftChanged } from '@dutydeck/shared'
 
 /** 草稿仅在当前进程短暂保留，重启即失效；不会接触连接或凭据 Store。 */
 const DRAFT_TTL_MS = 30 * 60 * 1000

@@ -4,7 +4,7 @@ import type {
   CanvasOrchestrationChangedEvent,
   CanvasOrchestrationRecord,
   CanvasTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Check, ChevronDown, CircleDashed, CircleDot, LocateFixed, RotateCcw } from 'lucide-react'
 import type { CanvasOrchestrationState } from '@/atoms/canvas-orchestration-atoms'
 import { Button } from '@/components/ui/button'

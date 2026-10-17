@@ -1,4 +1,4 @@
-import type { Channel, ChannelPlanQuotaResult, ProviderType } from '@proma/shared'
+import type { Channel, ChannelPlanQuotaResult, ProviderType } from '@dutydeck/shared'
 
 const PLAN_QUOTA_PROVIDERS = new Set<ProviderType>([
   'deepseek',

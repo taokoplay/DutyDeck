@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { LoaderCircle, ShieldCheck } from 'lucide-react'
-import type { AgentSessionMeta, AgentToolMode } from '@proma/shared'
+import type { AgentSessionMeta, AgentToolMode } from '@dutydeck/shared'
 import { agentSessionsAtom } from '@/atoms/agent-atoms'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'

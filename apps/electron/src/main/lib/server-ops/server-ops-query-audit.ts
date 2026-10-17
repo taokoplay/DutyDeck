@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { getServerOpsDataWriteOutcome } from '@proma/shared'
-import type { ServerOpsAuditAppendInput, ServerOpsAuditRecord, ServerOpsDataWriteResult } from '@proma/shared'
+import { getServerOpsDataWriteOutcome } from '@dutydeck/shared'
+import type { ServerOpsAuditAppendInput, ServerOpsAuditRecord, ServerOpsDataWriteResult } from '@dutydeck/shared'
 
 /** 只读 SQL 结果的最小预算合同。 */
 interface QueryResult { rows: unknown[][]; rowCount: number; truncated: boolean; warnings: string[] }

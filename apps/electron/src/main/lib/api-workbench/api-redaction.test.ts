@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { API_LIMITS, parseApiResolvedRequest, type ApiResolvedRequest } from '@proma/shared'
+import { API_LIMITS, parseApiResolvedRequest, type ApiResolvedRequest } from '@dutydeck/shared'
 import { redactApiBody, redactApiRequest } from './api-redaction'
 
 /**

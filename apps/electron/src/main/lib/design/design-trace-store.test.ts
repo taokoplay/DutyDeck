@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { SDKAssistantMessage, SDKMessage } from '@proma/shared'
+import type { SDKAssistantMessage, SDKMessage } from '@dutydeck/shared'
 import type { DesignPathResolver, DesignPaths } from './design-paths'
 import { DesignTraceStore } from './design-trace-store'
 

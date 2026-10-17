@@ -1,5 +1,5 @@
-import { stableCapabilityValueKey, validateCapabilityEvaluationProtocol } from '@proma/shared'
-import type { CapabilityCaseScore, CapabilityEvaluationProtocol, CapabilityExperimentSample, CapabilityRun, CapabilityScoreSummary } from '@proma/shared'
+import { stableCapabilityValueKey, validateCapabilityEvaluationProtocol } from '@dutydeck/shared'
+import type { CapabilityCaseScore, CapabilityEvaluationProtocol, CapabilityExperimentSample, CapabilityRun, CapabilityScoreSummary } from '@dutydeck/shared'
 
 /** 从普通 JSON 值读取配置路径；缺字段返回 undefined，不发现原型属性。 */
 function readPath(value: unknown, path: string): unknown {

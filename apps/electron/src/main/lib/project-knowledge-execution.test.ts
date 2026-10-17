@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { KnowledgeExecution, KnowledgeWorkflow } from '@proma/shared'
+import type { KnowledgeExecution, KnowledgeWorkflow } from '@dutydeck/shared'
 import { createKnowledgeExecutionController, knowledgeExecutionPrompt } from './project-knowledge-execution'
 
 /** 隔离任务时钟和持久工作流，验证实际状态机而非模型文本。 */

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { LoaderCircle, Minus, Plus, Scan } from 'lucide-react'
-import type { PrototypeDraft } from '@proma/shared'
-import { buildPrototypePreview, parsePrototypePreviewMessage } from '@proma/shared'
+import type { PrototypeDraft } from '@dutydeck/shared'
+import { buildPrototypePreview, parsePrototypePreviewMessage } from '@dutydeck/shared'
 
 /** 预览只接受已冻结正文，所有消息仍需父页面校验来源与身份。 */
 export interface InteractionDesignPreviewProps {

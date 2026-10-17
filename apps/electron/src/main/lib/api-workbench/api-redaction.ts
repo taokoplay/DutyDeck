@@ -1,4 +1,4 @@
-import { API_LIMITS, type ApiResolvedRequest } from '@proma/shared'
+import { API_LIMITS, type ApiResolvedRequest } from '@dutydeck/shared'
 
 const COMMON_SENSITIVE_NAME = /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|access[-_]?token|refresh[-_]?token|password|passwd|secret|client[-_]?secret)$/i
 /** 正文和 Header 使用的兼容遮罩。 */

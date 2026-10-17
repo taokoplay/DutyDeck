@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CanvasOrchestrationRecord, CanvasTarget, CanvasWorkflowRun } from '@proma/shared'
+import type { CanvasOrchestrationRecord, CanvasTarget, CanvasWorkflowRun } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import type { DesignPathResolver } from './design-paths'
 import { isSafeDesignStableId } from './design-paths'

@@ -10,13 +10,13 @@ import type {
   ImageGenerationPublicCatalog,
   ImageGenerationPublicProfile,
   ReplaceImageGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_PROVIDER_DESCRIPTORS,
   IMAGE_PROVIDER_API_KEY_MAX_LENGTH,
   parseImageGenerationProfile,
   parseReplaceImageGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AtomicDestinationExpectation } from '../safe-file'
 import { writeJsonFileAtomicSecure } from '../safe-file'
 import { SecureProfileCatalogFile } from './secure-profile-catalog-file'

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, Download, LoaderCircle, Upload, X } from 'lucide-react'
-import type { ServerOpsTransferSnapshot } from '@proma/shared'
+import type { ServerOpsTransferSnapshot } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'

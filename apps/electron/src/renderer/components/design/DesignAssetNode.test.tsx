@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { createEmptyDesignDocument } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
 import type { NodeProps } from '@xyflow/react'
 import { createStore, Provider } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import { chmodSync, lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ServerOpsDataQueryHistoryRecordInput, ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataQueryHistoryRecordInput, ServerOpsDataSource } from '@dutydeck/shared'
 import { writeJsonFileAtomicSecure } from '../safe-file'
 import { ServerOpsDataQueryHistoryStore } from './server-ops-data-query-history-store'
 

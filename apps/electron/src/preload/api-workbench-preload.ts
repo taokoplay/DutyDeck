@@ -1,5 +1,5 @@
-import { API_WORKBENCH_CHANNELS, parseApiCommand, parseApiResponse, parseApiRunChanged, parseApiRunStreamChanged } from '@proma/shared'
-import type { ApiWorkbenchApi, ApiCommandInputs, ApiCommandMethod, ApiCommandResults } from '@proma/shared'
+import { API_WORKBENCH_CHANNELS, parseApiCommand, parseApiResponse, parseApiRunChanged, parseApiRunStreamChanged } from '@dutydeck/shared'
+import type { ApiWorkbenchApi, ApiCommandInputs, ApiCommandMethod, ApiCommandResults } from '@dutydeck/shared'
 
 /** 隔离的 IPC 调用入口，测试无需加载 Electron。 */
 export type ApiWorkbenchInvoke = (channel: string, command: unknown) => Promise<unknown>

@@ -1,4 +1,4 @@
-import type { ChangeSource } from '@proma/shared'
+import type { ChangeSource } from '@dutydeck/shared'
 
 export interface DiffChangeSourceEntry {
   source?: ChangeSource

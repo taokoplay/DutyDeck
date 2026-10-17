@@ -11,8 +11,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { DesignCanvasNode } from '@proma/shared'
-import { createEmptyDesignDocument } from '@proma/shared'
+import type { DesignCanvasNode } from '@dutydeck/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
 import { createDesignPathResolver } from './design-paths'
 import { applyDesignMutations, createDesignStore, isDesignCanvasDocument } from './design-store'
 

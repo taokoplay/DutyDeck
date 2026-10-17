@@ -1,7 +1,7 @@
 import type {
   AgentIslandCompactPlanQuotaSnapshot,
   AgentIslandPlanQuotaSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /**
  * 收起态只能容纳一个额度摘要：按 Island 会话的语义优先级顺序选择第一个

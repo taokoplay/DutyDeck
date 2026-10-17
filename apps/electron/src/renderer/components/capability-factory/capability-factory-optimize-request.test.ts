@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { CapabilityRun } from '@proma/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 import { buildOptimizationRequest, canRequestOptimization } from './capability-factory-optimize-request'
 
 /** 仅填优化入口依赖的运行事实，原始正文不应复制到会话草稿。 */

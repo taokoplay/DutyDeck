@@ -1,14 +1,17 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, screen, shell, safeStorage } from 'electron'
 import { join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync } from 'fs'
-import { resolveAppIdentity } from './lib/app-identity'
+import { DUTYDECK_SAFE_STORAGE_NAME, LEGACY_SAFE_STORAGE_NAME, resolveAppIdentity } from './lib/app-identity'
 
 // 开发模式使用独立的 userData 目录，避免与打包版共享 Chromium SingletonLock；
 // 加密身份与 userData 都必须在任何会读取它们的模块加载之前固定。
 /** 当前进程应使用的正式或开发身份。 */
-const appIdentity = resolveAppIdentity(app.isPackaged, process.env.PROMA_DEV_INSTANCE)
-// ready 前先固定历史加密身份（@proma/electron），让 macOS Safe Storage 继续解析到
+const appIdentity = resolveAppIdentity(
+  app.isPackaged,
+  process.env.DUTYDECK_DEV_INSTANCE ?? process.env.PROMA_DEV_INSTANCE,
+)
+// ready 前先固定历史加密身份（@dutydeck/electron），让 macOS Safe Storage 继续解析到
 // 同一把历史密钥；品牌展示名只在 ready 之后恢复，绝不能参与加密身份。
 if (appIdentity.safeStorageName) {
   app.setName(appIdentity.safeStorageName)
@@ -145,7 +148,7 @@ import {
   shouldSuppressVoiceDictationActivate,
 } from './lib/voice-dictation-window'
 import { registerGlobalShortcut, unregisterAllGlobalShortcuts } from './lib/global-shortcut-service'
-import { setPromaVersion } from '@proma/core'
+import { setDutyDeckVersion } from '@dutydeck/core'
 import { canRecoverRenderer, RENDERER_RECOVERY_WINDOW_MS } from './lib/renderer-process-recovery'
 import { shouldBlockSandboxedSrcdocNavigation } from './lib/sandboxed-srcdoc-navigation'
 import {
@@ -160,8 +163,9 @@ import {
 } from './lib/data-root-instance-lease'
 import { inspectDataRootStartup } from './lib/data-root-startup-check'
 import { detectStaleDevBundle } from './lib/dev-bundle-freshness'
-import { DEFAULT_ROOT_MIGRATION_IPC_CHANNELS } from '@proma/shared'
-import type { DataRootStartupMode } from '@proma/shared'
+import { migrateLegacySafeStorage } from './lib/safe-storage-migration'
+import { DEFAULT_ROOT_MIGRATION_IPC_CHANNELS } from '@dutydeck/shared'
+import type { DataRootStartupMode } from '@dutydeck/shared'
 import { createDataRootStartupRouter } from './lib/data-root-startup-routing'
 import { getDefaultWorkspaceProjectRelocator } from './lib/workspace-project-relocator-production'
 import { TRAY_IPC_CHANNELS, WINDOWS_AGENT_ISLAND_IPC_CHANNELS } from '../types'
@@ -978,12 +982,28 @@ async function bootstrap(): Promise<void> {
     throw error
   }
 
+  /** 将旧 Proma 服务名下的凭据一次性迁移到 DutyDeck Safe Storage。 */
+  const safeStorageMigration = migrateLegacySafeStorage({
+    dataRoot: activeRoot,
+    currentName: DUTYDECK_SAFE_STORAGE_NAME,
+    legacyName: LEGACY_SAFE_STORAGE_NAME,
+    setAppName: (name) => app.setName(name),
+    safeStorage,
+  })
+  if (safeStorageMigration.status === 'failed') {
+    console.warn('[启动] Safe Storage 迁移未完成，将在下次启动重试:', safeStorageMigration.reason)
+  } else if (safeStorageMigration.migratedValues > 0) {
+    console.info(`[启动] 已迁移 ${safeStorageMigration.migratedValues} 个旧 Safe Storage 密文`)
+  }
+  // 开发版界面仍显示 DutyDeck Dev；Safe Storage 服务名已在迁移阶段固定。
+  if (!app.isPackaged) app.setName(appIdentity.displayName)
+
   /** LAN 组合根只能在 normal gate 与共享实例 lease 之后求值，离线模式不得读取业务根。 */
   const { createLanBridgeRegistration } = await import('./lib/lan-bridge/lan-bridge')
   registerBridge(createLanBridgeRegistration(agentEventBus))
 
   // 初始化 Proma 版本号（供 User-Agent 等全局标识使用）
-  setPromaVersion(app.getVersion())
+  setDutyDeckVersion(app.getVersion())
 
   // 先显示不依赖 Renderer 的静态启动页；运行时检测耗时不会再变成用户可见的空白。
   createStartupSplashWindow()

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasWorkflowRun, DesignJobRecord, DesignTraceEntry } from '@proma/shared'
+import type { CanvasWorkflowRun, DesignJobRecord, DesignTraceEntry } from '@dutydeck/shared'
 import { createImageJobId } from './canvas-image-run-service'
 import {
   createCanvasTaskOperationService,

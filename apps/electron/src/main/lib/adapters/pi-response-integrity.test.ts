@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { streamSimple } from '@earendil-works/pi-ai/api/openai-completions'
 import { retryAssistantCall, type Model } from '@earendil-works/pi-ai/compat'
-import type { SDKAssistantMessage, SDKResultMessage } from '@proma/shared'
+import type { SDKAssistantMessage, SDKResultMessage } from '@dutydeck/shared'
 import { convertPiMessage, convertResultMessage } from './pi-message-adapter'
 
 /** 模拟兼容渠道；全部请求由内存 fetch 承接，不访问模型服务。 */

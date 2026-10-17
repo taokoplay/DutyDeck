@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
-import type { ApiResolvedRequest, ApiSseEvent, ApiTransportResult } from '@proma/shared'
+import type { ApiResolvedRequest, ApiSseEvent, ApiTransportResult } from '@dutydeck/shared'
 import { parseApiRuntimeResponse, type ApiRuntimeArtifacts, type ApiRuntimeRequest } from './api-runtime-protocol'
 
 /** Electron utility process 的最小可测试边界。 */

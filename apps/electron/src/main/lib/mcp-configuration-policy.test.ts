@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { McpServerEntry } from '@proma/shared'
+import type { McpServerEntry } from '@dutydeck/shared'
 import {
   buildWorkspaceMcpEntry,
   hasWorkspaceMcpTransportChanged,

@@ -1,6 +1,6 @@
 /** 主进程唯一写入入口；统计故障不改变已产生的模型响应。 */
 import { join } from 'node:path'
-import type { TokenUsageRecord } from '@proma/shared'
+import type { TokenUsageRecord } from '@dutydeck/shared'
 import { getConfigDir } from './config-paths'
 import { TokenUsageStore } from './token-usage-store'
 

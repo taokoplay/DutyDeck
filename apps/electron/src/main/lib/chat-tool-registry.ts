@@ -10,8 +10,8 @@
  * 提供统一接口获取启用的工具定义和系统提示词。
  */
 
-import type { ToolDefinition, ToolParameterProperty } from '@proma/core'
-import type { ChatToolInfo, ChatToolMeta } from '@proma/shared'
+import type { ToolDefinition, ToolParameterProperty } from '@dutydeck/core'
+import type { ChatToolInfo, ChatToolMeta } from '@dutydeck/shared'
 import { getChatToolsConfig } from './chat-tool-config'
 import {
   WEB_SEARCH_TOOL_META,

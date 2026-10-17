@@ -1,5 +1,6 @@
 /** 加载失败的有限阶段；不包含内部目录、通道或业务身份。 */
 const CANVAS_ERROR_STAGES = {
+  binding: '关联画布',
   access: '检查画布访问权限',
   'image-recovery': '图片采用恢复',
   'batch-recovery': '批量操作恢复',

@@ -1,4 +1,4 @@
-import type { CapabilityFactoryChanged } from '@proma/shared'
+import type { CapabilityFactoryChanged } from '@dutydeck/shared'
 
 /** 生命周期由 IPC 注册层管理，只发送身份、不广播运行正文。 */
 let changeSink: ((event: CapabilityFactoryChanged) => void) | undefined

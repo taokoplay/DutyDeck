@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { agentSessionManagerTestMock } from './agent-session-manager.test-mock'
 
 /** 项目记忆测试使用的会话数据。 */

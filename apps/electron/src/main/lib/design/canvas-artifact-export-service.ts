@@ -10,7 +10,7 @@ import type {
   CanvasWorkspaceSnapshot,
   DesignAsset,
   DesignJobRecord,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type {
   StableDirectoryNativeRequest,

@@ -3,8 +3,8 @@ import {
   parseCanvasMediaCandidate,
   parseCanvasMediaModuleConfig,
   parseCanvasNodeContentMeta,
-} from '@proma/shared'
-import type { CanvasMediaTarget, CanvasNodeContentMeta, MediaRunSourceReference } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { CanvasMediaTarget, CanvasNodeContentMeta, MediaRunSourceReference } from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type {
   StableDirectoryAuthorization,

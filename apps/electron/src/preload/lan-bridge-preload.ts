@@ -1,4 +1,4 @@
-import { LAN_BRIDGE_IPC_CHANNELS } from '@proma/shared'
+import { LAN_BRIDGE_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   LanBridgeConfig,
   LanBridgeGetPairingQrResponse,
@@ -7,7 +7,7 @@ import type {
   LanBridgeRevokeDeviceRequest,
   LanBridgeRevokeDeviceResponse,
   LanBridgeRuntimeState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcRendererEvent } from 'electron'
 
 /** LAN Bridge preload 暴露给 renderer 的稳定 API。 */

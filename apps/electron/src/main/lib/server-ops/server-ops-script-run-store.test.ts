@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ServerOpsScriptRunStore } from './server-ops-script-run-store'
-import type { ServerOpsScriptRun } from '@proma/shared'
+import type { ServerOpsScriptRun } from '@dutydeck/shared'
 
 /** 本次用例创建的临时配置根，统一在 afterEach 清理。 */
 const temporaryRoots: string[] = []

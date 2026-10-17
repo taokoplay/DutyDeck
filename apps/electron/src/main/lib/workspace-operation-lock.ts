@@ -1,4 +1,4 @@
-import type { WorkspaceOperationKind } from '@proma/shared'
+import type { WorkspaceOperationKind } from '@dutydeck/shared'
 
 /** 工作区操作锁注册表对外能力。 */
 export interface WorkspaceOperationRegistry {

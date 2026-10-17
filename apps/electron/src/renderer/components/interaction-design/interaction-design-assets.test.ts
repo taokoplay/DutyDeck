@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { PrototypeAsset } from '@proma/shared'
+import type { PrototypeAsset } from '@dutydeck/shared'
 import { createPrototypePreviewAssetReader, loadPrototypePreviewAssets } from './interaction-design-assets'
 
 /** 测试资源正文，仅保留队列需要的资源身份与数据。 */

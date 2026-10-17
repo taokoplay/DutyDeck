@@ -10,7 +10,7 @@ import {
   parseServerOpsTransferDownloadSelectionInput,
   parseServerOpsTransferUploadSelectionInput,
   parseServerOpsTransferReleaseSelectionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsTransferCancelInput,
   ServerOpsTransferListInput,
@@ -21,7 +21,7 @@ import type {
   ServerOpsTransferUploadSelectionInput,
   ServerOpsLocalFileSelection,
   ServerOpsTransferReleaseSelectionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** Renderer 可见的文件传输桥接，不公开 owner、connection 或本地路径。 */
 export interface ServerOpsTransferPreload {

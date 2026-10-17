@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsTrustCandidate, ServerOpsTrustSnapshot } from '@proma/shared'
+import type { ServerOpsTrustCandidate, ServerOpsTrustSnapshot } from '@dutydeck/shared'
 import {
   createServerOpsTrustController,
   getServerOpsTrustErrorMessage,

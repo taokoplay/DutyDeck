@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyDesignDocument } from '@proma/shared'
-import type { DesignWorkspaceSnapshot } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
+import type { DesignWorkspaceSnapshot } from '@dutydeck/shared'
 import { createStore } from 'jotai'
 import {
   consumeDesignRecoveryRequestAtom,

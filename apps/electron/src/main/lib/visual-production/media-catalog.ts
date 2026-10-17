@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { parseMediaWorkflowDefinition } from '@proma/shared'
-import type { MediaInputValue, MediaSettingsSnapshot, UnifiedMediaModelOption, VisualProductionMediaOption, VisualProductionMediaKind, VisualProductionMediaSource, VisualProductionMediaParameter, VisualProductionMediaParameterValue } from '@proma/shared'
+import { parseMediaWorkflowDefinition } from '@dutydeck/shared'
+import type { MediaInputValue, MediaSettingsSnapshot, UnifiedMediaModelOption, VisualProductionMediaOption, VisualProductionMediaKind, VisualProductionMediaSource, VisualProductionMediaParameter, VisualProductionMediaParameterValue } from '@dutydeck/shared'
 
 /** 根据实际已接入 HTTP adapter 描述可消费参数，不推断供应商尚未接入的能力。 */
 export function describeVisualModelConstraints(model: UnifiedMediaModelOption): VisualProductionMediaOption['constraints'] {

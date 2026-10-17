@@ -15,7 +15,7 @@ import {
   parseServerOpsScriptDraftSession,
   parseServerOpsScriptDraftDismiss,
   parseServerOpsScriptDraftListResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsScriptListInput,
   ServerOpsScriptListResult,
@@ -27,7 +27,7 @@ import type {
   ServerOpsScriptRunListInput,
   ServerOpsScriptRunListResult,
   ServerOpsScriptDraftListResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 脚本 preload 调用主进程所需的最小接口。 */
 export type ServerOpsScriptInvoke = (channel: string, input: unknown) => Promise<unknown>

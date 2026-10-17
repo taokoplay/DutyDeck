@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'b
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import * as os from 'node:os'
 import { join } from 'node:path'
-import { serializeCodexCredentials } from '@proma/shared'
+import { serializeCodexCredentials } from '@dutydeck/shared'
 
 type ChannelManagerModule = typeof import('./channel-manager')
 

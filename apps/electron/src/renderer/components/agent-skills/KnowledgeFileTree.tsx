@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { ChevronRight, FileText, Folder } from 'lucide-react'
-import type { KnowledgeEntry, KnowledgeOutline, KnowledgeOutlineItem } from '@proma/shared'
+import type { KnowledgeEntry, KnowledgeOutline, KnowledgeOutlineItem } from '@dutydeck/shared'
 
 /** 文件树仅接收知识正文；读取仍由父级的受控入口执行。 */
 interface KnowledgeFileTreeProps {

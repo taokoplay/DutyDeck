@@ -5,7 +5,7 @@ import type {
   CanvasMediaModuleConfig,
   CanvasMediaPreparationStatus,
   CanvasMediaTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { connectCanvasMediaInputs, type ConnectCanvasMediaInputsInput } from './canvas-media-connect-command'
 
 /** 测试目标始终引用同一视频节点与媒体模块。 */

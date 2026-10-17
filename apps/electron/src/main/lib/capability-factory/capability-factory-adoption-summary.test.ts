@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptySceneDefinition, type CapabilityFactoryBatch, type CapabilityRun, type CapabilityScene } from '@proma/shared'
+import { createEmptySceneDefinition, type CapabilityFactoryBatch, type CapabilityRun, type CapabilityScene } from '@dutydeck/shared'
 import { createCapabilityFactoryAdoptionSummary } from './capability-factory-adoption-summary'
 
 /** 构造同一输入、同一模型与同一评审标准的基线/候选运行。 */

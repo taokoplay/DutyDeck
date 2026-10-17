@@ -1,4 +1,4 @@
-import type { ServerOpsDataSourceTablesInput, ServerOpsDataSourceTablesResult } from '@proma/shared'
+import type { ServerOpsDataSourceTablesInput, ServerOpsDataSourceTablesResult } from '@dutydeck/shared'
 import { enqueueServerOpsDataRead } from './server-ops-data-request-queue'
 import { getServerOpsDataErrorMessage } from './server-ops-data-display'
 

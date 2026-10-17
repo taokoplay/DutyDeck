@@ -1,8 +1,8 @@
 import { resolveSkillMentionName, EMPTY_SKILL_MENTION_NAMES } from './skill-mention-name'
 import type { AgentStreamState } from '@/atoms/agent-atoms'
 import type { QuotedSelection } from '@/atoms/preview-atoms'
-import { parseMediaModelRef } from '@proma/shared'
-import type { CanvasNodeReference, ServerOpsAgentReference } from '@proma/shared'
+import { parseMediaModelRef } from '@dutydeck/shared'
+import type { CanvasNodeReference, ServerOpsAgentReference } from '@dutydeck/shared'
 import {
   buildQuotedSelectionLabel,
   expandAgentHistoryQuoteMentions,

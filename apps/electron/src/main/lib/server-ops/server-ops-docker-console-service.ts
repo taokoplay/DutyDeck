@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { parseServerOpsConsoleAck, parseServerOpsConsoleIdentity, parseServerOpsConsoleInput,
-  parseServerOpsConsoleResizeInput, parseServerOpsConsoleStartInput } from '@proma/shared'
+  parseServerOpsConsoleResizeInput, parseServerOpsConsoleStartInput } from '@dutydeck/shared'
 import type { ServerOpsConsoleAck, ServerOpsConsoleExitEvent, ServerOpsConsoleIdentity, ServerOpsConsoleInput,
-  ServerOpsConsoleOutputEvent, ServerOpsConsoleResizeInput, ServerOpsConsoleStartInput } from '@proma/shared'
+  ServerOpsConsoleOutputEvent, ServerOpsConsoleResizeInput, ServerOpsConsoleStartInput } from '@dutydeck/shared'
 import type { ServerOpsActiveConnectionIdentity, ServerOpsConnectionConsoleExitEvent,
   ServerOpsConnectionConsoleOutputEvent } from './server-ops-connection-service'
 

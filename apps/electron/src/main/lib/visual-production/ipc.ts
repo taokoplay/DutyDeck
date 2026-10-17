@@ -1,4 +1,4 @@
-import { VISUAL_PRODUCTION_CHANNELS, parseVisualProductionCommand } from '@proma/shared'
+import { VISUAL_PRODUCTION_CHANNELS, parseVisualProductionCommand } from '@dutydeck/shared'
 import type { VisualProductionExecutor } from './access'
 
 /** 不泄漏 Electron 对象到业务服务的 sender 形状。 */

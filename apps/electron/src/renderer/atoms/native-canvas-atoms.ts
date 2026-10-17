@@ -11,7 +11,7 @@ import {
   type DesignContextMode,
   type DesignTaskDetails,
   type SDKMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { atom } from 'jotai'
 import type { Store } from 'jotai/vanilla/store'
 import type { CanvasAgentOwner } from '@/lib/canvas-agent-event-routing'

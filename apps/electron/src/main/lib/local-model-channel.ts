@@ -1,4 +1,4 @@
-import type { Channel, LocalModelSnapshot } from '@proma/shared'
+import type { Channel, LocalModelSnapshot } from '@dutydeck/shared'
 
 /** 将资产清单投影为渠道模型；磁盘渠道里的手工模型与凭据不能绕过本地能力验证。 */
 export function projectLocalModelChannel(channel: Channel, snapshot: LocalModelSnapshot): Channel {

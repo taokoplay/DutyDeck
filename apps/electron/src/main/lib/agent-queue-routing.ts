@@ -1,4 +1,4 @@
-import type { AgentSubmitOrEnqueueInput, AgentSubmitOrEnqueueResult } from '@proma/shared'
+import type { AgentSubmitOrEnqueueInput, AgentSubmitOrEnqueueResult } from '@dutydeck/shared'
 
 /**
  * Pi runtime 完成 query 与 renderer 收到终态事件之间，可能拒绝对旧通道的消息注入。

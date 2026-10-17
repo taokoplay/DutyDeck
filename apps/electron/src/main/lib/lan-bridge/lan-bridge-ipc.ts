@@ -1,4 +1,4 @@
-import { isRfc1918Ipv4, LAN_BRIDGE_IPC_CHANNELS } from '@proma/shared'
+import { isRfc1918Ipv4, LAN_BRIDGE_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   LanBridgeConfig,
   LanBridgeDeviceDto,
@@ -8,7 +8,7 @@ import type {
   LanBridgeRevokeDeviceRequest,
   LanBridgeRevokeDeviceResponse,
   LanBridgeRuntimeState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { AgentEventBus } from '../agent-event-bus'
 

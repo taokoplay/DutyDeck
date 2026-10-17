@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasDocument, CanvasNode } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasNode } from '@dutydeck/shared'
 import { createStore } from 'jotai'
 import {
   agentCanvasViewStatesAtom,

@@ -1,4 +1,4 @@
-import type { WorkspacePathState } from '@proma/shared'
+import type { WorkspacePathState } from '@dutydeck/shared'
 import { getConfigDir, getWorkspaceFilesDir } from './config-paths'
 import { hasActiveAgentDataWritesForWorkspace } from './agent-service'
 import { hasRunningAutomationForWorkspace } from './automation-scheduler'

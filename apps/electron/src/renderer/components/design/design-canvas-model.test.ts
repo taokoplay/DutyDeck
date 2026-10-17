@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyDesignDocument } from '@proma/shared'
-import type { DesignAsset, DesignCanvasNode, DesignJobRecord } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
+import type { DesignAsset, DesignCanvasNode, DesignJobRecord } from '@dutydeck/shared'
 import {
   createMoveNodesMutation,
   createViewportMutation,

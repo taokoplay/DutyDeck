@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isServerOpsAgentTableAllowed } from '@proma/shared'
+import { isServerOpsAgentTableAllowed } from '@dutydeck/shared'
 import { prepareServerOpsDatabaseChangeContext } from './server-ops-database-change-context'
 import type { ServerOpsAgentReadFacade } from './server-ops-agent-read-facade'
 

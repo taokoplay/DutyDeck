@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { CanvasDocument, CanvasMediaTarget, CanvasWorkflowRun, MediaInputValue, MediaRunSnapshot, MediaRunSourceReference } from '@proma/shared'
+import type { CanvasDocument, CanvasMediaTarget, CanvasWorkflowRun, MediaInputValue, MediaRunSnapshot, MediaRunSourceReference } from '@dutydeck/shared'
 import { parseMediaRunInputs } from '../media/media-run-service'
 import type { MediaRunOrigin, MediaRunService } from '../media/media-run-service'
 import type { CanvasToolRunContext } from './canvas-tool-provider'

@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import type { Store } from 'jotai/vanilla/store'
-import type { AgentActiveSessionSnapshot } from '@proma/shared'
+import type { AgentActiveSessionSnapshot } from '@dutydeck/shared'
 import type { AgentStreamState } from '@/atoms/agent-atoms'
 import { createQueuedAgentStreamState } from './agent-message-queue'
 

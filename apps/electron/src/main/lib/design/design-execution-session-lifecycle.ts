@@ -1,4 +1,4 @@
-import type { AgentSessionMeta, DesignTraceState } from '@proma/shared'
+import type { AgentSessionMeta, DesignTraceState } from '@dutydeck/shared'
 import { hasValidDesignSessionOwnership } from '../agent-session-visibility'
 
 /** 内部 Design 执行会话回收输入。 */

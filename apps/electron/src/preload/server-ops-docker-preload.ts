@@ -9,7 +9,7 @@ import {
   parseServerOpsDockerContainerDetailResult,
   parseServerOpsDockerResourcesInput,
   parseServerOpsDockerResourcesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDockerActionCancelInput,
   ServerOpsDockerActionCandidate,
@@ -20,7 +20,7 @@ import type {
   ServerOpsDockerContainerDetailResult,
   ServerOpsDockerResourcesInput,
   ServerOpsDockerResourcesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** Docker preload 调用主进程所需的最小接口。 */
 export type ServerOpsDockerInvoke = (channel: string, input: unknown) => Promise<unknown>

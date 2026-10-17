@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { isServerOpsAuditActorOperation } from '@proma/shared'
+import { isServerOpsAuditActorOperation } from '@dutydeck/shared'
 import { atom, useAtom, useStore } from 'jotai'
 import {
   ArrowLeft,
@@ -39,7 +39,7 @@ import type {
   ServerOpsAuditListResult,
   ServerOpsAuditRecord,
   ServerOpsAgentReference,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { currentAgentSessionIdAtom } from '@/atoms/agent-atoms'
 import {
   serverOpsConnectionStatesAtom,

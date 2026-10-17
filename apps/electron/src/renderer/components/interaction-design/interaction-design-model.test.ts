@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { PrototypeDocument } from '@proma/shared'
+import type { PrototypeDocument } from '@dutydeck/shared'
 import { buildPrototypeGroupTree, buildPrototypeHandoffPrompt, buildPrototypePrompt, copyPrototypeDraft, deletePrototypeGroup, deletePrototypePage, movePrototypePage, PrototypeRequestGate } from './interaction-design-model'
 
 /** 独立测试文档包含跨组路由，验证目录操作不会改变业务路径。 */

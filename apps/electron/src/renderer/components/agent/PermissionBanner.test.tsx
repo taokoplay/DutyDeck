@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { createStore, Provider } from 'jotai'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { PermissionRequest } from '@proma/shared'
+import type { PermissionRequest } from '@dutydeck/shared'
 import { allPendingPermissionRequestsAtom } from '@/atoms/agent-atoms'
 import { PermissionBanner } from './PermissionBanner'
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { AgentOpsAccessControl, persistAgentToolMode, resolveAgentSendToolMode } from './AgentOpsAccessControl'
 import { summarizeServerOpsReadAccess } from '../server-ops/server-ops-agent-read-summary'
 

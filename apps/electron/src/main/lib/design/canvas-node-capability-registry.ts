@@ -1,4 +1,4 @@
-import type { CanvasNode } from '@proma/shared'
+import type { CanvasNode } from '@dutydeck/shared'
 
 /** Agent 可发现的节点操作提示；它不是 Host 授权凭据。 */
 export type CanvasNodeCapability =

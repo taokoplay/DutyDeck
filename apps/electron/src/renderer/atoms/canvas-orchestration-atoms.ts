@@ -1,4 +1,4 @@
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { atom } from 'jotai'
 
 /** 单个画布编排记录的 Renderer 加载状态。 */

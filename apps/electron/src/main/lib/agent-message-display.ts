@@ -1,4 +1,4 @@
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 
 /** 只接受内容块对象；工具参数和其它任意 JSON 不参与图片投影。 */
 function isContentRecord(value: unknown): value is Record<string, unknown> {

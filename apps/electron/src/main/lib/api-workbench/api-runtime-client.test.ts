@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ApiResolvedRequest, ApiTransportResult } from '@proma/shared'
+import type { ApiResolvedRequest, ApiTransportResult } from '@dutydeck/shared'
 import { ApiRuntimeClient, type ApiRuntimeProcess } from './api-runtime-client'
 
 /** 测试使用的最小执行请求。 */

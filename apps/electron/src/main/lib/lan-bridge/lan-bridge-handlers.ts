@@ -15,8 +15,8 @@ import {
   LAN_BRIDGE_MIN_PROTOCOL_VERSION,
   LAN_BRIDGE_PROTOCOL_VERSION,
   LAN_BRIDGE_WS_CAPABILITIES,
-} from '@proma/shared'
-import type { LanBridgeConnectedPayload } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { LanBridgeConnectedPayload } from '@dutydeck/shared'
 
 /** 构造 WebSocket 建连后的协议能力声明。 */
 export function createLanBridgeConnectedPayload(serverVersion: string): LanBridgeConnectedPayload {

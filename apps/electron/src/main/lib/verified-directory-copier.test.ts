@@ -19,7 +19,7 @@ import {
 import { open, rename as renameAsync, unlink as unlinkAsync } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { DataRootMigrationProgress } from '@proma/shared'
+import type { DataRootMigrationProgress } from '@dutydeck/shared'
 import {
   copyDirectoryVerified,
   finalizeDirectoryCopy,

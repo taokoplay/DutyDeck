@@ -24,7 +24,7 @@ import type {
   DataRootMigrationStage,
   DataRootOccupiedStorage,
   PathManagementState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { DataRootLocator } from './data-root-locator'
 import type {
   CopyDirectoryInput,

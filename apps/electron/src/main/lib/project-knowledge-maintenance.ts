@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
-import type { AgentSessionMeta, KnowledgeCategory, KnowledgeEntry, KnowledgeKind, KnowledgeMaintenanceInput, KnowledgeMaintenanceStatus } from '@proma/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
+import type { AgentSessionMeta, KnowledgeCategory, KnowledgeEntry, KnowledgeKind, KnowledgeMaintenanceInput, KnowledgeMaintenanceStatus } from '@dutydeck/shared'
 import type { PersistedAgentEvidence, PersistedAgentEvidenceRecord, SDKMessageAppendReceipt } from './agent-session-manager'
 import type { KnowledgeEntryCommit, ProjectKnowledgeStore, ResolvedKnowledgeProject } from './project-knowledge/types'
 import { emptyKnowledgeMaintenance } from './project-knowledge-maintenance-types'

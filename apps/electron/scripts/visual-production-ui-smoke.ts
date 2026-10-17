@@ -5,8 +5,8 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { BrowserWindow } from 'electron'
-import { VISUAL_PRODUCTION_CHANNELS } from '@proma/shared'
-import type { VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionMediaOption } from '@proma/shared'
+import { VISUAL_PRODUCTION_CHANNELS } from '@dutydeck/shared'
+import type { VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionMediaOption } from '@dutydeck/shared'
 import { createVisualProductionAccess } from '../src/main/lib/visual-production/access'
 import { registerVisualProductionIpc } from '../src/main/lib/visual-production/ipc'
 import { VisualProductionService } from '../src/main/lib/visual-production/store'
@@ -552,7 +552,7 @@ async function runChild(): Promise<void> {
     await access().execute('save', { sessionId, productionId, baseRevision: recordsRevision, draft: recordsDraft })
     const activeJob = await access().execute('beginJob', { sessionId, productionId, baseRevision: recordsRevision + 1, instruction: longInstruction, shotId: 'strip-shot-11' })
     await wait(window, `document.querySelector('[aria-label^="制作记录"]')?.getAttribute('aria-label').includes('1 进行中 · 1 需更新')`)
-    for (const tab of ['项目', '资产', '分镜', '画布', '交付']) {
+    for (const tab of ['项目', '资产', '分镜', '画布', '素材导出']) {
       await click(window, button(tab))
       assert.equal(await window.webContents.executeJavaScript(`document.querySelector('main').textContent.includes('制作任务与候选') || Boolean(document.querySelector('.vp-record'))`), false, '关闭弹窗时各页签不应挂载制作记录')
     }

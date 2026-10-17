@@ -1,4 +1,4 @@
-import type { McpOAuthProvider, McpServerEntry } from '@proma/shared'
+import type { McpOAuthProvider, McpServerEntry } from '@dutydeck/shared'
 
 export type CatalogIntegrationKind = 'mcp' | 'cli' | 'guided' | 'credential'
 export type CatalogAuthentication = 'none' | 'oauth' | 'api-key'

@@ -1,4 +1,4 @@
-import type { FilePreviewMetadata } from '@proma/shared'
+import type { FilePreviewMetadata } from '@dutydeck/shared'
 
 /** 单份文件预览的已解析内容，按 session、路径、version 与解析范围缓存。 */
 export interface PreviewContentCacheEntry {

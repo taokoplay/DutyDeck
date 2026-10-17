@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { AssistantMessage, ToolResultMessage, UserMessage } from '@earendil-works/pi-ai/compat'
-import type { SDKAssistantMessage, SDKMessage, SDKResultMessage } from '@proma/shared'
+import type { SDKAssistantMessage, SDKMessage, SDKResultMessage } from '@dutydeck/shared'
 import type { RuntimeGuardResultOverride } from '../agent-runtime-guards'
 import { isMalformedResponseError, isTransientNetworkError } from '../error-patterns'
 import { sanitizeToolResultImageContent } from '../image-content-validation'

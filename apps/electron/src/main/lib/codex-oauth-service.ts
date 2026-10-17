@@ -12,7 +12,7 @@
  */
 
 import { shell } from 'electron'
-import type { CodexOAuthCredentials, CodexOAuthDeviceCode, CodexOAuthLoginMethod } from '@proma/shared'
+import type { CodexOAuthCredentials, CodexOAuthDeviceCode, CodexOAuthLoginMethod } from '@dutydeck/shared'
 import { runWithOAuthProxyScope } from './oauth-proxy-scope'
 /** Pi 0.80.10 将 OAuth 流程收敛到 ModelRuntime。保持动态 import，避免 Electron 主包将 Pi runtime 内联。 */
 type PiSdk = typeof import('@earendil-works/pi-coding-agent')

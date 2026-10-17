@@ -1,7 +1,7 @@
 import { KnowledgeRunReferences, KnowledgeToolFailure, classifyKnowledgeFailure } from './project-knowledge-references'
 import type { KnowledgeSourceReferenceInput, KnowledgePageReferenceInput } from './project-knowledge-references'
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
-import type { AgentSessionMeta, KnowledgeReadResult, KnowledgeSearchInput, KnowledgeSearchResult, KnowledgeSnapshot } from '@proma/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
+import type { AgentSessionMeta, KnowledgeReadResult, KnowledgeSearchInput, KnowledgeSearchResult, KnowledgeSnapshot } from '@dutydeck/shared'
 import type { ProjectKnowledgeIpcService } from './project-knowledge-ipc'
 import { parseKnowledgeReadInput, parseKnowledgeSearchInput } from './project-knowledge-ipc'
 import type {

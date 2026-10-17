@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { createCapabilityFactoryAgentAccess } from './capability-factory-agent-access'
 
 describe('工厂 Agent 准入与持续归属', () => {

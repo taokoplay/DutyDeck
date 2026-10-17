@@ -5,8 +5,8 @@ import type {
   DesignJobRecord,
   DesignMutation,
   DesignWorkspaceSnapshot,
-} from '@proma/shared'
-import { applyDesignEntityPatch } from '@proma/shared'
+} from '@dutydeck/shared'
+import { applyDesignEntityPatch } from '@dutydeck/shared'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
 import { toast } from 'sonner'
 import {

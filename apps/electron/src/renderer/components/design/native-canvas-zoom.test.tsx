@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasLayoutRect, CanvasMutation, DesignViewport } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasLayoutRect, CanvasMutation, DesignViewport } from '@dutydeck/shared'
 import * as React from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'

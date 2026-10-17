@@ -5,7 +5,7 @@ import type {
   TokenUsageAPI,
   TokenUsageQuery,
   TokenUsageRecord,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { TokenUsageSettings } from '../src/renderer/components/settings/TokenUsageSettings'
 import '../src/renderer/styles/globals.css'
 import { aggregateTokenUsage, tokenUsageTaskDetail, tokenUsageExportRecords } from '../src/main/lib/token-usage-query'

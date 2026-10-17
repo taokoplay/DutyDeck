@@ -1,7 +1,7 @@
 /**
  * 交付这一段的展示逻辑（纯函数）：默认文件名与导出前的体检文案。
  */
-import type { CapabilityPackageReadiness } from '@proma/shared'
+import type { CapabilityPackageReadiness } from '@dutydeck/shared'
 
 /**
  * 建议的导出文件名：`<场景名>-v<版本>.json`。

@@ -1,4 +1,4 @@
-import type { CanvasDocument, CanvasEdge, CanvasNode } from '@proma/shared'
+import type { CanvasDocument, CanvasEdge, CanvasNode } from '@dutydeck/shared'
 
 /** 父 Agent 明确选择本轮审核范围；canvas仅用于整张画布属于同一任务时。 */
 export interface CanvasAgentReviewScope {

@@ -1,4 +1,4 @@
-import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeJob } from '@proma/shared'
+import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeJob } from '@dutydeck/shared'
 import type { InteractionDesignExecutor } from './access'
 
 /** 单轮主会话只结算本轮签发的任务；不扫描、接管其他运行的任务。 */

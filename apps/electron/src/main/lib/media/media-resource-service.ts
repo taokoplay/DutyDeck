@@ -10,8 +10,8 @@ import type {
   MediaResourcePage,
   MediaResourceQuery,
   MediaResourceSource,
-} from '@proma/shared'
-import { parseComfyObjectCatalog, parseComfyObjectInfo } from '@proma/shared'
+} from '@dutydeck/shared'
+import { parseComfyObjectCatalog, parseComfyObjectInfo } from '@dutydeck/shared'
 import type {
   ComfyAssetListOptions,
   ComfyAssetPage,

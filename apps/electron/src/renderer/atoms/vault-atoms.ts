@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import { atomFamily } from 'jotai-family'
-import type { VaultReadResult } from '@proma/shared'
+import type { VaultReadResult } from '@dutydeck/shared'
 
 /** A renderer can host several Agent sessions, each with independent Vault navigation. */
 export function getVaultSessionScope(sessionId?: string): string {

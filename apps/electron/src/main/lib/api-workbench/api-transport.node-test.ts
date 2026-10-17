@@ -6,7 +6,7 @@ import { createServer, type Server } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import type { Socket } from 'node:net'
 import { join } from 'node:path'
-import type { ApiResolvedRequest, ApiSseEvent } from '@proma/shared'
+import type { ApiResolvedRequest, ApiSseEvent } from '@dutydeck/shared'
 import { executeApiTransport } from './api-transport.ts'
 
 /** 测试结束时统一关闭回环服务，避免监听句柄污染后续测试。 */

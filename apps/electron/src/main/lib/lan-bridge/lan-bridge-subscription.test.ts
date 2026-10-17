@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, mock, spyOn, test } from 'bun:test'
-import type { AgentStreamPayload } from '@proma/shared'
+import type { AgentStreamPayload } from '@dutydeck/shared'
 import { AgentEventBus } from '../agent-event-bus'
 import * as mapper from './lan-bridge-event-mapper'
 

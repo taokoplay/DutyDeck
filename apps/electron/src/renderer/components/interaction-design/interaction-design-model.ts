@@ -1,4 +1,4 @@
-import type { PrototypeDraft, PrototypeDocument, PrototypeGroup, PrototypeHandoff } from '@proma/shared'
+import type { PrototypeDraft, PrototypeDocument, PrototypeGroup, PrototypeHandoff } from '@dutydeck/shared'
 
 /** 页面目录树节点；children 只表示分组层级，页面仍由当前 draft.pages 按 groupId 关联。 */
 export interface PrototypeGroupTreeNode {

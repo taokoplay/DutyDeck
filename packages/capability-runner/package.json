@@ -1,5 +1,5 @@
 {
-  "name": "@proma/capability-runner",
+  "name": "@dutydeck/capability-runner",
   "version": "0.0.1",
   "license": "AGPL-3.0-only",
   "description": "能力包 spec、严格解析与参考 runner。零运行时依赖，可脱离 DutyDeck 单独取用。",

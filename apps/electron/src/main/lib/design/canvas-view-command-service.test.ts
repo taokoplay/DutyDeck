@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasViewSnapshot } from '@proma/shared'
+import type { CanvasViewSnapshot } from '@dutydeck/shared'
 import { createCanvasViewCommandService } from './canvas-view-command-service'
 
 /** 所有测试使用同一完整宿主身份。 */

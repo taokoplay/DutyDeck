@@ -5,8 +5,8 @@ import type {
   ServerOpsDataSourceRowsInput, ServerOpsDataSourceRowsResult,
   ServerOpsDataSourceTableInput, ServerOpsDataSourceTableResult,
   ServerOpsDataSourceTablesInput, ServerOpsDataSourceTablesResult,
-} from '@proma/shared'
-import { parseServerOpsDataRowFilters } from '@proma/shared'
+} from '@dutydeck/shared'
+import { parseServerOpsDataRowFilters } from '@dutydeck/shared'
 import { enqueueServerOpsDataRead } from './server-ops-data-request-queue'
 import { getServerOpsDataErrorMessage } from './server-ops-data-display'
 

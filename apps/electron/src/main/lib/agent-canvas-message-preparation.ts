@@ -4,7 +4,7 @@ import type {
   AgentSendInput,
   AgentSubmitOrEnqueueInput,
   CanvasNodeReference,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AgentRunExtensions } from './agent-run-extensions'
 import {
   CanvasReferenceInvalidError,

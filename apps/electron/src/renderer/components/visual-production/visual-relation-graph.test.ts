@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { VisualProductionDocument } from '@proma/shared'
+import type { VisualProductionDocument } from '@dutydeck/shared'
 import { buildVisualRelationGraph, getVisualRelationFocus } from './visual-relation-graph'
 
 /** 两集共用同一角色，另有未引用资产与空集数，覆盖真实制作的共享和孤立对象。 */

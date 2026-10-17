@@ -7,7 +7,7 @@
 import type {
   AgentStreamPayload,
   LanBridgeAgentSessionRuntimeStatus,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { AgentEventBus } from '../agent-event-bus'
 import { getSessionManager } from './lan-bridge'
 import { mapAgentPayloadToLanMessages } from './lan-bridge-event-mapper'

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { AgentRunFileChangesSnapshot } from '@proma/shared'
+import type { AgentRunFileChangesSnapshot } from '@dutydeck/shared'
 import { createAgentRunFileChanges } from './agent-run-file-changes-service'
 import { publishAgentFileObservation } from './agent-file-observation-bus'
 

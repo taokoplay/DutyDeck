@@ -10,8 +10,8 @@ import type {
   CanvasNodeContentMeta,
   CanvasTarget,
   CanvasTrashEntry,
-} from '@proma/shared'
-import { createEmptyCanvasDocument } from '@proma/shared'
+} from '@dutydeck/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import { createCanvasArtifactCreationService } from './canvas-artifact-creation'
 import type { LegacyCanvasContentSeed } from './canvas-document-store'
 import type {

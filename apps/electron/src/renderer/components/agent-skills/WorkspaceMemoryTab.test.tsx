@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SkillFileNode } from '@proma/shared'
+import type { SkillFileNode } from '@dutydeck/shared'
 import { listMemoryFiles } from './WorkspaceMemoryTab'
 
 /** 真实目录形状的夹具：同名文件通过相对路径保持独立身份。 */

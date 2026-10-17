@@ -1,5 +1,5 @@
 {
-  "name": "@proma/shared",
+  "name": "@dutydeck/shared",
   "version": "0.1.69",
   "license": "AGPL-3.0-only",
   "description": "Shared types, configs and utilities for DutyDeck",
@@ -19,6 +19,6 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@proma/capability-runner": "workspace:*"
+    "@dutydeck/capability-runner": "workspace:*"
   }
 }

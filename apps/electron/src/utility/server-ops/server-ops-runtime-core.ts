@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { StringDecoder } from 'node:string_decoder'
-import type { ServerOpsHostKey, ServerOpsTerminalOutputEvent } from '@proma/shared'
+import type { ServerOpsHostKey, ServerOpsTerminalOutputEvent } from '@dutydeck/shared'
 import type {
   ServerOpsRuntimeLogExitReason,
   ServerOpsRuntimeLogStartRequest,

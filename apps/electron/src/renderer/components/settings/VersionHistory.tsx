@@ -1,8 +1,8 @@
 /**
  * VersionHistory - 版本历史组件
  *
- * 只展示本仓库（DutyDeck / Bone）的 GitHub Release 历史，不再列出上游 Proma 的版本：
- * 我们的内容基线与上游并不同步（版本号写着 0.19.53，完整合入的内容其实停在 0.19.31），
+ * 只展示本仓库 DutyDeck 的 GitHub Release 历史，不再列出上游 Proma 的版本：
+ * 我们的内容基线与上游并不同步，版本号也不再沿用上游序列，
  * 两张列表并排会让用户误以为跟到了同一个进度。上游关系改在「关于」页用文字说明。
  */
 
@@ -20,13 +20,13 @@ import {
 } from './version-history-state'
 
 /** 唯一的版本历史来源：本仓库自己的 Release。 */
-const SOURCE = 'bone' as const
+const SOURCE = 'dutydeck' as const
 
 /**
  * VersionHistory 组件
  */
 export function VersionHistory(): React.ReactElement {
-  /** 版本历史状态（按来源分桶，这里只会用到 bone）。 */
+  /** 版本历史状态（按来源分桶，这里只会用到 DutyDeck）。 */
   const [historyState, dispatch] = React.useReducer(
     reduceVersionHistoryState,
     undefined,

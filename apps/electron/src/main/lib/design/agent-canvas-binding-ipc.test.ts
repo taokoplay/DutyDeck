@@ -2,14 +2,15 @@ import { describe, expect, spyOn, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CANVAS_IPC_CHANNELS } from '@proma/shared'
+import { CANVAS_IPC_CHANNELS } from '@dutydeck/shared'
 import type {
   AgentCanvasBinding,
   AgentCanvasBindingChangeEvent,
   AgentSessionMeta,
+  CanvasErrorDiagnostic,
   CanvasInvokeResult,
   CanvasSessionMeta,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { writeJsonFileAtomicSecure } from '../safe-file'
 import { isEligibleProjectAgent } from '../agent-session-visibility'
@@ -457,6 +458,40 @@ describe('Agent-画布关联 IPC', () => {
     })
     expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('/private')
     errorSpy.mockRestore()
+  })
+
+  test('Given Windows helper ACCESS_DENIED When LINK 失败 Then 返回绑定阶段诊断并记录安全日志状态', async () => {
+    const handlers = new Map<string, TestHandler>()
+    const diagnostics: CanvasErrorDiagnostic[] = []
+    registerAgentCanvasBindingIpcHandlers({
+      ...createProjectMutationDependencies(),
+      ipcMain: { handle: (channel, handler) => { handlers.set(channel, handler) }, removeHandler: (channel) => handlers.delete(channel) },
+      store: createStore(),
+      getAgentSession: () => createAgentSession(),
+      listCanvasSessions: () => [createCanvasSession()],
+      assertSenderProjectAccess: () => {
+        throw new Error('稳定目录 helper 提前退出: code=4, signal=none, stderr=cannot open relative Windows object [win32=5 ACCESS_DENIED]')
+      },
+      recordLoadError: (diagnostic) => {
+        diagnostics.push(diagnostic)
+        return 'saved'
+      },
+      broadcast: () => undefined,
+    })
+
+    const result = await invoke(handlers, CANVAS_IPC_CHANNELS.LINK_AGENT_CANVAS, createSender(1), {
+      projectId: 'project-1', sessionId: 'session-1', canvasId: 'canvas-1', makeDefault: false,
+    })
+
+    expect(result).toEqual({ ok: false, error: {
+      code: 'CANVAS_BINDING_FAILED',
+      message: '画布关联失败，请重试。',
+      diagnostic: expect.objectContaining({
+        stage: 'binding', reason: 'access-denied', systemCode: 'WIN32_5',
+        helperExitCode: 4, logStatus: 'saved',
+      }),
+    } })
+    expect(diagnostics).toHaveLength(1)
   })
 
   test('Given 真实 Store 批量对账发生 CAS 冲突 When LIST 重试 Then 冲突轮零事件且重试只广播已提交变化', async () => {

@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto'
 import {
   parseServerOpsTrustCancelInput, parseServerOpsTrustCandidate, parseServerOpsTrustCommitInput,
   parseServerOpsTrustInput, parseServerOpsTrustPrepareInput, parseServerOpsTrustSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsAuditAppendInput, ServerOpsConnectionState, ServerOpsHost, ServerOpsHostKey,
   ServerOpsTrustCancelInput, ServerOpsTrustCandidate, ServerOpsTrustCommitInput,
   ServerOpsTrustInput, ServerOpsTrustPrepareInput, ServerOpsTrustResult, ServerOpsTrustSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { AtomicWritePostCommitError } from '../safe-file'
 import { ServerOpsConfigOutcomeUnknownError } from './server-ops-config-transaction'
 import { createServerOpsEndpoint, sameServerOpsHostKey } from './server-ops-host-trust-store'

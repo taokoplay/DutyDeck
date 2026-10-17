@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { LocalModelAsset, LocalModelSnapshot } from '@proma/shared'
+import type { LocalModelAsset, LocalModelSnapshot } from '@dutydeck/shared'
 import { localModelControls, localModelStatus } from './local-model-state'
 
 /** 构造最小本地模型快照，覆盖下载、加载和启用边界。 */

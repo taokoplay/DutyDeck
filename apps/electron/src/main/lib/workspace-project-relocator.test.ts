@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { AgentSessionMeta, AgentWorkspace, DataRootMigrationProgress, WorktreeInfo } from '@proma/shared'
+import type { AgentSessionMeta, AgentWorkspace, DataRootMigrationProgress, WorktreeInfo } from '@dutydeck/shared'
 import { ensureDirectoryDurable, writeJsonFileAtomicSecure } from './safe-file'
 import { WorkspaceProjectRelocator, type WorkspaceProjectRelocatorOptions } from './workspace-project-relocator'
 

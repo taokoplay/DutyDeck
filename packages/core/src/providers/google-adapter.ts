@@ -21,8 +21,8 @@ import type {
   ToolDefinition,
   ContinuationMessage,
 } from './types.ts'
-import { getGeminiModelCapability, normalizeGeminiThinkingLevel } from '@proma/shared'
-import type { TokenUsageAmounts } from '@proma/shared'
+import { getGeminiModelCapability, normalizeGeminiThinkingLevel } from '@dutydeck/shared'
+import type { TokenUsageAmounts } from '@dutydeck/shared'
 import { normalizeBaseUrl } from './url-utils.ts'
 import {
   getDeclaredReasoningSupport,

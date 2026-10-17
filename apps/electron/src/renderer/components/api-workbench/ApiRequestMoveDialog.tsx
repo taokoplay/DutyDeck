@@ -7,7 +7,7 @@
 
 import * as React from 'react'
 import { FolderInput } from 'lucide-react'
-import type { ApiCatalog, ApiRequestDefinition } from '@proma/shared'
+import type { ApiCatalog, ApiRequestDefinition } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'

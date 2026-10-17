@@ -1,10 +1,10 @@
-import { getServerOpsSqlDiagnostic, validateServerOpsSqlQuery } from '@proma/shared'
+import { getServerOpsSqlDiagnostic, validateServerOpsSqlQuery } from '@dutydeck/shared'
 import type {
   ServerOpsDataQueryCancelInput,
   ServerOpsDataQueryInput,
   ServerOpsDataQueryResult,
   ServerOpsSqlDialect,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** SQL 查询页只依赖执行与取消两个可选桥接，兼容尚未升级的 preload。 */
 export interface ServerOpsSqlQueryApi {

@@ -1,4 +1,4 @@
-import { inferReasoningTransport, normalizeReasoningCapabilityLevel, normalizeReasoningLevel, resolveReasoningProfile, type AgentSessionMeta, type AgentThinkingLevel, type ProviderType, type ReasoningCapability } from '@proma/shared'
+import { inferReasoningTransport, normalizeReasoningCapabilityLevel, normalizeReasoningLevel, resolveReasoningProfile, type AgentSessionMeta, type AgentThinkingLevel, type ProviderType, type ReasoningCapability } from '@dutydeck/shared'
 import type { AppSettings } from '../../types'
 
 type ThinkingSettings = Pick<AppSettings, 'agentThinking' | 'agentEffort'>

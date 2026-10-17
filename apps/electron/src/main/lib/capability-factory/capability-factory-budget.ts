@@ -1,6 +1,6 @@
 /** 工厂共享调用账本：同步预留避免 map 并发透支，持久化失败时不放行。 */
 import { randomUUID } from 'node:crypto'
-import type { CapabilityFactoryCallRecord, CapabilityFactoryCallUsage } from '@proma/shared'
+import type { CapabilityFactoryCallRecord, CapabilityFactoryCallUsage } from '@dutydeck/shared'
 
 /** 宿主冻结的次数和时间限制；货币硬封顶尚无可靠的供应商计价上界。 */
 export interface CapabilityFactoryCallLedgerOptions {

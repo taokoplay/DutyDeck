@@ -47,7 +47,7 @@ import type {
   ServerOpsDataQueryHistoryScope,
   ServerOpsDataQueryHistoryRecordInput,
   ServerOpsDataQueryHistoryResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AlertDialog,
   AlertDialogAction,

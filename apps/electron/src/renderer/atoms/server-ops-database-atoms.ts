@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import type { ServerOpsSchemaNavigation } from '@/components/server-ops/server-ops-schema-controller'
 import type { ServerOpsDiagnosticPage } from '@/components/server-ops/server-ops-diagnostics-controller'
 

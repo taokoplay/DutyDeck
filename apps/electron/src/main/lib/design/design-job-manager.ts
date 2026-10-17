@@ -25,7 +25,7 @@ import type {
   SDKToolResultBlock,
   SDKToolUseBlock,
   SDKUserMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   CANVAS_IMAGE_EXECUTION_PROMPT_MAX_LENGTH,
   IMAGE_GENERATION_MODEL_ID_MAX_LENGTH,
@@ -35,7 +35,7 @@ import {
   isCanvasMediaModelAllowed,
   parseCanvasGenerationModelId,
   parseCanvasImageMediaWorkflow,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { removeFileAtomic, writeJsonFileAtomic } from '../safe-file'
 import { getConversationAttachmentsDir, resolveAttachmentPath } from '../config-paths'
 import type { ConfigRootResolver } from '../config-paths'
@@ -215,7 +215,7 @@ export interface DesignJobManagerDependencies {
   /** 从直接入边读取已提交事实并固化任务输入。 */
   canvasImageInputResolver?: CanvasImageInputResolver
   /** 新任务从权威 Canvas 文档读取 API 模型候选范围；旧任务继续自身快照。 */
-  getCanvasMediaModelScope?: (projectId: string, canvasId: string) => import('@proma/shared').CanvasMediaModelScope | undefined
+  getCanvasMediaModelScope?: (projectId: string, canvasId: string) => import('@dutydeck/shared').CanvasMediaModelScope | undefined
   /** ComfyUI 图片执行器返回已登记素材，Manager 只负责原候选链与任务 journal。 */
   mediaExecution?: DesignMediaImageExecution
   /** 只暴露任务创建、预检和单次工具运行所需的模型路由能力。 */

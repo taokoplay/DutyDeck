@@ -9,7 +9,7 @@ import { BrowserWindow, Notification } from 'electron'
 import { claimDuePlanningReminders } from './planning-manager'
 import { getSettings } from './settings-service'
 import { broadcastPlanningChanged, broadcastPlanningRemindersDue } from './planning-events'
-import type { ActivePlanningReminder } from '@proma/shared'
+import type { ActivePlanningReminder } from '@dutydeck/shared'
 
 const POLL_INTERVAL_MS = 30_000
 let timer: ReturnType<typeof setInterval> | null = null

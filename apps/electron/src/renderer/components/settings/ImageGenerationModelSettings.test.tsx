@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { readFileSync } from 'node:fs'
-import type { ImageGenerationModelCatalogResult, ImageGenerationModelProfile } from '@proma/shared'
+import type { ImageGenerationModelCatalogResult, ImageGenerationModelProfile } from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_MODEL_ID_MAX_LENGTH,
   IMAGE_GENERATION_MODEL_NAME_MAX_LENGTH,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import * as imageModelSettingsModule from './ImageGenerationModelSettings'
 import * as toolSettingsModule from './ToolSettings'
 

@@ -1,6 +1,6 @@
 /** 模型调用观察器：仅接受供应商报告，不读取提示词或推断费用。 */
 import { randomUUID } from 'node:crypto'
-import type { TokenUsageAmounts, TokenUsageRecord } from '@proma/shared'
+import type { TokenUsageAmounts, TokenUsageRecord } from '@dutydeck/shared'
 
 /** 调用前冻结的归属信息，不包含终态及供应商计量。 */
 export type TokenUsageContext = Omit<TokenUsageRecord, keyof TokenUsageAmounts | 'id' | 'startedAt' | 'finishedAt' | 'status' | 'origin'>

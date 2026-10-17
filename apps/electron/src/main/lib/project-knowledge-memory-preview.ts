@@ -1,4 +1,4 @@
-import type { KnowledgeMemoryOrganizationPreview } from '@proma/shared'
+import type { KnowledgeMemoryOrganizationPreview } from '@dutydeck/shared'
 import type { ProjectKnowledgeIpcService } from './project-knowledge-ipc'
 
 /** 在最多 100 个已登记条目与 256 KiB 总正文内，预览旧记忆的混合主题。 */

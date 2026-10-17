@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { ComfyObjectInfo, MediaAssetRecord, MediaAssetRef, MediaGenerationSnapshot, MediaProjectCatalog, MediaRemoteDescriptor, MediaRunSnapshot, MediaWorkflowDefinition, MediaWorkflowVersion } from '@proma/shared'
+import type { ComfyObjectInfo, MediaAssetRecord, MediaAssetRef, MediaGenerationSnapshot, MediaProjectCatalog, MediaRemoteDescriptor, MediaRunSnapshot, MediaWorkflowDefinition, MediaWorkflowVersion } from '@dutydeck/shared'
 import type { CanvasToolRunContext } from '../design/canvas-tool-provider'
 import { createMediaToolRun, MEDIA_TOOL_NAMES, type MediaToolProviderDependencies } from './media-tool-provider'
 import { MediaWorkflowValidationError } from './media-workflow-error'
@@ -120,7 +120,7 @@ function fixture(options: { largeResources?: boolean; withSources?: boolean; wit
         })),
       }),
       readWorkflow: async (descriptor) => ({ descriptor: structuredClone(descriptor), format: 'api' as const,
-        definition: workflow.prompt as unknown as import('@proma/shared').JsonObject }),
+        definition: workflow.prompt as unknown as import('@dutydeck/shared').JsonObject }),
       readRemoteAsset: async (descriptor) => ({ descriptor: structuredClone(descriptor), bytes: new Uint8Array([1, 2, 3]), contentType: 'image/png' }),
     },
     listAssets: async () => [{ asset: { assetId: 'asset-1', revision: 1, hash: 'b'.repeat(64), mediaKind: 'image' }, roles: ['source'], width: 1024, height: 1024 }],
@@ -453,7 +453,7 @@ describe('媒体 Agent 工具提供器', () => {
       LoadImage: { input: { required: { image: [['old-server-file.png'], { image_upload: true }] } }, output: ['IMAGE', 'MASK'] },
       SaveImage: schema.SaveImage!,
     })
-    f.dependencies.resources.readWorkflow = async (descriptor) => ({ descriptor, format: 'api', definition: prompt as unknown as import('@proma/shared').JsonObject })
+    f.dependencies.resources.readWorkflow = async (descriptor) => ({ descriptor, format: 'api', definition: prompt as unknown as import('@dutydeck/shared').JsonObject })
     const run = createMediaToolRun(f.dependencies, context)
     const discovered = await executeTool(run.piCustomTools, 'media_discover_workflows', { canvasId: 'canvas-1', mediaKind: 'image', inputKinds: ['image'] })
     const candidate = (discovered.details as { items: Array<{ descriptor: MediaRemoteDescriptor; contentHash: string }> }).items[0]!
@@ -514,7 +514,7 @@ describe('媒体 Agent 工具提供器', () => {
     /** 达到合法字段边界的静态第三方节点，复现完整元数据超出 32 KiB。 */
     const classType = 'C'.repeat(256)
     const input = 'i'.repeat(80)
-    const prompt: import('@proma/shared').ComfyPrompt = {}
+    const prompt: import('@dutydeck/shared').ComfyPrompt = {}
     for (let index = 0; index < 24; index += 1) {
       const nodeId = 'n'.repeat(168) + String(index).padStart(2, '0')
       prompt[nodeId] = { class_type: classType, inputs: { [input]: 'value' } }
@@ -527,7 +527,7 @@ describe('媒体 Agent 工具提供器', () => {
       [classType]: { input: { required: { [input]: ['STRING'] } }, output: ['IMAGE'] },
       SaveImage: schema.SaveImage!,
     })
-    f.dependencies.resources.readWorkflow = async (descriptor) => ({ descriptor, format: 'api', definition: prompt as unknown as import('@proma/shared').JsonObject })
+    f.dependencies.resources.readWorkflow = async (descriptor) => ({ descriptor, format: 'api', definition: prompt as unknown as import('@dutydeck/shared').JsonObject })
     const run = createMediaToolRun(f.dependencies, context)
     const result = await executeTool(run.piCustomTools, 'media_import_remote_workflow', {
       descriptor: { connectionId: 'gpu', instanceGeneration: 'instance-1', remoteUser: 'user-1', source: 'user-data', id: 'large.json', workflowPath: 'large.json' },
@@ -543,7 +543,7 @@ describe('媒体 Agent 工具提供器', () => {
   test('Given 远端 API 大图正文超过预算 When 逐页精读 Then 可读完所有节点与连线且不保存或执行', async () => {
     const f = fixture()
     /** 长默认文本使整图超限，但每个节点和输入仍合法可分析。 */
-    const prompt: import('@proma/shared').ComfyPrompt = {}
+    const prompt: import('@dutydeck/shared').ComfyPrompt = {}
     for (let index = 0; index < 40; index += 1) {
       prompt[String(index)] = { class_type: 'InstalledCustom', inputs: { text: 'x'.repeat(1000) } }
     }
@@ -552,7 +552,7 @@ describe('媒体 Agent 工具提供器', () => {
       InstalledCustom: { input: { required: { text: ['STRING'] } }, output: ['IMAGE'] },
       SaveImage: schema.SaveImage!,
     })
-    f.dependencies.resources.readWorkflow = async (descriptor) => ({ descriptor, format: 'api', definition: prompt as unknown as import('@proma/shared').JsonObject })
+    f.dependencies.resources.readWorkflow = async (descriptor) => ({ descriptor, format: 'api', definition: prompt as unknown as import('@dutydeck/shared').JsonObject })
     const descriptor: MediaRemoteDescriptor = { connectionId: 'gpu', instanceGeneration: 'instance-1', remoteUser: 'user-1', source: 'user-data', id: 'large.json', workflowPath: 'large.json' }
     const run = createMediaToolRun(f.dependencies, context)
     /** 模拟 Agent 沿真实游标读取全部节点，首调不传分页也应自动降为可继续精读的摘要。 */
@@ -588,7 +588,7 @@ describe('媒体 Agent 工具提供器', () => {
     f.dependencies.resources.readWorkflow = async (descriptor) => ({
       descriptor,
       format: 'api',
-      definition: prompt as unknown as import('@proma/shared').JsonObject,
+      definition: prompt as unknown as import('@dutydeck/shared').JsonObject,
     })
     const descriptor: MediaRemoteDescriptor = {
       connectionId: 'gpu', instanceGeneration: 'instance-1', remoteUser: 'user-1',

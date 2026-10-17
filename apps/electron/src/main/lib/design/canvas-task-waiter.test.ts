@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { DesignJobChangedEvent } from './design-job-manager'
 import { waitForCanvasImageTaskTerminal } from './canvas-task-waiter'
-import type { DesignJobRecord } from '@proma/shared'
+import type { DesignJobRecord } from '@dutydeck/shared'
 
 const target = {
   projectId: 'project-1', canvasId: 'canvas-1', nodeId: 'node-1',

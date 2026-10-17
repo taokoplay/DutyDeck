@@ -4,7 +4,7 @@ import type {
   CanvasNodeLifecycleResult,
   CanvasTrashEntry,
   CanvasWorkspaceSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   NativeCanvasTrashEntries,

@@ -12,8 +12,8 @@
  */
 import * as React from 'react'
 import { Trash2 } from 'lucide-react'
-import { capabilityStubPlaceholder } from '@proma/shared'
-import type { CapabilitySceneDefinition, CapabilityStub, CapabilityStubSource } from '@proma/shared'
+import { capabilityStubPlaceholder } from '@dutydeck/shared'
+import type { CapabilitySceneDefinition, CapabilityStub, CapabilityStubSource } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'

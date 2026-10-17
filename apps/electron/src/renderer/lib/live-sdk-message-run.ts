@@ -1,4 +1,4 @@
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 
 export interface LiveSdkMessageRunIdentity {
   startedAt?: number

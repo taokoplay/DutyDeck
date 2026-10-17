@@ -1,5 +1,5 @@
 import { safeStorage } from 'electron'
-import type { ApiRunChanged, ApiRunStreamChanged } from '@proma/shared'
+import type { ApiRunChanged, ApiRunStreamChanged } from '@dutydeck/shared'
 import { ApiWorkbenchService } from './api-workbench-service'
 import { ApiWorkbenchStore } from './api-workbench-store'
 import { createApiWorkbenchLifecycle } from './api-workbench-lifecycle'

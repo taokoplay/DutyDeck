@@ -8,7 +8,7 @@ import type {
   DesignPoint,
   DesignViewport,
   DesignWorkspaceSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { atom } from 'jotai'
 import type { DesignEditCommand } from '@/lib/design-editor'
 import {

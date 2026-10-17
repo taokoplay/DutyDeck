@@ -1,4 +1,4 @@
-import type { AgentSessionMeta, AgentWorkspace } from '@proma/shared'
+import type { AgentSessionMeta, AgentWorkspace } from '@dutydeck/shared'
 import { isAgentSessionUserVisible } from './agent-session-visibility'
 
 export const TRAY_RECENT_LIMIT = 3

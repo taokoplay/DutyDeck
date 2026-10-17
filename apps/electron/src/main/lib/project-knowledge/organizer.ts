@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import type { KnowledgeCategory, KnowledgeEntry, KnowledgeReviewInput } from '@proma/shared'
+import type { KnowledgeCategory, KnowledgeEntry, KnowledgeReviewInput } from '@dutydeck/shared'
 import type {
   KnowledgeEntryCommit,
   KnowledgeManifest,

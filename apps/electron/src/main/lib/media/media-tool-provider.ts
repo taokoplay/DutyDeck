@@ -16,8 +16,8 @@ import type {
   MediaRunSnapshot,
   MediaWorkflowDefinition,
   MediaWorkflowVersion,
-} from '@proma/shared'
-import { listMediaWorkflowFields, parseComfyPrompt, parseMediaWorkflowDefinition } from '@proma/shared'
+} from '@dutydeck/shared'
+import { listMediaWorkflowFields, parseComfyPrompt, parseMediaWorkflowDefinition } from '@dutydeck/shared'
 import { Type } from 'typebox'
 import { createHash } from 'node:crypto'
 import type { TSchema } from 'typebox'
@@ -136,8 +136,8 @@ export interface MediaToolProviderDependencies {
   prepareParentRun?(context: CanvasToolRunContext, input: PrepareCanvasMediaHandoffInput, origin: MediaRunOrigin): Promise<MediaRunSnapshot>
   /** 统一图片/音频/视频模型目录和 Agent 运行 Facade；未注入时保留旧媒体工具。 */
   generation?: {
-    listModels(projectId: string): import('@proma/shared').UnifiedMediaModelOption[]
-    prepare(ownerSessionId: string, input: import('@proma/shared').MediaGenerationRequest): MediaGenerationSnapshot
+    listModels(projectId: string): import('@dutydeck/shared').UnifiedMediaModelOption[]
+    prepare(ownerSessionId: string, input: import('@dutydeck/shared').MediaGenerationRequest): MediaGenerationSnapshot
     execute(ownerSessionId: string, runId: string, expectedRevision: number): Promise<MediaGenerationSnapshot>
     get(ownerSessionId: string, runId: string): MediaGenerationSnapshot
     wait(ownerSessionId: string, runId: string, timeoutMs?: number, afterRevision?: number, signal?: AbortSignal): Promise<MediaGenerationSnapshot>

@@ -1,4 +1,4 @@
-import type { Channel, ChannelPlanQuotaResult, ChannelPlanQuotaWindow, ProviderType } from '@proma/shared'
+import type { Channel, ChannelPlanQuotaResult, ChannelPlanQuotaWindow, ProviderType } from '@dutydeck/shared'
 
 export interface LoadedPlanQuota {
   channelKey: string

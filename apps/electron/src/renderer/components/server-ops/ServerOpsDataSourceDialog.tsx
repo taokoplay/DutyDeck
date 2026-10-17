@@ -14,8 +14,8 @@ import type {
   ServerOpsDiscoveredCredentialApplyInput,
   ServerOpsDiscoveredCredentialApplyResult,
   ServerOpsDiscoveredCredentialCandidate,
-} from '@proma/shared'
-import { isServerOpsLocalSqliteFilePath, isServerOpsLoopbackAddress, isServerOpsMySqlTlsServerName, isServerOpsPlaintextDirectAddress, isServerOpsSqliteFilePath } from '@proma/shared'
+} from '@dutydeck/shared'
+import { isServerOpsLocalSqliteFilePath, isServerOpsLoopbackAddress, isServerOpsMySqlTlsServerName, isServerOpsPlaintextDirectAddress, isServerOpsSqliteFilePath } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {

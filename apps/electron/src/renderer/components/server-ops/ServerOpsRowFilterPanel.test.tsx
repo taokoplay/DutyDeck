@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsDataRowFilters, ServerOpsDataSchemaColumn } from '@proma/shared'
+import type { ServerOpsDataRowFilters, ServerOpsDataSchemaColumn } from '@dutydeck/shared'
 import {
   ServerOpsRowFilterPanel,
   addServerOpsFilterCondition,

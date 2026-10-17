@@ -1,4 +1,4 @@
-import type { AgentStreamEvent } from '@proma/shared'
+import type { AgentStreamEvent } from '@dutydeck/shared'
 
 export interface AgentStreamEventBatcherOptions {
   dispatch: (event: AgentStreamEvent) => void

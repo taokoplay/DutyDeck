@@ -15,7 +15,7 @@ import { SettingsCard } from '@/components/settings/primitives'
 import { SkillFilesPanel } from '@/components/settings/SkillFilesPanel'
 import { LiveMarkdownEditor } from '@/components/markdown/LiveMarkdownEditor'
 import { cn } from '@/lib/utils'
-import type { SkillMeta } from '@proma/shared'
+import type { SkillMeta } from '@dutydeck/shared'
 import { extractSkillBody, rebuildSkillMd } from './skillMdUtils'
 
 export interface SkillDetailViewProps {

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { atom, useAtom } from 'jotai'
 import { ChevronDown, ChevronLeft, ChevronRight, Columns3, Database, KeyRound, Link2, ListTree, ListFilter, RefreshCw, Search, Table2 } from 'lucide-react'
-import type { ServerOpsDataRowFilters, ServerOpsDataSchemaCell, ServerOpsDataSchemaTableSummary } from '@proma/shared'
+import type { ServerOpsDataRowFilters, ServerOpsDataSchemaCell, ServerOpsDataSchemaTableSummary } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog'

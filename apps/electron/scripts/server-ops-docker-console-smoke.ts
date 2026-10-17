@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert'
 import type { AddressInfo } from 'node:net'
 import { Client, Server, utils } from 'ssh2'
 import type { ClientChannel, Connection } from 'ssh2'
-import type { ServerOpsAuditAppendInput } from '@proma/shared'
+import type { ServerOpsAuditAppendInput } from '@dutydeck/shared'
 import type { ServerOpsRuntimeExecResult } from '../src/utility/server-ops/server-ops-runtime-protocol'
 import {
   SERVER_OPS_DOCKER_CAPABILITY_COMMAND,

@@ -1,4 +1,4 @@
-import type { PreparedDesignAssetMention } from '@proma/shared'
+import type { PreparedDesignAssetMention } from '@dutydeck/shared'
 import type { ActiveView } from '@/atoms/active-view'
 import type { FilePanelDragItem } from '@/lib/file-panel-drag'
 

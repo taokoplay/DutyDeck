@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition, type CapabilityScene } from '@proma/shared'
+import { createEmptySceneDefinition, type CapabilityScene } from '@dutydeck/shared'
 import { CapabilityFactoryAcceptanceDialog, CapabilityFactoryAcceptanceForm } from './CapabilityFactoryAcceptanceDialog'
 
 /** 构造带步骤级评审标准的场景，验证弹窗读取的是当前步骤而不是全局旧字段。 */

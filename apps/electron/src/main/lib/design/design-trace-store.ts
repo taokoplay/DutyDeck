@@ -11,7 +11,7 @@ import type {
   SDKToolResultBlock,
   SDKToolUseBlock,
   SDKUserMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ensureDirectoryDurable, removeFileAtomic, writeJsonLinesFileAtomic } from '../safe-file'
 import { isSafeDesignStableId, type DesignPathResolver } from './design-paths'
 import { formatDesignExecutionError, summarizeDesignExecutionError } from './design-execution-error'

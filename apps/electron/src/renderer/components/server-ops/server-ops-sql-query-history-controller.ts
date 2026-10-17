@@ -3,7 +3,7 @@ import type {
   ServerOpsDataQueryHistoryRecordInput,
   ServerOpsDataQueryHistoryResult,
   ServerOpsDataQueryHistoryScope,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 历史面板绑定的连接、数据库与配置身份。 */
 export interface ServerOpsSqlQueryHistoryContext {

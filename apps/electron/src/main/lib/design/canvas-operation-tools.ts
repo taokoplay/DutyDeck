@@ -4,9 +4,9 @@ import { Type } from 'typebox'
 import type { Static, TSchema } from 'typebox'
 import { Value } from 'typebox/value'
 import { CANVAS_WORKFLOW_MAX_DURATION_EXTENSION_MS, CANVAS_WORKFLOW_MAX_MEDIA_RUN_EXTENSION,
-  CANVAS_WORKFLOW_RUN_NODE_LIMIT, parseAdoptCanvasImageCandidateBatchInput } from '@proma/shared'
-import type { AdoptCanvasImageCandidateBatchInput } from '@proma/shared'
-import type { CanvasToolNavigationResult } from '@proma/shared'
+  CANVAS_WORKFLOW_RUN_NODE_LIMIT, parseAdoptCanvasImageCandidateBatchInput } from '@dutydeck/shared'
+import type { AdoptCanvasImageCandidateBatchInput } from '@dutydeck/shared'
+import type { CanvasToolNavigationResult } from '@dutydeck/shared'
 import type { CanvasToolRunContext } from './canvas-tool-provider'
 import type { CanvasToolAccessFacade } from './canvas-tool-access-facade'
 

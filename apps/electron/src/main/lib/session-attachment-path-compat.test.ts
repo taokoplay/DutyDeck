@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 import { projectSessionAttachmentPaths } from './session-attachment-path-compat'
 
 /** 将测试中的旧受管根映射到新根；外部路径保持原样。 */

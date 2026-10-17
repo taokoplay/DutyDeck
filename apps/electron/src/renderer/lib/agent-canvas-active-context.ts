@@ -1,5 +1,5 @@
 import type { createStore } from 'jotai'
-import type { AgentCanvasBinding } from '@proma/shared'
+import type { AgentCanvasBinding } from '@dutydeck/shared'
 import { agentDiffPanelTabAtom, agentSidePanelOpenAtomFamily, agentSidePanelSplitMapAtom, parseCanvasWorkspaceTab } from '@/atoms/agent-atoms'
 import { getFocusedRightWorkspaceTab } from './right-workspace-split'
 

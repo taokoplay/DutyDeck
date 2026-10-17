@@ -1,4 +1,4 @@
-import type { ApiTestCase } from '@proma/shared'
+import type { ApiTestCase } from '@dutydeck/shared'
 
 /** Agent 保存请求时的一条用例差异，供审批卡与报告说明「模型改了什么」。 */
 export interface ApiAgentCaseChange {

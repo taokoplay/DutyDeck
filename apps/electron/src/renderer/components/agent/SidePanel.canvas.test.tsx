@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentCanvasBinding, CanvasSessionMeta } from '@proma/shared'
+import type { AgentCanvasBinding, CanvasSessionMeta } from '@dutydeck/shared'
 import { createAgentCanvasViewKey } from '@/atoms/agent-canvas-atoms'
 import type { DesignAdapter } from '@/lib/design-adapter'
 import type { RightWorkspaceSplitState } from '@/lib/right-workspace-split'

@@ -6,7 +6,7 @@
  */
 import * as React from 'react'
 import { LoaderCircle, Play } from 'lucide-react'
-import type { CapabilitySavedTask, CapabilitySceneDefinition } from '@proma/shared'
+import type { CapabilitySavedTask, CapabilitySceneDefinition } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'

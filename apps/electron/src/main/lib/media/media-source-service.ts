@@ -3,7 +3,7 @@ import { constants, lstatSync, realpathSync } from 'node:fs'
 import { chmod, mkdtemp, open, rm, type FileHandle } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { AgentMessage, AgentSessionMeta, MediaAssetRecord, MediaAssetRef, MediaKind, SDKMessage } from '@proma/shared'
+import type { AgentMessage, AgentSessionMeta, MediaAssetRecord, MediaAssetRef, MediaKind, SDKMessage } from '@dutydeck/shared'
 import { openAuthorizedAgentMediaSource } from '../design/design-session-bridge'
 import type { MediaAssetService } from './media-asset-service'
 

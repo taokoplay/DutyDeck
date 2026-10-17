@@ -12,7 +12,7 @@ import type {
   CapabilityRun,
   CapabilitySavedTask,
   CapabilityScene,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   compareOptimizationPair,
   isAdoptableOptimizationBatch,
@@ -20,7 +20,7 @@ import {
   optimizationKey,
   sceneStandardsKey,
   validateCapabilityEvaluationProtocol,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { scoreCapabilityCase, summarizeCapabilityScores } from './capability-factory-scoring'
 import { ensureDirectoryDurable, writeJsonFileAtomicSecure } from '../safe-file'
 

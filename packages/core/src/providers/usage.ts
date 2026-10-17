@@ -1,4 +1,4 @@
-import type { TokenUsageAmounts } from '@proma/shared'
+import type { TokenUsageAmounts } from '@dutydeck/shared'
 
 /** 只接受供应商报告的非负安全整数；缺失和非法值保持未知。 */
 export function tokenCount(value: unknown): number | null {

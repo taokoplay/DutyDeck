@@ -1,4 +1,4 @@
-import type { DesignAsset } from '@proma/shared'
+import type { DesignAsset } from '@dutydeck/shared'
 
 /** 右栏展示的单个素材版本节点。 */
 export interface DesignVersionTreeNode {

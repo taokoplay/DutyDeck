@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { MediaRunSnapshot } from '@proma/shared'
+import type { MediaRunSnapshot } from '@dutydeck/shared'
 import { MediaRunSupervisor } from './media-run-supervisor'
 import type { ComfyProgressEvent } from './comfyui-progress-stream'
 

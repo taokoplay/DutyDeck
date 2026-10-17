@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyDesignDocument } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
 import type {
   DesignCanvasDocument,
   DesignChangeEvent,
@@ -7,7 +7,7 @@ import type {
   DesignMutation,
   DesignWorkspaceSnapshot,
   SaveDesignMutationsInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createInitialDesignProjectState } from '@/atoms/design-atoms'
 import type { DesignProjectState } from '@/atoms/design-atoms'
 import {

@@ -2,7 +2,7 @@ import type {
   GitHubRelease,
   GitHubReleaseHistorySource,
   GitHubReleaseListOptions,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 单个版本历史来源的独立界面状态。 */
 export interface VersionHistorySourceState {
@@ -18,10 +18,10 @@ export interface VersionHistorySourceState {
   expandedIds: Set<number>
 }
 
-/** Bone 与官方版本历史的完整独立状态。 */
+/** DutyDeck 与官方版本历史的完整独立状态。 */
 export interface VersionHistoryState {
-  /** Proma 修改版本历史状态。 */
-  bone: VersionHistorySourceState
+  /** DutyDeck 版本历史状态。 */
+  dutydeck: VersionHistorySourceState
   /** Proma 官方版本历史状态。 */
   official: VersionHistorySourceState
 }
@@ -49,10 +49,10 @@ function createInitialSourceState(): VersionHistorySourceState {
   }
 }
 
-/** 创建 Bone 与官方均未加载的初始版本历史状态。 */
+/** 创建 DutyDeck 与官方均未加载的初始版本历史状态。 */
 export function createInitialVersionHistoryState(): VersionHistoryState {
   return {
-    bone: createInitialSourceState(),
+    dutydeck: createInitialSourceState(),
     official: createInitialSourceState(),
   }
 }
@@ -123,13 +123,13 @@ export function shouldLoadVersionHistory(
   return !state.loading && (force || !state.loaded)
 }
 
-/** 使用固定的历史页参数加载指定来源，未指定时默认加载 Bone。 */
+/** 使用固定的历史页参数加载指定来源，未指定时默认加载 DutyDeck。 */
 export async function loadVersionHistory(
   source: GitHubReleaseHistorySource | undefined,
   listReleases: VersionHistoryListReleases,
 ): Promise<GitHubRelease[]> {
   return listReleases({
-    source: source ?? 'bone',
+    source: source ?? 'dutydeck',
     perPage: 3,
     includePrerelease: false,
   })

@@ -20,8 +20,8 @@ import type {
   MediaWorkflowDefinition,
   RunCanvasMediaModuleInput,
   SaveCanvasMediaModuleInput,
-} from '@proma/shared'
-import { getCanvasMediaInputErrorMessage, validateMediaWorkflowFieldValue } from '@proma/shared'
+} from '@dutydeck/shared'
+import { getCanvasMediaInputErrorMessage, validateMediaWorkflowFieldValue } from '@dutydeck/shared'
 import type { MediaRunOrigin } from '../media/media-run-service'
 import { ComfyUIError, type ComfyUIErrorKind } from '../media/comfyui-client'
 import { MediaWorkflowValidationError } from '../media/media-workflow-error'

@@ -1,6 +1,6 @@
 /** 在主进程冻结会话归属；不把提示词或项目路径写入统计。 */
 import { randomUUID } from 'node:crypto'
-import type { TokenUsageSource } from '@proma/shared'
+import type { TokenUsageSource } from '@dutydeck/shared'
 import { getAgentSessionMeta } from './agent-session-manager'
 import { getAgentWorkspace } from './agent-workspace-manager'
 import { listConversations } from './conversation-manager'

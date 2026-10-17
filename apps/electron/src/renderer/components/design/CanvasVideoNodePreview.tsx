@@ -3,7 +3,7 @@ import type {
   CanvasMediaOutputPreview,
   CanvasMediaPreloadApi,
   ReadCanvasMediaOutputPreviewInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { LoaderCircle, Video } from 'lucide-react'
 import type { MediaRunProgressProjection } from './use-media-run-progress'
 

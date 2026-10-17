@@ -1,4 +1,4 @@
-import type { PrototypeCandidateSummary, PrototypeJob, PrototypeSnapshot, PrototypeVersion } from '@proma/shared'
+import type { PrototypeCandidateSummary, PrototypeJob, PrototypeSnapshot, PrototypeVersion } from '@dutydeck/shared'
 
 /** 历史筛选只归类真实采纳状态，运行和失败信息保留在全部记录。 */
 export type PrototypeHistoryFilter = 'all' | 'pending' | 'adopted' | 'cancelled'

@@ -1,4 +1,4 @@
-import { DESIGN_IPC_CHANNELS, LEGACY_DESIGN_CANVAS_ID } from '@proma/shared'
+import { DESIGN_IPC_CHANNELS, LEGACY_DESIGN_CANVAS_ID } from '@dutydeck/shared'
 import type {
   CanvasSessionChangeEvent,
   CanvasSessionMeta,
@@ -7,7 +7,7 @@ import type {
   EnsureLegacyCanvasSessionInput,
   ListCanvasSessionsInput,
   UpdateCanvasSessionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import type { WorkspaceOperationGuard } from '../workspace-operation-guard'
 import { createCanvasSessionManagement, type CanvasSessionManagement } from './canvas-session-management'

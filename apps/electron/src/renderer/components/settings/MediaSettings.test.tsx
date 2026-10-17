@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { MediaAuthorizationMode, MediaRemoteDescriptor, MediaRemoteWorkflow, MediaResourcePage, MediaResourceQuery, MediaWorkflowDefinition, MediaWorkflowVersion } from '@proma/shared'
+import type { MediaAuthorizationMode, MediaRemoteDescriptor, MediaRemoteWorkflow, MediaResourcePage, MediaResourceQuery, MediaWorkflowDefinition, MediaWorkflowVersion } from '@dutydeck/shared'
 import * as mediaSettingsModule from './MediaSettings'
 
 interface ExpectedMediaSettingsModule {

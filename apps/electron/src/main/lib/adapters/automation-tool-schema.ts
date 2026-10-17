@@ -1,5 +1,5 @@
 import { Type } from 'typebox'
-import type { CreateAutomationInput, UpdateAutomationInput } from '@proma/shared'
+import type { CreateAutomationInput, UpdateAutomationInput } from '@dutydeck/shared'
 
 export type AutomationScheduleType = CreateAutomationInput['scheduleType']
 

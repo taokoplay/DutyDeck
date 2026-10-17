@@ -1,4 +1,4 @@
-import type { ServerOpsConnectionMoveInput, ServerOpsConnectionMoveResult, ServerOpsProject } from '@proma/shared'
+import type { ServerOpsConnectionMoveInput, ServerOpsConnectionMoveResult, ServerOpsProject } from '@dutydeck/shared'
 import type { ServerOpsConnection } from './server-ops-connections'
 
 /** 一次移动弹窗的公开状态；不包含任何连接凭据。 */

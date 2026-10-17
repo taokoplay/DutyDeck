@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasNodeActivityState, CanvasNodeKind } from '@proma/shared'
-import { createEmptyCanvasDocument } from '@proma/shared'
+import type { CanvasNodeActivityState, CanvasNodeKind } from '@dutydeck/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import { ReactFlowProvider } from '@xyflow/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { CanvasNodeCard, createCanvasNodeChildTypeSelectHandler } from './CanvasNodeCard'

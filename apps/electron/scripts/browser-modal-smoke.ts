@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { BrowserViewLayout } from '@proma/shared'
+import type { BrowserViewLayout } from '@dutydeck/shared'
 import type { BrowserWindow, WebContentsView } from 'electron'
 
 interface NativeViewRecord {

@@ -1,4 +1,4 @@
-import type { CapabilityFactoryBatchSummary } from '@proma/shared'
+import type { CapabilityFactoryBatchSummary } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { describeFactoryBatchStatus } from './capability-factory-batch-view'
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyCanvasMutations, createEmptyCanvasDocument, parseCanvasTrashEntry } from '@proma/shared'
+import { applyCanvasMutations, createEmptyCanvasDocument, parseCanvasTrashEntry } from '@dutydeck/shared'
 import type {
   CanvasContentKind,
   CanvasDocument,
@@ -7,7 +7,7 @@ import type {
   CanvasMutation,
   CanvasNode,
   CanvasTrashEntry,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createCanvasContentNodeLifecycle, parseCanvasContentNodeIntent } from './canvas-content-node-lifecycle'
 import type { CanvasContentNodeIntent } from './canvas-content-node-lifecycle'
 import { createCanvasTransactionArchive } from './canvas-transaction-archive'

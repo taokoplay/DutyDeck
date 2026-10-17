@@ -1,5 +1,5 @@
 /** 当前版与待采纳草案的步骤定位、比较及局部修改；不改变保存的版本语义。 */
-import { getStepAcceptance, type CapabilityScene, type CapabilitySceneDefinition, type Step } from '@proma/shared'
+import { getStepAcceptance, type CapabilityScene, type CapabilitySceneDefinition, type Step } from '@dutydeck/shared'
 
 /** 稳定排序对象键，避免 JSON 键顺序变化被当作业务修改。 */
 function orderedValue(value: unknown): unknown {

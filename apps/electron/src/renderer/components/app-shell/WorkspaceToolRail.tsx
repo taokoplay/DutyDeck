@@ -121,7 +121,7 @@ export function WorkspaceToolRail({ expanded, onExpandedChange, items, onSelect,
         ) : (
           <button type="button" aria-label="展开并搜索工具" title="搜索工具" onClick={openSearch} className="mx-auto mb-2 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent-foreground/[0.08] hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"><Search className="size-4" aria-hidden="true" /></button>
         )}
-        <nav ref={navRef} id={listId} aria-label="工作区工具" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 pb-2 [scrollbar-width:thin]">
+        <nav ref={navRef} id={listId} aria-label="工作区工具" className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-none px-1.5 pb-2">
           {groups.map((group) => (
             <section key={group} aria-label={group} className="py-2 [&+section]:border-t [&+section]:border-border/50">
               {expanded && <h3 className="mb-1.5 px-2 text-[10px] font-normal tracking-wide text-muted-foreground">{group}</h3>}

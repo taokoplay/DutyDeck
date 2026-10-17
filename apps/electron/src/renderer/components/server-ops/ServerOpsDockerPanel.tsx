@@ -24,7 +24,7 @@ import type {
   ServerOpsDockerContainerSummary,
   ServerOpsDockerResourcesInput,
   ServerOpsDockerResourcesResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AlertDialog,
   AlertDialogAction,

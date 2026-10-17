@@ -2,8 +2,8 @@
 import { createHash } from 'node:crypto'
 import { readdirSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { TOKEN_USAGE_SOURCE_LABELS } from '@proma/shared'
-import type { TokenUsageRecord, TokenUsageQuery, TokenUsageCoverage } from '@proma/shared'
+import { TOKEN_USAGE_SOURCE_LABELS } from '@dutydeck/shared'
+import type { TokenUsageRecord, TokenUsageQuery, TokenUsageCoverage } from '@dutydeck/shared'
 import { readJsonFileStrict, writeJsonFileAtomic } from './safe-file'
 import { isUsageDate } from './token-usage-query'
 

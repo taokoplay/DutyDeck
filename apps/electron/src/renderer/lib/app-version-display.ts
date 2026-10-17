@@ -1,4 +1,4 @@
-import { parseBoneReleaseVersion } from '../../shared/release-version'
+import { parseBoneReleaseVersion, parseReleaseVersion } from '../../shared/release-version'
 
 /** 关于页展示使用的版本信息。 */
 export interface AppVersionDisplay {
@@ -16,7 +16,15 @@ export interface AppVersionDisplay {
  * @returns 可分别展示官方版本与 Bone 构建号的数据。
  */
 export function createAppVersionDisplay(version: string): AppVersionDisplay {
-  /** 合法 Bone 版本可拆分展示；官方纯版本进入回退分支。 */
-  const release = parseBoneReleaseVersion(version)
-  return release ?? { fullVersion: version, upstreamVersion: version, boneBuild: null }
+  /** 独立版本直接作为当前版本展示，历史 Bone 版本才拆分兼容字段。 */
+  const release = parseReleaseVersion(version)
+  if (release) return { fullVersion: version, upstreamVersion: version, boneBuild: null }
+  const legacyRelease = parseBoneReleaseVersion(version)
+  return legacyRelease
+    ? {
+        fullVersion: version,
+        upstreamVersion: legacyRelease.upstreamVersion,
+        boneBuild: legacyRelease.boneBuild,
+      }
+    : { fullVersion: version, upstreamVersion: version, boneBuild: null }
 }

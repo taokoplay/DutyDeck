@@ -69,12 +69,12 @@ import { feishuBotStatesAtom } from './atoms/feishu-atoms'
 import { dingtalkBotStatesAtom } from './atoms/dingtalk-atoms'
 import { currentConversationIdAtom, channelsAtom, channelsLoadedAtom, selectedModelAtom } from './atoms/chat-atoms'
 import { appModeAtom } from './atoms/app-mode'
-import type { FeishuBotBridgeState, FeishuBridgeState, DingTalkBotBridgeState, DingTalkBridgeState } from '@proma/shared'
+import type { FeishuBotBridgeState, FeishuBridgeState, DingTalkBotBridgeState, DingTalkBridgeState } from '@dutydeck/shared'
 import { Toaster } from './components/ui/sonner'
 import { toast } from 'sonner'
 import { ArrowUpRight } from 'lucide-react'
-import { diffCapabilities } from '@proma/shared'
-import type { WorkspaceCapabilities } from '@proma/shared'
+import { diffCapabilities } from '@dutydeck/shared'
+import type { WorkspaceCapabilities } from '@dutydeck/shared'
 import { showCapabilityChangeToasts } from './lib/capabilities-toast'
 import { GlobalShortcuts } from './components/shortcuts/GlobalShortcuts'
 import { VoiceDictationApp } from './components/voice-dictation/VoiceDictationApp'
@@ -84,7 +84,7 @@ import { initShortcutRegistry, updateShortcutOverrides } from './lib/shortcut-re
 import { triggerLegacyScratchPadMigration } from './lib/legacy-scratch-pad-migration'
 import { initializePerformanceMonitor } from './lib/performance-monitor'
 import { createUpdateReminderScheduler, type UpdateReminderScheduler } from './lib/update-reminder-scheduler'
-import { PROMA_DOWNLOAD_URL } from '../shared/release-config'
+import { DUTYDECK_DOWNLOAD_URL } from '../shared/release-config'
 import './styles/globals.css'
 import 'katex/dist/katex.min.css'
 
@@ -377,7 +377,7 @@ function UpdaterInitializer(): null {
             <button
               type="button"
               className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-[0.96]"
-              onClick={() => { void window.electronAPI.openExternal(PROMA_DOWNLOAD_URL) }}
+              onClick={() => { void window.electronAPI.openExternal(DUTYDECK_DOWNLOAD_URL) }}
             >
               查看更新
               <ArrowUpRight size={13} />

@@ -1,5 +1,5 @@
-import { CANVAS_VIEW_IPC_CHANNELS, isCanvasViewCommandRequest, isCanvasViewCommandTarget } from '@proma/shared'
-import type { CanvasViewCommandTarget, CanvasViewCommandRequest, CanvasViewCommandResponse } from '@proma/shared'
+import { CANVAS_VIEW_IPC_CHANNELS, isCanvasViewCommandRequest, isCanvasViewCommandTarget } from '@dutydeck/shared'
+import type { CanvasViewCommandTarget, CanvasViewCommandRequest, CanvasViewCommandResponse } from '@dutydeck/shared'
 import {
   parseListCanvasImageActivityInput,
   parseCanvasImageJobActivities,
@@ -17,7 +17,7 @@ import {
   parseCanvasWorkflowRunPage,
   parseCanvasOrchestrationChangedEvent,
   parseCanvasOrchestrationRecord,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasImageJobActivity,
   ListCanvasImageActivityInput,
@@ -124,7 +124,7 @@ import type {
   UpdateCanvasTextArtifactInput,
   UpdateDesignContextEntryInput,
   UpdateDesignImageModelSelectionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { IpcRendererEvent } from 'electron'
 
 /** 创建 Canvas 图片任务时绑定配置 revision 的公开输入。 */

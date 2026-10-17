@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { planServerOpsSqlWrite } from '@proma/shared'
+import { planServerOpsSqlWrite } from '@dutydeck/shared'
 import { runServerOpsMySqlWriteScript } from './server-ops-write-runtime'
 import type { ServerOpsWriteMySqlConnection } from './server-ops-write-runtime'
 

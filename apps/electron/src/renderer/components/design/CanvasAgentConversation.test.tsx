@@ -2,7 +2,7 @@ import * as React from 'react'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Provider, createStore } from 'jotai'
-import type { CanvasAgentMessagesResult } from '@proma/shared'
+import type { CanvasAgentMessagesResult } from '@dutydeck/shared'
 import {
   CanvasAgentConversation,
   createCanvasAgentConversationController,

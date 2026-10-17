@@ -3,7 +3,7 @@ import type {
   DesignAnnotation,
   DesignPoint,
   DesignViewport,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { DesignProjectState } from '@/atoms/design-atoms'
 import { cn } from '@/lib/utils'
 

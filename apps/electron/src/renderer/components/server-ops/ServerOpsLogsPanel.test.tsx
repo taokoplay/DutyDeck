@@ -10,7 +10,7 @@ import type {
   ServerOpsLogOutputEvent,
   ServerOpsLogStartInput,
   ServerOpsLogStartResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   createServerOpsLogBuffer,
   createServerOpsLogsController,

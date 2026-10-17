@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import type { CanvasDocument, CanvasTextArtifactTarget } from '@proma/shared'
+import type { CanvasDocument, CanvasTextArtifactTarget } from '@dutydeck/shared'
 import {
   createCanvasArtifactExportService,
   type CanvasArtifactExportReceiptStore,

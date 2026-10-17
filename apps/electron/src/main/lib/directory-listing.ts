@@ -1,6 +1,6 @@
 import { readdirSync, statSync, type Dirent, type Stats } from 'node:fs'
 import { resolve } from 'node:path'
-import type { FileEntry } from '@proma/shared'
+import type { FileEntry } from '@dutydeck/shared'
 
 /** 文件浏览器中不展示的系统文件。 */
 const HIDDEN_FS_ENTRIES = new Set(['.DS_Store', 'Thumbs.db'])

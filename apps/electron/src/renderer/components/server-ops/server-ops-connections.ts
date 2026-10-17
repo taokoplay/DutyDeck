@@ -1,5 +1,5 @@
-import type { ServerOpsConnectionState, ServerOpsDataSource, ServerOpsHost, ServerOpsProject } from '@proma/shared'
-import { isServerOpsPlaintextDirectAddress } from '@proma/shared'
+import type { ServerOpsConnectionState, ServerOpsDataSource, ServerOpsHost, ServerOpsProject } from '@dutydeck/shared'
+import { isServerOpsPlaintextDirectAddress } from '@dutydeck/shared'
 
 /**
  * 项目下连接的类别。

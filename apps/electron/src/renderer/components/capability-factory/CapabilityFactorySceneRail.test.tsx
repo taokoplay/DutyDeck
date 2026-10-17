@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilityScene } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilityScene } from '@dutydeck/shared'
 import {
   CapabilityFactorySceneRail, formatCapabilitySceneSubtitle,
 } from './CapabilityFactorySceneRail'

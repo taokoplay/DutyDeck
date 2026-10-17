@@ -6,7 +6,7 @@ import {
   IMAGE_GENERATION_MODEL_ID_MAX_LENGTH,
   IMAGE_GENERATION_MODEL_NAME_MAX_LENGTH,
   createEmptyDesignDocument,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AgentMessage,
   SDKAssistantMessage,
@@ -20,7 +20,7 @@ import type {
   DesignTraceEntry,
   ImageGenerationModelSnapshot,
   SDKMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { DesignAssetImportBatch, DesignAssetImportSource } from './design-asset-service'
 import { DesignJobManager } from './design-job-manager'
 import type { DesignMediaImageExecutionResult } from './design-job-manager'
@@ -2615,7 +2615,7 @@ describe('Design Job Manager', () => {
     await expect(fixture.manager.preflightCanvasImage(createCanvasImageInput('scope'))).rejects.toThrow('CANVAS_MEDIA_MODEL_OUT_OF_SCOPE')
   })
 
-  function createHarness(options: { withCandidateBatches?: boolean; withMediaExecution?: boolean; mediaModelScope?: import('@proma/shared').CanvasMediaModelScope } = {}) {
+  function createHarness(options: { withCandidateBatches?: boolean; withMediaExecution?: boolean; mediaModelScope?: import('@dutydeck/shared').CanvasMediaModelScope } = {}) {
     /** Design 上下文与项目指令测试使用的显式项目根。 */
     const projectRoot = join(cacheRoot, 'project')
     mkdirSync(projectRoot, { recursive: true })

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Type } from 'typebox'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { VisualProductionMediaExecution, VisualProductionMediaOption, VisualProductionInputs, VisualProductionMethod, VisualProductionResults } from '@proma/shared'
+import type { VisualProductionMediaExecution, VisualProductionMediaOption, VisualProductionInputs, VisualProductionMethod, VisualProductionResults } from '@dutydeck/shared'
 import { VisualProductionService } from './store'
 import { createVisualProductionRun } from './agent-run'
 import { bindVisualProductionMediaTools } from './media-tool-binding'
@@ -100,9 +100,9 @@ test('Given 真实统一媒体服务与影像包装器 When 跨轮执行同一�
   /** 与 IPC 一致：可信上下文由包装器签发，调用参数不能提供绑定。 */
   function toolsFor(sessionId: string): ToolDefinition[] {
     return ['media_prepare_generation', 'media_execute_generation', 'media_get_generation'].map(name => ({ name, label: name, description: name, parameters: Type.Object({}), execute: async (_call, raw) => {
-      const params = raw as { modelRef: string; prompt: string; inputs: import('@proma/shared').MediaGenerationRequest['inputs']; runId: string; expectedRevision: number }
+      const params = raw as { modelRef: string; prompt: string; inputs: import('@dutydeck/shared').MediaGenerationRequest['inputs']; runId: string; expectedRevision: number }
       const context = visualMediaExecutionContext.getStore()
-      let snapshot: import('@proma/shared').MediaGenerationSnapshot
+      let snapshot: import('@dutydeck/shared').MediaGenerationSnapshot
       if (name === 'media_prepare_generation') {
         snapshot = generation.prepare(sessionId, { projectId: 'project', operationId: 'operation', modelRef: params.modelRef, prompt: params.prompt, inputs: params.inputs })
         if (context?.sessionId === sessionId) generation.bindVisualProduction(sessionId, snapshot.id, context)

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { LOCAL_MODEL_IPC_CHANNELS, type LocalModelSnapshot } from '@proma/shared'
+import { LOCAL_MODEL_IPC_CHANNELS, type LocalModelSnapshot } from '@dutydeck/shared'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { registerLocalModelIpcHandlers } from './local-model-ipc'
 import type { LocalModelRuntime } from './local-model-runtime'

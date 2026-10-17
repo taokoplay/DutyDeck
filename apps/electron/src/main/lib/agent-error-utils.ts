@@ -4,12 +4,12 @@
  * 这些规则属于 Proma 产品层，不依赖具体 Agent SDK。
  */
 
-import type { ErrorCode, TypedError } from '@proma/shared'
+import type { ErrorCode, TypedError } from '@dutydeck/shared'
 import {
   THINKING_SIGNATURE_ERROR_MESSAGE,
   THINKING_SIGNATURE_ERROR_TITLE,
   isThinkingSignatureError as matchesThinkingSignatureError,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { TRANSIENT_NETWORK_PATTERN, isMalformedResponseError } from './error-patterns'
 
 // Agent 错误消息友好化

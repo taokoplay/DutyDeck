@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { AGENT_IPC_CHANNELS } from '@proma/shared'
+import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 import { invokeAgentMessage, unwrapAgentMessageInvokeResult } from './agent-message-preload'
 
 describe('Agent 消息 Preload 公开错误', () => {

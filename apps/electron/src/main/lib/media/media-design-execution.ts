@@ -8,7 +8,7 @@ import type {
   MediaWorkflowDefinition,
   MediaWorkflowVersion,
   PrepareMediaRunInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { DesignMediaImageExecution, DesignMediaImageExecutionResult } from '../design/design-job-manager'
 
 /** 固定预设解析只暴露 Canvas 适配器实际使用的不可变身份与工作流。 */

@@ -1,11 +1,11 @@
 # electron-builder 配置
 # 文档: https://www.electron.build/configuration/configuration
 
-appId: com.bone.proma.app
+appId: com.taokoplay.dutydeck.app
 productName: DutyDeck
 copyright: Copyright © 2024-2026 Erlich Liu
 
-# Bone 使用预发布 SemVer，但所有构建仍发布到统一更新频道。
+# DutyDeck 正式版本使用标准 SemVer，所有构建发布到统一更新频道。
 detectUpdateChannel: false
 
 # Electron 版本（CI 环境 bun workspace 下无法自动检测，需显式指定）
@@ -52,7 +52,7 @@ files:
   # 将 external 依赖闭包同步到 apps/electron/node_modules。
   - node_modules/**/*
   # 排除 workspace 包的 symlink（代码已被 esbuild/Vite 打包到 dist/ 中）
-  - "!node_modules/@proma/**"
+  - "!node_modules/@dutydeck/**"
   # 排除明确只在开发/构建期使用的大体积包。
   - "!node_modules/electron/**"
   - "!node_modules/electron-builder/**"
@@ -76,8 +76,8 @@ extraResources:
     to: stable-directory
     filter:
       - "**/*"
-  # proma CLI 自包含二进制（build:cli 用 bun build --compile 产出到 resources/bin/）。
-  # 运行时由主进程注入 PROMA_CLI 环境变量，暴露给 skill / Agent 调用。
+  # DutyDeck CLI 自包含二进制（build:cli 用 bun build --compile 产出到 resources/bin/）。
+  # 运行时由主进程注入 DUTYDECK_CLI 环境变量，暴露给 skill / Agent 调用。
   - from: resources/bin
     to: bin
     filter:

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { INTERACTION_DESIGN_CHANNELS } from '@proma/shared'
+import { INTERACTION_DESIGN_CHANNELS } from '@dutydeck/shared'
 import { createInteractionDesignPreload } from './interaction-design-preload'
 
 describe('交互设计窄桥', () => {

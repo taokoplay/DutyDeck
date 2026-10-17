@@ -7,7 +7,7 @@ import type {
   CanvasWorkflowRunListInput,
   CanvasWorkflowRunPage,
   CanvasWorkflowRunTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { LoaderCircle, Play, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {

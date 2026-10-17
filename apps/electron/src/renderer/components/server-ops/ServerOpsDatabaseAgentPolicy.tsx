@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { atom, useAtom } from 'jotai'
-import type { ServerOpsDataSource, ServerOpsDatabaseAgentExclusion } from '@proma/shared'
+import type { ServerOpsDataSource, ServerOpsDatabaseAgentExclusion } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { ServerOpsAgentTableExclusions } from './ServerOpsAgentTablePicker'
 import type { ServerOpsAgentCatalogApi } from './server-ops-agent-catalog-controller'

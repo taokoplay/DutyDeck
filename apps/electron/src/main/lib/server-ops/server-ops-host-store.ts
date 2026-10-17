@@ -5,8 +5,8 @@ import {
   isServerOpsHostList,
   isServerOpsId,
   parseServerOpsHostInput,
-} from '@proma/shared'
-import type { ServerOpsHost, ServerOpsUpsertHostInput } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsHost, ServerOpsUpsertHostInput } from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { readAtomicFileState, readJsonFileSafe, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicDestinationExpectation, ReadJsonFileSafeOptions } from '../safe-file'

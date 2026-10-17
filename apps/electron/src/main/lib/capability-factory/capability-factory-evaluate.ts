@@ -13,8 +13,8 @@
  */
 import type {
   CapabilityCase, CapabilityEvaluation, CapabilityEvaluationCaseResult, CapabilityRun,
-} from '@proma/shared'
-import { getReviewSteps, getStepAcceptance, validateCapabilityEvaluationProtocol } from '@proma/shared'
+} from '@dutydeck/shared'
+import { getReviewSteps, getStepAcceptance, validateCapabilityEvaluationProtocol } from '@dutydeck/shared'
 import {
   CapabilityFactoryError, stableCapabilityValueKey, type CapabilityFactoryService,
 } from './capability-factory-service'

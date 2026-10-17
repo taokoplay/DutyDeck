@@ -25,7 +25,7 @@ import {
   automationToDraft,
   createEmptyDraft,
 } from '@/atoms/automation-atoms'
-import type { Automation } from '@proma/shared'
+import type { Automation } from '@dutydeck/shared'
 
 /** 把调度配置格式化为可读文案 */
 function formatSchedule(a: Automation): string {

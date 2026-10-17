@@ -48,7 +48,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { workspaceFilesVersionAtom, fileBrowserAutoRevealAtom, recentlyModifiedPathsAtom, currentAgentSessionIdAtom, isFileBrowserAutoRevealActive } from '@/atoms/agent-atoms'
-import type { FileAccessOptions, FileEntry } from '@proma/shared'
+import type { FileAccessOptions, FileEntry } from '@dutydeck/shared'
 import { FileTypeIcon } from './FileTypeIcon'
 import { DefaultAppMenuItem } from './DefaultAppMenuItem'
 import {

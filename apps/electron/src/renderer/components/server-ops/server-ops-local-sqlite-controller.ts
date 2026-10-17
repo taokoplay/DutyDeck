@@ -3,7 +3,7 @@ import type {
   ServerOpsDataSource,
   ServerOpsDataSourceProbeDraft,
   ServerOpsDataSourceUpsertInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 本地 SQLite 文件选择结果；取消选择不算错误。 */
 export interface ServerOpsLocalSqliteFileSelection {

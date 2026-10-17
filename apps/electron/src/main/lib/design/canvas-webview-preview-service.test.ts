@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CanvasWebviewPreviewTarget } from '@proma/shared'
+import type { CanvasWebviewPreviewTarget } from '@dutydeck/shared'
 import {
   createCanvasWebviewPreviewService,
   resolveCanvasWebviewViewport,

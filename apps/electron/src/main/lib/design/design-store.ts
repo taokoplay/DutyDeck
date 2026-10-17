@@ -13,7 +13,7 @@ import {
   applyDesignEntityPatch,
   DESIGN_DOCUMENT_VERSION,
   createEmptyDesignDocument,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   DesignAnnotation,
   DesignAsset,
@@ -26,7 +26,7 @@ import type {
   DesignPoint,
   DesignViewport,
   DesignWorkspaceSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { removeFileAtomic, writeJsonFileAtomicSecure } from '../safe-file'
 import { designPathResolver } from './design-paths'
 import type { DesignPathResolver, DesignPaths } from './design-paths'

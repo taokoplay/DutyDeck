@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { CapabilityRun } from '@proma/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { insertAgentInputText } from '@/lib/agent-input-text'
 import { buildOptimizationRequest, canRequestOptimization } from './capability-factory-optimize-request'

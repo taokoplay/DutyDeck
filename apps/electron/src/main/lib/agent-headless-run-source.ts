@@ -1,4 +1,4 @@
-import type { AgentExternalRunSource, AgentSendInput } from '@proma/shared'
+import type { AgentExternalRunSource, AgentSendInput } from '@dutydeck/shared'
 
 /** Headless 入口归一化后只允许可信的自动任务、委派或外部来源。 */
 export type HeadlessTriggeredBy = 'automation' | 'delegation' | 'external'

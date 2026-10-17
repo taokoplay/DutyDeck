@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { agentSessionManagerTestMock } from './agent-session-manager.test-mock'
 
 /** 测试用会话索引，允许伪造 Renderer 提交的内部会话引用。 */

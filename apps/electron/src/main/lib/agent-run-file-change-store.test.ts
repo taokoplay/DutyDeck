@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { AgentRunFileChangesSnapshot } from '@proma/shared'
+import type { AgentRunFileChangesSnapshot } from '@dutydeck/shared'
 import {
   createAgentRunFileChangesStore,
 } from './agent-run-file-change-store'

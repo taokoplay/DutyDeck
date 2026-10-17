@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsDataDiagnosticsResult } from '@proma/shared'
+import type { ServerOpsDataDiagnosticsResult } from '@dutydeck/shared'
 import { ServerOpsDatabaseDiagnostics } from './ServerOpsDatabaseDiagnostics'
 import type { ServerOpsDiagnosticPage, ServerOpsDiagnosticsProjection } from './server-ops-diagnostics-controller'
 

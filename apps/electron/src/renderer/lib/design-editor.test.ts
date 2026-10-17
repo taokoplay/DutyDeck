@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyDesignDocument } from '@proma/shared'
-import type { DesignCanvasDocument, DesignCanvasNode } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
+import type { DesignCanvasDocument, DesignCanvasNode } from '@dutydeck/shared'
 import { createStore } from 'jotai'
 import {
   createInitialDesignProjectState,

@@ -1,6 +1,6 @@
 import { watch } from 'node:fs'
 import { join } from 'node:path'
-import type { KnowledgeWorkflow } from '@proma/shared'
+import type { KnowledgeWorkflow } from '@dutydeck/shared'
 import { listAgentWorkspaces } from './agent-workspace-manager'
 import { getConfigDir, resolveWorkspaceFilesDir } from './config-paths'
 import { getProjectKnowledgeBinding, getProjectKnowledgeService, recoverProjectKnowledge } from './project-knowledge-runtime'

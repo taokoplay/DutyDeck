@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ArrowUpRight, Blocks, ChevronDown, Database, DatabaseZap, FolderInput, FolderOpen, Link2, LoaderCircle, MoreHorizontal, Plus, Search, Server, ShieldCheck } from 'lucide-react'
-import type { ServerOpsAgentReference, ServerOpsProject } from '@proma/shared'
+import type { ServerOpsAgentReference, ServerOpsProject } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AgentActionHint } from '@/components/agent/AgentActionHint'

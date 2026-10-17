@@ -4,8 +4,8 @@ import type {
   CanvasDocument,
   CanvasTarget,
   CanvasNodeReference,
-} from '@proma/shared'
-import { resolveCanvasEdgeBinding } from '@proma/shared'
+} from '@dutydeck/shared'
+import { resolveCanvasEdgeBinding } from '@dutydeck/shared'
 import { hasValidCanvasAgentOwnership } from '../agent-session-visibility'
 import type { CanvasAgentToolMode } from './canvas-agent-tool-policy'
 

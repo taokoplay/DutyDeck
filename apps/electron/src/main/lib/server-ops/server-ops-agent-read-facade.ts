@@ -21,7 +21,7 @@ import {
   parseServerOpsPostgresTable,
   parseServerOpsRedisCommandInput,
   parseServerOpsRedisCommandResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AgentSessionMeta,
   ServerOpsAgentDatabaseScope,
@@ -49,7 +49,7 @@ import type {
   ServerOpsDatabaseAgentPolicy,
   ServerOpsRedisCommandInput,
   ServerOpsRedisCommandResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { isOrdinaryTopLevelAgentSession } from '../agent-session-visibility'
 import { getServerOpsServiceContext } from './server-ops-service-context'
 import { captureServerOpsReadBindings } from './server-ops-agent-read-identity'

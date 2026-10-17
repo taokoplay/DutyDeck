@@ -1,4 +1,4 @@
-import { API_LIMITS } from '@proma/shared'
+import { API_LIMITS } from '@dutydeck/shared'
 import { randomUUID } from 'node:crypto'
 import type {
   ApiCatalog,
@@ -8,7 +8,7 @@ import type {
   ApiResolvedRequest,
   ApiRequestDraft,
   ApiValue,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { cookieHeaderValue } from './api-cookies'
 import type { ApiCookieJarRecord } from './api-cookies'
 import { createMultipartBoundary, summarizeMultipart } from './api-multipart'

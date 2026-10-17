@@ -7,8 +7,8 @@ import { Value } from 'typebox/value'
 import { validateToolArguments } from '@earendil-works/pi-ai'
 import type { JsonObject } from '@earendil-works/pi-ai'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { AgentCanvasBinding, CanvasDocument, CanvasImageCandidateBatch, CanvasMutation, CanvasNodeReference, CanvasRunNodesBatchSummary, CanvasSessionMeta, DesignJobRecord } from '@proma/shared'
-import { applyCanvasMutations, createEmptyCanvasDocument } from '@proma/shared'
+import type { AgentCanvasBinding, CanvasDocument, CanvasImageCandidateBatch, CanvasMutation, CanvasNodeReference, CanvasRunNodesBatchSummary, CanvasSessionMeta, DesignJobRecord } from '@dutydeck/shared'
+import { applyCanvasMutations, createEmptyCanvasDocument } from '@dutydeck/shared'
 import {
   CANVAS_TOOL_NAMES,
   createCanvasToolRun,
@@ -21,8 +21,8 @@ import { createCanvasAgentReviewTracker, resolveCanvasAgentReviewContext } from 
 import { createCanvasTaskStore } from './canvas-task-store'
 import { createCanvasArtifactCreationService, type CanvasArtifactSourceLookup } from './canvas-artifact-creation'
 import type { CanvasPaths } from './design-paths'
-import type { MediaAssetRef } from '@proma/shared'
-import type { CanvasOrchestrationRecord } from '@proma/shared'
+import type { MediaAssetRef } from '@dutydeck/shared'
+import type { CanvasOrchestrationRecord } from '@dutydeck/shared'
 import type { CanvasOrchestrationService } from './canvas-orchestration-service'
 import { canvasOrchestrationRequirements } from './canvas-orchestration-contract'
 import { createCanvasTaskEvidence } from './canvas-task-evidence'

@@ -56,7 +56,7 @@ import {
   type FeishuBindingTypeFilter,
   type FeishuBindingViewMode,
 } from '@/lib/feishu-bindings'
-import type { AgentSessionMeta, AgentWorkspace, FeishuTestResult, FeishuChatBinding, FeishuBotConfig, FeishuBotBridgeState, FeishuDomain, FeishuRegisterAppQRCode, FeishuRegisterAppStatus, FeishuSessionMirrorSettings, FeishuSessionSyncMode } from '@proma/shared'
+import type { AgentSessionMeta, AgentWorkspace, FeishuTestResult, FeishuChatBinding, FeishuBotConfig, FeishuBotBridgeState, FeishuDomain, FeishuRegisterAppQRCode, FeishuRegisterAppStatus, FeishuSessionMirrorSettings, FeishuSessionSyncMode } from '@dutydeck/shared'
 
 // ===== 常量 =====
 

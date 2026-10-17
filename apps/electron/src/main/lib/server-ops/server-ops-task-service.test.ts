@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, ServerOpsAuditAppendInput, ServerOpsTaskIdentity } from '@proma/shared'
+import type { AgentSessionMeta, ServerOpsAuditAppendInput, ServerOpsTaskIdentity } from '@dutydeck/shared'
 import { ServerOpsTaskService } from './server-ops-task-service'
 import type { ServerOpsTaskServiceDependencies } from './server-ops-task-service'
 

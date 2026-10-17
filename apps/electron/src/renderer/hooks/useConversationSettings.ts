@@ -20,7 +20,7 @@ import {
   conversationParallelModeAtom,
 } from '@/atoms/chat-atoms'
 import type { SelectedModel, ContextLengthValue } from '@/atoms/chat-atoms'
-import type { AgentThinkingLevel } from '@proma/shared'
+import type { AgentThinkingLevel } from '@dutydeck/shared'
 import {
   selectedPromptIdAtom,
   conversationPromptIdAtom,

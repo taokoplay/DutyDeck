@@ -1,5 +1,5 @@
 import { WebClient } from '@slack/web-api'
-import type { SlackBotConfig, SlackBridgeState, SlackMultiBridgeState, SlackTestResult } from '@proma/shared'
+import type { SlackBotConfig, SlackBridgeState, SlackMultiBridgeState, SlackTestResult } from '@dutydeck/shared'
 import { SlackBridge } from './slack-bridge'
 import { getSlackBotById, getSlackConfig } from './slack-config'
 import { redactSensitiveLogText, redactSensitiveLogValue } from './bridge-log-redaction'

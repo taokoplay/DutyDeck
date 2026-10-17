@@ -1,5 +1,5 @@
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
-import type { AgentSessionMeta } from '@proma/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { atom } from 'jotai'
 import type { createStore } from 'jotai'
 import { atomFamily } from 'jotai-family'

@@ -6,7 +6,7 @@ import type {
   CanvasTrashEntry,
   DesignPoint,
   RestoreCanvasNodeInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ArchiveRestore, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {

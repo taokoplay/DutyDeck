@@ -1,5 +1,5 @@
 import type { Store } from 'jotai/vanilla/store'
-import type { AgentStopResult } from '@proma/shared'
+import type { AgentStopResult } from '@dutydeck/shared'
 import {
   agentMessageRefreshAtom,
   agentSessionStreamingStateAtomFamily,

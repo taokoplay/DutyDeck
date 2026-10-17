@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ChevronLeft, History } from 'lucide-react'
-import type { VisualCandidate, VisualJob, VisualProductionSnapshot } from '@proma/shared'
+import type { VisualCandidate, VisualJob, VisualProductionSnapshot } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'

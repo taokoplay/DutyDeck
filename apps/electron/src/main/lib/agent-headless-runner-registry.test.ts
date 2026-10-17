@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSendInput } from '@proma/shared'
+import type { AgentSendInput } from '@dutydeck/shared'
 import type { AgentRunExtensions } from './agent-run-extensions'
 import {
   resolveHeadlessAgentRunTerminalStatus,

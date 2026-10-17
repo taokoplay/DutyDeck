@@ -12,8 +12,8 @@ import type {
   AudioGenerationTestResult,
   AudioGenerationVoice,
   ReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
-import { AUDIO_GENERATION_PROVIDER_DEFAULTS, AUDIO_GENERATION_PROVIDER_DESCRIPTORS, parseAudioGenerationProfile } from '@proma/shared'
+} from '@dutydeck/shared'
+import { AUDIO_GENERATION_PROVIDER_DEFAULTS, AUDIO_GENERATION_PROVIDER_DESCRIPTORS, parseAudioGenerationProfile } from '@dutydeck/shared'
 import { CheckCircle2, Copy, Download, Loader2, Pencil, Plus, Search, TestTube2, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'

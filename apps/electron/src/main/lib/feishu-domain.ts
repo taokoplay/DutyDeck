@@ -1,4 +1,4 @@
-import type { FeishuDomain } from '@proma/shared'
+import type { FeishuDomain } from '@dutydeck/shared'
 
 export const DEFAULT_FEISHU_DOMAIN: FeishuDomain = 'feishu'
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta, KnowledgeEntry, KnowledgeSearchInput, KnowledgeSnapshot } from '@proma/shared'
+import type { AgentSessionMeta, KnowledgeEntry, KnowledgeSearchInput, KnowledgeSnapshot } from '@dutydeck/shared'
 import { createProjectKnowledgeAgent } from './project-knowledge-agent'
 import { compactKnowledgeWorkflowStatus } from './project-knowledge-agent-maintenance'
 

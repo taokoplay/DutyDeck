@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsDataSource } from '@dutydeck/shared'
 import { ServerOpsAgentReadAccess } from './ServerOpsAgentReadAccess'
 import type { ServerOpsConnection } from './server-ops-connections'
 

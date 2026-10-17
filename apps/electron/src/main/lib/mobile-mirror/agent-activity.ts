@@ -1,4 +1,4 @@
-import type { PromaEvent } from '@proma/shared'
+import type { PromaEvent } from '@dutydeck/shared'
 import type { PiMcpToolExecution } from '../adapters/pi-mcp-tools'
 /** 只观察已指定设备的实际操作；发现设备、云授权与云资源分配不触发面板。 */
 const DEVICE_TOOLS = new Set([

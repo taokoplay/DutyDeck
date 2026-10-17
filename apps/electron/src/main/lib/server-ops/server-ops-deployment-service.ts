@@ -1,12 +1,12 @@
 import {
   parseServerOpsDeploymentCheck,
   parseServerOpsDeploymentCheckInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDeploymentCheck,
   ServerOpsDeploymentCheckInput,
   ServerOpsDeploymentTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'
 import type { ServerOpsRuntimeExecResult } from '../../../utility/server-ops/server-ops-runtime-protocol'
 

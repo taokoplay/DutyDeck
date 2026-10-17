@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { SDKAssistantMessage, SDKMessage, SDKResultMessage } from '@proma/shared'
-import { groupIntoTurns } from '@proma/session-core'
+import type { SDKAssistantMessage, SDKMessage, SDKResultMessage } from '@dutydeck/shared'
+import { groupIntoTurns } from '@dutydeck/session-core'
 import { resolveAgentTerminalNotice } from './agent-terminal-result'
 
 /** 创建一条真实 Host 终态，覆盖历史重放与实时消息共同使用的字段。 */

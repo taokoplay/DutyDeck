@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
 import { CapabilityFactoryModelSettings } from './CapabilityFactoryModelSettings'
 
 describe('场景模型设置', () => {

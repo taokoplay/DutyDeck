@@ -1,4 +1,4 @@
-import type { CanvasAgentTarget, SkillMeta } from '@proma/shared'
+import type { CanvasAgentTarget, SkillMeta } from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type {
   StableDirectoryNativeRequest,

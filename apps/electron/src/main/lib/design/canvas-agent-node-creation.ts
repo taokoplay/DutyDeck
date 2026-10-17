@@ -9,7 +9,7 @@ import {
 import type { BigIntStats, Dirent } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID as createRandomUUID } from 'node:crypto'
-import { createCanvasBoundEdge } from '@proma/shared'
+import { createCanvasBoundEdge } from '@dutydeck/shared'
 import type {
   AgentSessionMeta,
   CanvasAgentNode,
@@ -25,7 +25,7 @@ import type {
   DesignPoint,
   RebuildCanvasAgentNodeInput,
   RebuildCanvasAgentNodeResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { SecureAtomicJsonWriteOptions } from '../safe-file'
 import type { CreateAgentSessionWithMetadataInput } from '../agent-session-manager'
 import { hasValidCanvasAgentOwnership } from '../agent-session-visibility'

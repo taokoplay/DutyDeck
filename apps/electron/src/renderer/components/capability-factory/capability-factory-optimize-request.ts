@@ -1,4 +1,4 @@
-import type { CapabilityRun } from '@proma/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 
 /** 只有执行、约束和评审都完成且未用占位数据，才能根据内容证据请求优化。 */
 export function canRequestOptimization(run: CapabilityRun): boolean {

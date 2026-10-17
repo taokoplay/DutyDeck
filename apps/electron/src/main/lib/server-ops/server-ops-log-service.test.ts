@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsConnectionState, ServerOpsLogExitEvent, ServerOpsLogOutputEvent } from '@proma/shared'
+import type { ServerOpsConnectionState, ServerOpsLogExitEvent, ServerOpsLogOutputEvent } from '@dutydeck/shared'
 import type {
   ServerOpsActiveConnectionIdentity,
   ServerOpsConnectionLogExitEvent,

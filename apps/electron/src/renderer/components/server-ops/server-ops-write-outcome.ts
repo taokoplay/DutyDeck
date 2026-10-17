@@ -1,5 +1,5 @@
-import { getServerOpsDataWriteOutcome } from '@proma/shared'
-import type { ServerOpsDataWriteResult } from '@proma/shared'
+import { getServerOpsDataWriteOutcome } from '@dutydeck/shared'
+import type { ServerOpsDataWriteResult } from '@dutydeck/shared'
 import { getServerOpsDataErrorMessage } from './server-ops-data-display'
 
 /** 写入终态的用户可见语义；成功与否取决于数据库事实，不取决于是否点过取消。 */

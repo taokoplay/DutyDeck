@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import type { Stats } from 'node:fs'
 import { dirname } from 'node:path'
-import type { KnowledgeEntry } from '@proma/shared'
+import type { KnowledgeEntry } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { writeJsonFileAtomic, writeTextFileAtomic } from '../safe-file'
 import {

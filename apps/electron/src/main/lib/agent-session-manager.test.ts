@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, mock, spyOn, test } from 'bun:te
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import * as os from 'node:os'
 import { join } from 'node:path'
-import type { AgentProviderAdapter, SDKMessage } from '@proma/shared'
+import type { AgentProviderAdapter, SDKMessage } from '@dutydeck/shared'
 import type { SessionCallbacks } from './agent-orchestrator'
 import { DataRootLocator } from './data-root-locator'
 import { listWorktreesStrict } from './git-diff-service'

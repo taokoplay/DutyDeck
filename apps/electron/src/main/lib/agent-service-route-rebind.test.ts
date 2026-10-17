@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
-import type { AgentDeferredQueueMessageInput, AgentStopResult, AgentSubmitOrEnqueueInput, AgentSubmitOrEnqueueResult } from '@proma/shared'
+import type { AgentDeferredQueueMessageInput, AgentStopResult, AgentSubmitOrEnqueueInput, AgentSubmitOrEnqueueResult } from '@dutydeck/shared'
 import { AgentStreamRouteRegistry } from './agent-stream-route-registry'
 import { routeAgentSubmitOrEnqueue } from './agent-queue-routing'
 import { shouldStopBeforeAgentRun } from './agent-stop-policy'

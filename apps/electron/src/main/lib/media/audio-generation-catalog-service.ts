@@ -10,7 +10,7 @@ import type {
   AudioGenerationCatalogFetchResult,
   AudioGenerationProvider,
   AudioGenerationVoice,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AUDIO_GENERATION_CATALOG_FAILURE_MESSAGES,
   AUDIO_GENERATION_CATALOG_MESSAGES,
@@ -19,7 +19,7 @@ import {
   AUDIO_GENERATION_VOICE_LIMIT,
   parseAudioGenerationCatalogFetchInput,
   parseAudioGenerationCatalogFetchResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 单个响应体允许占用的最大 UTF-8 字节数。 */
 const CATALOG_RESPONSE_MAX_BYTES = 1024 * 1024

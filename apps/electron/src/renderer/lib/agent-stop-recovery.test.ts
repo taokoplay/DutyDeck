@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
-import type { AgentStopResult, PendingRequestsSnapshot } from '@proma/shared'
+import type { AgentStopResult, PendingRequestsSnapshot } from '@dutydeck/shared'
 import {
   agentMessageRefreshAtom,
   agentSessionStreamingStateAtomFamily,

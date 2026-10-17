@@ -12,7 +12,7 @@ import type {
   MediaRunSnapshot,
   MediaSettingsSnapshot,
   MediaWorkflowVersion,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { CanvasMediaWorkbench, type CanvasMediaWorkbenchAdapter } from '../src/renderer/components/design/CanvasMediaWorkbench'
 import '../src/renderer/styles/globals.css'
 

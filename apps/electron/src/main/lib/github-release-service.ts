@@ -8,10 +8,10 @@ import type {
   GitHubRelease,
   GitHubReleaseHistorySource,
   GitHubReleaseListOptions,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
+  DUTYDECK_RELEASE_REPOSITORY,
   PROMA_OFFICIAL_RELEASE_REPOSITORY,
-  PROMA_RELEASE_REPOSITORY,
 } from '../../shared/release-config'
 import { parseBoneReleaseVersion } from '../../shared/release-version'
 
@@ -29,7 +29,7 @@ const RELEASE_HISTORY_REPOSITORIES: Record<
   GitHubReleaseHistorySource,
   GitHubRepository
 > = {
-  bone: PROMA_RELEASE_REPOSITORY,
+  dutydeck: DUTYDECK_RELEASE_REPOSITORY,
   official: PROMA_OFFICIAL_RELEASE_REPOSITORY,
 }
 
@@ -69,7 +69,7 @@ let rateLimitUntil = 0
 function isReleaseHistorySource(
   source: unknown
 ): source is GitHubReleaseHistorySource {
-  return source === 'bone' || source === 'official'
+  return source === 'dutydeck' || source === 'official'
 }
 
 /**
@@ -122,7 +122,7 @@ async function fetchFromGitHub<T>(
 export async function getLatestRelease(): Promise<GitHubRelease | null> {
   try {
     const release = await fetchFromGitHub<GitHubRelease>(
-      PROMA_RELEASE_REPOSITORY,
+      DUTYDECK_RELEASE_REPOSITORY,
       '/releases/latest'
     )
     console.log(`[GitHub Release] 获取最新 Release: v${release.tag_name}`)
@@ -151,10 +151,11 @@ function isReleaseVisible(
   }
 
   /** 当前来源要求的严格标签格式。 */
-  if (source === 'bone') {
-    return (
-      release.tag_name.startsWith('v') &&
+  if (source === 'dutydeck') {
+    /** 独立版本使用标准 SemVer，历史 Bone 标签继续显示在同一条时间线。 */
+    return release.tag_name.startsWith('v') && (
       parseBoneReleaseVersion(release.tag_name.slice(1)) !== null
+      || /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(release.tag_name)
     )
   }
   return OFFICIAL_RELEASE_TAG_PATTERN.test(release.tag_name)
@@ -188,14 +189,14 @@ export async function listReleases(
   options: GitHubReleaseListOptions = {}
 ): Promise<GitHubRelease[]> {
   const {
-    source = 'bone',
+    source = 'dutydeck',
     perPage = 10,
     page = 1,
     includePrerelease = false,
   } = options
 
   if (!isReleaseHistorySource(source)) {
-    throw new Error('Release 历史来源必须是 bone 或 official')
+    throw new Error('Release 历史来源必须是 dutydeck 或 official')
   }
   if (
     !Number.isInteger(perPage) ||
@@ -305,7 +306,7 @@ export async function getReleaseByTag(tag: string): Promise<GitHubRelease | null
     }
 
     const release = await fetchFromGitHub<GitHubRelease>(
-      PROMA_RELEASE_REPOSITORY,
+      DUTYDECK_RELEASE_REPOSITORY,
       `/releases/tags/${tag}`
     )
     console.log(`[GitHub Release] 获取 Release: ${tag}`)

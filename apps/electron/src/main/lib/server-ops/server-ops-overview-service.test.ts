@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ServerOpsOverviewResult } from '@proma/shared'
+import type { ServerOpsOverviewResult } from '@dutydeck/shared'
 import { SERVER_OPS_OVERVIEW_COMMAND } from './server-ops-overview-command'
 import { ServerOpsOverviewService } from './server-ops-overview-service'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'

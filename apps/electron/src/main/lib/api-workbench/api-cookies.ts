@@ -1,4 +1,4 @@
-import type { ApiCookieJarEntry } from '@proma/shared'
+import type { ApiCookieJarEntry } from '@dutydeck/shared'
 
 /**
  * 主进程内存里的一条 cookie：只有这里带取值，永不进入运行记录、历史摘要或模型上下文。

@@ -19,7 +19,7 @@ import type {
   ServerOpsFileKind,
   ServerOpsFileMutationInput,
   ServerOpsFilePreviewResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsFilesPreload } from '../../../preload/server-ops-files-preload'
 import {
   AlertDialog,

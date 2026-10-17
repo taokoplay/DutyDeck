@@ -1,6 +1,6 @@
 import { normalizePiTokenUsage, type TokenUsageObserver } from '../token-usage-observer'
 /** 工厂订阅及混合协议模型的独立文本调用：复用 Pi 认证与代理，不创建 Agent 会话或加载工具。 */
-import type { CapabilityFactoryCallUsage } from '@proma/shared'
+import type { CapabilityFactoryCallUsage } from '@dutydeck/shared'
 import { randomUUID } from 'node:crypto'
 import type { Api, Model, ModelsSimpleStreamOptions } from '@earendil-works/pi-ai'
 import type { CodexModelInput, XaiModelInput, GithubCopilotModelInput } from '../adapters/pi-model-registry'

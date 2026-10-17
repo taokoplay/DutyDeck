@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilitySceneDefinition, CapabilityStub } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilitySceneDefinition, CapabilityStub } from '@dutydeck/shared'
 import { CapabilityFactoryStubSection } from './CapabilityFactoryStubSection'
 
 /** 一个声明了两个外部能力的场景：一个已绑桩、一个没绑。 */

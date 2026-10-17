@@ -10,8 +10,8 @@ import type {
   ImageGenerationModelSnapshot,
   ImageGenerationPublicCatalog,
   ImageGenerationPublicProfile,
-} from '@proma/shared'
-import { buildCanvasGenerationModelId, parseCanvasGenerationModelId } from '@proma/shared'
+} from '@dutydeck/shared'
+import { buildCanvasGenerationModelId, parseCanvasGenerationModelId } from '@dutydeck/shared'
 import type { ResolvedImageGenerationRoute } from '../image-generation-runtime'
 
 /** 快照里引用的配置与模型。 */

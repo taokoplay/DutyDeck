@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DesignAsset } from '@proma/shared'
+import type { DesignAsset } from '@dutydeck/shared'
 import { buildDesignVersionTree } from './design-version-tree'
 
 /** 创建版本树测试所需的最小素材。 */

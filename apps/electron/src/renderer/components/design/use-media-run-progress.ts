@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { createCanvasMediaInputConnectionInspector } from '@proma/shared'
+import { createCanvasMediaInputConnectionInspector } from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasMediaModuleChangedEvent,
@@ -10,7 +10,7 @@ import type {
   MediaRunPhase,
   MediaRunSnapshot,
   ReadCanvasMediaOutputPreviewInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** Renderer 对单个媒体运行的轻量展示投影，不包含 Canvas revision。 */
 export interface MediaRunProgressProjection {

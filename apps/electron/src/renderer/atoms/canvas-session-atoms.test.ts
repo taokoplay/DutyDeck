@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasSessionMeta } from '@proma/shared'
+import type { CanvasSessionMeta } from '@dutydeck/shared'
 import { createStore } from 'jotai'
 import {
   canvasSessionsByProjectAtom,

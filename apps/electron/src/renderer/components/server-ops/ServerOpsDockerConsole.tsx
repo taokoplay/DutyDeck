@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import type { ServerOpsConsoleIdentity, ServerOpsConsoleOutputEvent } from '@proma/shared'
+import type { ServerOpsConsoleIdentity, ServerOpsConsoleOutputEvent } from '@dutydeck/shared'
 import type { ServerOpsConsolePreloadApi } from '../../../preload/server-ops-console-preload'
 
 export interface ServerOpsDockerConsoleProps {

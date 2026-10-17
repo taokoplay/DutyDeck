@@ -37,7 +37,7 @@ import {
   parseServerOpsDataSourceTablesResult,
   parseServerOpsDataSourceUpsertInput,
   parseServerOpsDataSourceUpsertResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsDataCredentialDiscoveryInput,
   ServerOpsDataCredentialDiscoveryResult,
@@ -72,7 +72,7 @@ import type {
   ServerOpsDataWriteInput,
   ServerOpsDataWriteResult,
   ServerOpsDataWriteCancelInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 数据服务 preload 调用主进程所需的最小接口。 */
 export type ServerOpsDataInvoke = (channel: string, input: unknown) => Promise<unknown>

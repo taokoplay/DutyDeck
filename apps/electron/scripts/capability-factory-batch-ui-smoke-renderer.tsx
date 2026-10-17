@@ -15,8 +15,8 @@ import type {
   CapabilityDataset,
   CapabilityScene,
   PermissionRequest,
-} from '@proma/shared'
-import { createEmptySceneDefinition } from '@proma/shared'
+} from '@dutydeck/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
 import { allPendingPermissionRequestsAtom } from '../src/renderer/atoms/agent-atoms'
 import { PermissionBanner } from '../src/renderer/components/agent/PermissionBanner'
 import { agentSessionsAtom } from '../src/renderer/atoms/agent-atoms'
@@ -359,7 +359,7 @@ function PermissionHarness(): React.ReactElement {
   </Provider>
 }
 
-const accessProjects: readonly import('@proma/shared').ServerOpsProject[] = [{ id: 'project-access', name: 'Smoke', createdAt: 1, updatedAt: 1 }]
+const accessProjects: readonly import('@dutydeck/shared').ServerOpsProject[] = [{ id: 'project-access', name: 'Smoke', createdAt: 1, updatedAt: 1 }]
 const accessConnections: readonly import('../src/renderer/components/server-ops/server-ops-connections').ServerOpsConnection[] = [{ id: 'ssh:smoke-host', kind: 'ssh', projectId: 'project-access', label: 'Smoke 主机', detail: 'root@127.0.0.1:22', hostId: 'smoke-host', connected: true }]
 
 /** 真实授权弹窗的内存 API；资源保存计数用于确保模式切换不触发授权范围保存。 */

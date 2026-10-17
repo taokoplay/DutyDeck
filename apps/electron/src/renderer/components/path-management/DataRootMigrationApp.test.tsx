@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { PathManagementState } from '@proma/shared'
+import type { PathManagementState } from '@dutydeck/shared'
 import type { PathManagementPreloadApi } from '../../../preload/path-management-preload'
 import * as dataRootMigrationModule from './DataRootMigrationApp'
 import {

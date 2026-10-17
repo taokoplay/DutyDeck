@@ -33,8 +33,8 @@ import type {
   FileDialogSkippedFile,
   FileDialogDirectory,
   FileOrFolderDialogResult,
-} from '@proma/shared'
-import { MAX_ATTACHMENT_SIZE } from '@proma/shared'
+} from '@dutydeck/shared'
+import { MAX_ATTACHMENT_SIZE } from '@dutydeck/shared'
 
 /** 支持的图片 MIME 类型 */
 const IMAGE_MIME_TYPES = new Set([

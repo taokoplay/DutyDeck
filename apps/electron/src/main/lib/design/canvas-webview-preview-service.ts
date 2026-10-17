@@ -5,7 +5,7 @@ import type {
   CanvasWebviewDevicePreset,
   CanvasWebviewPreviewSnapshot,
   CanvasWebviewPreviewTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** WebView 预览截图的固定设备视口。 */
 export interface CanvasWebviewViewport {

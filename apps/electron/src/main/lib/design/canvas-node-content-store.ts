@@ -2,13 +2,13 @@ import {
   parseCanvasImageModuleConfig,
   parseCanvasNodeContentMeta,
   parseCanvasTrashEntry,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasContentKind,
   CanvasNodeContentMeta,
   CanvasTarget,
   CanvasTrashEntry,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type {
   StableDirectoryNativeRequest,

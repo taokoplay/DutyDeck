@@ -1,4 +1,4 @@
-import type { ServerOpsAgentReadAccess } from '@proma/shared'
+import type { ServerOpsAgentReadAccess } from '@dutydeck/shared'
 
 /** 运维授权弹窗使用的紧凑公开摘要，不展示内部资源 ID。 */
 export interface ServerOpsReadSummary {

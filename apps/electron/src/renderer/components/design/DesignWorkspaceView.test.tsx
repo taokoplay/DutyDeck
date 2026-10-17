@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyDesignDocument } from '@proma/shared'
-import type { DesignJobRecord, DesignWorkspaceSnapshot } from '@proma/shared'
+import { createEmptyDesignDocument } from '@dutydeck/shared'
+import type { DesignJobRecord, DesignWorkspaceSnapshot } from '@dutydeck/shared'
 import { createStore, Provider } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createInitialDesignProjectState } from '@/atoms/design-atoms'

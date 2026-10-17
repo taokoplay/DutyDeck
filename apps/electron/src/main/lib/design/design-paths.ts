@@ -1,5 +1,5 @@
 import { isAbsolute, join } from 'node:path'
-import type { AgentWorkspace } from '@proma/shared'
+import type { AgentWorkspace } from '@dutydeck/shared'
 import { getAgentWorkspace, getProjectFilesPath } from '../agent-workspace-manager'
 import { getConfigDir } from '../config-paths'
 

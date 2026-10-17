@@ -3,7 +3,7 @@
  *
  * CLI 不依赖 Electron，通过固定 `~/.DutyDeck-location.json` 读取活动数据根；
  * 没有 DutyDeck locator 时只读兼容旧的 `~/.proma-location.json`。
- * 优先级：显式 `--config-dir` > `PROMA_CONFIG_DIR` > 开发目录开关 >
+ * 优先级：显式 `--config-dir` > `DUTYDECK_CONFIG_DIR` > 开发目录开关 >
  * 固定 locator > 默认 `~/.DutyDeck`。locator 指向离线根时明确报错，不静默回退。
  *
  * 与 config-paths.ts 的目录布局保持一致：
@@ -13,13 +13,13 @@
 import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, win32 } from 'node:path'
-import { isDataRootLocatorFile } from '@proma/shared'
-import type { DataRootLocatorFile } from '@proma/shared'
+import { isDataRootLocatorFile } from '@dutydeck/shared'
+import type { DataRootLocatorFile } from '@dutydeck/shared'
 
 export interface PathOptions {
   /** 显式指定配置目录（绝对路径）。优先级最高。 */
   configDir?: string
-  /** 使用开发目录 .proma-dev（等价于 PROMA_DEV=1）。 */
+  /** 使用开发目录 .DutyDeck-dev（等价于 DUTYDECK_DEV=1）。 */
   dev?: boolean
 }
 
@@ -43,13 +43,17 @@ export function resolveConfigDir(
   context: PathResolutionContext = { homeDir: homedir(), env: process.env },
 ): string {
   if (opts.configDir !== undefined) return requireAbsoluteConfigDir(opts.configDir, '--config-dir')
-  if (context.env.PROMA_CONFIG_DIR !== undefined) {
-    return requireAbsoluteConfigDir(context.env.PROMA_CONFIG_DIR, 'PROMA_CONFIG_DIR')
+  const configuredRoot = context.env.DUTYDECK_CONFIG_DIR ?? context.env.PROMA_CONFIG_DIR
+  if (configuredRoot !== undefined) {
+    const source = context.env.DUTYDECK_CONFIG_DIR !== undefined ? 'DUTYDECK_CONFIG_DIR' : 'PROMA_CONFIG_DIR'
+    return requireAbsoluteConfigDir(configuredRoot, source)
   }
 
-  /** 保留既有 CLI 开发目录开关的显式覆盖语义。 */
-  const useDev = opts.dev || context.env.PROMA_DEV === '1'
-  if (useDev) return join(context.homeDir, '.proma-dev')
+  /** 新环境变量优先，旧变量仍可启动历史脚本。 */
+  const useNewDev = context.env.DUTYDECK_DEV === '1'
+  const useLegacyDev = context.env.PROMA_DEV === '1'
+  if (opts.dev || useNewDev) return join(context.homeDir, '.DutyDeck-dev')
+  if (useLegacyDev) return join(context.homeDir, '.proma-dev')
 
   /** locator 位于可迁移数据根之外，因此离线时仍可读取。 */
   const primaryLocatorPath = join(context.homeDir, '.DutyDeck-location.json')
@@ -79,7 +83,7 @@ function hasLocatorCandidates(locatorPath: string): boolean {
 }
 
 /** 校验显式配置根，拒绝依赖当前工作目录的相对路径。 */
-function requireAbsoluteConfigDir(value: string, source: '--config-dir' | 'PROMA_CONFIG_DIR'): string {
+function requireAbsoluteConfigDir(value: string, source: '--config-dir' | 'DUTYDECK_CONFIG_DIR' | 'PROMA_CONFIG_DIR'): string {
   if (!isPortableAbsolutePath(value)) throw new Error(`${source} 必须是绝对路径`)
   return value
 }

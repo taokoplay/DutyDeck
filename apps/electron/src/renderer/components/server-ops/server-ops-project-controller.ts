@@ -2,7 +2,7 @@ import {
   parseServerOpsProjectCreateInput,
   parseServerOpsProjectDeleteInput,
   parseServerOpsProjectRenameInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsProject,
   ServerOpsProjectCreateInput,
@@ -10,7 +10,7 @@ import type {
   ServerOpsProjectListResult,
   ServerOpsProjectRenameInput,
   ServerOpsProjectResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 单机项目数量上限，与共享列表 parser 的有界合同一致。 */
 const SERVER_OPS_PROJECT_LIMIT = 200

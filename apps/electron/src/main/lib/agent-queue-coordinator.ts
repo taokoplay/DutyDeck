@@ -6,7 +6,7 @@ import type {
   AgentQueuedMessageControlInput,
   AgentQueuedMessageStatus,
   AgentQueuedMessageSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { PreparedAgentCanvasMessage } from './agent-canvas-message-preparation'
 
 type DispatchedQueueRunInput = AgentDeferredQueueMessageInput & { runGeneration: number }

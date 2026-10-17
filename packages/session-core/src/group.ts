@@ -14,7 +14,7 @@ import {
   type SDKAssistantMessage,
   type SDKUserMessage,
   type SDKSystemMessage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { normalizeThinkTagsInContentBlocks } from './thinking-tags'
 
 // ===== 辅助：从 SDKMessage 提取元数据 =====

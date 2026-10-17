@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentEvent, AgentStreamPayload, SDKResultMessage } from '@proma/shared'
+import type { AgentEvent, AgentStreamPayload, SDKResultMessage } from '@dutydeck/shared'
 
 interface ListenerModule {
   payloadToLegacyEvents?: (payload: AgentStreamPayload) => AgentEvent[]

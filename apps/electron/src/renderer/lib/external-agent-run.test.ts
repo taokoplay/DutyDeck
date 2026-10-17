@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 import { appendExternalAgentRunUserMessage, shouldActivateExternalAgentRun } from './external-agent-run'
 
 describe('外部输入的实时消息投影', () => {

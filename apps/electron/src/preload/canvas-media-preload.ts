@@ -1,5 +1,5 @@
-import { CANVAS_MEDIA_IPC_CHANNELS, parseCanvasMediaModuleChangedEvent } from '@proma/shared'
-import type { CanvasMediaPreloadApi } from '@proma/shared'
+import { CANVAS_MEDIA_IPC_CHANNELS, parseCanvasMediaModuleChangedEvent } from '@dutydeck/shared'
+import type { CanvasMediaPreloadApi } from '@dutydeck/shared'
 
 /** 统一音视频模块的 IPC 桥接；事件先按共享合同解析。 */
 export function createCanvasMediaPreloadApi(

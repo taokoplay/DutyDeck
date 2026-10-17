@@ -1,4 +1,4 @@
-import type { CanvasChangeEvent, CanvasTarget, CanvasWorkspaceSnapshot } from '@proma/shared'
+import type { CanvasChangeEvent, CanvasTarget, CanvasWorkspaceSnapshot } from '@dutydeck/shared'
 import type { CanvasAgentNodeCreationService } from './canvas-agent-node-creation'
 import type { CanvasBatchPublication, CanvasBatchReconciliationResult } from './canvas-agent-batch-operation'
 import { unwrapCanvasBatchReconciliationError } from './canvas-agent-batch-operation'

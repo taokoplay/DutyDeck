@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type {
   ImageGenerationProfile,
   ReplaceImageGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { ImageGenerationConfigStore, type ImageGenerationSecureStorage } from './image-generation-config-store'
 
 /** 每个测试使用独立真实目录，验证原子文件行为而非模拟文件系统。 */

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ServerOpsProject } from '@proma/shared'
+import type { ServerOpsProject } from '@dutydeck/shared'
 import { ServerOpsConnectionMoveForm } from './ServerOpsConnectionMoveDialog'
 import type { ServerOpsConnection } from './server-ops-connections'
 

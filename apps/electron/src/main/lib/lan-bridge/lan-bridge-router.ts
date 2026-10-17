@@ -5,7 +5,7 @@
  */
 
 import type { ClientConnection, RouteHandler } from './lan-bridge-types'
-import type { LanBridgeResponse, LanBridgeErrorCode } from '@proma/shared'
+import type { LanBridgeResponse, LanBridgeErrorCode } from '@dutydeck/shared'
 
 const routes = new Map<string, RouteHandler>()
 

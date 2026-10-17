@@ -1,7 +1,7 @@
 import { canvasAgentOwnersAtom } from '@/atoms/native-canvas-atoms'
 import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
-import type { AgentCanvasBinding } from '@proma/shared'
+import type { AgentCanvasBinding } from '@dutydeck/shared'
 import { agentDiffPanelTabAtom, agentSessionsAtom, agentSidePanelOpenAtomFamily, agentSidePanelSplitMapAtom, agentStreamingStatesAtom, currentAgentSessionIdAtom, getCanvasWorkspaceTab } from '@/atoms/agent-atoms'
 import { agentCanvasFocusRequestsAtom, interruptAgentCanvasNavigationAtom, createAgentCanvasViewKey, initializeAgentCanvasViewStateAtom, updateAgentCanvasViewStateAtom } from '@/atoms/agent-canvas-atoms'
 import { agentCanvasChangeNoticesAtom, createAgentCanvasChangeConsumer, openAgentCanvasChange, parseCanvasChangeNavigation } from './agent-canvas-change-navigation'
@@ -224,7 +224,7 @@ describe('关联授权快照竞态', () => {
       /** 用可控 Promise 固定撤销先于旧 LIST 晚回的时序。 */
       const callbacks: {
         resolve?: (bindings: AgentCanvasBinding[]) => void
-        binding?: (event: import('@proma/shared').AgentCanvasBindingChangeEvent) => void
+        binding?: (event: import('@dutydeck/shared').AgentCanvasBindingChangeEvent) => void
       } = {}
       const consumer = createAgentCanvasChangeConsumer(f.store, {
         listBindings: () => new Promise(resolve => { callbacks.resolve = resolve }),

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { isServerOpsRedisWriteCommand, parseServerOpsRedisCommandInput, parseServerOpsRedisCommandResult } from '@proma/shared'
-import type { ServerOpsRedisCommandInput, ServerOpsRedisCommandResult } from '@proma/shared'
+import { isServerOpsRedisWriteCommand, parseServerOpsRedisCommandInput, parseServerOpsRedisCommandResult } from '@dutydeck/shared'
+import type { ServerOpsRedisCommandInput, ServerOpsRedisCommandResult } from '@dutydeck/shared'
 import type { ServerOpsRuntimeRedisRequest } from '../../../utility/server-ops/server-ops-runtime-protocol'
 import { isDeepStrictEqual } from 'node:util'
 import { inspectServerOpsLocalSqliteFile } from '../../../utility/server-ops/server-ops-local-sqlite-file'
@@ -36,14 +36,14 @@ import type {
   ServerOpsDiscoveredCredentialApplyResult,
   ServerOpsDataWriteInput,
   ServerOpsDataWriteResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   parseServerOpsDataWriteInput,
   parseServerOpsDataWriteResult,
   planServerOpsSqlWrite,
   SERVER_OPS_DATA_WRITE_DEFAULT_TIMEOUT_MS,
   SERVER_OPS_DATA_WRITE_MAX_TIMEOUT_MS,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   applyServerOpsDiscoveredCredential,
   createContainerCliInspection,
@@ -64,7 +64,7 @@ import {
   parseServerOpsDataSourceTablesResult,
   parseServerOpsDataSource,
   parseServerOpsDataSourceSetDefaultDatabaseInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'
 import type { ServerOpsDataSourceStore, ServerOpsStoredDataSource } from './server-ops-data-source-store'
 import type { ServerOpsDataSourceCredentialStore } from './server-ops-data-credential-store'
@@ -1125,7 +1125,7 @@ export class ServerOpsDataService {
   private async runRead(
     mode: 'probe' | 'diagnostics',
     sourceId: string,
-    diagnosticSection?: import('@proma/shared').ServerOpsDataDiagnosticSection,
+    diagnosticSection?: import('@dutydeck/shared').ServerOpsDataDiagnosticSection,
     diagnosticDatabase?: string,
     signal?: AbortSignal,
     context?: ServerOpsReadContext,
@@ -1159,7 +1159,7 @@ export class ServerOpsDataService {
     /** 表浏览参数；诊断模式下必须为空，由 runtime 协议再校验一次。 */
     schema?: { database?: string; tableSearch?: string; table?: string; offset?: number; limit?: number; filters?: ServerOpsDataRowFilters;
       columnIndex?: number; expectedColumn?: string; sha256?: string },
-    diagnosticSection?: import('@proma/shared').ServerOpsDataDiagnosticSection,
+    diagnosticSection?: import('@dutydeck/shared').ServerOpsDataDiagnosticSection,
     diagnosticDatabase?: string,
     query?: { database: string; queryId: string; sql: string; maxRows: number },
     signal?: AbortSignal,

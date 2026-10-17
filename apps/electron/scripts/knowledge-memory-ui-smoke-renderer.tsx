@@ -15,7 +15,7 @@ import type {
   SkillFileNode,
   WorkspaceMemoryFileChange,
   WorkspaceMemorySummary,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { agentPendingPromptAtom, agentSessionDraftsAtom, agentSessionsAtom, agentWorkspacesAtom, currentAgentSessionIdAtom } from '../src/renderer/atoms/agent-atoms'
 import { memoryFileNavigationAtom, workspaceMemoryChangesAtom } from '../src/renderer/atoms/memory-change-atoms'
 import { TooltipProvider } from '../src/renderer/components/ui/tooltip'

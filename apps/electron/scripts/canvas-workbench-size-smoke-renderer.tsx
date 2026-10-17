@@ -1,6 +1,6 @@
 import '@fontsource-variable/inter/index.css'
 import * as React from 'react'
-import type { CanvasNode, DesignViewport } from '@proma/shared'
+import type { CanvasNode, DesignViewport } from '@dutydeck/shared'
 import { Provider, atom, useAtom } from 'jotai'
 import { createRoot } from 'react-dom/client'
 import { ReactFlow, ViewportPortal } from '@xyflow/react'

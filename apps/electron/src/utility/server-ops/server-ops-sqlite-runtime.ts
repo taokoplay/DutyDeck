@@ -20,8 +20,8 @@ import {
   parseServerOpsDataTableList,
   parseServerOpsDataWarnings,
   SERVER_OPS_DATA_QUERY_TIMEOUT_MS,
-} from '@proma/shared'
-import type { ServerOpsDataQueryResult, ServerOpsDataWriteResult } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { ServerOpsDataQueryResult, ServerOpsDataWriteResult } from '@dutydeck/shared'
 import type { ServerOpsRuntimeDataReadRequest, ServerOpsRuntimeDataReadResult, ServerOpsRuntimeDataWriteRequest } from './server-ops-runtime-protocol'
 import { getServerOpsSqlQueryPublicError } from './server-ops-query-runtime'
 import { SERVER_OPS_SQLITE_REMOTE_SCRIPT } from './server-ops-sqlite-script'

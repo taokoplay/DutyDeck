@@ -10,12 +10,12 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { basename, join } from 'node:path'
-import { MAX_ATTACHMENT_SIZE } from '@proma/shared'
+import { MAX_ATTACHMENT_SIZE } from '@dutydeck/shared'
 import type {
   AgentMediaAttachment,
   AgentSessionMeta,
   AgentWorkspace,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 单条用户消息允许固化的媒体附件数量上限。 */
 const MAX_MEDIA_ATTACHMENTS = 32

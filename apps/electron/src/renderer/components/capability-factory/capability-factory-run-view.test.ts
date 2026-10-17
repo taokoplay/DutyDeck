@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptySceneDefinition } from '@proma/shared'
-import type { CapabilityRun, FieldSchema } from '@proma/shared'
+import { createEmptySceneDefinition } from '@dutydeck/shared'
+import type { CapabilityRun, FieldSchema } from '@dutydeck/shared'
 import {
   buildStepRunInput, describeConstraintAxis, describeReviewStatus, describeRunStatus, describeRunVerdict, describeStepSlots,
   describeSceneShape, describeStepStatus, describeRunStepNavigation, formatDuration, initialFieldDraft, initialStepRunDraft, inputFieldKind,
   isPromptStep, namedFields, parseWorkflowInput, stubSkeleton, type NamedField,
 } from './capability-factory-run-view'
-import type { Step } from '@proma/shared'
+import type { Step } from '@dutydeck/shared'
 
 /** 造一条最小运行记录，只关心被断言的状态轴。 */
 function run(overrides: Partial<CapabilityRun> = {}): CapabilityRun {

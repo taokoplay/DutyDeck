@@ -2,8 +2,8 @@ import { afterEach, describe, expect, mock, test } from 'bun:test'
 import * as React from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { LEGACY_DESIGN_CANVAS_ID } from '@proma/shared'
-import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, CanvasSessionMeta } from '@proma/shared'
+import { LEGACY_DESIGN_CANVAS_ID } from '@dutydeck/shared'
+import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, CanvasSessionMeta } from '@dutydeck/shared'
 import { createStore, Provider } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
@@ -421,7 +421,10 @@ describe('Agent 右侧 Canvas 适配器', () => {
       const currentRegistry = latest as ReturnType<typeof useAgentCanvasWorkspaceRegistry> | null
       expect(currentRegistry?.bindingReady).toBe(false)
       expect(currentRegistry?.loading).toBe(false)
-      expect(currentRegistry?.error).toBe('画布关联加载失败')
+      expect(currentRegistry?.error).toEqual({
+        code: 'CANVAS_BINDING_LIST_FAILED',
+        message: '画布关联列表暂时无法加载。',
+      })
       expect(linkCalls).toBe(0)
 
       await act(async () => {
@@ -607,6 +610,34 @@ describe('Agent 右侧 Canvas 适配器', () => {
     expect(html).toContain('aria-label="打开画布列表"')
     expect(html).toContain('打开画布列表')
     expect(html).not.toContain('data-canvas-sidebar-layer="true"')
+  })
+
+  test('Given 绑定打开失败诊断 When launcher 渲染 Then 在画布区域显示错误码、Win32 码与复制入口', () => {
+    const html = renderToStaticMarkup(
+      <CanvasWorkspaceLauncher
+        sessions={[]}
+        activityStates={new Map()}
+        loading={false}
+        error={{
+          code: 'CANVAS_BINDING_FAILED',
+          message: '画布关联失败，请重试。',
+          diagnostic: {
+            stage: 'binding', reason: 'access-denied', systemCode: 'WIN32_5',
+            helperExitCode: 4, referenceId: '11111111-1111-4111-8111-111111111111', logStatus: 'saved',
+          },
+        }}
+        onRetry={() => undefined}
+        paneActive
+        onCreateCanvas={async () => true}
+        onOpenCanvas={async () => true}
+        onToggleArchiveCanvas={async () => true}
+        onRequestDeleteCanvas={() => undefined}
+      />,
+    )
+
+    expect(html).toContain('CANVAS_BINDING_FAILED')
+    expect(html).toContain('WIN32_5')
+    expect(html).toContain('复制诊断信息')
   })
 
   test('Given 当前标题 When 提交变化、空白、原值或失败 Then 返回明确编辑决策', async () => {

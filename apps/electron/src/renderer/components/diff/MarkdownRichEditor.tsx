@@ -7,7 +7,7 @@ import Link from '@tiptap/extension-link'
 import { Markdown } from 'tiptap-markdown'
 import type { MarkdownStorage } from 'tiptap-markdown'
 import { TextSelection } from '@tiptap/pm/state'
-import type { FileAccessOptions } from '@proma/shared'
+import type { FileAccessOptions } from '@dutydeck/shared'
 import type { MarkdownEditorSelection, MarkdownScrollPosition } from '@/lib/markdown-editor-state'
 import { cn } from '@/lib/utils'
 import {

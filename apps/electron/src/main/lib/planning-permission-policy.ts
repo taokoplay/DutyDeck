@@ -1,4 +1,4 @@
-import type { AgentSendInput, PromaPermissionMode } from '@proma/shared'
+import type { AgentSendInput, PromaPermissionMode } from '@dutydeck/shared'
 
 const PLANNING_DELETION_TOOLS = new Set([
   'mcp__planning__delete_todo',

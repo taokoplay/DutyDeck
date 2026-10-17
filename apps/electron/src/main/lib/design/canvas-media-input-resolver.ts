@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { getCanvasMediaInputEdgeError as validateBoundEdge, getCanvasMediaSourcePort as expectedSourcePort } from '@proma/shared'
+import { getCanvasMediaInputEdgeError as validateBoundEdge, getCanvasMediaSourcePort as expectedSourcePort } from '@dutydeck/shared'
 import type {
   CanvasAgentOutputPointer,
   CanvasDocument,
@@ -9,7 +9,7 @@ import type {
   MediaAssetRecord,
   MediaAssetRef,
   MediaInputValue,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { CanvasDocumentStore } from './canvas-document-store'
 import type { CanvasImageModuleStore } from './canvas-image-module-store'
 import type {

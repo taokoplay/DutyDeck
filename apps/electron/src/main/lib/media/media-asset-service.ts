@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import type { DesignAsset, DesignMediaAssetRecord, MediaAssetRecord, MediaAssetRef, MediaKind } from '@proma/shared'
+import type { DesignAsset, DesignMediaAssetRecord, MediaAssetRecord, MediaAssetRef, MediaKind } from '@dutydeck/shared'
 import type { InternalDesignStore } from '../design/design-store'
 import type { MediaDesignAssets } from './media-design-assets'
 import { detectMediaFileSignature, probeMediaFile } from './media-file-probe'

@@ -7,7 +7,7 @@ import type {
   CanvasTextArtifactKind,
   CanvasWebviewNode,
   CanvasWorkspaceSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasArtifactRevisionRecord,
   CanvasArtifactRevisionStore,

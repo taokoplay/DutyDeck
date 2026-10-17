@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSendInput, AgentSessionMeta, AgentStreamCompletePayload, PromaEvent } from '@proma/shared'
+import type { AgentSendInput, AgentSessionMeta, AgentStreamCompletePayload, PromaEvent } from '@dutydeck/shared'
 import * as completionPayload from './agent-completion-payload'
 
 describe('Agent completion payload', () => {

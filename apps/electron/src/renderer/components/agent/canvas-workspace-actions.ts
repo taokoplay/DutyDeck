@@ -1,4 +1,4 @@
-import type { CanvasSessionMeta } from '@proma/shared'
+import type { CanvasSessionMeta } from '@dutydeck/shared'
 import {
   placeRightWorkspaceSplitTab,
   selectRightWorkspaceSplitTab,

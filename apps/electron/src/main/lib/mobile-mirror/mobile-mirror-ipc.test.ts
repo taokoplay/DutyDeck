@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { MOBILE_MIRROR_CHANNELS } from '@proma/shared'
+import { MOBILE_MIRROR_CHANNELS } from '@dutydeck/shared'
 import { registerMobileMirrorIpc, type MobileMirrorIpcEvent } from './mobile-mirror-ipc'
 
 /** 构造不接触 Electron 或真实设备的 IPC 夹具。 */

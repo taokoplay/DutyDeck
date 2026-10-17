@@ -1,4 +1,4 @@
-import type { SDKMessage } from '@proma/shared'
+import type { SDKMessage } from '@dutydeck/shared'
 
 /** 单个 JavaScript 字符的 UTF-16 近似字节数。 */
 const UTF16_BYTES_PER_CHAR = 2

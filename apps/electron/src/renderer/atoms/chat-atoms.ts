@@ -8,7 +8,7 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import { atomFamily } from 'jotai-family'
-import type { AgentThinkingLevel, ConversationMeta, ChatMessage, FileAttachment, ChatToolActivity, Channel } from '@proma/shared'
+import type { AgentThinkingLevel, ConversationMeta, ChatMessage, FileAttachment, ChatToolActivity, Channel } from '@dutydeck/shared'
 import type { QuotedSelection } from './preview-atoms'
 
 /** 全局渠道列表缓存（启动时加载一次，设置变更时刷新） */

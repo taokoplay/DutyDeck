@@ -1,5 +1,5 @@
-import { SERVER_OPS_CONNECTION_DRAFT_CHANNELS, parseServerOpsConnectionDraft, parseServerOpsConnectionDraftChanged, parseServerOpsConnectionDraftDismiss, parseServerOpsConnectionDraftSession } from '@proma/shared'
-import type { ServerOpsConnectionDraft, ServerOpsConnectionDraftChanged } from '@proma/shared'
+import { SERVER_OPS_CONNECTION_DRAFT_CHANNELS, parseServerOpsConnectionDraft, parseServerOpsConnectionDraftChanged, parseServerOpsConnectionDraftDismiss, parseServerOpsConnectionDraftSession } from '@dutydeck/shared'
+import type { ServerOpsConnectionDraft, ServerOpsConnectionDraftChanged } from '@dutydeck/shared'
 
 /** Renderer 只能读取自己所选可见会话的公开草稿，不能提交 Agent 配置。 */
 export interface ServerOpsConnectionDraftPreload {

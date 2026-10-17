@@ -36,7 +36,7 @@ import {
   type LocalSearchRecordInput,
   type SessionMessageSearch,
 } from '@/lib/session-message-search'
-import { toTranscript } from '@proma/session-core'
+import { toTranscript } from '@dutydeck/session-core'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { groupIntoTurns, AssistantLogo, MessageGroupRenderer, getGroupId, getGroupPreview, extractUserText, buildTaskProgressDataForTurn, type MessageGroup } from './SDKMessageRenderer'
@@ -45,8 +45,8 @@ import { AgentBrowserLinkProvider } from '@/components/browser/AgentBrowserLinkP
 import { AgentHistorySelectionLayer } from './AgentHistorySelectionLayer'
 import { TaskProgressOverlay, type ContextCompactionProgress } from './TaskProgressOverlay'
 import { createMessageGroupRenderCache, groupMessagesForRendering } from './message-group-rendering'
-import type { AgentEventUsage, RetryAttempt, SDKAssistantMessage, SDKMessage, SDKSystemMessage, SDKTextBlock, SDKThinkingBlock } from '@proma/shared'
-import { getSDKCompactStatus } from '@proma/shared'
+import type { AgentEventUsage, RetryAttempt, SDKAssistantMessage, SDKMessage, SDKSystemMessage, SDKTextBlock, SDKThinkingBlock } from '@dutydeck/shared'
+import { getSDKCompactStatus } from '@dutydeck/shared'
 import { agentLiveMessagesAtomFamily, agentSessionStreamingStateAtomFamily, type AgentStreamState } from '@/atoms/agent-atoms'
 import type { QuotedSelection } from '@/atoms/preview-atoms'
 import { shouldAcceptLiveSdkMessageForRun, type LiveSdkMessageRunIdentity } from '@/lib/live-sdk-message-run'

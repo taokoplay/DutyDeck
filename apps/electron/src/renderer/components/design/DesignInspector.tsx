@@ -5,7 +5,7 @@ import type {
   DesignAsset,
   DesignCanvasDocument,
   DesignContextMode,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { BookOpen, BookmarkPlus, Download, ImageOff, RefreshCw, Send, Settings2, Trash2, Upload, X } from 'lucide-react'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
 import { toast } from 'sonner'

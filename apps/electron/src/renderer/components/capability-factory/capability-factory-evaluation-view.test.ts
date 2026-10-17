@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CapabilityEvaluation } from '@proma/shared'
+import type { CapabilityEvaluation } from '@dutydeck/shared'
 import {
   describeCompliance, describeEvaluationComparison, describeQuality,
   describeJudgeResult, suggestedDatasetName,

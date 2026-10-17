@@ -1,12 +1,12 @@
 import {
   CANVAS_IMAGE_CANDIDATE_BATCH_SUMMARY_LIMIT,
   parseCanvasImageCandidateBatch,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasImageCandidateBatch,
   CanvasImageCandidateBatchSummary,
   CanvasTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { runStableDirectoryNative } from '../stable-directory-native-host'
 import type { StableDirectoryNativeWriteOutcome } from '../stable-directory-native-host'
 import type { CanvasDocumentStore } from './canvas-document-store'

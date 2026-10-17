@@ -1,4 +1,4 @@
-import type { LocalModelAsset, LocalModelSnapshot } from '@proma/shared'
+import type { LocalModelAsset, LocalModelSnapshot } from '@dutydeck/shared'
 
 /** 生命周期的用户文案；输入资产状态，返回不会混淆下载与加载的标签。 */
 export function localModelStatus(status: LocalModelAsset['status']): string {

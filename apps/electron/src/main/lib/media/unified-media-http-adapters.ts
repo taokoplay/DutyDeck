@@ -1,4 +1,4 @@
-import type { MediaAssetRef, MediaGenerationRequest, MediaInputValue } from '@proma/shared'
+import type { MediaAssetRef, MediaGenerationRequest, MediaInputValue } from '@dutydeck/shared'
 import { scalarInput, type UnifiedMediaGenerationAdapter, type UnifiedMediaGenerationAdapterOutput } from './unified-media-generation-service'
 import type { UnifiedMediaModelRoute } from './unified-media-model-catalog'
 import { detectMediaFileSignature } from './media-file-probe'

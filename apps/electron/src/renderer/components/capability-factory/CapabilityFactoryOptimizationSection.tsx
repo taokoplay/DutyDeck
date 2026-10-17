@@ -1,7 +1,7 @@
 /** 当前会话与工厂共享持久批次和可核验的采纳依据。 */
 import * as React from 'react'
-import { diffSceneDefinition } from '@proma/shared'
-import type { CapabilityRun, CapabilitySavedTask, CapabilityScene } from '@proma/shared'
+import { diffSceneDefinition } from '@dutydeck/shared'
+import type { CapabilityRun, CapabilitySavedTask, CapabilityScene } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'

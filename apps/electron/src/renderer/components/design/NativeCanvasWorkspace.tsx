@@ -1,11 +1,11 @@
 import { CanvasLoadErrorPanel } from './CanvasLoadErrorPanel'
-import { assertCanvasViewSnapshotBudget } from '@proma/shared'
-import type { CanvasViewSnapshot } from '@proma/shared'
+import { assertCanvasViewSnapshotBudget } from '@dutydeck/shared'
+import type { CanvasViewSnapshot } from '@dutydeck/shared'
 import { activeSessionIdAtom } from '@/atoms/tab-atoms'
 import { createCanvasViewUpdate, resolveCanvasViewArrangeScope } from './native-canvas-view-command'
 import { useCanvasViewCommandBridge } from './use-canvas-view-command-bridge'
 import * as React from 'react'
-import { applyCanvasMutations } from '@proma/shared'
+import { applyCanvasMutations } from '@dutydeck/shared'
 import type {
   CanvasAgentTarget,
   CanvasAgentNodeCreationResult,
@@ -36,7 +36,7 @@ import type {
   RebuildCanvasAgentNodeInput,
   RebuildCanvasAgentNodeResult,
   MediaSettingsSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
 import { ArchiveRestore, History, LoaderCircle, RotateCcw } from 'lucide-react'
 import {
@@ -155,7 +155,7 @@ import { CanvasMediaModelPicker } from './CanvasMediaModelPicker'
 import { useCanvasMediaNodeProgress, useMediaRunProgress } from './use-media-run-progress'
 import type { MediaRunProgressProjection } from './use-media-run-progress'
 import type { NativeCanvasImageStatus } from './native-canvas-model'
-import type { CanvasMediaPreparationIssue } from '@proma/shared'
+import type { CanvasMediaPreparationIssue } from '@dutydeck/shared'
 import {
   CanvasAgentConversation,
   type CanvasAgentConversationAdapter,
@@ -2308,9 +2308,9 @@ function CanvasImageNodeWorkbench({
   const modelSelection = useDesignImageModelSelection(target.projectId, adapter)
   /** 可用工作流、连接和项目素材由媒体主进程边界一次并行读取。 */
   const [mediaCatalog, setMediaCatalog] = React.useState<{
-    workflows: import('@proma/shared').MediaWorkflowVersion[]
-    connections: import('@proma/shared').MediaConnectionSummary[]
-    assets: import('@proma/shared').MediaAssetRecord[]
+    workflows: import('@dutydeck/shared').MediaWorkflowVersion[]
+    connections: import('@dutydeck/shared').MediaConnectionSummary[]
+    assets: import('@dutydeck/shared').MediaAssetRecord[]
   }>({ workflows: [], connections: [], assets: [] })
 
   React.useEffect(() => {

@@ -26,7 +26,7 @@ import {
   type AskUserQuestionDraft,
   type AskUserRequestDraft,
 } from '@/atoms/agent-atoms'
-import type { AskUserQuestion } from '@proma/shared'
+import type { AskUserQuestion } from '@dutydeck/shared'
 
 const EMPTY_ANSWER: AskUserQuestionDraft = { selected: [], customText: '', showCustom: false }
 

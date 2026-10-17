@@ -5,7 +5,7 @@ import {
   apiRecord,
   parseApiId,
   parseApiResolvedRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ApiBodyInfo,
   ApiConnectionInfo,
@@ -17,7 +17,7 @@ import type {
   ApiSseSummary,
   ApiTimings,
   ApiTransportResult,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** Host 为一次运行分配的受管产物目录和内存密钥。 */
 export interface ApiRuntimeArtifacts {

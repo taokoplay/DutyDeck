@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ServerOpsHost, ServerOpsHostKey } from '@proma/shared'
+import type { ServerOpsHost, ServerOpsHostKey } from '@dutydeck/shared'
 import { getConfigDir } from '../config-paths'
 import { readAtomicFileState, readJsonFileStrict, writeJsonFileAtomicSecure } from '../safe-file'
 import { createServerOpsConfigTransaction, resolveServerOpsConfigFilePath } from './server-ops-config-transaction'

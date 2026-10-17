@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CanvasDocument, CanvasAgentTarget, SkillMeta } from '@proma/shared'
+import type { CanvasDocument, CanvasAgentTarget, SkillMeta } from '@dutydeck/shared'
 import type {
   StableDirectoryNativeRequest,
   StableDirectoryNativeResult,

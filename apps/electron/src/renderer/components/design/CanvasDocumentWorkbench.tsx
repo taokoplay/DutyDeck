@@ -7,7 +7,7 @@ import type {
   CanvasTextArtifactMutationResult,
   CanvasTextArtifactSnapshot,
   UpdateCanvasTextArtifactInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { Download, FileText, LoaderCircle, RefreshCw, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LiveMarkdownEditor } from '@/components/markdown/LiveMarkdownEditor'

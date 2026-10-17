@@ -7,7 +7,7 @@
 import { constants } from 'node:fs'
 import { mkdir, open, readFile, rm, statfs } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { LocalModelEngineSnapshot, LocalModelEngineState } from '@proma/shared'
+import type { LocalModelEngineSnapshot, LocalModelEngineState } from '@dutydeck/shared'
 import {
   ENGINE_ASSETS,
   installEngine,

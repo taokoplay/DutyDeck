@@ -14,7 +14,7 @@
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { GitBashStatus } from '@proma/shared'
+import type { GitBashStatus } from '@dutydeck/shared'
 import { execFileAsync } from './async-command'
 import { getGitForWindowsInstallPath } from './windows-env'
 

@@ -9,10 +9,10 @@ import type {
   DataRootDeviceType,
   DataRootOccupiedIssueCode,
   DataRootOccupiedStorage,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 /** 数据根设备类型。 */
-export type { DataRootDeviceType } from '@proma/shared'
+export type { DataRootDeviceType } from '@dutydeck/shared'
 
 /** 数据根所在卷的轻量元数据，不扫描目录内容。 */
 export interface DataRootVolumeSnapshot {

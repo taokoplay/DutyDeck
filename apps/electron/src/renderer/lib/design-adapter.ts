@@ -11,7 +11,7 @@ import {
   parseCanvasWorkflowRunPage,
   parseCanvasOrchestrationRecord,
   parseCanvasWorkspaceSnapshot,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasErrorDiagnostic,
   CanvasImageJobActivity,
@@ -109,13 +109,13 @@ import type {
   UpdateCanvasTextArtifactInput,
   UpdateDesignContextEntryInput,
   UpdateDesignImageModelSelectionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AdoptCanvasImageAssetInput,
   CreateCanvasImageJobInput,
   DesignPreloadApi,
 } from '../../preload/design-preload'
-import type { ImageGenerationPublicCatalog } from '@proma/shared'
+import type { ImageGenerationPublicCatalog } from '@dutydeck/shared'
 
 /** Canvas 工作区组合使用的 preload 合同。 */
 type CanvasWorkspacePreloadApi =
@@ -314,6 +314,24 @@ export class CanvasPublicOperationError extends Error {
     super(message)
     this.name = 'CanvasPublicOperationError'
     this.diagnostic = parseCanvasErrorDiagnostic(diagnostic)
+  }
+}
+
+/**
+ * 将任意 Canvas 异常收口为可展示的公开错误，拒绝把路径或堆栈带入 UI。
+ * @param error Adapter 捕获的未知异常。
+ * @param fallback 未识别异常使用的固定公开错误。
+ * @returns 只含公开错误码、文案和安全诊断的错误对象。
+ */
+export function toCanvasPublicError(
+  error: unknown,
+  fallback: CanvasPublicError,
+): CanvasPublicError {
+  if (!(error instanceof CanvasPublicOperationError)) return { ...fallback }
+  return {
+    code: error.code,
+    message: error.message,
+    ...(error.diagnostic ? { diagnostic: error.diagnostic } : {}),
   }
 }
 

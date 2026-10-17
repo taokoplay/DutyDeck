@@ -1,6 +1,6 @@
 /** 受控的工作区 MCP 配置服务。 */
 
-import type { McpServerEntry, McpTransportType, WorkspaceMcpConfig } from '@proma/shared'
+import type { McpServerEntry, McpTransportType, WorkspaceMcpConfig } from '@dutydeck/shared'
 import { isDeepStrictEqual } from 'node:util'
 import { getWorkspaceMcpConfig, saveWorkspaceMcpConfig } from './agent-workspace-manager'
 import {

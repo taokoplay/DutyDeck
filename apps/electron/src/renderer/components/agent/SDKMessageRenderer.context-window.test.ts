@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentEventUsage, SDKMessage, SDKResultMessage } from '@proma/shared'
+import type { AgentEventUsage, SDKMessage, SDKResultMessage } from '@dutydeck/shared'
 
 interface RendererModule {
   extractTurnUsage?: (messages: SDKMessage[]) => { durationMs?: number; usage?: AgentEventUsage }

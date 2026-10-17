@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useLayoutEffect, useRef, useState } from 'react'
-import type { LanBridgeAutomationDto } from '@proma/shared'
+import type { LanBridgeAutomationDto } from '@dutydeck/shared'
 import { useAtom, useSetAtom } from 'jotai'
 import {
   viewAtom, tokenAtom, connectedAtom, bridgeHostAtom, bridgePortAtom,

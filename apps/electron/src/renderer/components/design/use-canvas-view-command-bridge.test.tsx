@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import * as React from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewCommandTarget, CanvasViewSnapshot } from '@proma/shared'
+import type { CanvasViewCommandRequest, CanvasViewCommandResponse, CanvasViewCommandTarget, CanvasViewSnapshot } from '@dutydeck/shared'
 import { useCanvasViewCommandBridge } from './use-canvas-view-command-bridge'
 import type { CanvasViewCommandBridge, CanvasViewCommandBridgeOptions } from './use-canvas-view-command-bridge'
 

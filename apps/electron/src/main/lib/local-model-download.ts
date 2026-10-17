@@ -1,7 +1,7 @@
 /** 有界、可取消的模型下载；保留有效部分文件用于 Range 续传。 */
 import { constants } from 'node:fs'
 import { open, statfs, unlink } from 'node:fs/promises'
-import type { LocalModelCatalogEntry } from '@proma/shared'
+import type { LocalModelCatalogEntry } from '@dutydeck/shared'
 
 /** 下载清单指定文件，返回完成字节数；所有写操作处理 partial write。 */
 export async function downloadModelFile(entry: LocalModelCatalogEntry, path: string, signal: AbortSignal, fetchImpl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>, progress: (bytes: number) => void): Promise<void> {

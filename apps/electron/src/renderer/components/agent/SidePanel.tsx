@@ -135,8 +135,8 @@ import {
 import { PreviewPanel } from '@/components/diff/PreviewPanel'
 import { clearPreviewContentCacheForFile } from '@/lib/preview-content-cache'
 import { useOpenPreview } from '@/components/diff/preview-opener'
-import type { FileEntry, AgentPendingFile, AgentSessionMeta, CanvasSessionMeta, SDKMessage, WorktreeInfo } from '@proma/shared'
-import { apiWorkbenchManualDenialReason } from '@proma/shared'
+import type { FileEntry, AgentPendingFile, AgentSessionMeta, CanvasSessionMeta, SDKMessage, WorktreeInfo } from '@dutydeck/shared'
+import { apiWorkbenchManualDenialReason } from '@dutydeck/shared'
 import { setFilePanelDragData, getMediaTypeFromFilename, dispatchInsertFileMention } from '@/lib/file-panel-drag'
 import { CLOSE_ACTIVE_RIGHT_WORKSPACE_TAB_EVENT } from '@/lib/right-workspace-events'
 import {
@@ -1726,7 +1726,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
     if (!isOpen) return
     void runPendingWorkspaceToolRequest(workspaceToolStore, sessionId, {
       canvasReady: Boolean(currentWorkspaceId && canvasRegistry.metadataReady && canvasRegistry.bindingReady),
-      canvasError: canvasRegistry.error,
+      canvasError: canvasRegistry.error?.message ?? null,
       openBrowser: handleOpenBrowserTab,
       openTerminal: handleOpenTerminal,
       openCanvas: () => handleOpenInitialCanvas(split?.focusedPane ?? null),
@@ -2147,6 +2147,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
           activityStates={canvasRegistry.canvasActivityStates}
           loading={canvasRegistry.loading}
           error={canvasRegistry.error}
+          onRetry={canvasRegistry.retry}
           paneActive={paneActive}
           onCreateCanvas={() => handleCreateCanvas(pane)}
           onOpenCanvas={(canvas) => handleOpenCanvas(canvas, pane)}
@@ -2168,6 +2169,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
             metadataReady={canvasRegistry.metadataReady}
             loading={canvasRegistry.loading}
             error={canvasRegistry.error}
+            onRetry={canvasRegistry.retry}
             onUnlink={canvasRegistry.unlink}
             sessions={canvasRegistry.sessions}
             activityStates={canvasRegistry.canvasActivityStates}

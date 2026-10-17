@@ -4,7 +4,7 @@ import type {
   CanvasImageCandidateBatch,
   CanvasImageCandidateBatchSummary,
   GetCanvasImageCandidateBatchInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { atom, useAtomValue, useSetAtom, useStore } from 'jotai'
 
 /** Renderer 只依赖候选批次四个命令，不直接依赖完整 Design Adapter。 */

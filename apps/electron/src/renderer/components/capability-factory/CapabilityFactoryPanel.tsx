@@ -1,6 +1,6 @@
 /** 编排工厂工作区：场景、运行与交付分页呈现，评审和优化归运行，场景管理使用覆盖抽屉。 */
 import * as React from 'react'
-import type { CapabilityRun, CapabilityScene, CapabilitySceneVersion, CapabilityFactoryExperimentView } from '@proma/shared'
+import type { CapabilityRun, CapabilityScene, CapabilitySceneVersion, CapabilityFactoryExperimentView } from '@dutydeck/shared'
 import { Blocks, ChevronDown, History, RotateCw } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'

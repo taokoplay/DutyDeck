@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ProviderType } from '@proma/shared'
+import type { ProviderType } from '@dutydeck/shared'
 import { getAdapter } from './index.ts'
 
 describe('Provider 适配器注册表', () => {

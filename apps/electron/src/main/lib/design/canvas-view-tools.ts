@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { CanvasViewCommand } from '@proma/shared'
-import { parseCanvasBatchOperationEnvelope } from '@proma/shared'
+import type { CanvasViewCommand } from '@dutydeck/shared'
+import { parseCanvasBatchOperationEnvelope } from '@dutydeck/shared'
 import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import { Value } from 'typebox/value'

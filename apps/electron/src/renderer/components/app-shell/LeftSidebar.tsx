@@ -175,7 +175,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import type { ConversationMeta, AgentSessionMeta, AgentWorkspace } from '@proma/shared'
+import type { ConversationMeta, AgentSessionMeta, AgentWorkspace } from '@dutydeck/shared'
 
 function getSidebarUpdateLabel(status: string, version?: string): string {
   const versionText = version ? ` v${version}` : ''

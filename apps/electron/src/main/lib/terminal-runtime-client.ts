@@ -11,7 +11,7 @@ import type {
   TerminalOutputEvent,
   TerminalResizeInput,
   TerminalState,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 
 type RuntimePort = Pick<MessagePortMain, 'close' | 'postMessage' | 'start'> & {
   on(event: 'message', listener: (event: { data: unknown }) => void): void

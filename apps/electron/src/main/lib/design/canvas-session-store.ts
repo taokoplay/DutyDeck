@@ -8,7 +8,7 @@ import {
   type DeleteCanvasSessionInput,
   type ListCanvasSessionsInput,
   type UpdateCanvasSessionInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { rmSyncWithRetry } from '../fs-retry'
 import { writeJsonFileAtomic } from '../safe-file'
 import type { DesignPathResolver } from './design-paths'

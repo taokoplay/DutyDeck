@@ -1,4 +1,4 @@
-import type { AgentStreamCompletePayload, AgentStreamSessionMeta } from '@proma/shared'
+import type { AgentStreamCompletePayload, AgentStreamSessionMeta } from '@dutydeck/shared'
 import type { TabItem } from '@/atoms/tab-atoms'
 import { isDelegationObservationVisible } from '@/lib/agent-session-list'
 import { getAgentCompletionTerminalTitle } from './agent-terminal-result'

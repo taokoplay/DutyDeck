@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { CanvasDocument, CanvasNode, DesignPoint } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasNode, DesignPoint } from '@dutydeck/shared'
 import { resolveCanvasAgentReviewPosition } from './canvas-agent-review-layout'
 
 /** 创建布局测试使用的完整 Canvas 文档，边只用于验证纯函数不会改写业务图。 */

@@ -12,7 +12,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { DataRootMigrationProgress } from '@proma/shared'
+import type { DataRootMigrationProgress } from '@dutydeck/shared'
 import { DataRootLocator } from './data-root-locator'
 import {
   PROMA_DATA_ROOT_MARKER_FILE,

@@ -1,4 +1,4 @@
-import type { ServerOpsAgentDatabaseScope, ServerOpsAgentReadResource, ServerOpsDataSource } from '@proma/shared'
+import type { ServerOpsAgentDatabaseScope, ServerOpsAgentReadResource, ServerOpsDataSource } from '@dutydeck/shared'
 import { getServerOpsDatabaseReadIdentity } from '@/atoms/server-ops-database-atoms'
 import type { ServerOpsDatabaseNavigation } from '@/atoms/server-ops-database-atoms'
 

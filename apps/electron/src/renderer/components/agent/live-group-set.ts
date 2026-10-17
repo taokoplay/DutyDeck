@@ -1,4 +1,4 @@
-import { getSDKCompactStatus, type SDKMessage, type SDKSystemMessage } from '@proma/shared'
+import { getSDKCompactStatus, type SDKMessage, type SDKSystemMessage } from '@dutydeck/shared'
 import type { MessageGroup } from './SDKMessageRenderer'
 
 interface BuildLiveGroupSetOptions {

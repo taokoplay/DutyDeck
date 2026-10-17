@@ -23,7 +23,7 @@ import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { accessSync, constants, existsSync, mkdirSync, realpathSync } from 'node:fs'
 import { app } from 'electron'
-import type { AgentSendInput, AgentMessage, AgentGenerateTitleInput, AgentProviderAdapter, AgentSessionMeta, AgentToolMode, AgentActiveSessionSnapshot, AgentMediaAttachment, CanvasNodeReference, CodexOAuthCredentials, XaiOAuthCredentials, TypedError, SDKMessage, SDKAssistantMessage, AgentStreamPayload, AgentAssistantDeltaPayload, RewindSessionResult, SkillActivation, ServerOpsAgentReference } from '@proma/shared'
+import type { AgentSendInput, AgentMessage, AgentGenerateTitleInput, AgentProviderAdapter, AgentSessionMeta, AgentToolMode, AgentActiveSessionSnapshot, AgentMediaAttachment, CanvasNodeReference, CodexOAuthCredentials, XaiOAuthCredentials, TypedError, SDKMessage, SDKAssistantMessage, AgentStreamPayload, AgentAssistantDeltaPayload, RewindSessionResult, SkillActivation, ServerOpsAgentReference } from '@dutydeck/shared'
 import {
   PROMA_DEFAULT_PERMISSION_MODE,
   AGENT_DEFAULT_TOOL_MODE,
@@ -42,13 +42,13 @@ import {
   parseMediaModelRef,
   collectSkillActivations,
   mergeSkillActivations,
-} from '@proma/shared'
-import type { PromaPermissionMode, AskUserRequest, ExitPlanModeRequest, SDKSystemMessage } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { PromaPermissionMode, AskUserRequest, ExitPlanModeRequest, SDKSystemMessage } from '@dutydeck/shared'
 import type { PiAgentQueryOptions } from './adapters/pi-agent-adapter'
 import { getLocalModelRuntime } from './local-model-runtime-singleton'
 import type { LocalModelLease } from './local-model-runtime'
 import { assertEnabledModelForChannel } from './agent-model-selection'
-import type { GithubCopilotOAuthCredentials } from '@proma/shared'
+import type { GithubCopilotOAuthCredentials } from '@dutydeck/shared'
 import { persistGithubCopilotOAuthCredentials, resolveGithubCopilotOAuthCredentials } from './channel-manager'
 import { getAgentWorkspaceBySlug } from './agent-workspace-manager'
 import { getMainRepoRoot } from './git-diff-service'
@@ -458,7 +458,7 @@ export class AgentOrchestrator {
     if (userMessage.trim().length <= SHORT_MESSAGE_THRESHOLD) return fallbackTitle
 
     // 渠道读取失败不应让会话永久停在默认名称，统一使用本地兜底。
-    let channel: import('@proma/shared').Channel | undefined
+    let channel: import('@dutydeck/shared').Channel | undefined
     try {
       channel = listChannels().find((c) => c.id === channelId)
     } catch (error) {
@@ -706,7 +706,7 @@ export class AgentOrchestrator {
     userMessage: string,
     createdAt = Date.now(),
     uuid?: string,
-    vaultFocus?: import('@proma/shared').VaultFocusAttribution,
+    vaultFocus?: import('@dutydeck/shared').VaultFocusAttribution,
     canvasNodeReferences?: CanvasNodeReference[],
     mediaAttachments?: AgentMediaAttachment[],
   ): { uuid: string; receipt: SDKMessageAppendReceipt } {
@@ -1264,7 +1264,7 @@ export class AgentOrchestrator {
     let runFileChanges: ReturnType<typeof createAgentRunFileChanges> | undefined
     let agentCwd: string | undefined
     let workspaceSlug: string | undefined
-    let workspace: import('@proma/shared').AgentWorkspace | undefined
+    let workspace: import('@dutydeck/shared').AgentWorkspace | undefined
     /** 本轮独占本地推理资源，直到 adapter 完全收尾后再交给下一任务。 */
     let localModelLease: LocalModelLease | undefined
 

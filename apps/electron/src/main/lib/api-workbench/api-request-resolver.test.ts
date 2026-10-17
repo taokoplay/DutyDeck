@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ApiCatalog, ApiRequestDraft } from '@proma/shared'
+import type { ApiCatalog, ApiRequestDraft } from '@dutydeck/shared'
 import { resolveApiCryptoSecrets, resolveApiRequest } from './api-request-resolver'
 
 const catalog: ApiCatalog = {

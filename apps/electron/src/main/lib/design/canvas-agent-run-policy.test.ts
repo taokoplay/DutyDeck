@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createEmptyCanvasDocument } from '@proma/shared'
-import type { AgentSessionMeta, CanvasDocument } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
+import type { AgentSessionMeta, CanvasDocument } from '@dutydeck/shared'
 import {
   CANVAS_AGENT_ALLOWED_TOOL_NAMES,
   resolveCanvasAgentBuiltinToolNames,

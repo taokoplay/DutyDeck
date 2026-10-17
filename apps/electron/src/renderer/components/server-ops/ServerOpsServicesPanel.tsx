@@ -21,7 +21,7 @@ import type {
   ServerOpsServiceListResult,
   ServerOpsServiceSummary,
   ServerOpsSystemdCapability,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   AlertDialog,
   AlertDialogAction,

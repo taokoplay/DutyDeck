@@ -1,4 +1,4 @@
-import type { ServerOpsTaskIdentity, ServerOpsTaskStartInput, ServerOpsTaskInput, ServerOpsTaskResizeInput, ServerOpsTaskAck, ServerOpsTaskOutputEvent, ServerOpsTaskExitEvent } from '@proma/shared'
+import type { ServerOpsTaskIdentity, ServerOpsTaskStartInput, ServerOpsTaskInput, ServerOpsTaskResizeInput, ServerOpsTaskAck, ServerOpsTaskOutputEvent, ServerOpsTaskExitEvent } from '@dutydeck/shared'
 import { randomUUID } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -25,7 +25,7 @@ import type {
   ServerOpsTestConnectionInput,
   ServerOpsTestConnectionResult,
   ServerOpsTestConnectionStatus,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsResolvedCredential } from './server-ops-credential-store'
 import type {
   ServerOpsRuntimeConnectionInput,

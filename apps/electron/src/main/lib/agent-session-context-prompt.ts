@@ -1,6 +1,6 @@
 import { getAgentSessionMeta, getAgentSessionSDKMessages } from './agent-session-manager'
 import { join } from 'node:path'
-import type { AgentSessionMeta, ServerOpsAgentReference } from '@proma/shared'
+import type { AgentSessionMeta, ServerOpsAgentReference } from '@dutydeck/shared'
 import { getBundledCliPath, getConfigDir, type ConfigRootResolver } from './config-paths'
 import { isAgentSessionUserVisible } from './agent-session-visibility'
 
@@ -28,7 +28,7 @@ function getSessionCleanerSkillName(workspaceSlug?: string): string {
 }
 
 function getSessionCliCommandPrefix(): string {
-  return getBundledCliPath() ? '"$PROMA_CLI"' : 'proma'
+  return getBundledCliPath() ? '"$DUTYDECK_CLI"' : 'dutydeck'
 }
 
 function buildSessionCliAccessGuide(
@@ -38,7 +38,7 @@ function buildSessionCliAccessGuide(
 ): string {
   const cli = getSessionCliCommandPrefix()
   const skillName = getSessionCleanerSkillName(workspaceSlug)
-  /** CLI 通过 Agent 运行环境中的 PROMA_CONFIG_DIR 继承活动根，命令不重复平台路径。 */
+  /** CLI 通过 Agent 运行环境中的 DUTYDECK_CONFIG_DIR 继承活动根，命令不重复平台路径。 */
   const command = (args: string): string => `${cli} session ${args}`
   return [
     `优先使用 session-cleaner skill（${skillName}）读取当前会话历史；它是 DutyDeck CLI 的薄封装，会把 Agent JSONL 清洗为干净对话。`,

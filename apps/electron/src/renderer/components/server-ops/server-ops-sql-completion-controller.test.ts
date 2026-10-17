@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createServerOpsSqlCompletionController } from './server-ops-sql-completion-controller'
-import type { ServerOpsDataSourceTableResult, ServerOpsDataSourceTablesInput } from '@proma/shared'
+import type { ServerOpsDataSourceTableResult, ServerOpsDataSourceTablesInput } from '@dutydeck/shared'
 
 /** 同步等待队列中已就绪的异步回执。 */
 const settle = async (): Promise<void> => { for (let index = 0; index < 12; index += 1) await Promise.resolve() }

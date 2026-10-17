@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, tes
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { AgentToolResultImage, ImageGenerationModelSnapshot } from '@proma/shared'
+import type { AgentToolResultImage, ImageGenerationModelSnapshot } from '@dutydeck/shared'
 import { createRunToolCallLimiter } from '../agent-run-tool-policy'
 import type { ResolveImageGenerationRoute } from '../image-generation-runtime'
 

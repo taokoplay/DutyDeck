@@ -23,8 +23,8 @@ import type {
   KnowledgeReadResult,
   KnowledgeSearchResult,
   KnowledgeSnapshot,
-} from '@proma/shared'
-import { isOrdinaryTopLevelAgentSession } from '@proma/shared'
+} from '@dutydeck/shared'
+import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import {
   agentPendingPromptAtom,
   agentSessionsAtom,

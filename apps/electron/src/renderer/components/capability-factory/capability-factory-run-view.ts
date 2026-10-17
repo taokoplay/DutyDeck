@@ -6,8 +6,8 @@
  */
 import type {
   CapabilityRun, CapabilitySceneDefinition, ExtractStep, FieldSchema, InputSource, LlmStep, Step,
-} from '@proma/shared'
-import type { StepStatus } from '@proma/capability-runner'
+} from '@dutydeck/shared'
+import type { StepStatus } from '@dutydeck/capability-runner'
 
 /** 展示语气：ok 通过 / warn 部分完成 / bad 失败或非法 / idle 未开始。 */
 export type RunTone = 'ok' | 'warn' | 'bad' | 'idle'

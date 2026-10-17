@@ -1,4 +1,4 @@
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import type { SessionIndicatorStatus } from '@/atoms/agent-atoms'
 import {
   getAgentSessionTreeIndicatorStatus,

@@ -14,7 +14,7 @@ import type {
   Model,
   ModelsSimpleStreamOptions,
 } from '@earendil-works/pi-ai'
-import type { CodexOAuthCredentials, ProviderType, XaiOAuthCredentials } from '@proma/shared'
+import type { CodexOAuthCredentials, ProviderType, XaiOAuthCredentials } from '@dutydeck/shared'
 import type { Dispatcher } from 'undici'
 import { buildModel } from './pi-model-registry'
 import {

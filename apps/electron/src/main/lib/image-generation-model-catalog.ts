@@ -11,12 +11,12 @@ import type {
   MediaApiModelCatalogResult,
   MediaApiModelExecutionSupport,
   MediaApiModelProfile,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import {
   IMAGE_GENERATION_MODEL_ID_MAX_LENGTH,
   IMAGE_GENERATION_MODEL_NAME_MAX_LENGTH,
   parseMediaApiModelProfile,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ResolvedImageGenerationRoute } from './image-generation-runtime'
 import { writeJsonFileAtomic } from './safe-file'
 
@@ -93,7 +93,7 @@ export interface ImageGenerationMediaCatalogAdapter {
   /** 公共工作流直接生成独立快照，不创建或依赖伪 profile。 */
   resolveAvailableWorkflowSnapshot(
     projectId: string,
-    workflow: import('@proma/shared').CanvasImageMediaWorkflow,
+    workflow: import('@dutydeck/shared').CanvasImageMediaWorkflow,
   ): Extract<ImageGenerationModelSnapshot, { executor: 'comfyui'; source: 'workflow' }>
   assertSnapshotAvailable(
     projectId: string,
@@ -260,7 +260,7 @@ export class ImageGenerationModelCatalog {
 
   /** 解析 Canvas 图片节点直接选择的公共工作流，并冻结完整执行身份。 */
   resolveAvailableWorkflowSnapshot(
-    workflow: import('@proma/shared').CanvasImageMediaWorkflow,
+    workflow: import('@dutydeck/shared').CanvasImageMediaWorkflow,
     projectId: string,
   ): Extract<ImageGenerationModelSnapshot, { executor: 'comfyui'; source: 'workflow' }> {
     if (!this.dependencies.media) throw new Error('媒体工作流执行器未初始化')

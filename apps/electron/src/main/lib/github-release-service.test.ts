@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import type { GitHubRelease, GitHubReleaseListOptions } from '@proma/shared'
+import type { GitHubRelease, GitHubReleaseListOptions } from '@dutydeck/shared'
 import {
   clearReleaseCache,
   getLatestRelease,
@@ -59,7 +59,7 @@ afterEach(() => {
 })
 
 describe('GitHub Release 双来源历史', () => {
-  test('Given 未指定来源，When 查询历史，Then 请求 Bone 仓库并只返回最近的 Bone 正式标签', async () => {
+  test('Given 未指定来源，When 查询历史，Then 请求 DutyDeck 仓库并只返回最近的 DutyDeck 正式标签', async () => {
     const requestedUrls: string[] = []
     const releases = [
       createRelease(1, 'v0.17.55'),
@@ -84,8 +84,8 @@ describe('GitHub Release 双来源历史', () => {
     expect(requestedUrls[0]).toContain('/repos/taokoplay/DutyDeck/releases?')
     expect(requestedUrls[0]).toContain('per_page=100')
     expect(result.map(release => release.tag_name)).toEqual([
+      'v0.17.55',
       'v0.17.55-bone.3',
-      'v0.17.55-bone.1',
     ])
   })
 
@@ -118,7 +118,7 @@ describe('GitHub Release 双来源历史', () => {
 
   test('Given 首页恰好 100 条且已足额，When 查询两条历史，Then 不请求第二页', async () => {
     const requestedPages: string[] = []
-    /** 第一页前两条符合 official 合同，其余均为 Bone 标签。 */
+    /** 第一页前两条符合 official 合同，其余均为 DutyDeck 标签。 */
     const firstPage = Array.from({ length: 100 }, (_, index) =>
       createRelease(
         index + 1,
@@ -197,9 +197,9 @@ describe('GitHub Release 双来源历史', () => {
       ])
     })
 
-    await listReleases({ source: 'bone' })
+    await listReleases({ source: 'dutydeck' })
     await listReleases({ source: 'official' })
-    await listReleases({ source: 'bone' })
+    await listReleases({ source: 'dutydeck' })
     await listReleases({ source: 'official' })
 
     expect(requestedUrls).toHaveLength(2)
@@ -221,7 +221,7 @@ describe('GitHub Release 双来源历史', () => {
         ])
       )
       await listReleases({ source: 'official' })
-      await listReleases({ source: 'bone' })
+      await listReleases({ source: 'dutydeck' })
 
       now += 31 * 60 * 1000
       installFetchMock(async () => new Response(null, { status: 500 }))
@@ -248,7 +248,7 @@ describe('GitHub Release 查询参数校验', () => {
     } as unknown as GitHubReleaseListOptions
 
     await expect(listReleases(options)).rejects.toThrow(
-      'Release 历史来源必须是 bone 或 official'
+      'Release 历史来源必须是 dutydeck 或 official'
     )
     expect(requestCount).toBe(0)
   })
@@ -277,7 +277,7 @@ describe('GitHub Release 查询参数校验', () => {
 })
 
 describe('GitHub Release 自动更新仓库', () => {
-  test('Given 自动更新查询，When 获取 latest 与指定 tag，Then 两次请求都固定使用 Bone 仓库', async () => {
+  test('Given 自动更新查询，When 获取 latest 与指定 tag，Then 两次请求都固定使用 DutyDeck 仓库', async () => {
     const requestedUrls: string[] = []
     installFetchMock(async input => {
       const url = String(input)

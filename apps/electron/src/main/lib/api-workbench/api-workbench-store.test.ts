@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ApiCatalog, ApiRun } from '@proma/shared'
+import type { ApiCatalog, ApiRun } from '@dutydeck/shared'
 import { ApiWorkbenchStore } from './api-workbench-store'
 
 const safeStorage = {

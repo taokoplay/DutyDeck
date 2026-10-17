@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createCanvasBoundEdge, parseCanvasWorkspaceSnapshot } from '@proma/shared'
-import type { CanvasDocument, CanvasNode } from '@proma/shared'
+import { createCanvasBoundEdge, parseCanvasWorkspaceSnapshot } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasNode } from '@dutydeck/shared'
 import { createCanvasDependencyStateService } from './canvas-dependency-state-service'
 
 /** 创建依赖传播测试使用的最小文档节点。 */

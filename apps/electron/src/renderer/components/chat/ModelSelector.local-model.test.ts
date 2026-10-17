@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import type { Channel } from '@proma/shared'
+import type { Channel } from '@dutydeck/shared'
 import { buildModelOptions } from './ModelSelector'
 
 /** 创建资产清单投影后的本地供应商，不包含端点凭据。 */

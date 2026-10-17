@@ -1,5 +1,5 @@
-import { parseServerOpsOverviewInput } from '@proma/shared'
-import type { ServerOpsOverviewInput, ServerOpsOverviewResult } from '@proma/shared'
+import { parseServerOpsOverviewInput } from '@dutydeck/shared'
+import type { ServerOpsOverviewInput, ServerOpsOverviewResult } from '@dutydeck/shared'
 import { SERVER_OPS_OVERVIEW_COMMAND } from './server-ops-overview-command'
 import { parseServerOpsOverviewOutput } from './server-ops-overview-parser'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'

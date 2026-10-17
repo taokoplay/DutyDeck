@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
-import { AGENT_RUNTIME_METHODS, createAgentRuntimeRequest } from '@proma/shared'
-import type { AgentRuntimeEvent } from '@proma/shared'
+import { AGENT_RUNTIME_METHODS, createAgentRuntimeRequest } from '@dutydeck/shared'
+import type { AgentRuntimeEvent } from '@dutydeck/shared'
 import type { PiAgentQueryOptions } from './pi-agent-adapter'
 import { createRunToolCallLimiter } from '../agent-run-tool-policy'
 import type { CanUseToolOptions } from '../agent-permission-service'
@@ -628,7 +628,7 @@ test('Given 本轮文件采集钩子 When 跨 utility 执行 Then 不序列化�
 test('Given 用量回调 When utility query Then 不序列化函数并逐次返回失败与成功用量', async () => {
   /** 内存观察器只验证跨进程协议，不打开生产账本。 */
   const events: unknown[] = []
-  const input = { ...createQueryInput('usage-session'), onUsageAttempt: (usage: import('@proma/shared').TokenUsageAmounts | null, status: string) => { events.push({ usage, status }) } }
+  const input = { ...createQueryInput('usage-session'), onUsageAttempt: (usage: import('@dutydeck/shared').TokenUsageAmounts | null, status: string) => { events.push({ usage, status }) } }
   const adapter = new PiUtilityAdapter()
   const iterator = adapter.query(input, 'usage-query')[Symbol.asyncIterator]()
   const pending = iterator.next()

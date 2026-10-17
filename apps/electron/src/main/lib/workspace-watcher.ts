@@ -16,7 +16,7 @@ import { watch, existsSync, statSync } from 'node:fs'
 import type { FSWatcher } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { BrowserWindow } from 'electron'
-import { AGENT_IPC_CHANNELS } from '@proma/shared'
+import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 import { getAgentWorkspacesDir } from './config-paths'
 import { listAgentSessions } from './agent-session-manager'
 import {

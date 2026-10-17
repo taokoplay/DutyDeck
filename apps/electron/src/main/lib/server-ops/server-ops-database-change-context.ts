@@ -1,5 +1,5 @@
-import { isServerOpsId, parseServerOpsPostgresTable } from '@proma/shared'
-import type { ServerOpsDataSourceTableResult } from '@proma/shared'
+import { isServerOpsId, parseServerOpsPostgresTable } from '@dutydeck/shared'
+import type { ServerOpsDataSourceTableResult } from '@dutydeck/shared'
 import type { ServerOpsAgentReadFacade } from './server-ops-agent-read-facade'
 
 /** 只传递精确的数据库与表目标；不接受脚本正文、凭据或执行选项。 */

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import {
   parseAdoptCanvasImageCandidateBatchInput,
   parseGetCanvasImageCandidateBatchInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AdoptCanvasImageCandidateBatchInput,
   CanvasImageCandidateBatch,
@@ -14,7 +14,7 @@ import type {
   CanvasDocument,
   CanvasNode,
   CanvasTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   CanvasImageCandidateAdoptionIntent,
   CanvasImageCandidateBatchStore,

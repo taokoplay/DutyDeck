@@ -1,5 +1,5 @@
 import type { Edge, Node } from '@xyflow/react'
-import type { VisualProductionDocument, VisualProductionSnapshot } from '@proma/shared'
+import type { VisualProductionDocument, VisualProductionSnapshot } from '@dutydeck/shared'
 
 /** 三类节点共享正式对象身份；画布坐标与选中态不进入业务文档。 */
 export interface VisualRelationData extends Record<string, unknown> {

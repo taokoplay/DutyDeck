@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { CANVAS_DIAGNOSTIC_SYSTEM_CODES, isCanvasDiagnosticSystemCode } from '@proma/shared'
-import type { CanvasErrorDiagnostic } from '@proma/shared'
+import { CANVAS_DIAGNOSTIC_SYSTEM_CODES, isCanvasDiagnosticSystemCode } from '@dutydeck/shared'
+import type { CanvasErrorDiagnostic } from '@dutydeck/shared'
 
 /** 根据已验证的系统码选择用户可理解的原因。 */
 function reasonForSystemCode(code: string): CanvasErrorDiagnostic['reason'] {

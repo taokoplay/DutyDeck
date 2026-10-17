@@ -1,6 +1,6 @@
 /** Token 统计纯聚合：所有视图、详情和导出共用筛选与未知口径。 */
-import { TOKEN_USAGE_SOURCE_LABELS } from '@proma/shared'
-import type { TokenUsageCoverage, TokenUsageQuery, TokenUsageRecord, TokenUsageSnapshot, TokenUsageTotals, TokenUsageTask, TokenUsageTaskDetail, TokenUsageRank, TokenUsageOption } from '@proma/shared'
+import { TOKEN_USAGE_SOURCE_LABELS } from '@dutydeck/shared'
+import type { TokenUsageCoverage, TokenUsageQuery, TokenUsageRecord, TokenUsageSnapshot, TokenUsageTotals, TokenUsageTask, TokenUsageTaskDetail, TokenUsageRank, TokenUsageOption } from '@dutydeck/shared'
 
 /** 单次查询最多一年，避免主进程接受无界日期枚举。 */
 const MAX_RANGE_DAYS = 366

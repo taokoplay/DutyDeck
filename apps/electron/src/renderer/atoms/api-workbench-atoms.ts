@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import { atomFamily } from 'jotai-family'
-import type { ApiEnvironment, ApiRun, ApiSseEvent } from '@proma/shared'
+import type { ApiEnvironment, ApiRun, ApiSseEvent } from '@dutydeck/shared'
 import type { ApiWorkbenchRequestTab } from '@/components/api-workbench/api-workbench-model'
 
 /** 单个会话的接口工作台 UI 状态。 */

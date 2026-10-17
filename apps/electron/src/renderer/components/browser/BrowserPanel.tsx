@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
-import type { BrowserViewState } from '@proma/shared'
+import type { BrowserViewState } from '@dutydeck/shared'
 import { ChevronLeft, ChevronRight, Globe, LoaderCircle, RotateCw, ShieldAlert, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

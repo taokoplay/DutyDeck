@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { atom, useAtom } from 'jotai'
-import type { ServerOpsDataEngine } from '@proma/shared'
+import type { ServerOpsDataEngine } from '@dutydeck/shared'
 import { RefreshCw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

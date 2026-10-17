@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createCanvasBoundEdge } from '@proma/shared'
-import type { CanvasDocument, CanvasEdge, CanvasNode } from '@proma/shared'
+import { createCanvasBoundEdge } from '@dutydeck/shared'
+import type { CanvasDocument, CanvasEdge, CanvasNode } from '@dutydeck/shared'
 import {
   CanvasWorkflowGraphError,
   createCanvasWorkflowGraphPlan,

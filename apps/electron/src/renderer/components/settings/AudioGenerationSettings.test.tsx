@@ -24,7 +24,7 @@ import type {
   AudioGenerationTestInput,
   AudioGenerationTestResult,
   ReplaceAudioGenerationCatalogRequest,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   AudioGenerationController,
   AudioGenerationControllerOptions,

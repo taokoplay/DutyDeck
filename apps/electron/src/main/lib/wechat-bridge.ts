@@ -15,8 +15,8 @@ import type {
   WeChatCredentials,
   WeChatIncomingMessage,
   WeChatMessageItem,
-} from '@proma/shared'
-import { WECHAT_IPC_CHANNELS, WECHAT_ITEM_TYPE, WECHAT_MESSAGE_TYPE, WECHAT_MESSAGE_STATE } from '@proma/shared'
+} from '@dutydeck/shared'
+import { WECHAT_IPC_CHANNELS, WECHAT_ITEM_TYPE, WECHAT_MESSAGE_TYPE, WECHAT_MESSAGE_STATE } from '@dutydeck/shared'
 import { getDecryptedCredentials, saveWeChatCredentials, clearWeChatCredentials, getWeChatConfig, updateWeChatDefaultWorkspace } from './wechat-config'
 import { getWeChatBindingsPath, getWeChatSyncPath } from './config-paths'
 import { BridgeCommandHandler, type BridgeAttachment } from './bridge-command-handler'

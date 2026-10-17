@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { DesignImageModelSelection } from '@proma/shared'
+import type { DesignImageModelSelection } from '@dutydeck/shared'
 import { useSetAtom } from 'jotai'
 import { toast } from 'sonner'
 import type { DesignProjectState } from '@/atoms/design-atoms'

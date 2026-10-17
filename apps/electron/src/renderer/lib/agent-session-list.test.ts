@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import {
   sortAgentSessionsByUpdatedAtDesc,
   replaceAgentSessionInFreshnessOrder,

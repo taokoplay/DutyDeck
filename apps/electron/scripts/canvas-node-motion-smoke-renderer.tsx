@@ -1,7 +1,7 @@
 import '@fontsource-variable/inter/index.css'
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
-import type { CanvasNodeActivityState, CanvasNodeKind } from '@proma/shared'
+import type { CanvasNodeActivityState, CanvasNodeKind } from '@dutydeck/shared'
 import { ReactFlowProvider } from '@xyflow/react'
 import existingPreviewUrl from '../src/renderer/assets/onboarding/hopper-seaside-white-house.png'
 import { Button } from '../src/renderer/components/ui/button'

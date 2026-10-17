@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ImageGenerationPublicProfile } from '@proma/shared'
+import type { ImageGenerationPublicProfile } from '@dutydeck/shared'
 import {
   changeImageGenerationProvider,
   copyImageGenerationProfile,

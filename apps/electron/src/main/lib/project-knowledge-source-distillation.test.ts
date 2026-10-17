@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { KnowledgeEntry } from '@proma/shared'
+import type { KnowledgeEntry } from '@dutydeck/shared'
 import {
   buildSourceDistillationPrompt,
   createSourceDistillationBatches,

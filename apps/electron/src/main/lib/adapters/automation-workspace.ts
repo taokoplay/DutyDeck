@@ -1,4 +1,4 @@
-import type { AgentWorkspace } from '@proma/shared'
+import type { AgentWorkspace } from '@dutydeck/shared'
 
 /** 使用真实 ID 精确选择；显式无效目标不得静默回退到来源工作区。 */
 export function resolveAutomationWorkspace(

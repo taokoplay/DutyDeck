@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { MediaConnectionSummary } from '@proma/shared'
+import type { MediaConnectionSummary } from '@dutydeck/shared'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   buildCanvasComfyUiConnectionOptions,

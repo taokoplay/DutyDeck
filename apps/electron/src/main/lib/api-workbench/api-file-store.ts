@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { basename, extname } from 'node:path'
-import { API_LIMITS } from '@proma/shared'
-import type { ApiAttachmentSummary, ApiFilePart } from '@proma/shared'
+import { API_LIMITS } from '@dutydeck/shared'
+import type { ApiAttachmentSummary, ApiFilePart } from '@dutydeck/shared'
 
 /** 主进程内存里的一条文件引用：**真实路径只存在于这里**，不落盘、不出主进程。 */
 interface StoredFile {

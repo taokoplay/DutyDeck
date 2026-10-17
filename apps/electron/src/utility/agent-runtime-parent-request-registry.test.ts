@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { AGENT_RUNTIME_METHODS, createAgentRuntimeRequest } from '@proma/shared'
+import { AGENT_RUNTIME_METHODS, createAgentRuntimeRequest } from '@dutydeck/shared'
 import {
   createCapabilityCancelRequest,
   ParentRequestRegistry,

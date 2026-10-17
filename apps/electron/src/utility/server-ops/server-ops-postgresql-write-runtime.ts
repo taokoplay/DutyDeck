@@ -1,4 +1,4 @@
-import type { ServerOpsDataWriteStatementResult } from '@proma/shared'
+import type { ServerOpsDataWriteStatementResult } from '@dutydeck/shared'
 import type { ServerOpsPostgresqlClient } from './server-ops-postgresql-adapter'
 import type { ServerOpsWriteScriptOutcome, ServerOpsWriteStatement } from './server-ops-write-runtime'
 

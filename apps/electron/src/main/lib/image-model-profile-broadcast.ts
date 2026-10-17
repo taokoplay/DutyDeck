@@ -1,4 +1,4 @@
-import { DESIGN_IPC_CHANNELS } from '@proma/shared'
+import { DESIGN_IPC_CHANNELS } from '@dutydeck/shared'
 
 /** 接收无敏感 payload 模型目录变化事件的最小窗口能力。 */
 export interface ImageModelProfileBroadcastTarget {

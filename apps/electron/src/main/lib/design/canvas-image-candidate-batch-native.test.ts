@@ -3,14 +3,14 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { createEmptyCanvasDocument } from '@proma/shared'
+import { createEmptyCanvasDocument } from '@dutydeck/shared'
 import type {
   CanvasDocument,
   CanvasImageCandidateBatch,
   CanvasImageModuleConfig,
   CanvasNode,
   CanvasTarget,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { createStableDirectoryNativeHost } from '../stable-directory-native-host'
 import type {
   StableDirectoryAuthorization,

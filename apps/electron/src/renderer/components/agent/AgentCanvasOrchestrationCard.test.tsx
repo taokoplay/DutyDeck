@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { CanvasOrchestrationProgress, CanvasOrchestrationRecord } from '@proma/shared'
+import type { CanvasOrchestrationProgress, CanvasOrchestrationRecord } from '@dutydeck/shared'
 import { AgentCanvasOrchestrationCard } from './AgentCanvasOrchestrationCard'
 
 /** 创建可直接渲染的最小编排记录，测试关注用户可见状态而非内部存储细节。 */

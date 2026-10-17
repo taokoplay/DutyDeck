@@ -1,8 +1,8 @@
 import {
   LAN_BRIDGE_MAX_PROTOCOL_VERSION,
   LAN_BRIDGE_MIN_PROTOCOL_VERSION,
-} from '@proma/shared'
-import type { LanBridgeConnectedPayload, LanBridgeErrorCode } from '@proma/shared'
+} from '@dutydeck/shared'
+import type { LanBridgeConnectedPayload, LanBridgeErrorCode } from '@dutydeck/shared'
 
 export interface WSRequest {
   type: string

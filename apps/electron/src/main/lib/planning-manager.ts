@@ -5,7 +5,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { PLANNING_CONFLICT_ERROR } from '@proma/shared'
+import { PLANNING_CONFLICT_ERROR } from '@dutydeck/shared'
 import type {
   ActivePlanningReminder,
   CalendarEvent,
@@ -35,7 +35,7 @@ import type {
   UpdatePlanningGroupInput,
   UpdatePlanningTagInput,
   UpdateTodoInput,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import { getPlanningDatabasePath } from './config-paths'
 
 interface SqliteStatement {

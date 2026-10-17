@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Provider, createStore } from 'jotai'
-import type { ServerOpsTaskSummary } from '@proma/shared'
+import type { ServerOpsTaskSummary } from '@dutydeck/shared'
 import { ServerOpsTaskTerminal, ServerOpsTaskTerminalSwitcher } from './ServerOpsTaskTerminal'
 
 /** 隔离静态渲染夹具，不连接真实 Electron 或 SSH。 */

@@ -1,4 +1,4 @@
-import { MOBILE_MIRROR_CHANNELS, parseMobileMirrorSessionInput, parseMobileMirrorCaptureInput, parseMobileMirrorActionInput } from '@proma/shared'
+import { MOBILE_MIRROR_CHANNELS, parseMobileMirrorSessionInput, parseMobileMirrorCaptureInput, parseMobileMirrorActionInput } from '@dutydeck/shared'
 import type { MobileMirrorService } from './service'
 
 /** IPC 只将窗口身份传给服务；frame 的真实性由 Electron 入口检查。 */

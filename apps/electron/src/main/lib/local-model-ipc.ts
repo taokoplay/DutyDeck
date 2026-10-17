@@ -1,6 +1,6 @@
 /** DutyDeck 本地模型 IPC：只允许主窗口请求固定资产，不能传入路径、URL 或执行参数。 */
 import type { IpcMain, IpcMainInvokeEvent, WebContents } from 'electron'
-import { LOCAL_MODEL_IPC_CHANNELS, type LocalModelAssetInput, type LocalModelEnabledInput, type LocalModelTestInput } from '@proma/shared'
+import { LOCAL_MODEL_IPC_CHANNELS, type LocalModelAssetInput, type LocalModelEnabledInput, type LocalModelTestInput } from '@dutydeck/shared'
 import { getLocalModelRuntime } from './local-model-runtime-singleton'
 import type { LocalModelRuntime } from './local-model-runtime'
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { CapabilityRun } from '@proma/shared'
+import type { CapabilityRun } from '@dutydeck/shared'
 import { CapabilityFactoryAttemptCompare } from './CapabilityFactoryAttemptCompare'
 
 /** 造一次单步尝试。 */

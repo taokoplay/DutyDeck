@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSessionMeta } from '@proma/shared'
+import type { AgentSessionMeta } from '@dutydeck/shared'
 import { DesignExecutionSessionLifecycle } from './design-execution-session-lifecycle'
 
 /** 构造拥有完整 Design 归属的内部会话。 */

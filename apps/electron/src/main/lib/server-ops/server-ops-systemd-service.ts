@@ -7,7 +7,7 @@ import {
   parseServerOpsServiceListInput,
   parseServerOpsServiceListResult,
   parseServerOpsSystemdUnitId,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type {
   ServerOpsAuditAppendInput,
   ServerOpsServiceAction,
@@ -19,7 +19,7 @@ import type {
   ServerOpsServiceListResult,
   ServerOpsServiceSummary,
   ServerOpsSystemdCapability,
-} from '@proma/shared'
+} from '@dutydeck/shared'
 import type { ServerOpsActiveConnectionIdentity } from './server-ops-connection-service'
 import type { ServerOpsRuntimeExecResult } from '../../../utility/server-ops/server-ops-runtime-protocol'
 

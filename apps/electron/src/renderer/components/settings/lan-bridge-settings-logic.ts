@@ -1,4 +1,4 @@
-import type { LanBridgeDeviceDto } from '@proma/shared'
+import type { LanBridgeDeviceDto } from '@dutydeck/shared'
 
 /** 设置页展示的二维码剩余时间。 */
 export interface PairingCountdown {
