@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>DutyDeck · 剪辑成片交互稿</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="shell" id="shell">
+    <header class="app-header">
+      <div class="brand"><span class="brand-mark">D</span><strong>DutyDeck</strong><span class="slash">/</span><span class="app-project">LUMA 品牌创作</span></div>
+      <div class="header-actions"><span class="prototype-label">HTML 交互稿</span><button class="icon-button" data-action="theme" aria-label="切换深浅主题" title="切换深浅主题" data-icon="sun"></button><span class="avatar">徐</span></div>
+    </header>
+    <aside class="rail" aria-label="项目模块">
+      <span class="rail-logo">L</span><span class="rail-divider"></span>
+      <button class="rail-button" data-action="agent" aria-label="打开主 Agent 对话" title="主 Agent" data-icon="chat"></button>
+      <a class="rail-button" href="../visual-production/" aria-label="影像创作原型" title="影像创作原型" data-icon="grid"></a>
+      <span class="rail-button active" aria-label="当前：剪辑成片" data-icon="film"></span>
+      <span class="rail-fill"></span><button class="rail-button" data-action="about" aria-label="查看原型说明" title="原型说明" data-icon="info"></button>
+    </aside>
+    <section class="agent-pane" id="agent-pane" aria-label="主 Agent 对话">
+      <header class="agent-header"><div><span class="agent-glyph" data-icon="spark"></span><strong>主 Agent</strong><span class="available-dot"></span></div><button class="icon-button agent-close" data-action="agent" aria-label="关闭主 Agent 对话" data-icon="close"></button></header>
+      <div class="agent-messages" id="agent-messages">
+        <div class="conversation-date">今天 · LUMA 品牌短片</div>
+        <div class="user-message">把这六个镜头按分镜顺序串起来，配上旁白和轻一点的音乐。</div>
+        <div class="assistant-message"><div class="assistant-name"><span data-icon="spark"></span>主 Agent <small>示例对话</small></div><p>已经整理成一版 36 秒的剪辑草稿。六个镜头依次展开，旁白和音乐分轨，方便继续调整。</p><div class="agent-result"><span class="result-icon" data-icon="film"></span><div><strong>LUMA · 品牌主片</strong><span>6 个镜头 · 4 条轨道</span></div><span class="subtle-check" data-icon="check"></span></div><p class="muted">先播放看看节奏。选中右侧片段后，可以直接告诉我怎么改。</p></div>
+      </div>
+      <div class="agent-suggestions"><button data-prompt="把第3镜缩短到2秒，音乐降到15%">第 3 镜短一点</button><button data-prompt="把音乐降到15%">音乐再轻一点</button><button data-prompt="关闭字幕">先隐藏字幕</button></div>
+      <form id="agent-form" class="composer"><div class="context-tag"><span data-icon="link"></span><span id="agent-context">品牌主片 · 第 1 镜</span></div><textarea id="agent-input" rows="3" aria-label="向主 Agent 描述剪辑修改" placeholder="告诉 Agent 怎么调整这版剪辑…" maxlength="500"></textarea><div class="composer-footer"><span>主 Agent <span class="tiny-separator">·</span> 剪辑上下文已关联</span><button type="submit" class="send-button" aria-label="发送剪辑修改" data-icon="arrow-up"></button></div></form>
+      <p class="prototype-note">示例交互 · 不调用模型或媒体服务</p>
+    </section>
+    <main class="workspace" id="workspace" aria-label="影像创作剪辑工作区">
+      <nav class="workspace-nav"><div><a href="../visual-production/" class="nav-tab">画布</a><a href="../interaction-design-v3/" class="nav-tab">交互设计</a><span class="nav-tab active"><span data-icon="film"></span>影像创作</span></div><button class="icon-button mobile-agent" data-action="agent" aria-label="打开主 Agent 对话" title="主 Agent" data-icon="chat"></button></nav>
+      <header class="production-header"><div class="production-emblem" data-icon="film"></div><div class="production-title"><h1>LUMA · 把光带向生活</h1><p>宣传片 <span>·</span> 16:9 <span>·</span> 24 fps</p></div><span class="saved-state" id="save-status"><span data-icon="check"></span>已保存在此浏览器</span></header>
+      <nav class="stage-tabs" aria-label="影像制作阶段"><a href="../visual-production/#project">项目</a><a href="../visual-production/#assets">资产</a><a href="../visual-production/#shots">分镜</a><a href="../visual-production/#canvas">画布</a><button class="active" aria-current="page">剪辑成片</button><a href="../visual-production/#delivery">素材导出</a></nav>
+      <section class="editing-area">
+        <header class="edit-toolbar"><div class="episode-picker"><button id="episode-trigger" class="episode-trigger" data-action="episodes" aria-haspopup="menu" aria-expanded="false"><strong id="episode-name">品牌主片</strong><span data-icon="chevron"></span></button><div id="episode-menu" class="menu" role="menu" hidden><button role="menuitemradio" aria-checked="true" data-episode="main"><span><strong>品牌主片</strong><small>主剪辑 · 6 个镜头</small></span><span data-icon="check"></span></button><button role="menuitemradio" aria-checked="false" data-episode="teaser"><span><strong>社交预告</strong><small>尚未建立剪辑</small></span></button></div></div><span class="cut-label" id="cut-label">主剪辑</span><div class="toolbar-spacer"></div><button class="button expand-button" data-action="expand" aria-label="展开精剪" title="展开精剪"><span data-icon="expand"></span><span class="expand-copy">展开</span></button><button class="button primary" data-action="export"><span data-icon="download"></span>导出成片</button></header>
+        <div class="candidate-strip" id="candidate-strip" hidden></div>
+        <div class="edit-stage">
+          <aside class="expanded-library" aria-label="项目素材"><div class="library-heading"><strong>项目素材</strong><button class="icon-button" data-action="assets" aria-label="打开素材选择" data-icon="plus"></button></div><div class="library-count">本集已采用的镜头 <span>6</span></div><div id="library-list"></div><div class="library-foot"><span data-icon="link"></span>引用原素材，剪辑不会修改源文件</div></aside>
+          <section class="preview-section" aria-label="成片预览">
+            <div class="preview-heading"><span><i></i>成片预览</span><span class="preview-badge">静帧预演</span></div>
+            <button class="preview-screen" id="preview-screen" data-action="play" aria-label="播放静帧预演"><img id="preview-image" src="../visual-production/assets/promo-1.svg" alt="晨光启幕示例画面"><span class="preview-corner" id="preview-corner">01 / 06</span><span class="preview-play" id="preview-play" data-icon="play"></span><span class="preview-subtitle" id="preview-subtitle">光，陪你开始平凡的一天。</span><span class="preview-empty" id="preview-empty" hidden><span data-icon="film"></span><strong>从分镜开始你的剪辑</strong><small>已采用的镜头会成为可编辑的片段</small></span></button>
+            <div class="player-controls"><button class="icon-button" data-action="previous" aria-label="上一个片段" data-icon="previous"></button><button class="icon-button playback-button" data-action="play" aria-label="播放静帧预演" data-icon="play"></button><button class="icon-button" data-action="next" aria-label="下一个片段" data-icon="next"></button><span class="timecode" id="timecode">00:00 <span>/ 00:36</span></span><div class="toolbar-spacer"></div><button class="small-button captions-toggle" data-action="captions" aria-pressed="true" title="显示或隐藏字幕">CC</button><span class="resolution-label">16:9</span></div>
+            <input id="scrubber" type="range" min="0" max="36" step="0.05" value="0" aria-label="播放位置">
+            <div class="selection-bar" id="selection-bar"></div>
+            <div class="empty-action" id="empty-action" hidden><button class="button primary" data-action="roughcut"><span data-icon="layers"></span>按分镜创建剪辑</button><span>按顺序引用 3 个已采用镜头</span></div>
+          </section>
+        </div>
+        <section class="timeline-section" aria-label="剪辑时间线">
+          <header class="timeline-toolbar"><button class="button" data-action="assets"><span data-icon="plus"></span>添加素材</button><span class="tool-separator"></span><button class="icon-button" data-action="undo" aria-label="撤销" title="撤销 ⌘Z" data-icon="undo"></button><button class="icon-button" data-action="redo" aria-label="重做" title="重做 ⇧⌘Z" data-icon="redo"></button><button class="icon-button" data-action="split" aria-label="在播放头分割" title="在播放头分割" data-icon="scissors"></button><div class="toolbar-spacer"></div><button class="icon-button zoom-control" data-action="zoom-out" aria-label="缩小时间线" data-icon="minus"></button><span class="zoom-label" id="zoom-label">100%</span><button class="icon-button zoom-control" data-action="zoom-in" aria-label="放大时间线" data-icon="plus"></button><button class="icon-button" data-action="fit" aria-label="时间线适应宽度" title="适应宽度" data-icon="fit"></button></header>
+          <div class="timeline-grid"><div class="track-labels"><div class="ruler-label">轨道</div><div class="track-label video-label"><span data-icon="film"></span><span>画面</span></div><button class="track-label" data-action="voice"><span data-icon="mic"></span><span>旁白</span><small id="voice-volume">100%</small></button><button class="track-label" data-action="music"><span data-icon="music"></span><span>音乐</span><small id="music-volume">25%</small></button><button class="track-label" data-action="captions"><span data-icon="captions"></span><span>字幕</span></button></div><div class="timeline-scroll" id="timeline-scroll"><div class="timeline-content" id="timeline-content"><div class="ruler" id="ruler" aria-label="时间刻度"></div><div class="video-track" id="video-track"></div><div class="audio-track voice-track" id="voice-track"></div><div class="audio-track music-track" id="music-track"></div><div class="subtitle-track" id="subtitle-track"></div><div class="playhead" id="playhead"><span></span></div></div></div></div>
+          <footer class="timeline-footer"><span id="timeline-summary">6 个片段 · 36 秒</span><span class="timeline-hint">双击片段设置 · 拖动调整顺序</span><span class="local-indicator"><i></i>本地草稿</span></footer>
+        </section>
+      </section>
+    </main>
+  </div>
+  <dialog id="modal" aria-labelledby="modal-title"><div class="modal-header"><div><h2 id="modal-title"></h2><p id="modal-description"></p></div><button class="icon-button" data-action="close-modal" aria-label="关闭弹窗" data-icon="close"></button></div><div id="modal-body"></div><footer id="modal-footer"></footer></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
