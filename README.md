@@ -2,11 +2,11 @@
 
 <img src="./docs/assets/brand/dutydeck-icon-256.png" alt="DutyDeck" width="96" height="96" />
 
-> **本仓库是 Proma 的修改版。** DutyDeck 基于上游开源项目 [Proma](https://github.com/proma-ai/Proma)（AGPL-3.0-only）演进，由 [kuangtao22](https://github.com/kuangtao22) 独立维护，与 Proma 官方没有从属关系，也没有得到官方背书。上游基线与差异说明见[与官方 Proma 的关系](#与官方-proma-的关系)。
+> **本仓库是 Proma 的修改版。** DutyDeck 基于上游开源项目 [Proma](https://github.com/proma-ai/Proma)（AGPL-3.0-only）演进，由 [taokoplay](https://github.com/taokoplay) 独立维护，与 Proma 官方没有从属关系，也没有得到官方背书。上游基线与差异说明见[与官方 Proma 的关系](#与官方-proma-的关系)。
 
 DutyDeck 是一个本地优先的工程 Agent 工作台：在 Proma 的 Chat、Agent、项目工作区、Skills、MCP 之上，补上画布编排、运维工作台、接口工作台和今日活动，把核心开发之外的项目维护琐事收拢到同一处，让专注时间能还给产品，数据和配置默认留在你自己的机器上。
 
-[下载 DutyDeck](https://github.com/kuangtao22/DutyDeck/releases/latest) | [Proma 使用教程（上游）](https://github.com/proma-ai/Proma/tree/main/tutorial) | [更新日志](./release-notes/bone) | [English README](./README.en.md)
+[下载 DutyDeck](https://github.com/taokoplay/DutyDeck/releases/latest) | [Proma 使用教程（上游）](https://github.com/proma-ai/Proma/tree/main/tutorial) | [更新日志](./release-notes/bone) | [English README](./README.en.md)
 
 ## 由来与初衷
 
@@ -113,7 +113,7 @@ DutyDeck 是 Proma 的修改版，不是官方发行版：
 
 ### 下载安装
 
-从 [GitHub Releases](https://github.com/kuangtao22/DutyDeck/releases) 下载 DutyDeck，提供 macOS Apple Silicon、macOS Intel、Windows、Ubuntu/Debian x86_64 的 `.deb` 安装包和 Linux x86_64 AppImage，产物名形如 `DutyDeck-<版本>-macos-arm64.dmg`、`DutyDeck-<版本>-windows-x64.exe` 与 `dutydeck_<版本>_amd64.deb`。Linux 的安装、安全边界和支持范围见 [Linux 说明](./docs/linux.md)。
+从 [GitHub Releases](https://github.com/taokoplay/DutyDeck/releases) 下载 DutyDeck，提供 macOS Apple Silicon、macOS Intel、Windows、Ubuntu/Debian x86_64 的 `.deb` 安装包和 Linux x86_64 AppImage，产物名形如 `DutyDeck-<版本>-macos-arm64.dmg`、`DutyDeck-<版本>-windows-x64.exe` 与 `dutydeck_<版本>_amd64.deb`。Linux 的安装、安全边界和支持范围见 [Linux 说明](./docs/linux.md)。
 
 DutyDeck 的模型渠道全部由你自己配置，不提供任何内置订阅通道。上游的商业版 Proma（proma.cool）与本项目无关。
 
@@ -271,7 +271,7 @@ Pi 运行时在主进程中作为 esbuild external 依赖运行。`apps/electron
 ## 作者与维护
 
 - 上游 Proma 作者：[erlich.fun](https://erlich.fun)
-- DutyDeck 维护者：[kuangtao22](https://github.com/kuangtao22)
+- DutyDeck 维护者：[taokoplay](https://github.com/taokoplay)
 
 ## 致谢
 

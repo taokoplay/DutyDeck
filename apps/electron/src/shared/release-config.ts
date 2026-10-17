@@ -1,8 +1,8 @@
 /** DutyDeck Release 仓库的唯一配置。 */
 export const PROMA_RELEASE_REPOSITORY = {
-  owner: 'kuangtao22',
+  owner: 'taokoplay',
   repo: 'DutyDeck',
-  webUrl: 'https://github.com/kuangtao22/DutyDeck',
+  webUrl: 'https://github.com/taokoplay/DutyDeck',
 } as const
 
 /** DutyDeck 的最新 Release 页面，更新下载入口统一跳转到这里。 */
