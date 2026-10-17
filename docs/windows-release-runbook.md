@@ -6,13 +6,13 @@
 
 ## 1. 固定提交，先跑独立 Windows 构建
 
-待验证提交必须已推送到 `kuangtao22/Proma`，并包含最终版本号、发布说明和相关修复。从仓库根目录执行：
+待验证提交必须已推送到 `taokoplay/DutyDeck`，并包含最终版本号、发布说明和相关修复。从仓库根目录执行：
 
 ```bash
 # 保存本轮待发布的完整提交 SHA；预检通过后，标签也必须指向它。
 WINDOWS_RELEASE_SHA="$(git rev-parse HEAD)"
-gh workflow run build-windows.yml --repo kuangtao22/Proma --ref main -f ref="$WINDOWS_RELEASE_SHA"
-gh run list --repo kuangtao22/Proma --workflow build-windows.yml --event workflow_dispatch --limit 5 --json databaseId,status,conclusion,createdAt,url
+gh workflow run build-windows.yml --repo taokoplay/DutyDeck --ref main -f ref="$WINDOWS_RELEASE_SHA"
+gh run list --repo taokoplay/DutyDeck --workflow build-windows.yml --event workflow_dispatch --limit 5 --json databaseId,status,conclusion,createdAt,url
 ```
 
 `--ref main` 选择工作流定义，`-f ref=...` 决定实际检出的源码；后者必须显式填写。当前工作流输入的默认值仍是旧分支 `feat/lan-bridge-mobile`，直接使用默认值会验证错误的代码。
@@ -22,7 +22,7 @@ gh run list --repo kuangtao22/Proma --workflow build-windows.yml --event workflo
 ```bash
 # 将占位内容替换为本次独立 Windows 构建的 run ID。
 WINDOWS_RUN_ID='<本次 run ID>'
-gh run watch "$WINDOWS_RUN_ID" --repo kuangtao22/Proma --interval 30 --exit-status
+gh run watch "$WINDOWS_RUN_ID" --repo taokoplay/DutyDeck --interval 30 --exit-status
 ```
 
 预检通过要求：原生测试、资源准备、打包和 `DutyDeck-win-x64` 产物上传全部成功；记录跳过用例及原因。当前独立工作流只上传 `.exe`，更新 YAML 和其他平台产物仍须在正式 Release 验收。
@@ -68,10 +68,10 @@ Windows 目标依赖安装命令为 `bun install --frozen-lockfile --os=win32 --
 先定位失败 job。整个 run 尚未结束时，可直接读取已完成 job 的日志：
 
 ```bash
-gh run view "$WINDOWS_RUN_ID" --repo kuangtao22/Proma --json jobs
+gh run view "$WINDOWS_RUN_ID" --repo taokoplay/DutyDeck --json jobs
 # 将占位内容替换为失败且已结束的 job ID。
 WINDOWS_JOB_ID='<失败 job ID>'
-gh api "repos/kuangtao22/Proma/actions/jobs/$WINDOWS_JOB_ID/logs"
+gh api "repos/taokoplay/DutyDeck/actions/jobs/$WINDOWS_JOB_ID/logs"
 ```
 
 | 现象 | 下一步 |

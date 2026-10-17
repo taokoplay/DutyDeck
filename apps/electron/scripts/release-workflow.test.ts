@@ -277,7 +277,7 @@ test('Bone 应用版本与更新频道保持一致', () => {
   expect(config.detectUpdateChannel).toBe(false)
   expect(config.publish).toEqual({
     provider: 'github',
-    owner: 'kuangtao22',
+    owner: 'taokoplay',
     repo: 'DutyDeck',
   })
   expect(JSON.stringify(config.publish)).not.toContain('ErlichLiu')

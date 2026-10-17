@@ -247,5 +247,5 @@ deb:
 # ============================================
 publish:
   provider: github
-  owner: kuangtao22
+  owner: taokoplay
   repo: DutyDeck

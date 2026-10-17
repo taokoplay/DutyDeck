@@ -81,7 +81,7 @@ describe('GitHub Release 双来源历史', () => {
     const result = await listReleases({ perPage: 2 })
 
     expect(requestedUrls).toHaveLength(1)
-    expect(requestedUrls[0]).toContain('/repos/kuangtao22/Proma/releases?')
+    expect(requestedUrls[0]).toContain('/repos/taokoplay/DutyDeck/releases?')
     expect(requestedUrls[0]).toContain('per_page=100')
     expect(result.map(release => release.tag_name)).toEqual([
       'v0.17.55-bone.3',
@@ -290,7 +290,7 @@ describe('GitHub Release 自动更新仓库', () => {
 
     expect(requestedUrls).toHaveLength(2)
     expect(
-      requestedUrls.every(url => url.includes('/repos/kuangtao22/Proma/'))
+      requestedUrls.every(url => url.includes('/repos/taokoplay/DutyDeck/'))
     ).toBe(true)
   })
 

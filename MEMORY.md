@@ -1,5 +1,7 @@
 # MEMORY.md
 
+- 2026-10-17（自动更新地址切换至独立仓库）：用户要求更新地址同步替换。已将 Electron Builder 发布 owner、GitHub Release 自动更新测试断言和 Windows 发布操作记录切换为 `taokoplay/DutyDeck`；`apps/electron/src/shared/release-config.ts` 已是统一新配置，官方 `proma-ai/Proma` 历史查询保持不变。相关 35 项 Release/更新测试通过，旧版本发布说明与成功基线中的历史地址保留以维护事实准确性。Nowledge Mem 本轮因 `nmem` CLI 缺失且本机 `127.0.0.1:14242` 不可达，未同步。
+
 - 2026-10-17（DutyDeck 迁移至独立 GitHub 仓库）：目标 `taokoplay/DutyDeck` 已确认是 public、非 fork 的空仓库；已将当前已提交历史的 `main`、18 个本地分支和 193 个版本标签推送完成，`main` 与提交 `2a518558` 一致。本地 `origin` 已切换到新仓库，旧 fork 保留为 `legacy-fork`，`upstream` 继续指向 `proma-ai/Proma`；仓库级 Git HTTP 设为 HTTP/2 以规避当前 HTTP/1.1 连接超时。Release 配置、Electron 主页、README、Linux 下载说明与测试已改为新地址并通过 18 项相关测试；旧仓库的 14 个历史 Release 和最新 `v0.19.53-bone.28` 的 15 个安装资产尚未复制，新仓库暂无 Release，自动更新/下载资产迁移需后续单独完成。Nowledge Mem 定向检索因本机服务连接拒绝，未同步。
 
 - 2026-10-17（媒体名称来源说明纠正）：用户截图中的「模型配置」供应商确实叫 MiniMax；此前解释影像列表“我的”来源时没有明确区分设置入口，造成误导。已核对“我的”来自另一条独立媒体生成配置，不能据此断言用户截图的模型配置名称也是“我的”。后续说明应明确「模型配置」与「媒体生成 → 生图模型」及各自用途；本轮仅解释，未获要求合并配置或修改用户名称。Nowledge Mem 定向检索连接拒绝，未同步。
