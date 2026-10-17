@@ -3,11 +3,17 @@ import {
   DUTYDECK_SAFE_STORAGE_NAME,
   LEGACY_SAFE_STORAGE_NAME,
   resolveAppIdentity,
+  resolveLegacyDevUserDataDirectoryName,
 } from './app-identity'
 
 test('DutyDeck 使用新 Safe Storage 身份并保留旧身份用于迁移', () => {
   expect(DUTYDECK_SAFE_STORAGE_NAME).toBe('@dutydeck/electron')
   expect(LEGACY_SAFE_STORAGE_NAME).toBe('@proma/electron')
+})
+
+test('旧版开发 helper 保留实例目录兼容性', () => {
+  expect(resolveLegacyDevUserDataDirectoryName()).toBe('@proma/electron-dev')
+  expect(resolveLegacyDevUserDataDirectoryName(' feature/1 ')).toBe('@proma/electron-dev-feature1')
 })
 
 describe('Electron 应用身份', () => {

@@ -2,7 +2,22 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, scree
 import { join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync } from 'fs'
-import { DUTYDECK_SAFE_STORAGE_NAME, LEGACY_SAFE_STORAGE_NAME, resolveAppIdentity } from './lib/app-identity'
+import { spawnSync } from 'node:child_process'
+import {
+  DUTYDECK_SAFE_STORAGE_NAME,
+  LEGACY_SAFE_STORAGE_NAME,
+  resolveAppIdentity,
+  resolveLegacyDevUserDataDirectoryName,
+} from './lib/app-identity'
+import {
+  SAFE_STORAGE_MIGRATION_HELPER_ARG,
+  SAFE_STORAGE_MIGRATION_RESULT_PREFIX,
+  runSafeStorageMigrationHelper,
+} from './lib/safe-storage-migration-helper'
+import type { LegacySafeStorageSnapshot } from './lib/safe-storage-migration'
+
+/** 当前进程是否仅负责读取旧 Safe Storage；helper 不得注册业务单实例或启动窗口。 */
+const isSafeStorageMigrationHelper = process.argv.includes(SAFE_STORAGE_MIGRATION_HELPER_ARG)
 
 // 开发模式使用独立的 userData 目录，避免与打包版共享 Chromium SingletonLock；
 // 加密身份与 userData 都必须在任何会读取它们的模块加载之前固定。
@@ -13,11 +28,16 @@ const appIdentity = resolveAppIdentity(
 )
 // ready 前先固定历史加密身份（@dutydeck/electron），让 macOS Safe Storage 继续解析到
 // 同一把历史密钥；品牌展示名只在 ready 之后恢复，绝不能参与加密身份。
-if (appIdentity.safeStorageName) {
+if (isSafeStorageMigrationHelper) {
+  app.setName(LEGACY_SAFE_STORAGE_NAME)
+} else if (appIdentity.safeStorageName) {
   app.setName(appIdentity.safeStorageName)
 }
 if (!app.isPackaged && appIdentity.userDataDirectoryName) {
-  app.setPath('userData', join(app.getPath('appData'), appIdentity.userDataDirectoryName))
+  const userDataDirectoryName = isSafeStorageMigrationHelper
+    ? resolveLegacyDevUserDataDirectoryName(process.env.DUTYDECK_DEV_INSTANCE ?? process.env.PROMA_DEV_INSTANCE)
+    : appIdentity.userDataDirectoryName
+  app.setPath('userData', join(app.getPath('appData'), userDataDirectoryName))
   if (process.platform === 'win32') app.setAppUserModelId(appIdentity.appId)
 }
 
@@ -28,7 +48,9 @@ if (!app.isPackaged && appIdentity.userDataDirectoryName) {
 // 卡在启动期，second-instance 也唤不起窗口，用户表现就是"双击应用没反应"。
 // 改为：留下 stderr 排查线索后正常退出，让 Electron 触发已存在实例的
 // second-instance 事件，由主实例负责显示窗口。
-if (!app.requestSingleInstanceLock()) {
+if (isSafeStorageMigrationHelper) {
+  // helper 的 ready 钩子在文件末尾注册；这里不抢业务单实例锁。
+} else if (!app.requestSingleInstanceLock()) {
   console.warn(
     `[启动] 已有 ${appIdentity.displayName} 进程持有单实例锁，本次启动将退出。\n` +
       `  如果窗口未出现，可能旧进程已卡死。请运行 \`killall ${appIdentity.displayName}\` 后重试。`,
@@ -893,6 +915,12 @@ function sendToMainWindow(channel: string, data?: unknown): void {
 
 app.whenReady()
   .then(() => {
+    if (isSafeStorageMigrationHelper) {
+      const rootIndex = process.argv.indexOf(SAFE_STORAGE_MIGRATION_HELPER_ARG)
+      const dataRoot = rootIndex >= 0 ? process.argv[rootIndex + 1] : undefined
+      if (!dataRoot) throw new Error('Safe Storage 迁移 helper 缺少数据根参数')
+      return runSafeStorageMigrationHelper(dataRoot)
+    }
     // Safe Storage 初始化完成后再恢复开发客户端的用户可见名称。
     if (!app.isPackaged) app.setName(appIdentity.displayName)
     /** 开发态只做一次新鲜度提示：产物落后于源码时，别让旧合同伪装成业务故障。 */
@@ -909,6 +937,40 @@ app.whenReady()
  * 启动主流程。所有非关键步骤用 safeRun / safeAwait 隔离，
  * 单点失败不应阻止窗口和托盘的创建（用户至少要能看到界面）。
  */
+/**
+ * 启动独立旧身份 helper，读取 Proma 密文后由当前进程重新加密。
+ * 入参：当前数据根；返回值：旧身份进程解密成功的配置快照。
+ */
+function readLegacySafeStorageSnapshot(dataRoot: string): LegacySafeStorageSnapshot {
+  /** 开发版需要显式传入主进程 bundle，打包版直接启动自身并由参数选择 helper 分支。 */
+  /** AppImage 运行时可能依赖 --no-sandbox，helper 必须继承同一启动开关。 */
+  const inheritedSwitches = process.argv.filter((argument) => argument === '--no-sandbox')
+  const helperArgs = app.isPackaged
+    ? [...inheritedSwitches, SAFE_STORAGE_MIGRATION_HELPER_ARG, dataRoot]
+    : [...inheritedSwitches, resolve(__dirname, 'main.cjs'), SAFE_STORAGE_MIGRATION_HELPER_ARG, dataRoot]
+  const result = spawnSync(process.execPath, helperArgs, {
+    encoding: 'utf8',
+    maxBuffer: 128 * 1024 * 1024,
+  })
+  if (result.status !== 0) {
+    throw new Error(`Safe Storage 迁移 helper 退出码 ${result.status ?? '未知'}：${result.stderr.trim()}`)
+  }
+  const resultLine = result.stdout
+    .split(/\r?\n/)
+    .reverse()
+    .find((line) => line.startsWith(SAFE_STORAGE_MIGRATION_RESULT_PREFIX))
+  if (!resultLine) throw new Error('Safe Storage 迁移 helper 未返回结果')
+  const payload = JSON.parse(resultLine.slice(SAFE_STORAGE_MIGRATION_RESULT_PREFIX.length)) as {
+    status: 'completed' | 'unavailable' | 'failed'
+    snapshot?: LegacySafeStorageSnapshot
+    reason?: string
+  }
+  if (payload.status !== 'completed' || payload.snapshot === undefined) {
+    throw new Error(payload.reason ?? `Safe Storage 迁移 helper 状态：${payload.status}`)
+  }
+  return payload.snapshot
+}
+
 async function bootstrap(): Promise<void> {
   /** 首次解析固定 locator，并在 normal gate 内准备受控目录。 */
   const dataRootLocator = getDefaultDataRootLocator()
@@ -989,9 +1051,12 @@ async function bootstrap(): Promise<void> {
     legacyName: LEGACY_SAFE_STORAGE_NAME,
     setAppName: (name) => app.setName(name),
     safeStorage,
+    readLegacySnapshot: () => readLegacySafeStorageSnapshot(activeRoot),
   })
   if (safeStorageMigration.status === 'failed') {
     console.warn('[启动] Safe Storage 迁移未完成，将在下次启动重试:', safeStorageMigration.reason)
+  } else if (safeStorageMigration.status === 'skipped' && safeStorageMigration.reason) {
+    console.warn('[启动] Safe Storage 迁移暂未完成，将在下次启动重试:', safeStorageMigration.reason)
   } else if (safeStorageMigration.migratedValues > 0) {
     console.info(`[启动] 已迁移 ${safeStorageMigration.migratedValues} 个旧 Safe Storage 密文`)
   }
@@ -1236,47 +1301,49 @@ function handleBootstrapFailure(err: unknown): void {
   }
 }
 
-app.on('window-all-closed', () => {
-  // 非 macOS：关闭所有窗口时退出应用
-  // macOS：保持应用运行（可通过 tray 或 Dock 重新打开）
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
+if (!isSafeStorageMigrationHelper) {
+  app.on('window-all-closed', () => {
+    // 非 macOS：关闭所有窗口时退出应用
+    // macOS：保持应用运行（可通过 tray 或 Dock 重新打开）
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
 
-app.on('before-quit', () => {
-  /** 每项独立隔离，Design journal 故障不能跳过 Agent、浏览器或 watcher 释放。 */
-  runShutdownCleanupSteps([
-    { name: '退出状态', run: setQuitting },
-    { name: 'Design Job 中断', run: () => { getDefaultDesignJobManager()?.markRunningInterrupted() } },
-    { name: 'Agent 进程', run: stopAllAgents },
-    { name: 'DutyDeck 本地模型', run: () => { void shutdownLocalModelRuntime() } },
-    { name: '终端进程', run: () => { void stopAllTerminals() } },
-    { name: '浏览器控制器', run: () => { browserController.dispose() } },
-    { name: '生成任务', run: stopAllGenerations },
-    { name: '更新器', run: cleanupUpdater },
-    { name: '工作区监听', run: stopWorkspaceWatcher },
-    { name: 'Chat 工具监听', run: stopChatToolsWatcher },
-    { name: 'Bridge 自愈', run: stopBridgeSelfHealing },
-    { name: 'Bridge', run: stopAllBridges },
-    { name: '自动任务调度', run: stopScheduler },
-    { name: '规划提醒调度', run: stopPlanningReminderScheduler },
-    { name: '规划原生同步', run: stopPlanningNativeSyncCoordinator },
-    { name: '系统防睡眠', run: stopSystemSleepBlocker },
-    { name: '全局快捷键', run: unregisterAllGlobalShortcuts },
-    { name: '快速任务窗口', run: destroyQuickTaskWindow },
-    { name: '规划窗口', run: destroyPlanningWindow },
-    { name: '语音听写窗口', run: destroyVoiceDictationWindow },
-    { name: 'Agent 状态窗口', run: destroyAgentStatusHoverWindow },
-    { name: 'macOS 灵动岛原生服务', run: disposeMacAgentIslandNativeHost },
-    { name: 'Agent Island 服务', run: disposeAgentIslandService },
-    { name: 'Pi MCP 连接', run: () => { disposePiMcpConnections().catch(() => {}) } },
-    { name: '系统托盘', run: destroyTray },
-  ])
-})
+  app.on('before-quit', () => {
+    /** 每项独立隔离，Design journal 故障不能跳过 Agent、浏览器或 watcher 释放。 */
+    runShutdownCleanupSteps([
+      { name: '退出状态', run: setQuitting },
+      { name: 'Design Job 中断', run: () => { getDefaultDesignJobManager()?.markRunningInterrupted() } },
+      { name: 'Agent 进程', run: stopAllAgents },
+      { name: 'DutyDeck 本地模型', run: () => { void shutdownLocalModelRuntime() } },
+      { name: '终端进程', run: () => { void stopAllTerminals() } },
+      { name: '浏览器控制器', run: () => { browserController.dispose() } },
+      { name: '生成任务', run: stopAllGenerations },
+      { name: '更新器', run: cleanupUpdater },
+      { name: '工作区监听', run: stopWorkspaceWatcher },
+      { name: 'Chat 工具监听', run: stopChatToolsWatcher },
+      { name: 'Bridge 自愈', run: stopBridgeSelfHealing },
+      { name: 'Bridge', run: stopAllBridges },
+      { name: '自动任务调度', run: stopScheduler },
+      { name: '规划提醒调度', run: stopPlanningReminderScheduler },
+      { name: '规划原生同步', run: stopPlanningNativeSyncCoordinator },
+      { name: '系统防睡眠', run: stopSystemSleepBlocker },
+      { name: '全局快捷键', run: unregisterAllGlobalShortcuts },
+      { name: '快速任务窗口', run: destroyQuickTaskWindow },
+      { name: '规划窗口', run: destroyPlanningWindow },
+      { name: '语音听写窗口', run: destroyVoiceDictationWindow },
+      { name: 'Agent 状态窗口', run: destroyAgentStatusHoverWindow },
+      { name: 'macOS 灵动岛原生服务', run: disposeMacAgentIslandNativeHost },
+      { name: 'Agent Island 服务', run: disposeAgentIslandService },
+      { name: 'Pi MCP 连接', run: () => { disposePiMcpConnections().catch(() => {}) } },
+      { name: '系统托盘', run: destroyTray },
+    ])
+  })
 
-app.on('will-quit', () => {
-  // 普通服务完成同步退出清理后，再释放当前 owner token 对应的 normal lease。
-  dataRootInstanceLease?.release()
-  dataRootInstanceLease = null
-})
+  app.on('will-quit', () => {
+    // 普通服务完成同步退出清理后，再释放当前 owner token 对应的 normal lease。
+    dataRootInstanceLease?.release()
+    dataRootInstanceLease = null
+  })
+}

@@ -24,6 +24,15 @@ export const DUTYDECK_SAFE_STORAGE_NAME = '@dutydeck/electron'
 /** 旧版 Proma 的加密服务名，供迁移诊断和人工恢复使用。 */
 export const LEGACY_SAFE_STORAGE_NAME = '@proma/electron'
 
+/** 旧版开发实例的 userData 目录名，helper 读取开发密文时必须复用。 */
+export const LEGACY_DEV_USER_DATA_DIRECTORY_NAME = '@proma/electron-dev'
+
+/** 解析旧版开发实例目录，保持带实例名的 dev 密文仍可被 helper 访问。 */
+export function resolveLegacyDevUserDataDirectoryName(rawInstance?: string): string {
+  const instance = rawInstance?.replace(/[^a-zA-Z0-9_-]/g, '') || undefined
+  return instance ? `@proma/electron-dev-${instance}` : LEGACY_DEV_USER_DATA_DIRECTORY_NAME
+}
+
 /**
  * 解析正式版或开发版应用身份。
  * @param isPackaged 当前是否为正式打包环境。
