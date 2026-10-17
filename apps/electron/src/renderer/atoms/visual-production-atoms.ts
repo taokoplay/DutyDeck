@@ -5,7 +5,7 @@ export interface VisualProductionView {
   productionId: string | null
   episodeId: string | null
   shotId: string | null
-  tab: 'project' | 'assets' | 'shots' | 'relations' | 'delivery' | 'configuration'
+  tab: 'project' | 'assets' | 'shots' | 'relations' | 'editing' | 'delivery' | 'configuration'
 }
 /** 仅保存轻量视图身份，不存媒体或业务正文。 */
 export const visualProductionViewsAtom = atom<Record<string, VisualProductionView>>({})

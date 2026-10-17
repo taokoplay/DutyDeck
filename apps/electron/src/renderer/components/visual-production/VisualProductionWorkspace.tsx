@@ -19,6 +19,7 @@ import { VisualAssetReference } from './VisualAssetReference'
 import { VisualShotDetails } from './VisualShotDetails'
 import { VisualRelationCanvas } from './VisualRelationCanvas'
 import { VisualProductionDelivery } from './VisualProductionDelivery'
+import { VisualEditingWorkspace } from './VisualEditingWorkspace'
 import { visualDeliveryFileName } from './visual-delivery-model'
 import './visual-production.css'
 
@@ -306,7 +307,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
         <X size={12} />
       </Button>
     </div>}
-    {document && <nav className="vp-tabs">{([['project', '项目'], ['assets', '资产'], ['shots', document.kind === 'image' ? '图片' : '分镜'], ['relations', '画布'], ['delivery', '素材导出'], ['configuration', '制作配置']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={view.tab === tab ? 'secondary' : 'ghost'} onClick={() => updateView({ tab })}>{label}</Button>)}</nav>}
+    {document && <nav className="vp-tabs">{([['project', '项目'], ['assets', '资产'], ['shots', document.kind === 'image' ? '图片' : '分镜'], ['relations', '画布'], ['editing', '剪辑成片'], ['delivery', '素材导出'], ['configuration', '制作配置']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={view.tab === tab ? 'secondary' : 'ghost'} onClick={() => updateView({ tab })}>{label}</Button>)}</nav>}
     <main className={`vp-body${view.tab === 'relations' && document ? ' vp-body-relations' : ''}`}>
       {!document ? <div className="vp-empty">
         <Film size={32} />
@@ -403,6 +404,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
               </div>
             </section>}</div>}
         {view.tab === 'relations' && snapshot && <VisualRelationCanvas key={document.id} projectId={projectId} sessionId={sessionId} snapshot={snapshot} active={paneActive} onOpenAsset={openAsset} onOpenShots={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} />}
+        {view.tab === 'editing' && snapshot && <VisualEditingWorkspace key={`editing:${context}:${episodeId ?? ''}`} sessionId={sessionId} productionId={document.id} snapshot={snapshot} episodeId={episodeId ?? null} active={paneActive && view.tab === 'editing'} onEpisodeChange={nextEpisodeId => updateView({ tab: 'editing', episodeId: nextEpisodeId, shotId: null })} />}
         {view.tab === 'delivery' && snapshot && <VisualProductionDelivery key={`delivery:${context}`} sessionId={sessionId} snapshot={snapshot} active={paneActive} onExportManifest={exportManifest} onExportMedia={exportMedia} onOpenAsset={openAsset} onOpenShot={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} onOpenShots={() => updateView({ tab: 'shots' })} />}
       </>}
     </main>
