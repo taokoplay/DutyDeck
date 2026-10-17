@@ -94,7 +94,7 @@ let modalTrigger = null;
 function validCut(cut) {
   return cut && Array.isArray(cut.clips) && cut.clips.length<=30 && typeof cut.captions==='boolean' && Number.isFinite(cut.music) && cut.music>=0 && cut.music<=100 && Number.isFinite(cut.voice) && cut.voice>=0 && cut.voice<=100 && Number.isInteger(cut.revision) && cut.clips.every(clip => {
     const source = SOURCES.find(item=>item.id===clip.sourceId);
-    return source && typeof clip.id==='string' && typeof clip.title==='string' && typeof clip.subtitle==='string' && clip.image===source.image && Number.isFinite(clip.in) && Number.isFinite(clip.out) && clip.in>=0 && clip.out<=source.duration && clip.out-clip.in>=.25 && Number.isFinite(clip.volume) && clip.volume>=0 && clip.volume<=100;
+    return source && typeof clip.id==='string' && /^[a-zA-Z0-9-]{1,80}$/.test(clip.id) && typeof clip.title==='string' && clip.title.length<=100 && typeof clip.subtitle==='string' && clip.subtitle.length<=120 && clip.image===source.image && clip.sourceDuration===source.duration && clip.version===source.version && Number.isFinite(clip.in) && Number.isFinite(clip.out) && clip.in>=0 && clip.out<=source.duration && clip.out-clip.in>=.25 && Number.isFinite(clip.volume) && clip.volume>=0 && clip.volume<=100;
   });
 }
 try {
@@ -161,10 +161,12 @@ function render() {
   $('#voice-volume').textContent=`${cut.voice}%`; $('#music-volume').textContent=`${cut.music}%`;
   $('.captions-toggle').setAttribute('aria-pressed',String(cut.captions));
   if(clip) $('#selection-bar').innerHTML=`<span class="selected-number">${String(cut.clips.indexOf(clip)+1).padStart(2,'0')}</span><div class="selected-copy"><strong>${escapeText(clip.title)}</strong><span>${rounded(clip.out-clip.in)}s · v${clip.version}</span></div><button class="selected-link" data-action="source">${icon('link')}来源</button><button class="button" data-action="clip-settings">${icon('settings')}片段设置</button>`;
+  $('#library-list').innerHTML=EPISODES[episode].sources.map(source=>`<button class="library-card" data-library="${source.id}" aria-label="添加素材：${source.title}"><img src="${source.image}" alt=""><span><strong>${source.title}</strong><small>${source.duration}s · v${source.version}</small></span>${icon('plus')}</button>`).join('');
+  $('.library-count>span').textContent=String(EPISODES[episode].sources.length);
   renderCandidate(); renderTimeline(); paintPlayer();
   document.querySelectorAll('[data-episode]').forEach(button=>button.setAttribute('aria-checked',String(button.dataset.episode===episode)));
   document.querySelectorAll('.change-actions [data-action]').forEach(button=>{
-    const available=candidate && candidate.episode===episode && candidate.baseRevision===cuts[episode].revision;
+    const available=candidate && button.dataset.candidate===candidate.id && candidate.episode===episode && candidate.baseRevision===cuts[episode].revision;
     button.disabled=!available;
   });
 }
@@ -178,7 +180,7 @@ function renderTimeline() {
   $('#timeline-content').style.width=`${timelineWidth}px`;
   $('#timeline-content').style.setProperty('--clip-px',`${timelineWidth/scaleTotal}px`);
   $('#zoom-label').textContent=`${Math.round(zoom*100)}%`;
-  $('#ruler').innerHTML=Array.from({length:Math.floor(scaleTotal/3)+1},(_,index)=>`<span style="left:${index*3/scaleTotal*100}%">${time(index*3)}</span>`).join('');
+  $('#ruler').innerHTML=Array.from({length:Math.floor(scaleTotal/3)+1},(_,index)=>`<span style="left:${index*3/scaleTotal*100}%;${index*3>=scaleTotal?'transform:translateX(-100%)':''}">${time(index*3)}</span>`).join('');
   $('#video-track').innerHTML=cut.clips.length?cut.clips.map((clip,index)=>`<button class="timeline-clip ${clip.id===selectedId?'selected':''}" data-clip="${clip.id}" draggable="${!previewCandidate}" aria-label="${index+1} ${escapeText(clip.title)}，${rounded(clip.out-clip.in)}秒" aria-pressed="${clip.id===selectedId}" style="width:${(clip.out-clip.in)/scaleTotal*100}%"><img src="${clip.image}" alt="" draggable="false"><span class="clip-caption"><strong>${String(index+1).padStart(2,'0')} ${escapeText(clip.title)}</strong><small>${rounded(clip.out-clip.in)}s</small></span></button>`).join(''):'<div class="empty-track-note">从分镜创建剪辑，或添加项目素材</div>';
   $('#voice-track').innerHTML=cut.clips.length?`<button class="audio-block" data-action="voice" style="width:${total/scaleTotal*100}%;opacity:${cut.voice===0?.35:1}" aria-label="设置旁白音量">${wave(2)}<span>品牌主片 · 示例旁白</span></button>`:'';
   $('#music-track').innerHTML=cut.clips.length?`<button class="audio-block" data-action="music" style="width:${total/scaleTotal*100}%;opacity:${cut.music===0?.35:1}" aria-label="设置背景音乐音量">${wave(5)}<span>Soft morning · ${cut.music}%</span></button>`:'';
@@ -310,9 +312,9 @@ function proposeFromPrompt(prompt){
   if(/音乐|配乐/.test(prompt)){changes.push({label:'背景音乐',before:`${draft.music}%`,after:'15%'});draft.music=15;}
   if(/关闭字幕|隐藏字幕/.test(prompt)){changes.push({label:'字幕显示',before:draft.captions?'显示':'隐藏',after:'隐藏'});draft.captions=false;}
   if(!changes.length){addMessage('当前 HTML 演示支持：缩短选中片段到 2 秒、音乐降低到 15%、隐藏字幕。可以点击下方快捷建议体验。');render();return;}
-  candidate={episode,baseRevision:cuts[episode].revision,cut:draft,changes};
+  candidate={id:crypto.randomUUID(),episode,baseRevision:cuts[episode].revision,cut:draft,changes};
   const node=addMessage('整理了一版修改方案。可以先在右侧预览，再决定是否采用。');
-  node.insertAdjacentHTML('beforeend',`<div class="agent-change"><strong>剪辑调整 · ${changes.length} 项修改</strong>${changes.map(change=>`<p class="diff"><span>${escapeText(change.label)}</span><del>${escapeText(change.before)}</del><span>→</span><ins>${escapeText(change.after)}</ins></p>`).join('')}<div class="change-actions"><button class="button" data-action="preview-candidate">预览方案</button><button class="button primary" data-action="apply-candidate">采用修改</button></div></div>`);
+  node.insertAdjacentHTML('beforeend',`<div class="agent-change"><strong>剪辑调整 · ${changes.length} 项修改</strong>${changes.map(change=>`<p class="diff"><span>${escapeText(change.label)}</span><del>${escapeText(change.before)}</del><span>→</span><ins>${escapeText(change.after)}</ins></p>`).join('')}<div class="change-actions"><button class="button" data-action="preview-candidate" data-candidate="${candidate.id}">预览方案</button><button class="button primary" data-action="apply-candidate" data-candidate="${candidate.id}">采用修改</button></div></div>`);
   render();$('#agent-messages').scrollTop=$('#agent-messages').scrollHeight;
 }
 /** 候选提示固定在剪辑顶部，失效原因直接可见。 */
@@ -425,5 +427,4 @@ window.addEventListener('pagehide',()=>{pause();clearInterval(exportTimer);});
 // 尺寸观察只调整轨道几何，避免展开时丢失当前片段或播放位置。
 const resizeObserver=new ResizeObserver(()=>{renderTimeline();paintPlayer();});
 resizeObserver.observe($('#timeline-scroll'));
-$('#library-list').innerHTML=SOURCES.map(source=>`<button class="library-card" data-library="${source.id}" aria-label="添加素材：${source.title}"><img src="${source.image}" alt=""><span><strong>${source.title}</strong><small>${source.duration}s · v${source.version}</small></span>${icon('plus')}</button>`).join('');
 hydrateIcons();render();
