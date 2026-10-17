@@ -39,7 +39,7 @@
     },
     "apps/electron": {
       "name": "@dutydeck/electron",
-      "version": "0.20.0",
+      "version": "0.20.1",
       "dependencies": {
         "@codemirror/autocomplete": "6.20.3",
         "@codemirror/commands": "6.11.0",
