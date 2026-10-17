@@ -1,5 +1,7 @@
 # MEMORY.md
 
+- 2026-10-17（剪辑成片正式设计）：HTML 原型确认作为正式方向，已整理设计文档 `docs/superpowers/specs/2026-10-17-visual-editing-design.md`。剪辑作为影像创作新增页签，按集维护独立时间线，片段引用镜头已采用媒体的固定 hash/版本；镜头新版本只提示替换，不自动改剪辑。Agent 只能提交结构化时间线候选，用户采用后才原子保存；导出成片独立于素材导出，冻结时间线与媒体 hash，编码器缺失不得伪造成功。正式实现前先落共享类型、校验器、主进程存储和 IPC，再接 UI、Agent 候选与真实 MP4 导出。
+
 - 2026-10-17（DutyDeck 独立版本与身份迁移）：首个脱离 Proma/Bone 的正式版本定为 `0.20.0`，发布标签严格使用 `v0.20.0`。包 scope、根包名、Electron appId、CLI 主入口和更新仓库统一切换到 DutyDeck；旧 `proma` CLI、环境变量、locator 与数据根保留兼容回退。启动时新增 Safe Storage 迁移：扫描活动数据根内可解析 JSON，在旧 `@proma/electron` 服务名下解密并以新 `@dutydeck/electron` 服务名原子重加密，完成标记写入 `.dutydeck-safe-storage-migration.json`；系统密钥库不可用时跳过并下次重试。相关发布、版本、应用身份、CLI 路径和迁移测试已通过，待提交 Git。
 
 - 2026-10-17（Windows 画布前置关联失败诊断）：用户反馈 Windows 打开画布仍只显示“打开画布失败”。根因链路在原生 Canvas 挂载前的 Agent-Canvas `linkAgentCanvas`，此前绑定 IPC 丢弃底层诊断，SidePanel/launcher 只显示固定 toast。本轮沿用 Canvas 安全诊断合同新增 `binding` 阶段：主进程复用应用日志记录器生成有界 `WIN32_*`/helper 退出码与日志编号，preload/adapter 保留安全字段，launcher/adapter 显示可复制诊断并支持重试，打开失败自动收起列表抽屉。Windows `ACCESS_DENIED` 回归、相关 renderer/preload/main 测试（90 项）及全仓 typecheck 通过；`bun run electron:build` 在将 Swift 模块缓存改到可写临时目录后通过。未提交 Git，保留同工作区其它影像与发布改动；Nowledge Mem 定向检索服务仍连接拒绝。
