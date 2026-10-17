@@ -1,5 +1,6 @@
 import type { VisualProductionMediaConfiguration, VisualProductionMediaEntry, VisualProductionMediaOption, VisualProductionMediaExecution, VisualProductionMediaSource, VisualProductionMediaKind } from './visual-production-media'
 import type { MediaAssetRef } from './media'
+import type { VisualEditingDocument, VisualEditingExportJob, VisualEditingExportSettings, VisualEditingOperation, VisualEditingTimelineCandidate, VisualEditingTimelineSnapshot } from './visual-editing'
 
 /** 独立影像业务通道，不复用画布或交互设计存储。 */
 export const VISUAL_PRODUCTION_CHANNELS = { INVOKE: 'visual-production:invoke', CHANGED: 'visual-production:changed' } as const
@@ -213,6 +214,24 @@ export interface VisualProductionInputs {
   cancelJob: { sessionId: string; productionId: string; jobId: string }
   failJob: { sessionId: string; productionId: string; jobId: string; message: string }
   exportManifest: { sessionId: string; productionId: string }
+  /** 读取指定集的剪辑时间线和候选，不携带媒体二进制。 */
+  loadTimeline: { sessionId: string; productionId: string; episodeId: string }
+  /** 按当前分镜和采用媒体建立指定集的初始时间线。 */
+  createRoughCut: { sessionId: string; productionId: string; episodeId: string; baseProductionRevision: number }
+  /** 保存时间线正式版本，时间线 revision 必须比 expectedRevision 大一。 */
+  saveTimeline: { sessionId: string; productionId: string; episodeId: string; expectedRevision: number; timeline: VisualEditingDocument }
+  /** 登记 Agent 的时间线候选，宿主不会直接修改正式时间线。 */
+  proposeTimelineEdit: { sessionId: string; productionId: string; episodeId: string; expectedRevision: number; operations: VisualEditingOperation[]; summary: string }
+  /** 采用指定集的时间线候选。 */
+  adoptTimelineEdit: { sessionId: string; productionId: string; episodeId: string; candidateId: string; expectedRevision: number }
+  /** 丢弃指定集的时间线候选。 */
+  discardTimelineEdit: { sessionId: string; productionId: string; episodeId: string; candidateId: string }
+  /** 创建冻结时间线版本的成片导出任务。 */
+  requestExport: { sessionId: string; productionId: string; episodeId: string; expectedTimelineRevision: number; settings: VisualEditingExportSettings }
+  /** 读取指定集的导出任务。 */
+  listExportJobs: { sessionId: string; productionId: string; episodeId: string }
+  /** 取消仍在本机排队或准备中的导出任务。 */
+  cancelExport: { sessionId: string; productionId: string; episodeId: string; exportJobId: string }
 }
 /** 方法到返回值的一一映射。 */
 export interface VisualProductionResults {
@@ -237,6 +256,15 @@ export interface VisualProductionResults {
   cancelJob: VisualProductionSnapshot
   failJob: VisualProductionSnapshot
   exportManifest: { fileName: string; json: string }
+  loadTimeline: VisualEditingTimelineSnapshot
+  createRoughCut: VisualEditingTimelineSnapshot
+  saveTimeline: VisualEditingTimelineSnapshot
+  proposeTimelineEdit: VisualEditingTimelineCandidate
+  adoptTimelineEdit: VisualEditingTimelineSnapshot
+  discardTimelineEdit: VisualEditingTimelineSnapshot
+  requestExport: VisualEditingExportJob
+  listExportJobs: VisualEditingExportJob[]
+  cancelExport: VisualEditingExportJob
 }
 /** 有限 IPC 方法。 */
 export type VisualProductionMethod = keyof VisualProductionInputs

@@ -1,11 +1,12 @@
 import type { VisualProductionMediaConfiguration, VisualProductionMediaEntry, VisualProductionMediaSource, VisualProductionMediaExecution } from './visual-production-media'
 import type { VisualProductionCommand, VisualProductionDraft, VisualProductionInputs, VisualProductionKind, VisualProductionMethod } from './visual-production'
 import type { MediaAssetRef } from './media'
+import { parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperations } from './visual-editing'
 
 /** IPC、文件存储和 Agent 共用的硬预算。 */
 export const VISUAL_PRODUCTION_LIMITS = { projects: 100, episodes: 100, assets: 200, shots: 300, candidates: 32, jobs: 100, media: 500, totalChars: 262144, metadataBytes: 8388608, mediaBytes: 33554432 } as const
 /** 不改变正式数据、任务或媒体的命令。 */
-export const VISUAL_PRODUCTION_READ_METHODS: readonly VisualProductionMethod[] = ['list', 'load', 'mediaContent', 'exportManifest', 'mediaCatalog', 'resolveMediaWorkflow']
+export const VISUAL_PRODUCTION_READ_METHODS: readonly VisualProductionMethod[] = ['list', 'load', 'mediaContent', 'exportManifest', 'mediaCatalog', 'resolveMediaWorkflow', 'loadTimeline', 'listExportJobs']
 /** 固定业务资产分类。 */
 export const VISUAL_ASSET_TYPES = ['角色', '场景', '产品', '道具', '风格', '品牌', '声音'] as const
 /** 支持的预览比例，禁止任意 CSS 值。 */
@@ -32,6 +33,8 @@ export function assertVisualProductionId(value: unknown): asserts value is strin
 function id(value: unknown): string { assertVisualProductionId(value); return value }
 /** 正式版本必须为正安全整数。 */
 function revision(value: unknown): number { if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) return invalid('版本无效'); return value }
+/** 新建时间线或导出任务允许使用零表示尚未有正式版本。 */
+function expectedRevision(value: unknown, field: string): number { if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) return invalid(field); return value }
 /** 只接受显式布尔值。 */
 function boolean(value: unknown): boolean { if (typeof value !== 'boolean') return invalid('锁定状态无效'); return value }
 /** 数组预算在 map/复制前检查。 */
@@ -181,7 +184,7 @@ export function parseVisualProductionMediaExecution(value: unknown): VisualProdu
 const METHOD_FIELDS: Record<VisualProductionMethod, readonly string[]> = {
   resolveMediaWorkflow: ['source', 'kind'], mediaCatalog: [], saveMediaConfiguration: ['expectedRevision', 'entries', 'defaults'], recordMediaExecution: ['baseRevision', 'jobId', 'runId', 'engine'],
   referenceMedia: ['baseRevision', 'jobId', 'mediaId'], proposeShot: ['baseRevision', 'jobId', 'shotId', 'mediaId', 'summary'], updateJob: ['baseRevision', 'jobId', 'stage'],
-  list: [], create: ['title', 'kind'], load: [], save: ['baseRevision', 'draft'], importFile: ['relativePath'], importMedia: ['reference'], mediaContent: ['mediaId'], beginJob: ['baseRevision', 'instruction', 'shotId'], propose: ['baseRevision', 'jobId', 'draft', 'summary'], adopt: ['baseRevision', 'candidateId'], discardCandidate: ['candidateId'], cancelJob: ['jobId'], failJob: ['jobId', 'message'], exportManifest: [],
+  list: [], create: ['title', 'kind'], load: [], save: ['baseRevision', 'draft'], importFile: ['relativePath'], importMedia: ['reference'], mediaContent: ['mediaId'], beginJob: ['baseRevision', 'instruction', 'shotId'], propose: ['baseRevision', 'jobId', 'draft', 'summary'], adopt: ['baseRevision', 'candidateId'], discardCandidate: ['candidateId'], cancelJob: ['jobId'], failJob: ['jobId', 'message'], exportManifest: [], loadTimeline: ['episodeId'], createRoughCut: ['episodeId', 'baseProductionRevision'], saveTimeline: ['episodeId', 'expectedRevision', 'timeline'], proposeTimelineEdit: ['episodeId', 'expectedRevision', 'operations', 'summary'], adoptTimelineEdit: ['episodeId', 'candidateId', 'expectedRevision'], discardTimelineEdit: ['episodeId', 'candidateId'], requestExport: ['episodeId', 'expectedTimelineRevision', 'settings'], listExportJobs: ['episodeId'], cancelExport: ['episodeId', 'exportJobId'],
 }
 
 /** 解析 UI/Agent 公用信封；返回 method/input 关联的判别联合。 */
@@ -197,7 +200,7 @@ export function parseVisualProductionCommand(value: unknown): VisualProductionCo
   if (method === 'create') return result(method, { sessionId, title: string(input.title, '作品名称', 120), kind: kind(input.kind) })
   const base = { sessionId, productionId: id(input.productionId) }
   switch (method) {
-    case 'load': case 'exportManifest': case 'mediaCatalog': return result(method, base)
+    case 'load': case 'exportManifest': case 'mediaCatalog': case 'loadTimeline': case 'listExportJobs': return result(method, method === 'load' || method === 'exportManifest' || method === 'mediaCatalog' ? base : { ...base, episodeId: id(input.episodeId) })
     case 'resolveMediaWorkflow': {
       const source = mediaSource(input.source)
       if (source.type !== 'workflow' || !['image', 'video', 'audio'].includes(String(input.kind))) return invalid('工作流来源或输出类别')
@@ -228,5 +231,12 @@ export function parseVisualProductionCommand(value: unknown): VisualProductionCo
     case 'discardCandidate': return result(method, { ...base, candidateId: id(input.candidateId) })
     case 'cancelJob': return result(method, { ...base, jobId: id(input.jobId) })
     case 'failJob': return result(method, { ...base, jobId: id(input.jobId), message: string(input.message, '失败说明', 2000) })
+    case 'createRoughCut': return result(method, { ...base, episodeId: id(input.episodeId), baseProductionRevision: revision(input.baseProductionRevision) })
+    case 'saveTimeline': return result(method, { ...base, episodeId: id(input.episodeId), expectedRevision: expectedRevision(input.expectedRevision, '时间线版本'), timeline: parseVisualEditingDocument(input.timeline) })
+    case 'proposeTimelineEdit': return result(method, { ...base, episodeId: id(input.episodeId), expectedRevision: expectedRevision(input.expectedRevision, '时间线版本'), operations: parseVisualEditingOperations(input.operations), summary: string(input.summary, '时间线候选说明', 2000) })
+    case 'adoptTimelineEdit': return result(method, { ...base, episodeId: id(input.episodeId), candidateId: id(input.candidateId), expectedRevision: expectedRevision(input.expectedRevision, '时间线版本') })
+    case 'discardTimelineEdit': return result(method, { ...base, episodeId: id(input.episodeId), candidateId: id(input.candidateId) })
+    case 'requestExport': return result(method, { ...base, episodeId: id(input.episodeId), expectedTimelineRevision: expectedRevision(input.expectedTimelineRevision, '导出时间线版本'), settings: parseVisualEditingExportSettings(input.settings) })
+    case 'cancelExport': return result(method, { ...base, episodeId: id(input.episodeId), exportJobId: id(input.exportJobId) })
   }
 }

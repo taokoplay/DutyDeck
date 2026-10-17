@@ -8,6 +8,7 @@ import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
 import { interactionDirectory, interactionSourcePath, readInteractionFile } from '../interaction-design/paths'
 import { interactionImageMime } from '../interaction-design/asset-service'
+import { VisualEditingStore } from './editing-store'
 
 /** 宿主注入的可信项目边界；媒体与来源读取均需独立复核。 */
 export interface VisualProductionServiceDependencies {
@@ -48,7 +49,12 @@ function mediaFormat(bytes: Buffer): { mime: string; kind: VisualMedia['kind'] }
 }
 /** 每个作品一个原子快照，避免候选采纳与正式版本出现半提交。 */
 export class VisualProductionService {
-  constructor(private readonly dependencies: VisualProductionServiceDependencies) {}
+  private readonly editing: VisualEditingStore
+
+  constructor(private readonly dependencies: VisualProductionServiceDependencies) {
+    /** 剪辑文件与作品快照共用当前工作区和调用者存活校验。 */
+    this.editing = new VisualEditingStore({ projectRoot: dependencies.projectRoot, assertCurrent: dependencies.assertCurrent })
+  }
   /** 固定受管目录；所有层级禁止软链接。 */
   private directory(id?: string, create = false): string {
     return interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', ...(id ? [id] : [])], create)
@@ -232,6 +238,13 @@ export class VisualProductionService {
     if ('baseRevision' in input && input.baseRevision !== snapshot.document.revision) throw new Error('VISUAL_PRODUCTION_CONFLICT: 正式版本已变化')
     switch (command.method) {
       case 'load': return snapshot
+      case 'loadTimeline': return this.editing.load(snapshot, command.input.episodeId)
+      case 'createRoughCut': {
+        if (command.input.baseProductionRevision !== snapshot.document.revision) throw new Error('VISUAL_PRODUCTION_CONFLICT: 作品版本已变化')
+        return this.editing.createRoughCut(snapshot, command.input.episodeId)
+      }
+      case 'saveTimeline': return this.editing.save(snapshot, command.input.episodeId, command.input.expectedRevision, command.input.timeline)
+      case 'proposeTimelineEdit': case 'adoptTimelineEdit': case 'discardTimelineEdit': case 'requestExport': case 'listExportJobs': case 'cancelExport': throw new Error('VISUAL_EDITING_UNAVAILABLE: 时间线候选与成片导出尚未接入')
       case 'mediaCatalog': return this.mediaCatalog(snapshot)
       case 'resolveMediaWorkflow': return this.resolveWorkflow(command.input.source, command.input.kind)
       case 'saveMediaConfiguration': {
