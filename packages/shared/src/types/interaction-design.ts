@@ -50,6 +50,12 @@ export interface PrototypePage {
   states?: PrototypePageState[]
   /** 可选的原项目来源记录。 */
   source?: PrototypeSource
+  /** 页面独立版本号；旧文档缺省时按历史内容推导。 */
+  pageRevision?: number
+  /** 可选业务路由，用于 Agent 判断是否应复用页面。 */
+  route?: string
+  /** 可选业务职责，用于区分同名页面。 */
+  role?: string
 }
 
 /** 元素点击后在原型内部导航，不改变顶层窗口。 */
@@ -142,12 +148,56 @@ export interface PrototypeCandidateSummary {
   adoptedRevision?: number
   /** 相对固定基线实际受影响的页面身份；旧摘要可按需计算。 */
   affectedPageIds?: string[]
+  /** 单页候选的目标页，供页面级采纳和对比校验。 */
+  pageId?: string
 }
 
 /** 完整候选正文仅在预览/采纳时读取。 */
 export interface PrototypeCandidate extends PrototypeCandidateSummary {
   /** 候选完整内容。 */
   draft: PrototypeDraft
+}
+
+/** 页面历史版本摘要；全局 revision 只作为可追溯的提交序号。 */
+export interface PrototypePageVersionSummary {
+  /** 页面稳定身份。 */
+  pageId: string
+  /** 页面独立递增版本号。 */
+  pageRevision: number
+  /** 生成该页面版本的全局提交序号。 */
+  globalRevision: number
+  /** 当前提交说明。 */
+  summary: string
+  /** 保存时间。 */
+  createdAt: number
+  /** 页面正文与状态内容身份。 */
+  contentHash: string
+}
+
+/** 页面对比引用；必须恰好提供一个历史版本或候选身份。 */
+export interface PrototypePageComparisonRef {
+  /** 固定历史全局版本。 */
+  revision?: number
+  /** 候选身份。 */
+  candidateId?: string
+}
+
+/** 页面对比结果，正文仅包含目标页，不泄漏其他页面 HTML。 */
+export interface PrototypePageComparison {
+  /** 原型与页面身份。 */
+  prototypeId: string
+  pageId: string
+  /** 左右两侧的版本元信息和目标页正文。 */
+  left: { kind: 'version' | 'candidate'; id: string; globalRevision: number; pageRevision: number; name: string; html: string; states?: PrototypePageState[] }
+  right: { kind: 'version' | 'candidate'; id: string; globalRevision: number; pageRevision: number; name: string; html: string; states?: PrototypePageState[] }
+  /** 默认 HTML 的结构化差异。 */
+  defaultHtml: { changed: boolean; before: string; after: string; addedLines: string[]; removedLines: string[] }
+  /** 附加状态增删改。 */
+  states: { added: string[]; removed: string[]; changed: string[] }
+  /** 页面正文中引用的本地素材增删。 */
+  assets: { added: string[]; removed: string[] }
+  /** 从目标页发出的流程连接增删。 */
+  flows: { added: string[]; removed: string[] }
 }
 
 /** Agent 生成任务的边界模式；项目还原必须按完整页面规划提交。 */
@@ -406,6 +456,7 @@ export interface InteractionDesignInputs {
   load: { sessionId: string; prototypeId: string }
   save: { sessionId: string; prototypeId: string; baseRevision: number; draft: PrototypeDraft; summary: string }
   getVersion: { sessionId: string; prototypeId: string; revision: number }
+  getPageVersions: { sessionId: string; prototypeId: string; pageId: string }
   restore: { sessionId: string; prototypeId: string; baseRevision: number; revision: number }
   deleteVersion: { sessionId: string; prototypeId: string; baseRevision: number; revision: number }
   propose: { sessionId: string; prototypeId: string; baseRevision: number; draft: PrototypeDraft; summary: string; jobId?: string }
@@ -415,6 +466,10 @@ export interface InteractionDesignInputs {
   deleteHistory: { sessionId: string; prototypeId: string; baseRevision: number; kind: 'candidate' | 'job'; recordId: string }
   getCandidate: { sessionId: string; prototypeId: string; candidateId: string }
   adopt: { sessionId: string; prototypeId: string; candidateId: string; baseRevision: number }
+  /** Agent 或 UI 对单页候选执行页面级 CAS 采纳。 */
+  adoptPage: { sessionId: string; prototypeId: string; candidateId: string; pageId: string; baseRevision: number; basePageRevision: number }
+  /** 比较两个历史版本或候选的同一页面。 */
+  comparePage: { sessionId: string; prototypeId: string; pageId: string; left: PrototypePageComparisonRef; right: PrototypePageComparisonRef }
   discardCandidate: { sessionId: string; prototypeId: string; candidateId: string }
   beginJob: { sessionId: string; prototypeId: string; baseRevision: number; instruction: string; pageId?: string; elementId?: string; mode?: PrototypeJobMode; pageManifest?: PrototypePageManifestItem[]; plan?: PrototypePlan }
   cancelJob: { sessionId: string; prototypeId: string; jobId: string }
@@ -438,6 +493,7 @@ export interface InteractionDesignResults {
   load: PrototypeSnapshot
   save: PrototypeSnapshot
   getVersion: PrototypeDocument
+  getPageVersions: PrototypePageVersionSummary[]
   restore: PrototypeSnapshot
   deleteVersion: PrototypeSnapshot
   propose: PrototypeCandidateSummary
@@ -445,6 +501,8 @@ export interface InteractionDesignResults {
   deleteHistory: PrototypeSnapshot
   getCandidate: PrototypeCandidate
   adopt: PrototypeSnapshot
+  adoptPage: PrototypeSnapshot
+  comparePage: PrototypePageComparison
   discardCandidate: PrototypeSnapshot
   beginJob: PrototypeJob
   cancelJob: PrototypeSnapshot

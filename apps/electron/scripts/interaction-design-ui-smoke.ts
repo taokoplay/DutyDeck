@@ -26,7 +26,7 @@ async function waitFor(window: BrowserWindow, expression: string, message: strin
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return
     await new Promise<void>((resolve) => setTimeout(resolve, 40))
   }
-  const evidence = await window.webContents.executeJavaScript(`({ text: document.body.innerText.slice(0, 1800), html: document.body.innerHTML.slice(0, 1200), calls: window.__interactionSmoke?.state?.calls?.slice(-8) })`)
+  const evidence = await window.webContents.executeJavaScript(`({ text: document.body.innerText.slice(0, 1800), html: document.body.innerHTML.slice(0, 1200), devices: [...document.querySelectorAll('[data-device]')].map(node => ({ className: node.className, device: node.getAttribute('data-device'), width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })), calls: window.__interactionSmoke?.state?.calls?.slice(-8) })`)
   console.error(`[Interaction Design UI smoke] 等待失败：${message}`, evidence)
   throw new Error(message)
 }
@@ -120,6 +120,20 @@ async function clickSelector(window: BrowserWindow, selector: string): Promise<v
   await waitFor(window, expression, `缺少可见节点 ${selector}`)
   await settleUi(window)
   const point = await window.webContents.executeJavaScript(`(async () => {const node=${expression};node.scrollIntoView({block:'nearest'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const rect=node.getBoundingClientRect();return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}})()`)
+  await clickPoint(window, point)
+}
+
+/** 点击包含指定文字的原型菜单项，覆盖 Radix 不暴露 RadioItem value 属性的实现。
+ * @param window 当前 Electron smoke 窗口。
+ * @param name 要选择的原型名称。
+ * @returns 点击完成后的异步结果。
+ */
+async function clickPrototypeOption(window: BrowserWindow, name: string): Promise<void> {
+  const expression = `[...document.querySelectorAll('[role="menuitemradio"]')].find(node=>node.textContent?.includes(${JSON.stringify(name)})&&node.getBoundingClientRect().width>0)`
+  await waitFor(window, expression, `缺少可见原型菜单项 ${name}`)
+  await settleUi(window)
+  const point = await window.webContents.executeJavaScript(`(async () => {const node=${expression};node.scrollIntoView({block:'nearest'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const rect=node.getBoundingClientRect();return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}})()`)
+  assert.ok(point, `无法点击原型菜单项：${name}`)
   await clickPoint(window, point)
 }
 /**
@@ -383,6 +397,8 @@ async function verifyPreviewUsability(window: BrowserWindow): Promise<void> {
   await window.webContents.executeJavaScript(`(async()=>{for(let i=0;i<35;i++){document.querySelector('.id-cached-page[data-active="true"] [aria-label="缩小预览"]').click();await new Promise(requestAnimationFrame)}})()`)
   assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-cached-page[data-active="true"] [aria-label="缩小预览"]').disabled && Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-39)<1`), true, '最小缩放未限制在10%或尺寸不正确')
   await clickSelector(window, '[aria-label="桌面预览"]')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-iphone-shell').length`), 0, '桌面预览错误保留 iPhone 机身')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-device-frame').length`), 1, '桌面预览缺少普通画板')
   await clickSelector(window, '[aria-label="原始尺寸预览"]')
   await waitFor(window, `Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-1280)<1 && document.querySelector('.id-cached-page[data-active="true"] .id-preview-space').scrollWidth > document.querySelector('.id-cached-page[data-active="true"] .id-preview-space').clientWidth`, '放大的桌面预览无法横向滚动')
   await clickSelector(window, '[aria-label="手机预览"]')
@@ -497,6 +513,12 @@ async function verifyHistoryRecords(window: BrowserWindow): Promise<void> {
   assert.equal(await window.webContents.executeJavaScript(`window.__interactionSmoke.state.calls.filter(call=>call.startsWith('getCandidate:')).length`), 0, '仅查看目录或历史不应读取候选正文')
   await waitFor(window, `document.querySelector('[data-history-key="candidate:candidate-a"] [data-history-status="pending"]')`, '候选未显示未采纳状态')
   assert.equal(await window.webContents.executeJavaScript(`Boolean(document.querySelector('[data-history-key="version:1"] [data-history-status="adopted"]'))`), true, '正式版本没有已采纳状态')
+  await click(window, '对比')
+  await waitFor(window, `document.querySelector('.id-compare-dialog[data-state="open"]') && document.querySelector('.id-compare-dialog')?.textContent.includes('页面版本对比')`, '历史记录缺少页面对比弹窗')
+  assert.equal(await window.webContents.executeJavaScript(`window.__interactionSmoke.state.calls.some(call=>call.startsWith('comparePage:'))`), true, '页面对比没有调用只读领域命令')
+  await clickSelector(window, '.id-compare-dialog button')
+  await waitFor(window, `!document.querySelector('.id-compare-dialog')`, '页面对比弹窗未关闭')
+  await openHistory(window)
   await click(window, '预览')
   await waitFor(window, `!document.querySelector('.id-history-dialog')`, '预览候选后历史未关闭')
   await waitForPreviewText(window, '开始你的第一天')
@@ -583,6 +605,10 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
     console.log('[Interaction Design UI smoke] 初始页面载入')
     await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] iframe') && document.body.textContent.includes('已保存 v1')`, '工作区未就绪')
     await waitForPreviewText(window, '拾光')
+    await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] .id-iphone-shell[data-device="iphone"]')`, '移动预览缺少 iPhone 机身')
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-dynamic-island').length`), 1, 'iPhone 缺少 Dynamic Island')
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-home-indicator').length`), 1, 'iPhone 缺少 Home Indicator')
+    assert.equal(await window.webContents.executeJavaScript(`(() => { const shell=document.querySelector('.id-cached-page[data-active="true"] .id-iphone-shell'); const frame=shell?.querySelector('.id-device-frame'); return Boolean(shell && frame && shell.getBoundingClientRect().width > frame.getBoundingClientRect().width && shell.getBoundingClientRect().height > frame.getBoundingClientRect().height) })()`), true, 'iPhone 机身没有包住 390×844 设计视口')
     console.log('[Interaction Design UI smoke] 初始 iframe 就绪')
     window.show(); window.focus()
     /** 每个子进程只运行一个有界场景，避免跨项目 OOPIF 重载等待污染后续验证。 */
@@ -650,17 +676,22 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
       assert.equal(await window.webContents.executeJavaScript(`window.__frame===document.querySelector('.id-cached-page[data-active="true"] iframe')`), true)
     }
     console.log('[Interaction Design UI smoke] 三档目录回归通过')
-    /** 项目级变更事件仍需刷新唯一模块目录，不再提供原型切换入口。 */
+    /** 项目级变更事件刷新原型记录目录，并允许从选择器进入新候选。 */
     await window.webContents.executeJavaScript(`window.__interactionSmoke.change('workspace-a', 'proto-remote')`)
     assert.equal(await window.webContents.executeJavaScript(`window.__interactionSmoke.state.calls.filter(call => call === 'list:session-a').length > 1`), true, '其他原型事件未触发目录读取')
+    await waitFor(window, `document.querySelector('.id-prototype-selector')?.textContent.includes('拾光测试')`, '原型选择器未显示当前原型')
+    await clickSelector(window, '.id-prototype-selector')
+    await waitFor(window, `document.querySelector('[role="menu"]')?.textContent.includes('缓存与空间')`, '原型选择器未显示新原型')
+    await clickPrototypeOption(window, '缓存与空间')
+    await waitFor(window, `document.querySelector('.id-prototype-selector')?.textContent.includes('缓存与空间') && document.querySelector('.id-title p')?.textContent.includes('已保存 v1')`, '选择新原型后未加载目标内容')
     await previewHistoryCandidate(window); await waitFor(window, `!document.querySelector('.id-history') && document.querySelector('.id-title p')?.textContent.includes('候选预览')`, '候选预览未打开')
     assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-title p')?.textContent === '候选预览 · 2 个页面 · 基于 v1'`), true, '候选预览仍显示正式版本页数')
     await click(window, '页面'); await waitFor(window, `document.querySelectorAll('.id-page').length===2`, '候选预览缺少页面列表入口'); await escape(window)
-    await waitForPreviewText(window, '开始你的第一天')
+    await waitForPreviewText(window, '缓存页')
     await returnFromHistory(window)
     /** 无原型项目的新建页面表单不应被外部变更事件误判为旧版本冲突。 */
     await window.webContents.executeJavaScript(`window.__interactionSmoke.switchEmpty()`)
-    await waitFor(window, `!document.querySelector('select[aria-label="选择原型"]') && document.body.textContent.includes('从需求或现有项目开始')`, '无原型项目未就绪')
+    await waitFor(window, `!document.querySelector('.id-prototype-selector') && document.body.textContent.includes('从需求或现有项目开始')`, '无原型项目未就绪')
     await click(window, '页面'); await waitFor(window, `document.querySelector('.id-directory')`, '无原型项目目录未展开')
     await waitFor(window, `document.body.textContent.includes('当前项目还没有交互设计模块')`, '无页面目录内容未就绪')
     await clickSelector(window, '.id-directory-header-actions [aria-label="新建页面"]'); await waitFor(window, `document.querySelector('[role="dialog"]')`, '新建页面表单未打开')

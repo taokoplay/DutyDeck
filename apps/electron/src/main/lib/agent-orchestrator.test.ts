@@ -62,6 +62,15 @@ describe('Agent 工作区迁移准入', () => {
 })
 
 describe('Agent sendMessage 准入顺序合同', () => {
+  test('Given 交互设计候选 When 构建运行提示 Then Agent 可按页面或完整原型自动采纳并遵守CAS', () => {
+    const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
+    expect(source).toContain('prototype_adopt_page')
+    expect(source).toContain('prototype_adopt')
+    expect(source).toContain('新增页面、跨页、目录或流程变更用 prototype_adopt')
+    expect(source).toContain('CAS 冲突时重新读取，不覆盖人工修改')
+    expect(source).not.toContain('由用户在工作区采纳')
+  })
+
   test('Given 知识库已进入两步流程 When Agent注册与授权工具 Then 记忆保持独立且知识写入继续受计划模式守卫', () => {
     const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
     expect(source).not.toContain("tool.name !== 'proma_memory_record'")

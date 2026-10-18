@@ -123,6 +123,9 @@ test('Given 历史清理与影响查询 When 计划模式经 IPC 调用 Then 只
   dependencies.acquireWriteLease = () => { acquired += 1; return () => {} }
   state.writable = false
   expect(await handler!({ sender: { id: 1 } }, { method: 'getCandidateImpact', input: { ...base, candidateId: candidate.id } })).toEqual({ pageIds: [] })
+  expect(await handler!({ sender: { id: 1 } }, { method: 'getPageVersions', input: { ...base, pageId: first.document.entryPageId } })).toHaveLength(1)
+  const comparison = await handler!({ sender: { id: 1 } }, { method: 'comparePage', input: { ...base, pageId: first.document.entryPageId, left: { revision: 1 }, right: { candidateId: candidate.id } } })
+  expect(comparison).toMatchObject({ prototypeId: first.document.id, pageId: first.document.entryPageId })
   await expect(handler!({ sender: { id: 1 } }, { method: 'deleteHistory', input: { ...base, baseRevision: 1, kind: 'candidate', recordId: candidate.id } })).rejects.toThrow('计划模式')
   expect(acquired).toBe(0)
   state.writable = true

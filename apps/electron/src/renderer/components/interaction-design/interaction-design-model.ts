@@ -45,6 +45,15 @@ export class PrototypeRequestGate {
   accepts(ticket: number): boolean { return ticket === this.generation }
 }
 
+/** 判断原型切换是否会打断当前编辑或写入；表单和流程草稿由调用方统一传入。
+ * @param busy 是否有写入或异步操作正在进行。
+ * @param hasEditor 是否存在表单或流程草稿。
+ * @returns 当前是否允许切换到另一个原型。
+ */
+export function canSwitchPrototype(busy: boolean, hasEditor: boolean): boolean {
+  return !busy && !hasEditor
+}
+
 /** 页面目录移动只改变顺序和分组，不改变交互路由。 */
 export function movePrototypePage(draft: PrototypeDraft, pageId: string, groupId: string, beforePageId?: string): PrototypeDraft {
   const next = copyPrototypeDraft(draft)

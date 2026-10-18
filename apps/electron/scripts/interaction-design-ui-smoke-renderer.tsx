@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { createStore, Provider } from 'jotai'
-import type { InteractionDesignApi, InteractionDesignChanged, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeAsset, PrototypeCandidate, PrototypeDocument, PrototypeHandoff, PrototypeSnapshot } from '@dutydeck/shared'
+import type { InteractionDesignApi, InteractionDesignChanged, InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeAsset, PrototypeCandidate, PrototypeDocument, PrototypeHandoff, PrototypePageComparison, PrototypeSnapshot } from '@dutydeck/shared'
 import { agentPendingPromptAtom } from '../src/renderer/atoms/agent-atoms'
 import { TooltipProvider } from '../src/renderer/components/ui/tooltip'
 import '../src/renderer/styles/globals.css'
@@ -139,6 +139,23 @@ const api: InteractionDesignApi = {
         state.snapshot.candidates = state.snapshot.candidates.map(item => item.id === selected.id ? { ...item, status: 'adopted', adoptedRevision: state.snapshot.document.revision } : item)
         state.snapshot.versions.push({ revision: state.snapshot.document.revision, summary: '采纳候选', createdAt: 4 })
         result = structuredClone(state.snapshot)
+        break
+      }
+      case 'comparePage': {
+        /** 历史对比 fixture 只返回目标页，验证 UI 不会回传邻页正文。 */
+        const request = input as InteractionDesignInputs['comparePage']
+        const selectedPage = current.document.pages.find(page => page.id === request.pageId) ?? current.document.pages[0]!
+        const selectedCandidate = current.candidates.find(item => item.id === request.right.candidateId) ?? candidate
+        const candidatePage = selectedCandidate.draft.pages.find(page => page.id === request.pageId) ?? selectedPage
+        const comparison: PrototypePageComparison = {
+          prototypeId: current.document.id,
+          pageId: selectedPage.id,
+          left: { kind: 'version', id: String(request.left.revision ?? current.document.revision), globalRevision: request.left.revision ?? current.document.revision, pageRevision: selectedPage.pageRevision ?? 1, name: selectedPage.name, html: selectedPage.html },
+          right: { kind: 'candidate', id: selectedCandidate.id, globalRevision: selectedCandidate.baseRevision, pageRevision: candidatePage.pageRevision ?? 1, name: candidatePage.name, html: candidatePage.html },
+          defaultHtml: { changed: selectedPage.html !== candidatePage.html, before: selectedPage.html, after: candidatePage.html, addedLines: candidatePage.html === selectedPage.html ? [] : [candidatePage.html], removedLines: candidatePage.html === selectedPage.html ? [] : [selectedPage.html] },
+          states: { added: [], removed: [], changed: [] }, assets: { added: [], removed: [] }, flows: { added: [], removed: [] },
+        }
+        result = comparison
         break
       }
       case 'restore': state.snapshot.document = { ...structuredClone(initial), revision: 1 }; result = structuredClone(state.snapshot); break

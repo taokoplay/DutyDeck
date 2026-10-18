@@ -1,16 +1,16 @@
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { ChevronDown, ChevronRight, ClipboardCheck, Download, Expand, Folder, FolderPlus, History, ListTree, Monitor, MoreHorizontal, MousePointer2, PanelLeftClose, Play, Plus, RefreshCw, Route, Search, Smartphone, Workflow, X } from 'lucide-react'
-import type { PrototypeCandidate, PrototypeDraft, PrototypeFlow, PrototypeSnapshot, PrototypeSummary } from '@dutydeck/shared'
+import type { PrototypeCandidate, PrototypeDraft, PrototypeFlow, PrototypePageComparison, PrototypeSnapshot, PrototypeSummary } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { agentPendingPromptAtom } from '@/atoms/agent-atoms'
 import { interactionDesignViewsAtom } from '@/atoms/interaction-design-atoms'
-import { buildPrototypeGroupTree, buildPrototypeHandoffPrompt, buildPrototypePrompt, copyPrototypeDraft, deletePrototypeGroup, deletePrototypePage, movePrototypePage, PrototypeRequestGate, type PrototypeGroupTreeNode } from './interaction-design-model'
+import { buildPrototypeGroupTree, buildPrototypeHandoffPrompt, buildPrototypePrompt, canSwitchPrototype, copyPrototypeDraft, deletePrototypeGroup, deletePrototypePage, movePrototypePage, PrototypeRequestGate, type PrototypeGroupTreeNode } from './interaction-design-model'
 import { InteractionDesignPreviewCache } from './InteractionDesignPreviewCache'
 import { InteractionDesignHistory } from './InteractionDesignHistory'
 import { collectPendingPrototypePages, type PrototypeHistoryEntry } from './interaction-design-history'
@@ -49,11 +49,15 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   /** 工作区汇总展示当前操作或资源失败。 */
   const feedbackError = error ?? assetError
   const [notice, setNotice] = React.useState<string | null>(null)
+  /** 外部生成的新原型可直接从提示跳转，普通提示不携带目标。 */
+  const [noticePrototypeId, setNoticePrototypeId] = React.useState<string | null>(null)
   const [directory, setDirectory] = React.useState(false)
   const [search, setSearch] = React.useState('')
   const [mode, setMode] = React.useState<'play' | 'select'>('play')
   /** 选区必须带状态身份，避免空态的同名元素误改有数据状态。 */
   const [selectedElement, setSelectedElement] = React.useState<{ elementId: string; stateId?: string } | null>(null)
+  /** 当前页面与历史版本/候选的结构化对比结果。 */
+  const [comparison, setComparison] = React.useState<PrototypePageComparison | null>(null)
   const [focus, setFocus] = React.useState(false)
   const [reset, setReset] = React.useState(0)
   const [visited, setVisited] = React.useState<string[]>([])
@@ -80,6 +84,18 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   if (currentContext.current !== context) { currentContext.current = context; ticket.current = gate.current.next() }
   const latest = React.useRef({ form, flowDraft, deletion, historyDeletion, busy, snapshot, paneActive })
   latest.current = { form, flowDraft, deletion, historyDeletion, busy, snapshot, paneActive }
+
+  /** 统一写入提示及其可选的原型跳转目标，避免提示动作引用过期身份。
+   * @param message 要展示给用户的提示文本。
+   * @param prototypeId 提示动作要跳转的原型身份；普通提示传 null。
+   * @returns 无返回值。
+   */
+  function showNotice(message: string, prototypeId: string | null = null): void {
+    setNotice(message)
+    setNoticePrototypeId(prototypeId)
+  }
+  /** 按最后更新时间展示原型记录，新生成的候选原型优先出现在选择器顶部。 */
+  const prototypeOptions = React.useMemo(() => [...summaries].sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name) || left.id.localeCompare(right.id)), [summaries])
   const document = snapshot?.document
   const draft = candidate?.draft ?? document
   /** 红点代表仍可处理的候选，过期未采纳也需提醒。 */
@@ -161,7 +177,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
     }
   }, [projectId, sessionId])
 
-  React.useEffect(() => { setSnapshot(null); setCandidate(null); setForm(null); setPanel(null); setFlowDraft(null); setDeletion(null); setHistoryDeletion(null); setImpactError(null); setAssetError(null); setBusy(false); setSelectedElement(null); setNotice(null); void load() }, [load])
+  React.useEffect(() => { setSnapshot(null); setCandidate(null); setComparison(null); setForm(null); setPanel(null); setFlowDraft(null); setDeletion(null); setHistoryDeletion(null); setImpactError(null); setAssetError(null); setBusy(false); setSelectedElement(null); setNotice(null); setNoticePrototypeId(null); void load() }, [load])
 
   React.useEffect(() => window.electronAPI.interactionDesign.onChanged(event => {
     if (event.workspaceId !== projectId) return
@@ -183,13 +199,35 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
       const canSwitch = !latest.current.form && !latest.current.flowDraft && !latest.current.busy
       const externalSummary = event.prototypeId ? items.find(item => item.id === event.prototypeId) : undefined
       /** 当前页面保持不动时给出切换提示，避免新原型只悄悄出现在下拉菜单。 */
-      if (externalSummary && currentStillExists) setNotice(`已生成原型“${externalSummary.name}”，可从顶部切换查看候选。`)
+      if (externalSummary && currentStillExists) showNotice(`已生成原型“${externalSummary.name}”，可切换查看候选。`, externalSummary.id)
       if (!currentStillExists && canSwitch) {
         const preferred = event.prototypeId && items.some(item => item.id === event.prototypeId) ? event.prototypeId : items[0]?.id
         updateView({ prototypeId: preferred ?? null, pageId: null })
       }
     }).catch(cause => { if (listGate.current.accepts(request)) setError(String(cause)) })
   }), [projectId, sessionId, view.prototypeId, load, updateView])
+
+  /** 用户主动切换原型；表单、流程草稿和写入中的请求必须先结束。
+   * @param prototypeId 要加载的目标原型身份。
+   * @returns 无返回值。
+   */
+  function switchPrototype(prototypeId: string): void {
+    if (prototypeId === view.prototypeId) return
+    if (!summaries.some(item => item.id === prototypeId)) {
+      showNotice('目标原型已不存在，请重新打开页面列表。')
+      return
+    }
+    if (!canSwitchPrototype(busy, Boolean(form || flowDraft))) {
+      showNotice('当前正在编辑或保存，请先完成当前操作后再切换原型。')
+      return
+    }
+    setNotice(null)
+    setNoticePrototypeId(null)
+    setDirectory(false)
+    setPanel(null)
+    setFlowDraft(null)
+    updateView({ prototypeId, pageId: null })
+  }
 
   React.useEffect(() => {
     if (!snapshot || !paneActive || (!directory && panel !== 'history')) return
@@ -235,7 +273,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
     if (latest.current.busy) return
     const request = ticket.current
     latest.current.busy = true
-    setBusy(true); setError(null); setNotice(null)
+    setBusy(true); setError(null); setNotice(null); setNoticePrototypeId(null)
     try { const result = await operation(); if (gate.current.accepts(request)) { latest.current.busy = false; setBusy(false); onSuccess?.(result) } }
     catch (cause) { if (gate.current.accepts(request)) setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { if (gate.current.accepts(request)) { latest.current.busy = false; setBusy(false) } }
@@ -260,7 +298,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   function reference(instruction: string, elementId?: string, scope: 'page' | 'prototype' = 'page', stateId?: string): void {
     if (!document) return
     setPrompt({ sessionId, message: buildPrototypePrompt(document, elementId ? `${instruction}\n元素身份仅作为页面内定位上下文；以当前页面为修改范围，保留其他元素，候选采纳前核对完整页面。` : instruction, scope === 'page' && document.pages.some(item => item.id === pageId) ? pageId : undefined, scope === 'page' ? elementId : undefined, scope === 'page' ? stateId : undefined), autoSend: false })
-    setNotice('已引用到主会话输入框，请检查后发送。'); setForm(null); setPanel(null); setFocus(false)
+    showNotice('已引用到主会话输入框，请检查后发送。'); setForm(null); setPanel(null); setFocus(false)
   }
 
   /** 表单提交统一经过当前文档身份和基线复核。 */
@@ -292,10 +330,10 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
     if (!document || document.id !== form.prototypeId || document.revision !== form.baseRevision) { setError('设计基线已变化，请关闭表单并重新加载后操作。'); return }
     if (form.kind === 'reference') { reference(value, selectedElement?.elementId, 'page', form.stateId); return }
     if (form.kind === 'import') {
-      void run(() => window.electronAPI.interactionDesign.invoke('importHtml', { sessionId, prototypeId: document.id, baseRevision: document.revision, relativePath: value }), () => { setForm(null); void load(); setNotice('HTML 已导入为候选，请预览后采纳。') }); return
+      void run(() => window.electronAPI.interactionDesign.invoke('importHtml', { sessionId, prototypeId: document.id, baseRevision: document.revision, relativePath: value }), () => { setForm(null); void load(); showNotice('HTML 已导入为候选，请预览后采纳。') }); return
     }
     if (form.kind === 'asset') {
-      void run(() => window.electronAPI.interactionDesign.invoke('importAsset', { sessionId, prototypeId: document.id, relativePath: value }), asset => { setForm(null); setNotice(`素材已导入：prototype-asset:${asset.id}`); void load() }); return
+      void run(() => window.electronAPI.interactionDesign.invoke('importAsset', { sessionId, prototypeId: document.id, relativePath: value }), asset => { setForm(null); showNotice(`素材已导入：prototype-asset:${asset.id}`); void load() }); return
     }
     const next = copyPrototypeDraft(document)
     if (form.kind === 'element') {
@@ -332,7 +370,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
     void run(() => window.electronAPI.interactionDesign.invoke('exportHtml', { sessionId, prototypeId: document.id, revision: document.revision }), result => {
       const url = URL.createObjectURL(new Blob([result.html], { type: 'text/html;charset=utf-8' }))
       const link = window.document.createElement('a'); link.href = url; link.download = result.fileName; link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 1000); setNotice(`已导出 v${result.revision}`)
+      setTimeout(() => URL.revokeObjectURL(url), 1000); showNotice(`已导出 v${result.revision}`)
     })
   }
 
@@ -341,7 +379,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
     if (!document) return
     void run(() => window.electronAPI.interactionDesign.invoke('createHandoff', { sessionId, prototypeId: document.id, revision: document.revision }), handoff => {
       setPrompt({ sessionId, message: buildPrototypeHandoffPrompt(handoff), autoSend: false })
-      setNotice(`已生成 v${handoff.revision} 开发交接包，并引用到主会话输入框。`)
+      showNotice(`已生成 v${handoff.revision} 开发交接包，并引用到主会话输入框。`)
       setFocus(false)
     })
   }
@@ -400,8 +438,9 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
 
   return <section className={`interaction-design ${focus && paneActive ? 'id-focus' : ''}`} data-interaction-design-expanded={focus && paneActive} aria-label="交互设计工作区">
     <header className="id-header">
-      <div className="id-title"><span className="id-product-mark"><MousePointer2 size={18} /></span><div>
-        <strong>交互设计</strong><p>{loading ? '正在读取…' : document ? candidate ? `候选预览 · ${previewPageCount} 个页面 · 基于 v${candidate.baseRevision}` : `${document.pages.length} 个页面 · 已保存 v${document.revision}` : '从需求或现有项目开始'}</p>
+      <div className="id-title"><span className="id-product-mark"><MousePointer2 size={18} /></span><div className="id-title-content">
+        <div className="id-title-row"><strong>交互设计</strong>{prototypeOptions.length > 0 && <DropdownMenu><DropdownMenuTrigger asChild><button className="id-prototype-selector" aria-label="选择交互原型" disabled={busy || !!form || !!flowDraft}><span>{prototypeOptions.find(item => item.id === view.prototypeId)?.name ?? '选择原型'}</span><ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="id-prototype-menu"><DropdownMenuLabel>选择原型 · {prototypeOptions.length}</DropdownMenuLabel><DropdownMenuRadioGroup value={view.prototypeId ?? ''} onValueChange={switchPrototype}>{prototypeOptions.map(item => <DropdownMenuRadioItem key={item.id} value={item.id} className="id-prototype-option"><span>{item.name}</span><small>v{item.revision} · {item.pageCount} 页</small></DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuContent></DropdownMenu>}</div>
+        <p>{loading ? '正在读取…' : document ? candidate ? `候选预览 · ${previewPageCount} 个页面 · 基于 v${candidate.baseRevision}` : `${document.pages.length} 个页面 · 已保存 v${document.revision}` : '从需求或现有项目开始'}</p>
       </div></div>
       <div className="id-actions">
         <Button variant="outline" size="sm" disabled={busy} aria-expanded={directory} onClick={() => setDirectory(value => !value)}><ListTree size={14} /><span>页面</span>{hasPending && <i className="id-pending-dot" role="img" aria-label="有未采纳候选" title="有未采纳候选" />}</Button>
@@ -411,7 +450,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
       </div>
     </header>
     {feedbackError && <div className="id-feedback id-error" role="alert">{feedbackError}<Button variant="ghost" size="sm" onClick={() => { setForm(null); setFlowDraft(null); setReset(value => value + 1); void load() }}>重新加载</Button></div>}
-    {notice && <div className="id-feedback" role="status">{notice}<button aria-label="关闭提示" onClick={() => setNotice(null)}><X size={14} /></button></div>}
+    {notice && <div className="id-feedback" role="status"><span>{notice}</span><div className="id-feedback-actions">{noticePrototypeId && <Button size="sm" variant="ghost" disabled={busy || !!form || !!flowDraft} onClick={() => switchPrototype(noticePrototypeId)}>查看原型</Button>}<button aria-label="关闭提示" onClick={() => { setNotice(null); setNoticePrototypeId(null) }}><X size={14} /></button></div></div>}
     {changed && <div className="id-feedback" role="status">外部设计已更新。当前编辑保留，重新加载后再提交。<Button size="sm" variant="ghost" onClick={() => { setForm(null); setFlowDraft(null); void load() }}>放弃编辑并加载</Button></div>}
     {!document ? <div className="id-empty"><MousePointer2 size={32} /><h2>{loading ? '正在加载交互模块' : '让想法变成可点击的页面'}</h2><p>打开“页面”列表创建页面；每个项目只有一个交互模块，页面可用多级分组组织。</p></div> : <>
       <div className="id-toolbar"><div className="id-mode"><button aria-pressed={mode === 'play'} onClick={() => { setMode('play'); setSelectedElement(null) }}><Play size={13} />体验</button><button aria-pressed={mode === 'select'} onClick={() => setMode('select')}><MousePointer2 size={13} />选择修改</button></div><span className="id-spacer" /><button className="id-version-button" aria-label="查看版本与候选" disabled={!document} onClick={() => setPanel('history')}><History size={14} /><span>v{document?.revision ?? 0}</span>{hasPending && <i className="id-pending-dot" role="img" aria-label="有未采纳候选" title="有未采纳候选" />}</button>
@@ -424,7 +463,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
         {selectedElement && <aside className="id-selection"><div><strong>已选中元素</strong><button aria-label="清除元素选择" onClick={() => setSelectedElement(null)}><X size={14} /></button></div><p>{page?.name} / {selectedElement.stateId ? page?.states?.find(state => state.id === selectedElement.stateId)?.name : page?.defaultStateName ?? '默认状态'} / {selectedElement.elementId}</p><p>带着页面、元素与版本引用继续修改。</p>{selectedText !== null && <Button size="sm" variant="outline" className="mb-2 mr-2" onClick={() => openForm('element', '修改选中文字', selectedText, pageId)}>编辑文字</Button>}<Button size="sm" disabled={!!candidate} onClick={() => openForm('reference', '引用到主会话', '请只修改选中的元素，保留其他页面与交互不变。')}>引用到会话</Button>{candidate && <small>先返回当前版本或采纳候选后修改</small>}</aside>}
         <div className="id-stage-hint"><span className="id-live-dot" />{mode === 'play' ? page?.states?.length ? '同一页面的不同状态并排展示，点击可体验；向下滚动查看更多' : '预览已运行，直接点击试试看' : '点击带稳定身份的内容，再引用到主会话'}</div>
       </div>
-      <footer className="id-footer"><span>本次体验 · {visited.length ? `${visited.length} 次页面访问` : '尚未记录跳转'}</span><span>{view.device === 'mobile' ? '390 × 844' : '1280 × 800'}</span></footer>
+      <footer className="id-footer"><span>本次体验 · {visited.length ? `${visited.length} 次页面访问` : '尚未记录跳转'}</span><span>{view.device === 'mobile' ? 'iPhone · 390 × 844' : '1280 × 800'}</span></footer>
     </>}
     {directory && <><button className="id-directory-backdrop" aria-label="关闭页面列表" onClick={() => setDirectory(false)} /><aside className="id-directory" aria-label="项目页面">
       <header><strong>页面 {draft && <small>{draft.pages.length}</small>}</strong><div className="id-directory-header-actions"><button aria-label="新建页面" title="新建页面" disabled={busy || !!candidate} onClick={() => openForm('page', '新建页面', '', rootGroupId)}><Plus size={16} /></button>{document && <button aria-label="新建分组" title="新建分组" disabled={busy || !!candidate} onClick={() => openForm('group', '新建分组')}><FolderPlus size={16} /></button>}<button aria-label="收起页面列表" title="收起页面列表" onClick={() => setDirectory(false)}><PanelLeftClose size={16} /></button></div></header>
@@ -448,7 +487,13 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
           })}
           onAdopt={candidateId => void run(() => window.electronAPI.interactionDesign.invoke('adopt', { sessionId, prototypeId: document.id, candidateId, baseRevision: document.revision }), acceptSnapshot)}
           onDiscard={candidateId => void run(() => window.electronAPI.interactionDesign.invoke('discardCandidate', { sessionId, prototypeId: document.id, candidateId }), acceptSnapshot)}
-          onRestore={revision => void run(() => window.electronAPI.interactionDesign.invoke('restore', { sessionId, prototypeId: document.id, baseRevision: document.revision, revision }), result => { acceptSnapshot(result); setPanel(null); setNotice(`已切换到 v${result.document.revision}，未新增版本`) })}
+          onCompare={entry => {
+            const targetPageId = entry.candidate?.affectedPageIds?.[0] ?? pageId
+            const right = entry.candidate ? { candidateId: entry.candidate.id } : entry.version ? { revision: entry.version.revision } : null
+            if (!right || !targetPageId) return
+            void run(() => window.electronAPI.interactionDesign.invoke('comparePage', { sessionId, prototypeId: document.id, pageId: targetPageId, left: { revision: document.revision }, right }), result => setComparison(result))
+          }}
+          onRestore={revision => void run(() => window.electronAPI.interactionDesign.invoke('restore', { sessionId, prototypeId: document.id, baseRevision: document.revision, revision }), result => { acceptSnapshot(result); setPanel(null); showNotice(`已切换到 v${result.document.revision}，未新增版本`) })}
           onDelete={requestHistoryDeletion}
           onCancelJob={jobId => void run(() => window.electronAPI.interactionDesign.invoke('cancelJob', { sessionId, prototypeId: document.id, jobId }), acceptSnapshot)}
           onReturn={() => { setCandidate(null); setSelectedElement(null); setPanel(null) }}
@@ -458,12 +503,13 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
       {panel === 'flow' && document && <><div className="id-flow-list">{(flowDraft ?? document.flows).map((flow, index) => <div className="id-flow" key={flow.id}><select aria-label={`连接${index + 1}来源页`} value={flow.fromPageId} onChange={event => setFlowDraft((flowDraft ?? document.flows).map(item => item.id === flow.id ? { ...item, fromPageId: event.target.value } : item))}>{document.pages.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><Input aria-label={`连接${index + 1}元素身份`} value={flow.elementId} placeholder="元素 ID" onChange={event => setFlowDraft((flowDraft ?? document.flows).map(item => item.id === flow.id ? { ...item, elementId: event.target.value } : item))} /><span>→</span><select aria-label={`连接${index + 1}目标页`} value={flow.targetPageId} onChange={event => setFlowDraft((flowDraft ?? document.flows).map(item => item.id === flow.id ? { ...item, targetPageId: event.target.value } : item))}>{document.pages.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button aria-label={`删除连接${index + 1}`} onClick={() => setFlowDraft((flowDraft ?? document.flows).filter(item => item.id !== flow.id))}><X size={14} /></button></div>)}</div><div className="id-flow-actions"><Button size="sm" variant="outline" disabled={!document.pages.length} onClick={() => setFlowDraft([...(flowDraft ?? document.flows), { id: crypto.randomUUID(), fromPageId: pageId, elementId: '', targetPageId: document.entryPageId }])}>添加跳转</Button><Button size="sm" disabled={busy || !flowDraft || changed} onClick={() => { const next = copyPrototypeDraft(document); next.flows = flowDraft!; save(next, '修改交互流程') }}>保存流程</Button><Button size="sm" variant="outline" disabled={busy || !!flowDraft} onClick={() => void run(() => window.electronAPI.interactionDesign.invoke('validate', { sessionId, prototypeId: document.id, revision: document.revision }), check => { setSnapshot(previous => previous ? { ...previous, checks: [...previous.checks, check] } : previous) })}>结构检查</Button><Button size="sm" variant="outline" disabled={busy || !visited.length || !!candidate || !!flowDraft} onClick={() => void run(() => window.electronAPI.interactionDesign.invoke('recordExperience', { sessionId, prototypeId: document.id, revision: document.revision, visitedPageIds: visited }), check => { setSnapshot(previous => previous ? { ...previous, checks: [...previous.checks, check] } : previous); setNotice('已保存本次体验路径，不代表未访问场景通过。') })}>记录本次体验</Button></div>{snapshot?.checks.filter(check => check.revision === document.revision).map(check => <div className="id-check" key={check.id}><strong>{check.kind === 'structure' ? '结构检查' : '实际体验'} · {check.kind === 'experience' ? (check.passed ? '已记录访问路径' : '记录失败') : (check.passed ? '已通过本次检查' : '发现问题')}</strong>{check.issues.map((issue, index) => <p key={index}>{issue}</p>)}{check.kind === 'experience' && <p>记录 {check.visitedPageIds.length} 次页面访问</p>}</div>)}</>}
       </div>
     </DialogContent></Dialog>
+    <Dialog open={comparison !== null} onOpenChange={open => { if (!open) setComparison(null) }}><DialogContent className="id-compare-dialog"><DialogHeader><DialogTitle>页面版本对比</DialogTitle><DialogDescription>{comparison ? `${comparison.pageId} · v${comparison.left.pageRevision} → v${comparison.right.pageRevision}` : '正在读取对比'}</DialogDescription></DialogHeader>{comparison && <div className="id-history-compare"><div className="id-compare-summary"><span>默认 HTML：{comparison.defaultHtml.changed ? '已变化' : '无变化'}</span><span>状态：+{comparison.states.added.length} / −{comparison.states.removed.length} / ~{comparison.states.changed.length}</span><span>素材：+{comparison.assets.added.length} / −{comparison.assets.removed.length}</span><span>流程：+{comparison.flows.added.length} / −{comparison.flows.removed.length}</span></div><div className="id-compare-columns"><div><strong>删除</strong><pre>{comparison.defaultHtml.removedLines.join('\n') || '无'}</pre></div><div><strong>新增</strong><pre>{comparison.defaultHtml.addedLines.join('\n') || '无'}</pre></div></div>{(comparison.states.added.length > 0 || comparison.states.removed.length > 0 || comparison.states.changed.length > 0) && <p>状态变更：{[...comparison.states.added.map(id => `新增 ${id}`), ...comparison.states.removed.map(id => `删除 ${id}`), ...comparison.states.changed.map(id => `修改 ${id}`)].join('、')}</p>}</div>}<DialogFooter><Button variant="outline" onClick={() => setComparison(null)}>关闭</Button></DialogFooter></DialogContent></Dialog>
     <ConfirmDialog open={historyDeletion !== null && historyDeletion.context === context} onOpenChange={open => { if (!open && !busy) setHistoryDeletion(null) }} title="删除这条历史记录？" confirmLabel="删除记录" loadingLabel="删除中…" loading={busy} closeOnConfirm={false} onConfirm={() => {
       if (!historyDeletion || historyDeletion.context !== currentContext.current || historyDeletion.prototypeId !== document?.id) return
       if (changed || historyDeletion.baseRevision !== document.revision) { setError('历史记录已变化，请取消并重新加载后删除。'); return }
       /** 使用确认开始时的身份与基线，禁止跨项目或版本漂移。 */
       const { context: _context, ...request } = historyDeletion
-      void run(() => window.electronAPI.interactionDesign.invoke('deleteHistory', request), result => { acceptSnapshot(result); setHistoryDeletion(null); setNotice('已删除历史记录') })
+      void run(() => window.electronAPI.interactionDesign.invoke('deleteHistory', request), result => { acceptSnapshot(result); setHistoryDeletion(null); showNotice('已删除历史记录') })
     }}><div className="space-y-2"><p>记录将从历史列表移除，关联候选不能再采纳，已保存页面不受影响。</p>{(error || changed) && <p role="alert" className="text-destructive">{error ?? '历史记录已变化，请取消并重新加载后删除。'}</p>}</div></ConfirmDialog>
     <ConfirmDialog open={deletion !== null && deletion.context === context} onOpenChange={open => { if (!open && !busy) setDeletion(null) }} title={`删除 v${deletion?.revision ?? ''}？`} confirmLabel="删除版本" loadingLabel="删除中…" loading={busy} closeOnConfirm={false} onConfirm={() => {
       if (!deletion || deletion.context !== currentContext.current || deletion.prototypeId !== document?.id) return
@@ -473,7 +519,7 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
       void run(() => window.electronAPI.interactionDesign.invoke('deleteVersion', request), result => {
         acceptSnapshot(result)
         setDeletion(null)
-        setNotice(`已删除 v${request.revision}，当前仍为 v${result.document.revision}`)
+        showNotice(`已删除 v${request.revision}，当前仍为 v${result.document.revision}`)
       })
     }}><div className="space-y-2"><p>删除后不能恢复该历史版本，当前版本不会变化。</p>{(error || changed) && <p role="alert" className="text-destructive">{error ?? '版本记录已变化，请取消并重新加载后删除。'}</p>}</div></ConfirmDialog>
   </section>

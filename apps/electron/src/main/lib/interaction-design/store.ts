@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, opendirSync, readdirSync } from 'node:fs'
 import { basename, join, posix } from 'node:path'
-import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypeSnapshot, PrototypeVersion } from '@dutydeck/shared'
+import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypePage, PrototypePageComparison, PrototypePageVersionSummary, PrototypeSnapshot, PrototypeVersion } from '@dutydeck/shared'
 import { assertPrototypeDraft, inferPrototypeJobMode, isProjectRestoreInstruction, parsePrototypeDraft, parsePrototypePlan, parseInteractionDesignCommand, PROTOTYPE_LIMITS, validateProjectRestoreDraft, validatePrototypeStructure } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, removeFileAtomic, writeJsonFileAtomicSecure } from '../safe-file'
@@ -211,13 +211,97 @@ export class InteractionDesignService {
         groups.push([group, value.groups.filter(item => item.parentId === group.parentId).findIndex(item => item.id === group.id)])
         groupId = group.parentId
       }
-      return [page.id, JSON.stringify([page, groups, value.pages.filter(item => item.groupId === page.groupId).findIndex(item => item.id === page.id), value.flows.filter(flow => flow.fromPageId === page.id), value.entryPageId === page.id])]
+        const pageContent = { id: page.id, groupId: page.groupId, name: page.name, html: page.html, ...(page.defaultStateName === undefined ? {} : { defaultStateName: page.defaultStateName }), ...(page.states === undefined ? {} : { states: page.states }), ...(page.source === undefined ? {} : { source: page.source }), ...(page.route === undefined ? {} : { route: page.route }), ...(page.role === undefined ? {} : { role: page.role }) }
+        return [page.id, JSON.stringify([pageContent, groups, value.pages.filter(item => item.groupId === page.groupId).findIndex(item => item.id === page.id), value.flows.filter(flow => flow.fromPageId === page.id), value.entryPageId === page.id])]
     }))
     /** 两份稿的页面签名，只遍历有限页面集。 */
     const before = signatures(baseline)
     /** 候选页面签名。 */
     const after = signatures(draft)
     return [...new Set([...before.keys(), ...after.keys()])].filter(id => before.get(id) !== after.get(id))
+  }
+  /** 从不可变全局版本索引推导页面独立版本，不读取页面 HTML 正文。 */
+  private pageVersions(id: string, pageId: string): PrototypePageVersionSummary[] {
+    const head = this.head(id)
+    const versions = this.records<StoredVersion>(id, 'revisions', head.latestRevision).sort((left, right) => left.version.revision - right.version.revision)
+    const result: PrototypePageVersionSummary[] = []
+    let lastHash: string | undefined
+    let derivedRevision = 0
+    for (const stored of versions) {
+      const page = stored.document.pages.find(item => item.id === pageId)
+      if (!page) continue
+      const contentHash = interactionHash(JSON.stringify([page.contentHash, ...(page.states ?? []).map(state => [state.id, state.contentHash]), page.name, page.groupId, page.route, page.role]))
+      if (contentHash === lastHash) continue
+      const explicitRevision = Number.isSafeInteger(page.pageRevision) && page.pageRevision! > 0 ? page.pageRevision! : derivedRevision + 1
+      derivedRevision = Math.max(derivedRevision + 1, explicitRevision)
+      lastHash = contentHash
+      result.push({ pageId, pageRevision: derivedRevision, globalRevision: stored.version.revision, summary: stored.version.summary, createdAt: stored.version.createdAt, contentHash })
+    }
+    return result.sort((left, right) => right.pageRevision - left.pageRevision)
+  }
+  /** 按页面正文计算简单、可审计的行级增删，不执行任何页面脚本。 */
+  private lineDiff(before: string, after: string): { addedLines: string[]; removedLines: string[] } {
+    const previous = before.split(/\r?\n/)
+    const next = after.split(/\r?\n/)
+    return { addedLines: next.filter(line => !previous.includes(line)), removedLines: previous.filter(line => !next.includes(line)) }
+  }
+  /** 从历史版本或候选投影目标页面，避免对比结果泄漏邻页正文。 */
+  private pageComparisonSide(id: string, pageId: string, ref: { revision?: number; candidateId?: string }): { kind: 'version' | 'candidate'; id: string; globalRevision: number; pageRevision: number; page: PrototypePage; flows: string[] } {
+    if (ref.revision !== undefined) {
+      const document = this.version(id, ref.revision)
+      const page = document.pages.find(item => item.id === pageId)
+      if (!page) throw new Error('原型页面不存在')
+      return { kind: 'version', id: String(ref.revision), globalRevision: ref.revision, pageRevision: page.pageRevision ?? 1, page, flows: document.flows.filter(flow => flow.fromPageId === pageId).map(flow => JSON.stringify(flow)) }
+    }
+    if (!ref.candidateId) throw new Error('页面对比版本缺少身份')
+    const candidate = this.candidate(id, ref.candidateId)
+    const page = candidate.draft.pages.find(item => item.id === pageId)
+    if (!page) throw new Error('原型页面不存在')
+    return { kind: 'candidate', id: ref.candidateId, globalRevision: candidate.baseRevision, pageRevision: page.pageRevision ?? 1, page, flows: candidate.draft.flows.filter(flow => flow.fromPageId === pageId).map(flow => JSON.stringify(flow)) }
+  }
+  /** 生成只包含目标页面的结构化对比结果。 */
+  private comparePage(input: InteractionDesignInputs['comparePage']): PrototypePageComparison {
+    const left = this.pageComparisonSide(input.prototypeId, input.pageId, input.left)
+    const right = this.pageComparisonSide(input.prototypeId, input.pageId, input.right)
+    const lineDiff = this.lineDiff(left.page.html, right.page.html)
+    const beforeStates = new Map((left.page.states ?? []).map(state => [state.id, state]))
+    const afterStates = new Map((right.page.states ?? []).map(state => [state.id, state]))
+    const assets = (html: string): string[] => [...new Set([...html.matchAll(/prototype-asset:([A-Za-z0-9_-]+)/g)].map(match => match[1]!))]
+    const beforeAssets = new Set(assets([left.page.html, ...(left.page.states ?? []).map(state => state.html)].join('\n')))
+    const afterAssets = new Set(assets([right.page.html, ...(right.page.states ?? []).map(state => state.html)].join('\n')))
+    const states = { added: [...afterStates.keys()].filter(id => !beforeStates.has(id)), removed: [...beforeStates.keys()].filter(id => !afterStates.has(id)), changed: [...afterStates.keys()].filter(id => beforeStates.has(id) && JSON.stringify(afterStates.get(id)) !== JSON.stringify(beforeStates.get(id))) }
+    return {
+      prototypeId: input.prototypeId, pageId: input.pageId,
+      left: { kind: left.kind, id: left.id, globalRevision: left.globalRevision, pageRevision: left.pageRevision, name: left.page.name, html: left.page.html, ...(left.page.states === undefined ? {} : { states: left.page.states }) },
+      right: { kind: right.kind, id: right.id, globalRevision: right.globalRevision, pageRevision: right.pageRevision, name: right.page.name, html: right.page.html, ...(right.page.states === undefined ? {} : { states: right.page.states }) },
+      defaultHtml: { changed: left.page.html !== right.page.html, before: left.page.html, after: right.page.html, ...lineDiff },
+      states,
+      assets: { added: [...afterAssets].filter(id => !beforeAssets.has(id)), removed: [...beforeAssets].filter(id => !afterAssets.has(id)) },
+      flows: { added: right.flows.filter(flow => !left.flows.includes(flow)), removed: left.flows.filter(flow => !right.flows.includes(flow)) },
+    }
+  }
+  /** 规范化业务身份，阻止 Agent 在已有页面上重复创建新身份。 */
+  private normalizePageIdentity(value: string | undefined): string | undefined {
+    const raw = value?.trim().toLocaleLowerCase().replace(/\\/g, '/').replace(/\s+/g, ' ')
+    const normalized = raw === '/' ? '/' : raw?.replace(/\/+$/, '')
+    return normalized || undefined
+  }
+  /** 仅检查候选新增页；已有 pageId 的局部修改不会因改名而被误判。 */
+  private assertNoDuplicatePages(baseline: PrototypeDraft, draft: PrototypeDraft): void {
+    const existing = new Set(baseline.pages.map(page => page.id))
+    for (const page of draft.pages.filter(item => !existing.has(item.id))) {
+      const route = this.normalizePageIdentity(page.route)
+      const name = this.normalizePageIdentity(page.name)
+      const role = this.normalizePageIdentity(page.role)
+      const duplicate = baseline.pages.find(previous => {
+        const previousRoute = this.normalizePageIdentity(previous.route)
+        if (route && previousRoute && route === previousRoute) return true
+        const previousName = this.normalizePageIdentity(previous.name)
+        const previousRole = this.normalizePageIdentity(previous.role)
+        return Boolean(name && previousName && name === previousName && (!role || !previousRole || role === previousRole))
+      })
+      if (duplicate) throw new Error(`页面“${page.name}”已存在，请复用 pageId=${duplicate.id}`)
+    }
   }
   /** 候选可采纳性由当前 head 推导，不修改旧生成结果。 */
   private candidate(id: string, candidateId: string): PrototypeCandidate {
@@ -312,6 +396,14 @@ export class InteractionDesignService {
     if ((previous?.revision ?? 0) !== baseRevision) throw new Error('原型版本已变化，请重新读取后修改')
     /** 固定基线用于内容差分；旧状态缺陷不阻断其他页面或目录修改。 */
     const baseline = previous ? this.version(id, previous.revision) : undefined
+    /** 页面独立版本只在该页正文、状态、目录或职责真正变化时递增。 */
+    const changedPageIds = new Set(baseline ? this.affectedPages(baseline, draft) : draft.pages.map(page => page.id))
+    const normalizedPages = draft.pages.map(page => {
+      const previousPage = baseline?.pages.find(value => value.id === page.id)
+      const previousRevision = previousPage?.pageRevision ?? 1
+      return { ...page, pageRevision: previousPage ? changedPageIds.has(page.id) ? previousRevision + 1 : previousRevision : 1 }
+    })
+    draft = { ...draft, pages: normalizedPages }
     this.assertAssets(draft, baseline)
     /** 创建时间始终沿用原始文档。 */
     const createdAt = baseline?.createdAt ?? Date.now()
@@ -367,6 +459,7 @@ export class InteractionDesignService {
     const head = this.head(input.prototypeId)
     /** 所有候选都必须有真实基线，包含整模块任务及恢复后仍存在的历史版本。 */
     const baseline = this.version(input.prototypeId, input.baseRevision)
+    this.assertNoDuplicatePages(baseline, input.draft)
     this.assertAssets(input.draft, baseline)
     if (input.jobId) {
       /** 绑定当前任务，拒绝取消后回填或跨会话伪造。 */
@@ -376,7 +469,8 @@ export class InteractionDesignService {
       this.assertProjectRestoreScope(job, input.draft)
     }
     /** 不可变候选内容。 */
-    const candidate: PrototypeCandidate = { id: randomUUID(), prototypeId: input.prototypeId, baseRevision: input.baseRevision, draft: structuredClone(input.draft), affectedPageIds: this.affectedPages(baseline, input.draft), summary: input.summary.slice(0, 1000), status: head.revision === input.baseRevision ? 'ready' : 'stale', createdAt: Date.now(), ...(input.jobId ? { jobId: input.jobId } : {}) }
+    const affectedPageIds = this.affectedPages(baseline, input.draft)
+    const candidate: PrototypeCandidate = { id: randomUUID(), prototypeId: input.prototypeId, baseRevision: input.baseRevision, draft: structuredClone(input.draft), affectedPageIds, ...(affectedPageIds.length === 1 ? { pageId: affectedPageIds[0] } : {}), summary: input.summary.slice(0, 1000), status: head.revision === input.baseRevision ? 'ready' : 'stale', createdAt: Date.now(), ...(input.jobId ? { jobId: input.jobId } : {}) }
     this.record(input.prototypeId, 'candidates', { ...candidate, draftHash: interactionHash(JSON.stringify(candidate.draft)) })
     this.candidateSummary(candidate)
     if (input.jobId) this.record(input.prototypeId, 'jobs', { ...this.job(input.prototypeId, input.jobId), status: 'candidate' })
@@ -511,6 +605,11 @@ export class InteractionDesignService {
         const request = input as InteractionDesignInputs['getVersion']
         return this.version(request.prototypeId, request.revision)
       }
+      case 'getPageVersions': {
+        /** 仅读取版本元数据，不加载页面正文，适合 Agent 查看独立历史。 */
+        const request = input as InteractionDesignInputs['getPageVersions']
+        return this.pageVersions(request.prototypeId, request.pageId)
+      }
       case 'restore': {
         /** 恢复只切换当前 head，不写入新的版本文件。 */
         const request = input as InteractionDesignInputs['restore']
@@ -631,6 +730,39 @@ export class InteractionDesignService {
           this.commit(request.prototypeId, request.baseRevision, candidate.draft, candidate.summary, candidate.id)
           return this.snapshot(request.prototypeId)
         })
+      }
+      case 'adoptPage': {
+        /** 页面级自动采纳仅替换目标页，允许其他页面先产生独立提交。 */
+        const request = input as InteractionDesignInputs['adoptPage']
+        return this.write(() => {
+          const candidate = this.candidate(request.prototypeId, request.candidateId)
+          if (candidate.status === 'adopted') return this.snapshot(request.prototypeId)
+          if (candidate.baseRevision !== request.baseRevision) throw new Error('页面候选基线不匹配')
+          const baseline = this.version(request.prototypeId, candidate.baseRevision)
+          const baselinePage = baseline.pages.find(page => page.id === request.pageId)
+          const candidatePage = candidate.draft.pages.find(page => page.id === request.pageId)
+          if (!baselinePage || !candidatePage) throw new Error('页面候选目标不存在')
+          const affected = candidate.affectedPageIds ?? this.affectedPages(baseline, candidate.draft)
+          if (affected.some(pageId => pageId !== request.pageId)) throw new Error('页面候选包含跨页修改，请使用整原型采纳')
+          if ((baselinePage.pageRevision ?? 1) !== request.basePageRevision) throw new Error('页面候选基线版本不匹配')
+          const head = this.head(request.prototypeId)
+          const current = this.version(request.prototypeId, head.revision)
+          const currentPage = current.pages.find(page => page.id === request.pageId)
+          if (!currentPage || (currentPage.pageRevision ?? 1) !== request.basePageRevision) throw new Error('页面版本已变化，请重新读取后采纳')
+          if (candidate.jobId) {
+            const job = this.job(request.prototypeId, candidate.jobId)
+            if (job.status !== 'candidate' || job.baseRevision !== candidate.baseRevision) throw new Error('候选对应的生成任务尚未完成或已失效')
+            this.assertJobScope(job, candidate.draft)
+            this.assertProjectRestoreScope(job, candidate.draft)
+          }
+          const merged: PrototypeDraft = { ...current, pages: current.pages.map(page => page.id === request.pageId ? candidatePage : page) }
+          this.commit(request.prototypeId, head.revision, merged, candidate.summary, candidate.id)
+          return this.snapshot(request.prototypeId)
+        })
+      }
+      case 'comparePage': {
+        /** 对比读取不写入正式数据，也不执行候选脚本。 */
+        return this.comparePage(input as InteractionDesignInputs['comparePage'])
       }
       case 'discardCandidate': {
         /** 显式放弃候选。 */

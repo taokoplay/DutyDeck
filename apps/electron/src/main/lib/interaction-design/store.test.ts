@@ -21,6 +21,10 @@ function setup(): { root: string; service: InteractionDesignService } {
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 /** 统一的测试会话。 */
 const sessionId = 'session'
+/** 比较旧合同页面正文时忽略新增的页面独立版本元数据。 */
+function withoutPageRevisions<T extends { pageRevision?: number }>(pages: T[]): Array<Omit<T, 'pageRevision'>> {
+  return pages.map(({ pageRevision: _pageRevision, ...page }) => page)
+}
 
 /** 项目还原任务的完整规划，测试正文只关注任务边界而不伪造源码字节。 */
 function restorePlan() {
@@ -39,6 +43,43 @@ function restorePlan() {
 }
 
 describe('交互设计版本与候选', () => {
+  it('Given 两个页面各有独立候选 When 分别按页面基线自动采纳 Then 其他页面版本和候选不被全局版本变化拖 stale', async () => {
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '双页面', platform: 'mobile' })
+    const base = { ...first.document, pages: [...first.document.pages, { id: 'detail', groupId: 'main', name: '详情', html: '<h1>详情</h1>' }] }
+    const saved = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: base, summary: '增加详情页' })
+    const homeCandidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 2, draft: { ...saved.document, pages: saved.document.pages.map(page => page.id === 'home' ? { ...page, html: '<h1>新首页</h1>' } : page) }, summary: '更新首页' })
+    const detailCandidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 2, draft: { ...saved.document, pages: saved.document.pages.map(page => page.id === 'detail' ? { ...page, html: '<h1>新详情</h1>' } : page) }, summary: '更新详情' })
+    const homeRevision = saved.document.pages.find(page => page.id === 'home')?.pageRevision ?? 1
+    const detailRevision = saved.document.pages.find(page => page.id === 'detail')?.pageRevision ?? 1
+    const home = await service.invoke('adoptPage', { sessionId, prototypeId: first.document.id, candidateId: homeCandidate.id, pageId: 'home', baseRevision: 2, basePageRevision: homeRevision })
+    expect(home.document.revision).toBe(3)
+    expect(home.document.pages.find(page => page.id === 'home')?.pageRevision).toBe(homeRevision + 1)
+    expect(home.document.pages.find(page => page.id === 'detail')?.pageRevision).toBe(detailRevision)
+    const detail = await service.invoke('adoptPage', { sessionId, prototypeId: first.document.id, candidateId: detailCandidate.id, pageId: 'detail', baseRevision: 2, basePageRevision: detailRevision })
+    expect(detail.document.pages.find(page => page.id === 'home')?.html).toBe('<h1>新首页</h1>')
+    expect(detail.document.pages.find(page => page.id === 'detail')?.html).toBe('<h1>新详情</h1>')
+    expect(detail.candidates.find(candidate => candidate.id === detailCandidate.id)?.status).toBe('adopted')
+  })
+
+  it('Given 页面候选与正式版本 When 请求页面对比 Then 只返回目标页正文和状态/素材/流程差异', async () => {
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '对比', platform: 'mobile' })
+    const candidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: { ...first.document, pages: first.document.pages.map(page => ({ ...page, html: '<h1 data-prototype-element="title">新版</h1>', states: [{ id: 'empty', name: '空态', html: '<p>无数据</p>' }] })) }, summary: '更新首页状态' })
+    const comparison = await service.invoke('comparePage', { sessionId, prototypeId: first.document.id, pageId: 'home', left: { revision: 1 }, right: { candidateId: candidate.id } })
+    expect(comparison.defaultHtml.changed).toBe(true)
+    expect(comparison.states.added).toEqual(['empty'])
+    expect(comparison.right.html).toContain('新版')
+    expect(JSON.stringify(comparison)).not.toContain('当前项目其他页面')
+  })
+
+  it('Given 目录已有同路由页面 When Agent 候选新增页面 Then 宿主要求复用已有pageId', async () => {
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '重复页', platform: 'mobile' })
+    const routed = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: { ...first.document, pages: first.document.pages.map(page => ({ ...page, route: '/' })) }, summary: '记录首页路由' })
+    const draft = { ...routed.document, pages: [...routed.document.pages, { id: 'duplicate', groupId: 'main', name: '另一个首页', route: '/', html: '<h1>重复</h1>' }] }
+    await expect(service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 2, draft, summary: '错误新增首页' })).rejects.toThrow('复用 pageId=home')
+  })
   it('Given 附加状态脚本截断 When 提交候选 Then 拒绝并定位页面和状态且不推进版本', async () => {
     /** 独立测试服务与初始文档。 */
     const { service } = setup()
@@ -131,7 +172,7 @@ describe('交互设计版本与候选', () => {
     /** 用户采纳后才推进正式版本。 */
     const adopted = await service.invoke('adopt', { ...base, candidateId: candidate.id })
     expect(adopted.document.revision).toBe(2)
-    expect(adopted.document.pages).toEqual(draft.pages)
+    expect(withoutPageRevisions(adopted.document.pages)).toEqual(withoutPageRevisions(draft.pages))
     expect(adopted.candidates.find(value => value.id === candidate.id)?.status).toBe('adopted')
   })
 
@@ -156,7 +197,7 @@ describe('交互设计版本与候选', () => {
     /** 升级后的服务应直接采纳原候选，而非要求用户补造多页规划。 */
     const adopted = await service.invoke('adopt', { ...base, candidateId: candidate.id })
     expect(adopted.document.revision).toBe(2)
-    expect(adopted.document.pages).toEqual(draft.pages)
+    expect(withoutPageRevisions(adopted.document.pages)).toEqual(withoutPageRevisions(draft.pages))
   })
 
   it('Given 显式整项目还原任务同时指定首页 When 提交缺页候选 Then 仍执行整项目规划校验', async () => {
@@ -791,13 +832,13 @@ describe('页面状态持久化', () => {
     const candidate = await service.invoke('propose', { sessionId, prototypeId, baseRevision: 1, draft, summary: '补齐状态' })
     expect((await service.invoke('getCandidate', { sessionId, prototypeId, candidateId: candidate.id })).draft.pages).toEqual(draft.pages)
     const adopted = await service.invoke('adopt', { sessionId, prototypeId, candidateId: candidate.id, baseRevision: 1 })
-    expect(adopted.document.pages).toEqual(draft.pages)
+    expect(withoutPageRevisions(adopted.document.pages)).toEqual(withoutPageRevisions(draft.pages))
     expect(readdirSync(join(directory, 'contents'))).toHaveLength(2)
     expect(readFileSync(join(directory, 'revisions', '2.json'), 'utf8')).not.toContain('<p>暂无记录</p>')
     const restored = await service.invoke('restore', { sessionId, prototypeId, baseRevision: 2, revision: 1 })
     expect(restored.document.pages[0]).not.toHaveProperty('states')
     expect(readFileSync(join(directory, 'revisions', '1.json'))).toEqual(oldBytes)
-    expect((await service.invoke('getVersion', { sessionId, prototypeId, revision: 2 })).pages).toEqual(draft.pages)
+    expect(withoutPageRevisions((await service.invoke('getVersion', { sessionId, prototypeId, revision: 2 })).pages)).toEqual(withoutPageRevisions(draft.pages))
     /** 状态正文损坏不能静默回退默认正文。 */
     writeFileSync(join(directory, 'contents', `${interactionHash('<p>暂无记录</p>')}.json`), JSON.stringify({ html: '损坏' }))
     await expect(service.invoke('getVersion', { sessionId, prototypeId, revision: 2 })).rejects.toThrow('正文已损坏')
@@ -941,7 +982,7 @@ describe('候选影响范围边界', () => {
       { change: value => { value.flows = [{ id: 'route', fromPageId: 'two', targetPageId: 'one', elementId: 'go' }] }, expected: ['two'] },
       { change: value => { value.groups[1]!.name = '新分组名' }, expected: ['three'] },
       { change: value => { value.pages.pop() }, expected: ['three'] },
-      { change: value => { value.pages.push({ ...value.pages[2]!, id: 'four' }) }, expected: ['four'] },
+      { change: value => { value.pages.push({ ...value.pages[2]!, id: 'four', name: 'four' }) }, expected: ['four'] },
     ]
     for (const item of cases) {
       /** 单次候选草稿，避免前一个变体污染后续范围。 */

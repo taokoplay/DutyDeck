@@ -23,6 +23,8 @@ interface InteractionDesignHistoryProps {
   onRestore: (revision: number) => void
   /** 删除前由父层冻结目标并打开确认框。 */
   onDelete: (entry: PrototypeHistoryEntry) => void
+  /** 请求当前页面与历史记录的结构化对比。 */
+  onCompare: (entry: PrototypeHistoryEntry) => void
   /** 取消仍运行的本会话任务。 */
   onCancelJob: (jobId: string) => void
   /** 返回当前稿或打开候选页面目录，并关闭历史弹窗。 */
@@ -68,7 +70,8 @@ export function InteractionDesignHistory(props: InteractionDesignHistoryProps): 
         {entry.job?.message && <p className="id-history-note">{entry.job.message}</p>}
         <div className="id-history-actions">
           {entry.kind === 'candidate' && entry.candidate && entry.status === 'pending' && <><Button size="sm" variant="outline" disabled={props.busy} onClick={() => props.onPreview(entry.candidate!)}>预览</Button><Button size="sm" aria-label="采纳候选" disabled={props.busy || stale} onClick={() => props.onAdopt(entry.candidate!.id)}>采纳</Button><Button size="sm" variant="ghost" aria-label="取消候选" disabled={props.busy} onClick={() => props.onDiscard(entry.candidate!.id)}>取消</Button></>}
-          {entry.version && <Button size="sm" variant="outline" disabled={props.busy || current} onClick={() => props.onRestore(entry.version!.revision)}>恢复此版本</Button>}
+          {entry.candidate && <Button size="sm" variant="outline" disabled={props.busy} onClick={() => props.onCompare(entry)}>对比</Button>}
+          {entry.version && <><Button size="sm" variant="outline" disabled={props.busy || current} onClick={() => props.onRestore(entry.version!.revision)}>恢复此版本</Button>{!current && <Button size="sm" variant="outline" disabled={props.busy} onClick={() => props.onCompare(entry)}>对比</Button>}</>}
           {entry.job?.status === 'running' && entry.job.sessionId === props.sessionId && <Button size="sm" variant="outline" disabled={props.busy} onClick={() => props.onCancelJob(entry.job!.id)}>取消生成</Button>}
           {!current && entry.job?.status !== 'running' && <Button size="sm" variant="ghost" className="id-history-delete" aria-label={entry.version ? `删除 v${entry.version.revision}` : '删除记录'} disabled={props.busy} onClick={() => props.onDelete(entry)}>删除</Button>}
         </div>

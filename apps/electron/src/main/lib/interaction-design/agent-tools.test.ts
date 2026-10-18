@@ -28,7 +28,8 @@ test('Given 计划模式 When 调用写工具 Then 每次执行拒绝且不暴�
   await expect(tools.find((item) => item.name === 'prototype_validate')!.execute('call', { prototypeId: 'p', revision: 1 }, undefined, undefined, {} as never)).rejects.toThrow('计划模式只读')
   await tools.find((item) => item.name === 'prototype_list')!.execute('call', {}, undefined, undefined, {} as never)
   expect(calls).toHaveLength(1)
-  expect(tools.map((item) => item.name)).not.toContain('prototype_adopt')
+  expect(tools.map((item) => item.name)).toContain('prototype_adopt')
+  expect(tools.map((item) => item.name)).toContain('prototype_adopt_page')
   expect(tools.map((item) => item.name)).not.toContain('prototype_save')
   expect(tools.map((item) => item.name)).not.toContain('prototype_record_experience')
   expect(INTERACTION_DESIGN_AGENT_READ_TOOL_NAMES as readonly string[]).not.toContain('prototype_validate')
@@ -100,6 +101,7 @@ function pageFixture(cancelOnRead?: AbortController) {
     execute: (async (method: string, input: unknown, signal?: AbortSignal) => {
       calls.push({ method, input, signal })
       if (method === 'getVersion') { cancelOnRead?.abort(new Error('读取后取消')); return document }
+      if (method === 'getPageVersions') return [{ pageId: 'home', pageRevision: 3, globalRevision: 3, summary: '版本', createdAt: 3, contentHash: 'a'.repeat(64) }]
       return { id: 'candidate-1', status: 'ready' }
     }) as Parameters<typeof buildInteractionDesignAgentTools>[0]['execute'],
   })
@@ -113,7 +115,10 @@ test('Given 多页原型 When 读取单页 Then 返回目录和目标正文而�
   expect(text).toContain('原正文')
   expect(text).toContain('其他页')
   expect(text).not.toContain('OTHER_PAGE_BODY_NOT_FOR_CONTEXT')
-  expect(calls).toEqual([{ method: 'getVersion', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', revision: 3 }, signal: undefined }])
+  expect(calls).toEqual([
+    { method: 'getVersion', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', revision: 3 }, signal: undefined },
+    { method: 'getPageVersions', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', pageId: 'home' }, signal: undefined },
+  ])
   expect(INTERACTION_DESIGN_AGENT_READ_TOOL_NAMES as readonly string[]).toContain('prototype_read_page')
 })
 
@@ -167,4 +172,28 @@ test('Given 附加状态 When 单页工具指定stateId Then 仅修改该状态�
   expect(document.pages[0]!.states![0]!.html).toBe('<p>空态</p>')
   await expect(tool.execute('missing', { ...input, stateId: 'missing' }, undefined, undefined, {} as never)).rejects.toThrow('页面状态不存在')
   expect(calls.filter(call => call.method === 'propose')).toHaveLength(1)
+})
+
+test('Given 页面候选与页面基线 When Agent 自动采纳 Then 经过写权限和页面级CAS调用', async () => {
+  const { tools, calls, permissions } = pageFixture()
+  const tool = tools.find(item => item.name === 'prototype_adopt_page')!
+  await tool.execute('adopt-page', { prototypeId: 'prototype-1', candidateId: 'candidate-1', pageId: 'home', baseRevision: 3, basePageRevision: 2 }, undefined, undefined, {} as never)
+  expect(calls).toContainEqual({ method: 'adoptPage', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', candidateId: 'candidate-1', pageId: 'home', baseRevision: 3, basePageRevision: 2 }, signal: undefined })
+  expect(permissions.at(-1)).toBe(true)
+})
+
+test('Given 新页面或跨页候选 When Agent 自动采纳 Then 经过完整原型CAS调用', async () => {
+  const { tools, calls, permissions } = pageFixture()
+  const tool = tools.find(item => item.name === 'prototype_adopt')!
+  await tool.execute('adopt-prototype', { prototypeId: 'prototype-1', candidateId: 'candidate-1', baseRevision: 3 }, undefined, undefined, {} as never)
+  expect(calls).toContainEqual({ method: 'adopt', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', candidateId: 'candidate-1', baseRevision: 3 }, signal: undefined })
+  expect(permissions.at(-1)).toBe(true)
+})
+
+test('Given 页面版本 When Agent 请求对比 Then 只调用只读comparePage工具', async () => {
+  const { tools, calls, permissions } = pageFixture()
+  const tool = tools.find(item => item.name === 'prototype_compare_page')!
+  await tool.execute('compare', { prototypeId: 'prototype-1', pageId: 'home', left: { revision: 2 }, right: { candidateId: 'candidate-1' } }, undefined, undefined, {} as never)
+  expect(calls).toContainEqual({ method: 'comparePage', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', pageId: 'home', left: { revision: 2 }, right: { candidateId: 'candidate-1' } }, signal: undefined })
+  expect(permissions.at(-1)).toBe(false)
 })

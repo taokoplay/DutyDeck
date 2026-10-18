@@ -1,10 +1,10 @@
-import type { InteractionDesignCommand, InteractionDesignInputs, InteractionDesignMethod, PrototypeDraft, PrototypeJobMode, PrototypePageManifestItem, PrototypePlan, PrototypePlanEvidence, PrototypePlanPage, PrototypePlanState } from './interaction-design'
+import type { InteractionDesignCommand, InteractionDesignInputs, InteractionDesignMethod, PrototypeDraft, PrototypeJobMode, PrototypePageComparisonRef, PrototypePageManifestItem, PrototypePlan, PrototypePlanEvidence, PrototypePlanPage, PrototypePlanState } from './interaction-design'
 
 /** 页面数量与正文预算避免不可信 IPC 触发无界复制。 */
 export const PROTOTYPE_LIMITS = { pages: 200, statesPerPage: 12, groups: 100, flows: 2000, planEvidencePerPage: 24, planUnresolved: 100, pageChars: 512 * 1024, totalChars: 8 * 1024 * 1024 } as const
 
 /** 读取操作不改变原型或生成可计费任务。 */
-export const INTERACTION_DESIGN_READ_METHODS: readonly InteractionDesignMethod[] = ['list', 'load', 'getVersion', 'getCandidate', 'getCandidateImpact', 'assetContent', 'inspectProject', 'readSource']
+export const INTERACTION_DESIGN_READ_METHODS: readonly InteractionDesignMethod[] = ['list', 'load', 'getVersion', 'getCandidate', 'getCandidateImpact', 'getPageVersions', 'comparePage', 'assetContent', 'inspectProject', 'readSource']
 
 /** 稳定错误文案，不回显未经检查的输入。 */
 function invalid(field: string): never { throw new Error(`INTERACTION_DESIGN_INVALID: ${field}`) }
@@ -209,11 +209,17 @@ export function parsePrototypeDraft(value: unknown): PrototypeDraft {
     if (!groupIds.has(groupId)) invalid('页面所属分组不存在')
     const source = page.source === undefined ? undefined : record(page.source, '页面来源')
     if (source && (source.kind !== 'html' && source.kind !== 'code' || typeof source.hash !== 'string' || !/^[a-f0-9]{64}$/.test(source.hash))) invalid('来源内容身份')
+    const pageRevision = page.pageRevision === undefined ? undefined : revision(page.pageRevision)
+    const route = page.route === undefined ? undefined : string(page.route, '页面路由', 512)
+    const role = page.role === undefined ? undefined : string(page.role, '页面职责', 240)
     return {
       id: id(page.id), groupId, name: string(page.name, '页面名称', 120), html,
       ...(page.defaultStateName === undefined ? {} : { defaultStateName: string(page.defaultStateName, '默认状态名称', 120) }),
       ...(states === undefined ? {} : { states }),
       ...(source ? { source: { path: parsePrototypeRelativePath(source.path), hash: source.hash as string, kind: source.kind as 'html' | 'code' } } : {}),
+      ...(pageRevision === undefined ? {} : { pageRevision }),
+      ...(route === undefined ? {} : { route }),
+      ...(role === undefined ? {} : { role }),
     }
   })
   unique(pages.map((page) => page.id), '页面身份重复')
@@ -344,6 +350,7 @@ export function parseInteractionDesignCommand(value: unknown): InteractionDesign
     case 'load': return result(method, base)
     case 'save': return result(method, { ...base, baseRevision: revision(input.baseRevision), draft: parsePrototypeDraft(input.draft), summary: string(input.summary, '保存说明', 2000) })
     case 'getVersion': case 'validate': case 'exportHtml': case 'createHandoff': return result(method, { ...base, revision: revision(input.revision) })
+    case 'getPageVersions': return result(method, { ...base, pageId: id(input.pageId) })
     case 'restore': case 'deleteVersion': return result(method, { ...base, revision: revision(input.revision), baseRevision: revision(input.baseRevision) })
     case 'deleteHistory': {
       if (input.kind !== 'candidate' && input.kind !== 'job') return invalid('历史记录类型')
@@ -352,6 +359,17 @@ export function parseInteractionDesignCommand(value: unknown): InteractionDesign
     case 'propose': return result(method, { ...base, baseRevision: revision(input.baseRevision), draft: parsePrototypeDraft(input.draft), summary: string(input.summary, '候选说明', 2000), ...(input.jobId === undefined ? {} : { jobId: id(input.jobId) }) })
     case 'getCandidate': case 'getCandidateImpact': case 'discardCandidate': return result(method, { ...base, candidateId: id(input.candidateId) })
     case 'adopt': return result(method, { ...base, candidateId: id(input.candidateId), baseRevision: revision(input.baseRevision) })
+    case 'adoptPage': return result(method, { ...base, candidateId: id(input.candidateId), pageId: id(input.pageId), baseRevision: revision(input.baseRevision), basePageRevision: revision(input.basePageRevision) })
+    case 'comparePage': {
+      const parseRef = (value: unknown): PrototypePageComparisonRef => {
+        const ref = record(value, '页面对比版本')
+        const hasRevision = ref.revision !== undefined
+        const hasCandidate = ref.candidateId !== undefined
+        if (hasRevision === hasCandidate) return invalid('页面对比版本必须提供一个历史版本或候选')
+        return hasRevision ? { revision: revision(ref.revision) } : { candidateId: id(ref.candidateId) }
+      }
+      return result(method, { ...base, pageId: id(input.pageId), left: parseRef(input.left), right: parseRef(input.right) })
+    }
     case 'beginJob': {
       /** 规范化用户要求，供宿主推断任务边界。 */
       const instruction = string(input.instruction, '生成要求', 16000)

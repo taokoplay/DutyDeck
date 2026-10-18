@@ -45,6 +45,13 @@ describe('交互设计完整版本合同', () => {
     expect(() => parseInteractionDesignCommand({ method: 'adopt', input: { sessionId: 'session-1', prototypeId: 'proto-1', candidateId: 'candidate-1' } })).toThrow()
     expect(() => parseInteractionDesignCommand({ method: 'restore', input: { sessionId: 'session-1', prototypeId: 'proto-1', baseRevision: 1.1, revision: 1 } })).toThrow()
   })
+  test('Given 页面级采纳与对比请求 When 解析 Then 只保留严格身份字段', () => {
+    const adopt = parseInteractionDesignCommand({ method: 'adoptPage', input: { sessionId: 'session-1', prototypeId: 'proto-1', candidateId: 'candidate-1', pageId: 'home', baseRevision: 4, basePageRevision: 2, ignored: true } })
+    expect(adopt.input).toEqual({ sessionId: 'session-1', prototypeId: 'proto-1', candidateId: 'candidate-1', pageId: 'home', baseRevision: 4, basePageRevision: 2 })
+    const compare = parseInteractionDesignCommand({ method: 'comparePage', input: { sessionId: 'session-1', prototypeId: 'proto-1', pageId: 'home', left: { revision: 3 }, right: { candidateId: 'candidate-1' }, ignored: true } })
+    expect(compare.input).toEqual({ sessionId: 'session-1', prototypeId: 'proto-1', pageId: 'home', left: { revision: 3 }, right: { candidateId: 'candidate-1' } })
+    expect(() => parseInteractionDesignCommand({ method: 'comparePage', input: { sessionId: 'session-1', prototypeId: 'proto-1', pageId: 'home', left: { revision: 3, candidateId: 'candidate-1' }, right: { revision: 4 } } })).toThrow()
+  })
   test('Given 固定版本 When 创建开发交接请求 Then 只接受明确的原型与版本', () => {
     const parsed = parseInteractionDesignCommand({ method: 'createHandoff', input: { sessionId: 'session-1', prototypeId: 'proto-1', revision: 3, ignored: true } })
     expect(parsed.input).toEqual({ sessionId: 'session-1', prototypeId: 'proto-1', revision: 3 })
@@ -75,6 +82,11 @@ describe('业务页面与附加状态合同', () => {
     value.pages = value.pages.map(page => ({ ...page, defaultStateName: '有数据', states: [{ id: 'empty', name: '无数据', html: '<p>暂无记录</p>' }] }))
     expect(parsePrototypeDraft(value)).toEqual(value)
     expect(parsePrototypeDraft(value).pages).toHaveLength(2)
+  })
+  test('Given 页面路由与职责及独立版本 When 解析 Then 保留页面身份元数据', () => {
+    const value = draft()
+    value.pages[0] = { ...value.pages[0]!, pageRevision: 3, route: '/', role: '核心入口' }
+    expect(parsePrototypeDraft(value).pages[0]).toMatchObject({ pageRevision: 3, route: '/', role: '核心入口' })
   })
   test('Given 重复状态或超限内容 When 解析 Then 拒绝且状态正文计入整体预算', () => {
     /** 单页状态边界样本。 */

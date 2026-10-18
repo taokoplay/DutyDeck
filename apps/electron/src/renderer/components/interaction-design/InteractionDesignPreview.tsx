@@ -106,12 +106,40 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
   /** 缩放只改变外框几何，保留 iframe DOM 与表单临时状态。 */
   const width = props.device === 'mobile' ? 390 : 1280
   const height = props.device === 'mobile' ? 844 : 800
-  return <div ref={boardRef} className={props.multiple ? 'id-state-board' : 'id-single-board'} data-state-id={props.stateId ?? ''} style={{ width: width * props.scale }}>
+  /** iPhone 机身额外占用安全区边距，iframe 仍保持 390×844 设计视口。 */
+  const shellWidth = props.device === 'mobile' ? width + 36 : width
+  const shellHeight = props.device === 'mobile' ? height + 56 : height
+  /** 机身尺寸随画板比例同步缩放，避免窄窗口下内边距挤压 iframe。 */
+  const iphoneStyle = props.device === 'mobile' ? {
+    width: shellWidth * props.scale,
+    height: shellHeight * props.scale,
+    '--id-iphone-pad-x': `${16 * props.scale}px`,
+    '--id-iphone-pad-top': `${24 * props.scale}px`,
+    '--id-iphone-pad-bottom': `${28 * props.scale}px`,
+    '--id-iphone-border': `${2 * props.scale}px`,
+    '--id-iphone-radius': `${48 * props.scale}px`,
+    '--id-iphone-screen-radius': `${32 * props.scale}px`,
+    '--id-iphone-island-top': `${9 * props.scale}px`,
+    '--id-iphone-island-width': `${112 * props.scale}px`,
+    '--id-iphone-island-height': `${27 * props.scale}px`,
+    '--id-iphone-home-bottom': `${9 * props.scale}px`,
+    '--id-iphone-home-width': `${92 * props.scale}px`,
+    '--id-iphone-home-height': `${4 * props.scale}px`,
+  } as React.CSSProperties : { width: width * props.scale, height: height * props.scale }
+  /** 移动/桌面只切换外壳样式，保持 iframe 在同一 DOM 层级以保留表单与交互现场。 */
+  const shellClass = props.device === 'mobile' ? 'id-iphone-shell' : 'id-desktop-shell'
+  const screenClass = props.device === 'mobile' ? 'id-iphone-screen' : 'id-desktop-screen'
+  const chromeClass = props.device === 'mobile' ? 'id-dynamic-island' : 'id-desktop-island'
+  const safeTopClass = props.device === 'mobile' ? 'id-iphone-safe-top' : 'id-desktop-safe-top'
+  const safeBottomClass = props.device === 'mobile' ? 'id-iphone-safe-bottom' : 'id-desktop-safe-bottom'
+  const homeIndicatorClass = props.device === 'mobile' ? 'id-home-indicator' : 'id-desktop-home-indicator'
+  const frame = <div className="id-device-frame" aria-busy={loaded && !ready && !failed} style={{ width: width * props.scale, height: height * props.scale }}>
+    {html !== undefined && <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.pageId}:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts allow-forms" srcDoc={html} onLoad={() => { syncMode(); syncVisibility(); setReady(true) }} onError={() => setFailed(true)} style={{ width, height, transform: `scale(${props.scale})`, transformOrigin: 'top left' }} />}
+    {!loaded ? <div className="id-state-placeholder">{props.stateName} · 滚动到此处加载</div> : failed ? <div className="id-preview-loading" role="alert">页面加载失败，请点击工具栏重新体验</div> : !ready && <div className="id-preview-loading" role="status" aria-label={`${props.stateName}加载中`}><LoaderCircle className="id-preview-spinner" size={22} aria-hidden="true" /><span>{waitingForAssets ? '正在加载图片…' : '正在加载页面…'}</span></div>}
+  </div>
+  return <div ref={boardRef} className={props.multiple ? 'id-state-board' : 'id-single-board'} data-state-id={props.stateId ?? ''} style={{ width: shellWidth * props.scale }}>
     {props.multiple && <div className="id-state-label">{props.stateName}</div>}
-    <div className="id-device-frame" aria-busy={loaded && !ready && !failed} style={{ width: width * props.scale, height: height * props.scale }}>
-      {html !== undefined && <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.pageId}:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts allow-forms" srcDoc={html} onLoad={() => { syncMode(); syncVisibility(); setReady(true) }} onError={() => setFailed(true)} style={{ width, height, transform: `scale(${props.scale})`, transformOrigin: 'top left' }} />}
-      {!loaded ? <div className="id-state-placeholder">{props.stateName} · 滚动到此处加载</div> : failed ? <div className="id-preview-loading" role="alert">页面加载失败，请点击工具栏重新体验</div> : !ready && <div className="id-preview-loading" role="status" aria-label={`${props.stateName}加载中`}><LoaderCircle className="id-preview-spinner" size={22} aria-hidden="true" /><span>{waitingForAssets ? '正在加载图片…' : '正在加载页面…'}</span></div>}
-    </div>
+    <div className={shellClass} data-device={props.device === 'mobile' ? 'iphone' : 'desktop'} style={iphoneStyle}><div className={chromeClass} aria-hidden="true" /><div className={screenClass}><div className={safeTopClass} aria-hidden="true" />{frame}<div className={safeBottomClass} aria-hidden="true" /></div><div className={homeIndicatorClass} aria-hidden="true" /></div>
   </div>
 }
 
@@ -128,14 +156,17 @@ export function InteractionDesignPreview(props: InteractionDesignPreviewProps): 
   const multiple = Boolean(page?.states?.length)
   const width = props.device === 'mobile' ? 390 : 1280
   const height = props.device === 'mobile' ? 844 : 800
+  /** 适配布局使用机身外框尺寸，避免多台 iPhone 预览互相遮挡。 */
+  const shellWidth = props.device === 'mobile' ? width + 36 : width
+  const shellHeight = props.device === 'mobile' ? height + 56 : height
   /** 多状态保证可读尺寸，超出空间后滚动；不把十几个画板缩成缩略图。 */
   const availableWidth = Math.max(1, bounds.width - 32)
   const columns = multiple ? Math.min((page?.states?.length ?? 0) + 1, Math.max(1, Math.floor((availableWidth + 24) / (props.device === 'mobile' ? 284 : 504)))) : 1
   /** 状态画板优先保证可读宽度；高度不足时滚动，避免窄屏把两台手机压成缩略图。 */
-  const readableScale = (props.device === 'mobile' ? 260 : 480) / width
+  const readableScale = (props.device === 'mobile' ? 260 : 480) / shellWidth
   const fitScale = multiple
-    ? Math.max(0.05, Math.min(1, (availableWidth - (columns - 1) * 24) / columns / width, Math.max(readableScale, (bounds.height - 28) / height)))
-    : Math.max(0.05, Math.min(1, availableWidth / width, (bounds.height - 24) / height))
+    ? Math.max(0.05, Math.min(1, (availableWidth - (columns - 1) * 24) / columns / shellWidth, Math.max(readableScale, (bounds.height - 28) / shellHeight)))
+    : Math.max(0.05, Math.min(1, availableWidth / shellWidth, (bounds.height - 24) / shellHeight))
   /** 手动缩放有界；设备宽高仍保持原设计尺寸。 */
   const scale = props.zoom === undefined ? fitScale : Math.max(0.1, Math.min(3, props.zoom))
   React.useEffect(() => {
