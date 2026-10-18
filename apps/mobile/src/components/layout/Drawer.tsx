@@ -23,6 +23,7 @@ import {
 } from '../../lib/session-runtime-state'
 import { AgentSessionRow } from '../conversation/AgentSessionRow'
 import { AutomationPanel } from '../planning/AutomationPanel'
+import { APP_NAME } from '@dutydeck/shared'
 
 interface Props { onClose: () => void }
 
@@ -130,7 +131,7 @@ export function Drawer({ onClose }: Props) {
     <nav aria-label="会话抽屉" className="z-50 flex h-full w-72 max-w-[84vw] flex-col border-r border-border bg-sidebar text-foreground shadow-xl">
       {/* 头部 */}
       <div className="flex h-12 flex-shrink-0 items-center justify-between border-b border-border px-3">
-        <h2 className="text-sm font-semibold text-foreground">Proma</h2>
+        <h2 className="text-sm font-semibold text-foreground">{APP_NAME}</h2>
         <button
           aria-label="关闭会话抽屉"
           onClick={onClose}

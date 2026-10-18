@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Bot, Brain, ChevronRight, LoaderCircle } from 'lucide-react'
 import type { MobileStreamSegments } from '../../atoms'
 import { renderMd } from '../../utils/markdown'
+import { APP_NAME } from '@dutydeck/shared'
 
 interface StreamingAssistantMessageProps {
   /** 当前会话尚未写入历史的回答与思考快照。 */
@@ -28,7 +29,7 @@ export function StreamingAssistantMessage({ segments }: StreamingAssistantMessag
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex min-h-5 items-center gap-2">
-          <p className="text-[11px] font-medium text-foreground/70">Proma</p>
+          <p className="text-[11px] font-medium text-foreground/70">{APP_NAME}</p>
           <span role="status" className="text-[10px] text-muted-foreground">
             {segments.answer ? '回答中' : '思考中'}
           </span>

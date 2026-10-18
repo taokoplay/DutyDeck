@@ -6,9 +6,11 @@ import { spawnSync } from 'node:child_process'
 import {
   DUTYDECK_SAFE_STORAGE_NAME,
   LEGACY_SAFE_STORAGE_NAME,
+  LEGACY_USER_DATA_DIRECTORY_NAME,
   resolveAppIdentity,
   resolveLegacyDevUserDataDirectoryName,
 } from './lib/app-identity'
+import { resolveUserDataPath } from './lib/user-data-path'
 import {
   SAFE_STORAGE_MIGRATION_HELPER_ARG,
   SAFE_STORAGE_MIGRATION_RESULT_PREFIX,
@@ -20,6 +22,7 @@ import type { LegacySafeStorageSnapshot } from './lib/safe-storage-migration'
 const isSafeStorageMigrationHelper = process.argv.includes(SAFE_STORAGE_MIGRATION_HELPER_ARG)
 
 // 开发模式使用独立的 userData 目录，避免与打包版共享 Chromium SingletonLock；
+// 打包版则在新旧目录之间按已有 renderer 数据选择兼容路径。
 // 加密身份与 userData 都必须在任何会读取它们的模块加载之前固定。
 /** 当前进程应使用的正式或开发身份。 */
 const appIdentity = resolveAppIdentity(
@@ -33,11 +36,14 @@ if (isSafeStorageMigrationHelper) {
 } else if (appIdentity.safeStorageName) {
   app.setName(appIdentity.safeStorageName)
 }
-if (!app.isPackaged && appIdentity.userDataDirectoryName) {
-  const userDataDirectoryName = isSafeStorageMigrationHelper
-    ? resolveLegacyDevUserDataDirectoryName(process.env.DUTYDECK_DEV_INSTANCE ?? process.env.PROMA_DEV_INSTANCE)
-    : appIdentity.userDataDirectoryName
-  app.setPath('userData', join(app.getPath('appData'), userDataDirectoryName))
+if (appIdentity.userDataDirectoryName) {
+  const legacyDirectoryName = app.isPackaged
+    ? LEGACY_USER_DATA_DIRECTORY_NAME
+    : resolveLegacyDevUserDataDirectoryName(process.env.DUTYDECK_DEV_INSTANCE ?? process.env.PROMA_DEV_INSTANCE)
+  const userDataPath = isSafeStorageMigrationHelper
+    ? join(app.getPath('appData'), legacyDirectoryName)
+    : resolveUserDataPath(app.getPath('appData'), appIdentity.userDataDirectoryName, legacyDirectoryName).path
+  app.setPath('userData', userDataPath)
   if (process.platform === 'win32') app.setAppUserModelId(appIdentity.appId)
 }
 
@@ -921,8 +927,8 @@ app.whenReady()
       if (!dataRoot) throw new Error('Safe Storage 迁移 helper 缺少数据根参数')
       return runSafeStorageMigrationHelper(dataRoot)
     }
-    // Safe Storage 初始化完成后再恢复开发客户端的用户可见名称。
-    if (!app.isPackaged) app.setName(appIdentity.displayName)
+    // Safe Storage 初始化完成后再恢复 DutyDeck 的用户可见名称。
+    app.setName(appIdentity.displayName)
     /** 开发态只做一次新鲜度提示：产物落后于源码时，别让旧合同伪装成业务故障。 */
     if (!app.isPackaged) {
       /** 打包后的主进程在 `dist/`，根目录必须显式给出，不能依赖源码布局推导。 */
@@ -1061,7 +1067,7 @@ async function bootstrap(): Promise<void> {
     console.info(`[启动] 已迁移 ${safeStorageMigration.migratedValues} 个旧 Safe Storage 密文`)
   }
   // 开发版界面仍显示 DutyDeck Dev；Safe Storage 服务名已在迁移阶段固定。
-  if (!app.isPackaged) app.setName(appIdentity.displayName)
+  app.setName(appIdentity.displayName)
 
   /** LAN 组合根只能在 normal gate 与共享实例 lease 之后求值，离线模式不得读取业务根。 */
   const { createLanBridgeRegistration } = await import('./lib/lan-bridge/lan-bridge')

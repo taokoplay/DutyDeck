@@ -18,6 +18,15 @@ export const FORBIDDEN_RESIDUES = [
   ['packages/session-core/package.json', 'Proma agent sessions'],
   ['apps/mobile/package.json', 'Proma mobile'],
   ['apps/electron/electron-builder.yml', 'resources/proma-logos'],
+  ['apps/mobile/src/components/layout/AppShell.tsx', '>Proma<'],
+  ['apps/mobile/src/components/layout/Drawer.tsx', '>Proma<'],
+  ['apps/mobile/src/components/conversation/StreamingAssistantMessage.tsx', '>Proma<'],
+  ['apps/mobile/src/components/conversation/MessageBubble.tsx', "|| 'Proma'"],
+  ['apps/electron/src/renderer/components/settings/SlackSettings.tsx', '@Proma'],
+  ['apps/electron/src/renderer/components/settings/StorageSettings.tsx', 'Proma Agent 会话'],
+  ['apps/electron/src/renderer/components/settings/StorageSettings.tsx', 'Proma 管理的数据'],
+  ['apps/electron/src/renderer/components/settings/StorageSettings.tsx', 'Proma 管理的会话'],
+  ['apps/electron/src/renderer/components/settings/StorageSettings.tsx', 'Proma 会保留'],
 ] as const
 
 /** 收集计划列出的产品残留，并返回可供测试与 CI 使用的结构化结果。 */

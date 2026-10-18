@@ -12,6 +12,7 @@ import { ChatView } from '../conversation/ChatView'
 import { ConvDropdown } from '../conversation/ConvDropdown'
 import { wsReq } from '../../lib/ws-client'
 import { loadData } from '../../App'
+import { APP_NAME } from '@dutydeck/shared'
 
 interface SettingsResponse { agentModelId?: string; channelBaseUrl?: string; agentChannelId?: string }
 interface ChannelsResponse { channels: ChannelInfo[] }
@@ -94,7 +95,7 @@ export function AppShell() {
           </>
         ) : (
           <div className="mx-2 min-w-0 flex-1 text-center">
-            <h1 className="truncate text-sm font-medium leading-4 text-foreground">Proma</h1>
+            <h1 className="truncate text-sm font-medium leading-4 text-foreground">{APP_NAME}</h1>
             <p className="text-[10px] leading-3 text-muted-foreground">已连接</p>
           </div>
         )}

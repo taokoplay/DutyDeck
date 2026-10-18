@@ -4,6 +4,7 @@ import { ProcessBlockGroup } from './ProcessBlockGroup'
 import { renderMd } from '../../utils/markdown'
 import type { Message, ContentBlock, ToolResultContent } from '../../atoms'
 import { groupAssistantMessages, splitAssistantProcessBlocks } from './process-blocks'
+import { APP_NAME } from '@dutydeck/shared'
 
 /** 读取消息兼容字段，统一支持新旧 LAN Bridge 消息结构。
  * @param m 当前消息
@@ -47,7 +48,7 @@ function hasToolResult(m: Message): boolean {
   return asBlocks(getContent(m)).some((c): c is ToolResultContent => c.type === 'tool_result')
 }
 
-/** 渲染移动端统一的 Proma 助手标识。
+/** 渲染移动端统一的 DutyDeck 助手标识。
  * @returns 助手头像元素
  */
 function AssistantAvatar() {
@@ -94,7 +95,7 @@ export function MessageBubble({ message: m, resultMap }: { message: Message; res
         <AssistantAvatar />
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[11px] font-medium text-foreground/70">{m.model || 'Proma'}</span>
+            <span className="truncate text-[11px] font-medium text-foreground/70">{m.model || APP_NAME}</span>
             {m.createdAt && <span className="text-[10px] text-muted-foreground">{new Date(m.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}
           </div>
           {assistantContent.processBlocks.length > 0 && (

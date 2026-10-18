@@ -89,7 +89,7 @@ export function SlackSettings(): React.ReactElement {
           <li className="flex gap-3"><Step n="3" /><span>在 <strong className="font-medium text-foreground">Socket Mode</strong> 确认开关已开启。点 <strong className="font-medium text-foreground">App Level Token</strong> → <strong className="font-medium text-foreground">Generate Token and Scopes</strong>，添加 <code className="rounded bg-muted px-1 py-0.5">connections:write</code>，复制 <code className="rounded bg-muted px-1 py-0.5">xapp-…</code>。</span></li>
           <li className="flex gap-3"><Step n="4" /><span>在 <strong className="font-medium text-foreground">Install App</strong> 点击 <strong className="font-medium text-foreground">Install to Workspace</strong>，由有权限的成员确认 Slack 授权，复制生成的 <code className="rounded bg-muted px-1 py-0.5">xoxb-…</code>。</span></li>
           <li className="flex gap-3"><Step n="5" /><span>将 <code className="rounded bg-muted px-1 py-0.5">xoxb-…</code> 填入 Bot Token、<code className="rounded bg-muted px-1 py-0.5">xapp-…</code> 填入 App Token。<strong className="font-medium text-foreground">测试 Token</strong> 只验证 Bot API；点击<strong className="font-medium text-foreground">保存并连接</strong>，卡片显示“已连接”才表示 Socket Mode 就绪。</span></li>
-          <li className="flex gap-3"><Step n="6" /><span>将 Bot 邀请进要使用的频道；任意成员都可用 <strong className="font-medium text-foreground">@Proma</strong> 发起任务，DutyDeck 会始终在同一 thread 回复。此集成不接收 Slack 私信或 Slash Command。</span></li>
+          <li className="flex gap-3"><Step n="6" /><span>将 Bot 邀请进要使用的频道；任意成员都可在频道中提及该 Bot 发起任务，DutyDeck 会始终在同一 thread 回复。此集成不接收 Slack 私信或 Slash Command。</span></li>
         </ol>
       </SettingsCard>
     </SettingsSection>

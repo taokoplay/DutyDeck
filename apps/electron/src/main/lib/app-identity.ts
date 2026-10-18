@@ -18,11 +18,17 @@ export const DUTYDECK_APP_ID = 'com.taokoplay.dutydeck.app'
 /** 新版 DutyDeck 的开发实例标识。 */
 export const DUTYDECK_DEV_APP_ID = 'com.taokoplay.dutydeck.dev'
 
+/** 新版正式 Electron userData 目录名。 */
+export const DUTYDECK_USER_DATA_DIRECTORY_NAME = '@dutydeck/electron'
+
 /** 新版 DutyDeck 的 Safe Storage 加密服务名。 */
 export const DUTYDECK_SAFE_STORAGE_NAME = '@dutydeck/electron'
 
 /** 旧版 Proma 的加密服务名，供迁移诊断和人工恢复使用。 */
 export const LEGACY_SAFE_STORAGE_NAME = '@proma/electron'
+
+/** 旧版正式 Electron userData 目录名，升级时只读复用。 */
+export const LEGACY_USER_DATA_DIRECTORY_NAME = '@proma/electron'
 
 /** 旧版开发实例的 userData 目录名，helper 读取开发密文时必须复用。 */
 export const LEGACY_DEV_USER_DATA_DIRECTORY_NAME = '@proma/electron-dev'
@@ -47,6 +53,7 @@ export function resolveAppIdentity(isPackaged: boolean, rawInstance?: string): A
       displayName: APP_NAME,
       appId: DUTYDECK_APP_ID,
       safeStorageName: DUTYDECK_SAFE_STORAGE_NAME,
+      userDataDirectoryName: DUTYDECK_USER_DATA_DIRECTORY_NAME,
     }
   }
   /** 去除会污染进程名称或目录名的开发实例字符。 */

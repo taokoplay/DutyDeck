@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   DUTYDECK_SAFE_STORAGE_NAME,
   LEGACY_SAFE_STORAGE_NAME,
+  LEGACY_USER_DATA_DIRECTORY_NAME,
   resolveAppIdentity,
   resolveLegacyDevUserDataDirectoryName,
 } from './app-identity'
@@ -22,6 +23,7 @@ describe('Electron 应用身份', () => {
       displayName: 'DutyDeck',
       appId: 'com.taokoplay.dutydeck.app',
       safeStorageName: '@dutydeck/electron',
+      userDataDirectoryName: '@dutydeck/electron',
     })
   })
 
@@ -54,5 +56,9 @@ describe('Electron 应用身份', () => {
     expect(development.appId).toBe('com.taokoplay.dutydeck.dev')
     expect(packaged.displayName).not.toContain('@proma')
     expect(development.displayName).not.toContain('@proma')
+  })
+
+  test('旧版正式 userData 目录固定为 Proma 兼容路径', () => {
+    expect(LEGACY_USER_DATA_DIRECTORY_NAME).toBe('@proma/electron')
   })
 })
