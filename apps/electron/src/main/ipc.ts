@@ -17,6 +17,7 @@ import { createProductionInteractionDesignAccess, setInteractionDesignHost } fro
 import { registerVisualProductionIpc } from './lib/visual-production/ipc'
 import { createProductionVisualProductionAccess, setVisualProductionHost } from './lib/visual-production/integration'
 import { buildVisualProductionMediaCatalog, resolveVisualProductionMediaWorkflow } from './lib/visual-production/media-catalog'
+import { renderVisualEditingExport } from './lib/visual-production/visual-editing-export'
 import { visualMediaExecutionContext, visualMediaOrigin, assertVisualMediaOrigin } from './lib/visual-production/media-execution-context'
 import type { MediaInputValue, VisualProductionMediaExecutionSource } from '@dutydeck/shared'
 import { INTERACTION_DESIGN_CHANNELS, VISUAL_PRODUCTION_CHANNELS, VISUAL_PRODUCTION_LIMITS } from '@dutydeck/shared'
@@ -3255,6 +3256,13 @@ export function registerIpcHandlers(): void {
       if (record.byteSize > VISUAL_PRODUCTION_LIMITS.mediaBytes) throw new Error('影像素材超过 32 MiB，请先压缩或拆分镜头')
       return mediaAssets.read(workspaceId, reference)
     },
+    renderExport: (_workspaceId, input) => renderVisualEditingExport(input, {
+      registerArtifact: async (bytes) => {
+        /** 影像成片归属于作品自己的不可变媒体库，身份直接使用内容 hash。 */
+        const digest = createHash('sha256').update(bytes).digest('hex')
+        return { mediaId: digest, hash: digest }
+      },
+    }),
     onChanged: (event) => {
       for (const contents of listAuthorizedDesignWebContents()) {
         if (!contents.isDestroyed()) contents.send(VISUAL_PRODUCTION_CHANNELS.CHANGED, event)

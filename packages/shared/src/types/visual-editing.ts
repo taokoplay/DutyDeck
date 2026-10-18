@@ -313,6 +313,80 @@ export function parseVisualEditingOperations(value: unknown): VisualEditingOpera
   return value.map(parseVisualEditingOperation)
 }
 
+/** 重新计算线性轨道的开始时间，保持片段顺序与总时长一致。 */
+function reflowTrack(track: VisualEditingTrack): void {
+  if (track.kind === 'caption') return
+  let cursor = 0
+  for (const clip of track.clips) { clip.start = cursor; cursor += clip.duration }
+}
+
+/** 在一条轨道中查找片段，返回可安全修改的索引。 */
+function locateClip(document: VisualEditingDocument, trackId: string, clipId: string): { track: VisualEditingTrack; index: number } {
+  const track = document.tracks.find(item => item.id === trackId)
+  if (!track) throw new Error('VISUAL_EDITING_INVALID: 轨道不存在')
+  const index = track.clips.findIndex(item => item.id === clipId)
+  if (index < 0) throw new Error('VISUAL_EDITING_INVALID: 片段不存在')
+  return { track, index }
+}
+
+/** 应用 Agent 或本地编辑器的有限操作，返回全新时间线，不修改输入对象。 */
+export function applyVisualEditingOperations(document: VisualEditingDocument, operations: VisualEditingOperation[]): VisualEditingDocument {
+  const next = structuredClone(document)
+  for (const operation of operations) {
+    if (operation.type === 'moveClip') {
+      const located = locateClip(next, operation.trackId, operation.clipId)
+      const [clip] = located.track.clips.splice(located.index, 1)
+      if (!clip) throw new Error('VISUAL_EDITING_INVALID: 片段不存在')
+      located.track.clips.splice(Math.min(operation.toIndex, located.track.clips.length), 0, clip)
+      reflowTrack(located.track)
+    } else if (operation.type === 'splitClip') {
+      const located = locateClip(next, operation.trackId, operation.clipId)
+      const clip = located.track.clips[located.index]!
+      if (located.track.kind === 'caption' || !clip.source || operation.at <= clip.sourceIn || operation.at >= clip.sourceOut) throw new Error('VISUAL_EDITING_INVALID: 分割位置')
+      const leftDuration = operation.at - clip.sourceIn
+      const rightDuration = clip.sourceOut - operation.at
+      const left = { ...clip, id: `${clip.id}-a`, duration: leftDuration, sourceOut: operation.at }
+      const right = { ...clip, id: `${clip.id}-b`, start: clip.start + leftDuration, duration: rightDuration, sourceIn: operation.at }
+      located.track.clips.splice(located.index, 1, left, right)
+      reflowTrack(located.track)
+    } else if (operation.type === 'trimClip') {
+      const located = locateClip(next, operation.trackId, operation.clipId)
+      const clip = located.track.clips[located.index]!
+      if (!clip.source || operation.sourceOut <= operation.sourceIn || operation.sourceIn < 0) throw new Error('VISUAL_EDITING_INVALID: 裁切范围')
+      clip.sourceIn = operation.sourceIn
+      clip.sourceOut = operation.sourceOut
+      clip.duration = operation.sourceOut - operation.sourceIn
+      reflowTrack(located.track)
+    } else if (operation.type === 'setVolume') {
+      const located = locateClip(next, operation.trackId, operation.clipId)
+      if (located.track.kind !== 'voice' && located.track.kind !== 'music') throw new Error('VISUAL_EDITING_INVALID: 音量轨道')
+      located.track.clips[located.index]!.volume = operation.volume
+    } else if (operation.type === 'setCaption') {
+      const track = next.tracks.find(item => item.id === operation.trackId)
+      if (!track || track.kind !== 'caption') throw new Error('VISUAL_EDITING_INVALID: 字幕轨道')
+      if (operation.clipId) {
+        const index = track.clips.findIndex(item => item.id === operation.clipId)
+        if (index < 0) throw new Error('VISUAL_EDITING_INVALID: 字幕片段不存在')
+        const clip = track.clips[index]!
+        clip.start = operation.start; clip.duration = operation.duration; clip.sourceIn = 0; clip.sourceOut = operation.duration; clip.label = operation.text.slice(0, 80); clip.caption = { text: operation.text }
+      } else {
+        const used = new Set(track.clips.map(item => item.id))
+        let id = `caption-${track.clips.length + 1}`
+        while (used.has(id)) id = `${id}-next`
+        track.clips.push({ id, start: operation.start, duration: operation.duration, sourceIn: 0, sourceOut: operation.duration, label: operation.text.slice(0, 80), caption: { text: operation.text } })
+      }
+    } else if (operation.type === 'removeClip') {
+      const located = locateClip(next, operation.trackId, operation.clipId)
+      located.track.clips.splice(located.index, 1)
+      reflowTrack(located.track)
+    }
+  }
+  const maxEnd = Math.max(0, ...next.tracks.flatMap(track => track.clips.map(clip => clip.start + clip.duration)))
+  next.duration = maxEnd
+  next.updatedAt = Date.now()
+  return parseVisualEditingDocument(next)
+}
+
 /** 解析成片导出设置。 */
 export function parseVisualEditingExportSettings(value: unknown): VisualEditingExportSettings {
   const data = plainObject(value, ['ratio', 'fps', 'includeVoice', 'includeMusic', 'includeCaptions'], '导出设置')

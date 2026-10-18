@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseVisualEditingDocument } from '@dutydeck/shared'
-import type { VisualEditingClip, VisualEditingDocument, VisualEditingTimelineSnapshot, VisualProductionSnapshot } from '@dutydeck/shared'
+import { applyVisualEditingOperations, parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperations } from '@dutydeck/shared'
+import type { VisualEditingClip, VisualEditingDocument, VisualEditingExportJob, VisualEditingExportSettings, VisualEditingOperation, VisualEditingTimelineCandidate, VisualEditingTimelineSnapshot, VisualProductionSnapshot, VisualMedia } from '@dutydeck/shared'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
 import { interactionDirectory, readInteractionFile } from '../interaction-design/paths'
@@ -22,6 +22,10 @@ export interface VisualEditingStoreDependencies {
   /** 影像作品的完整快照，仅用于校验片段来源。 */
   workspaceId?: string
   projectRoot: string
+  /** 执行真实成片编码；未提供时必须返回明确失败任务，不得伪造媒体。 */
+  renderExport?: (input: { productionId: string; episodeId: string; timeline: VisualEditingDocument; settings: VisualEditingExportSettings; sourceMedia: VisualMedia[]; readMedia: (mediaId: string) => { bytes: Uint8Array; mime: string } }) => Promise<{ encoderId: string; artifactMedia: VisualMedia; artifactBytes: Uint8Array }>
+  /** 将编码完成的媒体原子登记回影像作品媒体库。 */
+  saveExportArtifact?: (snapshot: VisualProductionSnapshot, media: VisualMedia, bytes: Uint8Array) => void
 }
 
 /** 每集一条独立时间线，原子保存且不把媒体字节写入剪辑文件。 */
@@ -47,7 +51,8 @@ export class VisualEditingStore {
     if (!state) return null
     const file = JSON.parse(readInteractionFile(path, 8 * 1024 * 1024).toString()) as VisualEditingFile
     if (!file || file.schemaVersion !== 1 || !file.timeline || file.timeline.productionId !== productionId || file.timeline.episodeId !== episodeId || !Array.isArray(file.candidates) || !Array.isArray(file.exportJobs)) throw new Error('影像剪辑文件损坏')
-    return { file: { schemaVersion: 1, timeline: parseVisualEditingDocument(file.timeline), candidates: file.candidates, exportJobs: file.exportJobs }, state }
+    const candidates = file.candidates.map(candidate => ({ ...candidate, timeline: parseVisualEditingDocument(candidate.timeline), operations: parseVisualEditingOperations(candidate.operations) }))
+    return { file: { schemaVersion: 1, timeline: parseVisualEditingDocument(file.timeline), candidates, exportJobs: file.exportJobs }, state }
   }
 
   /** 核验集数存在并返回其镜头集合。 */
@@ -103,7 +108,9 @@ export class VisualEditingStore {
     const stored = this.read(snapshot.document.id, episodeId)
     if (!stored) return this.empty()
     this.references(snapshot, stored.file.timeline)
-    return { timeline: structuredClone(stored.file.timeline), needsReplacementClipIds: this.replacementIds(snapshot, stored.file.timeline), candidates: structuredClone(stored.file.candidates), exportJobs: structuredClone(stored.file.exportJobs) }
+    const timeline = structuredClone(stored.file.timeline)
+    const candidates = structuredClone(stored.file.candidates).map(candidate => candidate.status === 'ready' && candidate.baseRevision !== timeline.revision ? { ...candidate, status: 'stale' as const } : candidate)
+    return { timeline, needsReplacementClipIds: this.replacementIds(snapshot, timeline), candidates, exportJobs: structuredClone(stored.file.exportJobs) }
   }
 
   /** 按当前集的分镜顺序创建初始视频轨，未采用镜头不伪造片段。 */
@@ -150,5 +157,116 @@ export class VisualEditingStore {
     const file: VisualEditingFile = { schemaVersion: 1, timeline: { ...parsed, updatedAt: Date.now() }, candidates: previous ? this.read(snapshot.document.id, episodeId)!.file.candidates : [], exportJobs: previous ? this.read(snapshot.document.id, episodeId)!.file.exportJobs : [] }
     writeJsonFileAtomicSecure(path, file, { expectedDestination: previous ? { kind: 'state', state: previous } : { kind: 'missing' } })
     return this.load(snapshot, episodeId)
+  }
+
+  /** 为 Agent 生成候选时间线，正式版本保持不变。 */
+  propose(snapshot: VisualProductionSnapshot, episodeId: string, expectedRevision: number, operations: VisualEditingOperation[], summary: string, sessionId: string): VisualEditingTimelineCandidate {
+    this.dependencies.assertCurrent?.()
+    this.episode(snapshot, episodeId)
+    const stored = this.read(snapshot.document.id, episodeId)
+    if (!stored || stored.file.timeline.revision !== expectedRevision) throw new Error('VISUAL_EDITING_CONFLICT: 时间线已变化或尚未建立')
+    const candidateTimeline = applyVisualEditingOperations(stored.file.timeline, operations)
+    this.references(snapshot, candidateTimeline)
+    const candidate: VisualEditingTimelineCandidate = { id: randomUUID(), baseRevision: expectedRevision, timeline: candidateTimeline, operations: structuredClone(operations), summary, status: 'ready', sessionId, createdAt: Date.now() }
+    const candidates = [...stored.file.candidates]
+    while (candidates.length >= 32) {
+      const removable = candidates.findIndex(item => item.status !== 'ready')
+      if (removable < 0) throw new Error('待采用剪辑候选数量超过预算，请先采用或丢弃')
+      candidates.splice(removable, 1)
+    }
+    candidates.push(candidate)
+    const path = this.path(snapshot.document.id, episodeId, true)
+    writeJsonFileAtomicSecure(path, { ...stored.file, candidates }, { expectedDestination: { kind: 'state', state: stored.state } })
+    return candidate
+  }
+
+  /** 原子采用候选并只递增时间线版本，不修改影像作品正式版本。 */
+  adopt(snapshot: VisualProductionSnapshot, episodeId: string, candidateId: string, expectedRevision: number): VisualEditingTimelineSnapshot {
+    this.dependencies.assertCurrent?.()
+    const stored = this.read(snapshot.document.id, episodeId)
+    const candidate = stored?.file.candidates.find(item => item.id === candidateId)
+    if (!stored || stored.file.timeline.revision !== expectedRevision || !candidate || candidate.status !== 'ready' || candidate.baseRevision !== expectedRevision) throw new Error('候选已过期或不可采纳')
+    const timeline = { ...candidate.timeline, revision: expectedRevision + 1, updatedAt: Date.now() }
+    this.references(snapshot, timeline)
+    const candidates = stored.file.candidates.map(item => item.id === candidateId ? { ...item, status: 'adopted' as const } : item)
+    writeJsonFileAtomicSecure(this.path(snapshot.document.id, episodeId, true), { ...stored.file, timeline, candidates }, { expectedDestination: { kind: 'state', state: stored.state } })
+    return this.load(snapshot, episodeId)
+  }
+
+  /** 丢弃候选只改变剪辑历史，不回写正式时间线。 */
+  discard(snapshot: VisualProductionSnapshot, episodeId: string, candidateId: string): VisualEditingTimelineSnapshot {
+    this.dependencies.assertCurrent?.()
+    const stored = this.read(snapshot.document.id, episodeId)
+    const candidate = stored?.file.candidates.find(item => item.id === candidateId)
+    if (!stored || !candidate || candidate.status === 'adopted') throw new Error('候选不可丢弃')
+    const candidates = stored.file.candidates.map(item => item.id === candidateId ? { ...item, status: 'discarded' as const } : item)
+    writeJsonFileAtomicSecure(this.path(snapshot.document.id, episodeId, true), { ...stored.file, candidates }, { expectedDestination: { kind: 'state', state: stored.state } })
+    return this.load(snapshot, episodeId)
+  }
+
+  /** 创建冻结当前时间线和媒体 hash 的成片任务；缺编码器时持久化失败状态。 */
+  async requestExport(snapshot: VisualProductionSnapshot, episodeId: string, expectedTimelineRevision: number, settings: VisualEditingExportSettings): Promise<VisualEditingExportJob> {
+    this.dependencies.assertCurrent?.()
+    this.episode(snapshot, episodeId)
+    const stored = this.read(snapshot.document.id, episodeId)
+    if (!stored || stored.file.timeline.revision !== expectedTimelineRevision) throw new Error('VISUAL_EDITING_CONFLICT: 时间线已变化或尚未建立')
+    const parsedSettings = parseVisualEditingExportSettings(settings)
+    const sourceHashes = [...new Set(stored.file.timeline.tracks.flatMap(track => track.clips.flatMap(clip => clip.source ? [clip.source.mediaHash] : [])))].sort()
+    const now = Date.now()
+    const job: VisualEditingExportJob = { id: randomUUID(), productionId: snapshot.document.id, episodeId, timelineRevision: expectedTimelineRevision, sourceHashes, settings: parsedSettings, status: 'queued', createdAt: now, updatedAt: now }
+    const path = this.path(snapshot.document.id, episodeId, true)
+    writeJsonFileAtomicSecure(path, { ...stored.file, exportJobs: [...stored.file.exportJobs, job] }, { expectedDestination: { kind: 'state', state: stored.state } })
+    if (!this.dependencies.renderExport) {
+      const failed: VisualEditingExportJob = { ...job, status: 'failed', message: '成片编码器不可用，未生成视频文件。请先配置 FFmpeg。', updatedAt: Date.now() }
+      const current = this.read(snapshot.document.id, episodeId)
+      if (!current) throw new Error('影像剪辑文件不存在')
+      writeJsonFileAtomicSecure(path, { ...current.file, exportJobs: current.file.exportJobs.map(item => item.id === job.id ? failed : item) }, { expectedDestination: { kind: 'state', state: current.state } })
+      return failed
+    }
+    try {
+      const rendered = await this.dependencies.renderExport({ productionId: snapshot.document.id, episodeId, timeline: structuredClone(stored.file.timeline), settings: parsedSettings, sourceMedia: structuredClone(snapshot.media), readMedia: (mediaId) => this.mediaContent(snapshot, mediaId) })
+      if (rendered.artifactMedia.kind !== 'video' || rendered.artifactMedia.mime !== 'video/mp4' || rendered.artifactMedia.id !== rendered.artifactMedia.hash) throw new Error('编码器返回的媒体身份无效')
+      this.dependencies.saveExportArtifact?.(snapshot, rendered.artifactMedia, rendered.artifactBytes)
+      const completed: VisualEditingExportJob = { ...job, status: 'completed', encoderId: rendered.encoderId, artifactMediaId: rendered.artifactMedia.id, artifactHash: rendered.artifactMedia.hash, message: '成片已生成。', updatedAt: Date.now() }
+      const current = this.read(snapshot.document.id, episodeId)
+      if (!current) throw new Error('影像剪辑文件不存在')
+      writeJsonFileAtomicSecure(path, { ...current.file, exportJobs: current.file.exportJobs.map(item => item.id === job.id ? completed : item) }, { expectedDestination: { kind: 'state', state: current.state } })
+      return completed
+    } catch (cause) {
+      const failed: VisualEditingExportJob = { ...job, status: 'failed', message: `成片导出失败：${cause instanceof Error ? cause.message : '编码器返回未知错误'}`, updatedAt: Date.now() }
+      const current = this.read(snapshot.document.id, episodeId)
+      if (!current) throw new Error('影像剪辑文件不存在')
+      writeJsonFileAtomicSecure(path, { ...current.file, exportJobs: current.file.exportJobs.map(item => item.id === job.id ? failed : item) }, { expectedDestination: { kind: 'state', state: current.state } })
+      return failed
+    }
+  }
+
+  /** 读取当前集的导出任务列表，正文不包含媒体字节。 */
+  listExportJobs(snapshot: VisualProductionSnapshot, episodeId: string): VisualEditingExportJob[] {
+    return this.load(snapshot, episodeId).exportJobs
+  }
+
+  /** 取消仍处于排队或准备阶段的导出任务。 */
+  cancelExport(snapshot: VisualProductionSnapshot, episodeId: string, exportJobId: string): VisualEditingExportJob {
+    this.dependencies.assertCurrent?.()
+    this.episode(snapshot, episodeId)
+    const stored = this.read(snapshot.document.id, episodeId)
+    const job = stored?.file.exportJobs.find(item => item.id === exportJobId)
+    if (!stored || !job) throw new Error('导出任务不存在')
+    if (job.status !== 'queued' && job.status !== 'preparing') throw new Error('当前导出任务不能取消')
+    const cancelled: VisualEditingExportJob = { ...job, status: 'cancelled', message: '已取消成片导出。', updatedAt: Date.now() }
+    writeJsonFileAtomicSecure(this.path(snapshot.document.id, episodeId, true), { ...stored.file, exportJobs: stored.file.exportJobs.map(item => item.id === exportJobId ? cancelled : item) }, { expectedDestination: { kind: 'state', state: stored.state } })
+    return cancelled
+  }
+
+  /** 从时间线媒体片段读取已校验的不可变副本。 */
+  private mediaContent(snapshot: VisualProductionSnapshot, id: string): { mediaId: string; bytes: Uint8Array; mime: string } {
+    const media = snapshot.media.find(item => item.id === id)
+    if (!media) throw new Error('媒体不属于当前作品')
+    const directory = interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', snapshot.document.id, 'media'])
+    const stored = JSON.parse(readInteractionFile(join(directory, `${media.hash}.json`), 32 * 1024 * 1024).toString()) as { hash: string; data: string }
+    const bytes = Buffer.from(stored.data, 'base64')
+    if (stored.hash !== media.hash || bytes.length !== media.byteSize) throw new Error('媒体副本损坏')
+    return { mediaId: id, bytes, mime: media.mime }
   }
 }

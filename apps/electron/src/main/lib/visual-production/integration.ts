@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs'
-import type { VisualProductionChanged, MediaAssetRef, VisualMedia, VisualProductionMediaOption, VisualProductionMediaExecution, VisualProductionMediaExecutionSource, VisualProductionMediaKind } from '@dutydeck/shared'
+import type { VisualProductionChanged, MediaAssetRef, VisualEditingDocument, VisualEditingExportSettings, VisualMedia, VisualProductionMediaOption, VisualProductionMediaExecution, VisualProductionMediaExecutionSource, VisualProductionMediaKind } from '@dutydeck/shared'
 import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { getAgentSessionMeta } from '../agent-session-manager'
 import { isEligibleProjectAgent } from '../agent-session-visibility'
@@ -20,6 +20,8 @@ interface VisualProductionHost {
   readMediaExecution?(workspaceId: string, sessionId: string, runId: string, engine: 'model' | 'workflow'): Promise<VisualProductionMediaExecution>
   /** 在受管项目写租约内登记已验证的正式参考副本。 */
   registerReference?(workspaceId: string, input: { sessionId: string; productionId: string; media: VisualMedia; bytes: Uint8Array }): Promise<MediaAssetRef>
+  /** 使用主进程已配置的编码器生成真实 MP4，并返回已登记媒体身份。 */
+  renderExport?(workspaceId: string, input: { productionId: string; episodeId: string; timeline: VisualEditingDocument; settings: VisualEditingExportSettings; sourceMedia: VisualMedia[]; readMedia: (mediaId: string) => { bytes: Uint8Array; mime: string } }): Promise<{ encoderId: string; artifactMedia: VisualMedia; artifactBytes: Uint8Array }>
   readMediaAsset(workspaceId: string, reference: MediaAssetRef): Promise<Uint8Array>
   onChanged(event: VisualProductionChanged): void
 }
@@ -102,6 +104,13 @@ export function createProductionVisualProductionAccess(
         const bytes = await host.readMediaAsset(workspaceId, reference)
         assertCurrent()
         return bytes
+      },
+      renderExport: async (input) => {
+        assertCurrent()
+        if (!host?.renderExport) throw new Error('成片编码器尚未配置')
+        const result = await host.renderExport(workspaceId, input)
+        assertCurrent()
+        return result
       },
     }),
     onChanged: (event) => {

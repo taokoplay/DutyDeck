@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -27,7 +28,7 @@ async function fixture() {
   const episodeId = created.document.episodes[0]!.id
   const draft = { ...editable(created.document), assets: [{ id: 'asset-1', name: '产品', type: '产品', description: '', locked: false, mediaId: media.id }], shots: [{ id: 'shot-1', episodeId, title: '开场镜头', duration: 4, scene: '', motion: '', dialogue: '', assetIds: ['asset-1'], mediaId: media.id }] }
   const saved = await service.invoke('save', { ...target, baseRevision: 1, draft })
-  return { service, target, episodeId, snapshot: saved }
+  return { service, target, episodeId, snapshot: saved, projectRoot }
 }
 
 describe('影像剪辑时间线存储', () => {
@@ -66,5 +67,67 @@ describe('影像剪辑时间线存储', () => {
     const loaded = await service.invoke('loadTimeline', { ...target, episodeId })
     expect(loaded.timeline?.revision).toBe(initial.timeline?.revision)
     expect(loaded.needsReplacementClipIds).toHaveLength(1)
+  })
+
+  it('Given Agent 提交时间线操作 When 预览并采用候选 Then 正式时间线只在采用后递增', async () => {
+    const { service, target, episodeId } = await fixture()
+    const initial = await service.invoke('createRoughCut', { ...target, episodeId, baseProductionRevision: 2 })
+    const candidate = await service.invoke('proposeTimelineEdit', { ...target, episodeId, expectedRevision: initial.timeline!.revision, operations: [{ type: 'trimClip', trackId: 'video', clipId: initial.timeline!.tracks[0]!.clips[0]!.id, sourceIn: 1, sourceOut: 3 }], summary: '缩短开场' })
+    expect(candidate.status).toBe('ready')
+    expect((await service.invoke('loadTimeline', { ...target, episodeId })).timeline?.revision).toBe(1)
+    const adopted = await service.invoke('adoptTimelineEdit', { ...target, episodeId, candidateId: candidate.id, expectedRevision: 1 })
+    expect(adopted.timeline?.revision).toBe(2)
+    expect(adopted.timeline?.tracks[0]?.clips[0]?.sourceIn).toBe(1)
+    expect(adopted.candidates[0]?.status).toBe('adopted')
+  })
+
+  it('Given 已过期候选 When 采用 Then 拒绝并保留当前时间线', async () => {
+    const { service, target, episodeId } = await fixture()
+    const initial = await service.invoke('createRoughCut', { ...target, episodeId, baseProductionRevision: 2 })
+    const candidate = await service.invoke('proposeTimelineEdit', { ...target, episodeId, expectedRevision: initial.timeline!.revision, operations: [{ type: 'removeClip', trackId: 'video', clipId: initial.timeline!.tracks[0]!.clips[0]!.id }], summary: '删除镜头' })
+    const updated = structuredClone(initial.timeline!)
+    updated.revision = 2
+    updated.duration = 3
+    updated.tracks[0]!.clips[0]!.duration = 3
+    updated.tracks[0]!.clips[0]!.sourceOut = 3
+    await service.invoke('saveTimeline', { ...target, episodeId, expectedRevision: 1, timeline: updated })
+    await expect(service.invoke('adoptTimelineEdit', { ...target, episodeId, candidateId: candidate.id, expectedRevision: 2 })).rejects.toThrow()
+    expect((await service.invoke('loadTimeline', { ...target, episodeId })).timeline?.revision).toBe(2)
+  })
+
+  it('Given 候选基于旧时间线 When 正式时间线保存新版本 Then 读取候选显示为过期', async () => {
+    const { service, target, episodeId } = await fixture()
+    const initial = await service.invoke('createRoughCut', { ...target, episodeId, baseProductionRevision: 2 })
+    const candidate = await service.invoke('proposeTimelineEdit', { ...target, episodeId, expectedRevision: initial.timeline!.revision, operations: [{ type: 'trimClip', trackId: 'video', clipId: initial.timeline!.tracks[0]!.clips[0]!.id, sourceIn: 1, sourceOut: 3 }], summary: '缩短开场' })
+    const updated = structuredClone(initial.timeline!)
+    updated.revision = 2
+    updated.duration = 3
+    updated.tracks[0]!.clips[0]!.duration = 3
+    updated.tracks[0]!.clips[0]!.sourceOut = 3
+    await service.invoke('saveTimeline', { ...target, episodeId, expectedRevision: 1, timeline: updated })
+    const loaded = await service.invoke('loadTimeline', { ...target, episodeId })
+    expect(loaded.candidates.find(item => item.id === candidate.id)?.status).toBe('stale')
+  })
+
+  it('Given 本机没有可用编码器 When 请求成片导出 Then 返回失败任务且没有伪造媒体', async () => {
+    const { service, target, episodeId } = await fixture()
+    const initial = await service.invoke('createRoughCut', { ...target, episodeId, baseProductionRevision: 2 })
+    const job = await service.invoke('requestExport', { ...target, episodeId, expectedTimelineRevision: initial.timeline!.revision, settings: { ratio: '16:9', fps: 24, includeVoice: true, includeMusic: true, includeCaptions: true } })
+    expect(job.status).toBe('failed')
+    expect(job.artifactMediaId).toBeUndefined()
+    expect(job.message).toContain('编码器')
+    expect((await service.invoke('listExportJobs', { ...target, episodeId }))[0]?.status).toBe('failed')
+  })
+
+  it('Given 编码器返回真实 MP4 When 请求成片导出 Then 成片登记到影像媒体库并可读取', async () => {
+    const base = await fixture()
+    const bytes = Buffer.from('0000ftypisom')
+    const digest = createHash('sha256').update(bytes).digest('hex')
+    const service = new VisualProductionService({ projectRoot: base.projectRoot, workspaceId: 'workspace', renderExport: async () => ({ encoderId: 'test-ffmpeg', artifactMedia: { id: digest, name: '成片.mp4', hash: digest, mime: 'video/mp4', kind: 'video', byteSize: bytes.length, createdAt: 1 }, artifactBytes: bytes }) })
+    const initial = await service.invoke('createRoughCut', { ...base.target, episodeId: base.episodeId, baseProductionRevision: 2 })
+    const job = await service.invoke('requestExport', { ...base.target, episodeId: base.episodeId, expectedTimelineRevision: initial.timeline!.revision, settings: { ratio: '16:9', fps: 24, includeVoice: false, includeMusic: false, includeCaptions: false } })
+    expect(job.status).toBe('completed')
+    expect(job.artifactMediaId).toBe(digest)
+    expect(Buffer.from((await service.invoke('mediaContent', { ...base.target, mediaId: digest })).bytes)).toEqual(bytes)
   })
 })

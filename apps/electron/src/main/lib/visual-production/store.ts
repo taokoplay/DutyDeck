@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, opendirSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { visualProductionMediaSourceAllows, parseVisualProductionMediaConfiguration, parseVisualProductionMediaExecution, parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, assertVisualProductionId } from '@dutydeck/shared'
-import type { MediaAssetRef, VisualCandidate, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution } from '@dutydeck/shared'
+import type { MediaAssetRef, VisualCandidate, VisualEditingDocument, VisualEditingExportSettings, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
@@ -26,6 +26,8 @@ export interface VisualProductionServiceDependencies {
   /** 将已校验的正式参考副本登记到同项目媒体库。 */
   registerReference?: (input: { sessionId: string; productionId: string; media: VisualMedia; bytes: Uint8Array }) => Promise<MediaAssetRef>
   readMediaAsset?: (reference: MediaAssetRef) => Promise<Uint8Array>
+  /** 真实成片编码器；缺失时剪辑任务会明确失败。 */
+  renderExport?: (input: { productionId: string; episodeId: string; timeline: VisualEditingDocument; settings: VisualEditingExportSettings; sourceMedia: VisualMedia[]; readMedia: (mediaId: string) => { bytes: Uint8Array; mime: string } }) => Promise<{ encoderId: string; artifactMedia: VisualMedia; artifactBytes: Uint8Array }>
 }
 /** 内容摘要用于不可变媒体与版本比较。 */
 function hash(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex') }
@@ -54,7 +56,7 @@ export class VisualProductionService {
 
   constructor(private readonly dependencies: VisualProductionServiceDependencies) {
     /** 剪辑文件与作品快照共用当前工作区和调用者存活校验。 */
-    this.editing = new VisualEditingStore({ projectRoot: dependencies.projectRoot, assertCurrent: dependencies.assertCurrent })
+    this.editing = new VisualEditingStore({ projectRoot: dependencies.projectRoot, assertCurrent: dependencies.assertCurrent, renderExport: dependencies.renderExport, saveExportArtifact: (snapshot, media, bytes) => this.saveExportArtifact(snapshot, media, bytes) })
   }
   /** 固定受管目录；所有层级禁止软链接。 */
   private directory(id?: string, create = false): string {
@@ -338,7 +340,12 @@ export class VisualProductionService {
         return this.editing.createRoughCut(snapshot, command.input.episodeId)
       }
       case 'saveTimeline': return this.editing.save(snapshot, command.input.episodeId, command.input.expectedRevision, command.input.timeline)
-      case 'proposeTimelineEdit': case 'adoptTimelineEdit': case 'discardTimelineEdit': case 'requestExport': case 'listExportJobs': case 'cancelExport': throw new Error('VISUAL_EDITING_UNAVAILABLE: 时间线候选与成片导出尚未接入')
+      case 'proposeTimelineEdit': return this.editing.propose(snapshot, command.input.episodeId, command.input.expectedRevision, command.input.operations, command.input.summary, input.sessionId)
+      case 'adoptTimelineEdit': return this.editing.adopt(snapshot, command.input.episodeId, command.input.candidateId, command.input.expectedRevision)
+      case 'discardTimelineEdit': return this.editing.discard(snapshot, command.input.episodeId, command.input.candidateId)
+      case 'requestExport': return this.editing.requestExport(snapshot, command.input.episodeId, command.input.expectedTimelineRevision, command.input.settings)
+      case 'listExportJobs': return this.editing.listExportJobs(snapshot, command.input.episodeId)
+      case 'cancelExport': return this.editing.cancelExport(snapshot, command.input.episodeId, command.input.exportJobId)
       case 'mediaCatalog': return this.mediaCatalog(snapshot)
       case 'resolveMediaWorkflow': return this.resolveWorkflow(command.input.source, command.input.kind)
       case 'saveMediaConfiguration': {
@@ -507,5 +514,21 @@ export class VisualProductionService {
     const bytes = Buffer.from(stored.data, 'base64')
     if (bytes.length !== media.byteSize || hash(bytes) !== media.hash || stored.hash !== media.hash || mediaFormat(bytes).mime !== media.mime) throw new Error('媒体副本损坏')
     return { mediaId: id, bytes, mime: media.mime }
+  }
+
+  /** 将真实成片字节登记到作品媒体库，并更新可下载的媒体索引。 */
+  private saveExportArtifact(snapshot: VisualProductionSnapshot, media: VisualMedia, bytes: Uint8Array): void {
+    if (bytes.length !== media.byteSize || hash(bytes) !== media.hash) throw new Error('成片媒体 hash 不匹配')
+    const existing = snapshot.media.find(item => item.id === media.id)
+    if (existing && (existing.hash !== media.hash || existing.byteSize !== media.byteSize)) throw new Error('成片媒体身份冲突')
+    const directory = interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', snapshot.document.id, 'media'], true)
+    const path = join(directory, `${media.hash}.json`)
+    if (!existsSync(path)) writeJsonFileAtomicSecure(path, { hash: media.hash, data: Buffer.from(bytes).toString('base64') }, { expectedDestination: { kind: 'missing' } })
+    if (!existing) {
+      snapshot.media.push(media)
+      const state = readAtomicFileState(join(this.directory(snapshot.document.id), 'snapshot.json'))
+      if (!state) throw new Error('影像作品快照不存在')
+      this.persist(snapshot, state)
+    }
   }
 }

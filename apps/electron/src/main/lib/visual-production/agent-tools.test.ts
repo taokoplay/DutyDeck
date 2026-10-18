@@ -15,6 +15,25 @@ describe('Given 主 Agent 影像工具', () => {
     await expect(create.execute('call', { title: '作品', kind: 'film', sessionId: 'other' }, new AbortController().signal, undefined, {} as never)).rejects.toThrow('INVALID_INPUT')
   })
 
+  test('When 读取并提出时间线修改 Then 只传结构化时间线且候选不直接采用', async () => {
+    const calls: unknown[] = []
+    const timeline = { schemaVersion: 1 as const, id: 'timeline', productionId: 'production', episodeId: 'episode', revision: 1, baseProductionRevision: 1, tracks: [{ id: 'video', kind: 'video' as const, clips: [{ id: 'clip', source: { type: 'shot-media' as const, shotId: 'shot', mediaId: 'media', mediaHash: 'a'.repeat(64), shotOutputVersion: 1 }, start: 0, duration: 2, sourceIn: 0, sourceOut: 2, label: '开场' }] }], duration: 2, createdAt: 1, updatedAt: 1 }
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => {
+      calls.push({ method, input })
+      if (method === 'loadTimeline') return { timeline, needsReplacementClipIds: [], candidates: [], exportJobs: [] }
+      return { id: 'candidate', baseRevision: 1, timeline, operations: [{ type: 'trimClip', trackId: 'video', clipId: 'clip', sourceIn: 0, sourceOut: 1 }], summary: '缩短开场', status: 'ready', sessionId: 'session', createdAt: 1 }
+    }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+    const read = tools.find(tool => tool.name === 'visual_production_read_timeline')!
+    const readResult = await read.execute('call', { productionId: 'production', episodeId: 'episode' }, undefined, undefined, {} as never)
+    expect(JSON.stringify(readResult.details)).toContain('timeline')
+    const propose = tools.find(tool => tool.name === 'visual_production_propose_timeline_edit')!
+    const proposeResult = await propose.execute('call', { productionId: 'production', episodeId: 'episode', expectedRevision: 1, operations: [{ type: 'trimClip', trackId: 'video', clipId: 'clip', sourceIn: 0, sourceOut: 1 }], summary: '缩短开场' }, undefined, undefined, {} as never)
+    expect(calls[0]).toEqual({ method: 'loadTimeline', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode' } })
+    expect(calls[1]).toEqual({ method: 'proposeTimelineEdit', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode', expectedRevision: 1, operations: [{ type: 'trimClip', trackId: 'video', clipId: 'clip', sourceIn: 0, sourceOut: 1 }], summary: '缩短开场' } })
+    expect(JSON.stringify(proposeResult.details)).not.toContain('mediaHash')
+    expect(proposeResult.details).toMatchObject({ id: 'candidate', status: 'ready', summary: '缩短开场' })
+  })
+
   test('When 提交单镜头多个输出 Then 将替选媒体身份完整透传并保留待采用', async () => {
     const calls: unknown[] = []
     const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => {

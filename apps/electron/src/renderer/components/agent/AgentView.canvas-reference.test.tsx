@@ -45,6 +45,25 @@ describe('Agent Canvas 节点引用 composer', () => {
     expect(retryBody).toContain("canvasNodeReferenceMode: 'exact'")
   })
 
+  test('Given 历史用户消息带协议引用 When 点击重试 Then 所有引用类型都透传给主进程', () => {
+    const source = readFileSync(new URL('./AgentView.tsx', import.meta.url), 'utf8')
+    const retryStart = source.indexOf('const handleRetry = React.useCallback(')
+    const retryEnd = source.indexOf('\n  /**', retryStart + 1)
+    const retryBody = source.slice(retryStart, retryEnd)
+
+    for (const field of [
+      'mentionedSkills',
+      'mentionedMcpServers',
+      'mentionedSessionIds',
+      'mentionedTodoIds',
+      'mentionedCalendarEventIds',
+      'mentionedMediaModelRefs',
+      'mentionedServerOpsReferences',
+    ]) {
+      expect(retryBody).toContain(`retryMentions.${field}`)
+    }
+  })
+
   test('Given 两个 Agent 会话 When 分别写入和移除引用 Then 状态按 session 隔离', () => {
     const store = createStore()
     store.set(agentCanvasNodeReferencesAtomFamily('session-a'), [reference])

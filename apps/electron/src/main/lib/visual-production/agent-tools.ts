@@ -3,7 +3,7 @@ import type { TSchema } from 'typebox'
 import { Value } from 'typebox/value'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { parseVisualProductionCommand } from '@dutydeck/shared'
-import type { VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot } from '@dutydeck/shared'
+import type { VisualEditingTimelineSnapshot, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot } from '@dutydeck/shared'
 /** 工具只能使用主运行时固定的会话身份。 */
 export interface VisualProductionAgentToolOptions {
   sessionId: string
@@ -12,9 +12,9 @@ export interface VisualProductionAgentToolOptions {
   assertAccess(write: boolean): void | Promise<void>
 }
 /** 纯读取不产生持久状态。 */
-export const VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES = ['visual_production_list', 'visual_production_read', 'visual_production_read_shot', 'visual_production_export_manifest', 'visual_production_media_catalog', 'visual_production_read_media_configuration'] as const
+export const VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES = ['visual_production_list', 'visual_production_read', 'visual_production_read_shot', 'visual_production_export_manifest', 'visual_production_media_catalog', 'visual_production_read_media_configuration', 'visual_production_read_timeline'] as const
 /** 候选和媒体导入同样需要写权限；不暴露正式保存或采纳。 */
-export const VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES = ['visual_production_create', 'visual_production_begin_job', 'visual_production_propose', 'visual_production_propose_shot', 'visual_production_reference_media', 'visual_production_update_job', 'visual_production_fail_job', 'visual_production_cancel_job', 'visual_production_import_file', 'visual_production_import_media'] as const
+export const VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES = ['visual_production_create', 'visual_production_begin_job', 'visual_production_propose', 'visual_production_propose_shot', 'visual_production_propose_timeline_edit', 'visual_production_reference_media', 'visual_production_update_job', 'visual_production_fail_job', 'visual_production_cancel_job', 'visual_production_import_file', 'visual_production_import_media'] as const
 /** 宿主权限包装使用精确工具白名单。 */
 export const VISUAL_PRODUCTION_AGENT_TOOL_NAMES = [...VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES, ...VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES] as const
 /** Agent 单次正文硬预算；历史候选正文始终不进入工具响应。 */
@@ -93,6 +93,15 @@ function projectShot(snapshot: VisualProductionSnapshot, shotId: string, options
   }
   return result
 }
+/** 时间线读取只返回结构化片段、来源 hash 和候选摘要，不携带媒体二进制。 */
+function projectTimeline(snapshot: VisualEditingTimelineSnapshot): unknown {
+  return {
+    timeline: snapshot.timeline,
+    needsReplacementClipIds: snapshot.needsReplacementClipIds,
+    candidates: snapshot.candidates.map(candidate => ({ id: candidate.id, baseRevision: candidate.baseRevision, status: candidate.status, summary: candidate.summary, operations: candidate.operations })),
+    exportJobs: snapshot.exportJobs.map(job => ({ id: job.id, timelineRevision: job.timelineRevision, status: job.status, message: job.message })),
+  }
+}
 /** 创建固定领域操作；严格解析器再次验证完整输入。 */
 export function buildVisualProductionAgentTools(options: VisualProductionAgentToolOptions): ToolDefinition[] {
   /** 通用身份与正式版本字段。 */
@@ -103,6 +112,15 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
   const kind = Type.Union(['comic', 'film', 'promo', 'image'].map(value => Type.Literal(value)))
   const mediaId = Type.Union([id, Type.Null()])
   const alternativeMediaIds = Type.Optional(Type.Array(id, { maxItems: 15 }))
+  /** Agent 可提出的有限时间线操作，宿主还会用 shared parser 复核。 */
+  const timelineOperation = Type.Union([
+    Type.Object({ type: Type.Literal('moveClip'), trackId: id, clipId: id, toIndex: Type.Integer({ minimum: 0 }) }),
+    Type.Object({ type: Type.Literal('splitClip'), trackId: id, clipId: id, at: Type.Number({ minimum: 0 }) }),
+    Type.Object({ type: Type.Literal('trimClip'), trackId: id, clipId: id, sourceIn: Type.Number({ minimum: 0 }), sourceOut: Type.Number({ minimum: 0 }) }),
+    Type.Object({ type: Type.Literal('setVolume'), trackId: id, clipId: id, volume: Type.Number({ minimum: 0, maximum: 1 }) }),
+    Type.Object({ type: Type.Literal('setCaption'), trackId: id, clipId: Type.Optional(id), text: Type.String(), start: Type.Number({ minimum: 0 }), duration: Type.Number({ minimum: 0 }) }),
+    Type.Object({ type: Type.Literal('removeClip'), trackId: id, clipId: id }),
+  ])
   const draft = Type.Object({ title: Type.String(), kind, brief: Type.String(), ratio: Type.String(), fps: Type.Number(), voice: Type.String(), music: Type.String(), episodes: Type.Array(Type.Object({ id, title: Type.String() })), assets: Type.Array(Type.Object({ id, name: Type.String(), type: Type.Union(['角色', '场景', '产品', '道具', '风格', '品牌', '声音'].map(value => Type.Literal(value))), description: Type.String(), locked: Type.Boolean(), mediaId })), shots: Type.Array(Type.Object({ id, episodeId: id, title: Type.String(), duration: Type.Number(), scene: Type.String(), motion: Type.String(), dialogue: Type.String(), assetIds: Type.Array(id), mediaId })) })
   const definitions: Array<{ name: string; method: VisualProductionMethod; description: string; fields: Record<string, TSchema>; write?: boolean }> = [
     { name: 'visual_production_list', method: 'list', description: '列出当前 Agent 项目下的影像作品。原画布与交互设计保持独立。', fields: {} },
@@ -110,12 +128,14 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
     { name: 'visual_production_read_shot', method: 'load', description: '读取目标镜头、作品设定及一页绑定资产和媒体身份。shot.assetIds仅含本页引用；先沿textPage.nextOffset用textOffset拼接完整长文本，再沿referencePage.nextOffset用referenceOffset续读引用并重置textOffset。所有页revision须一致。', fields: { ...target, shotId: id, referenceOffset: Type.Optional(Type.Integer({ minimum: 0, maximum: 200 })), referenceLimit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })), textOffset: Type.Optional(Type.Integer({ minimum: 0, maximum: 16000 })), textLimit: Type.Optional(Type.Integer({ minimum: 1, maximum: 16000 })) } },
     { name: 'visual_production_media_catalog', method: 'mediaCatalog', description: '分页读取API模型与ComfyUI服务。connection条目仅表示允许向该服务寻找对应类别工作流，不证明服务器具备该输出能力；不枚举模板，不自动配对服务与模板。available仅表示本地配置有效，未验证在线或节点模型。已保存的旧固定工作流按精确版本兼容。制作仍须符合当前作品启用范围。', fields: { ...target, offset: Type.Optional(Type.Integer({ minimum: 0 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })) } },
     { name: 'visual_production_read_media_configuration', method: 'load', description: '分页读取作品制作配置、默认来源及参数。未配置表示继承全局可用目录；显式空entries禁止生成。先begin_job冻结配置；API模型用media_prepare_generation。ComfyUI由Agent选工作流：优先使用对应类别的默认服务，显式传connectionId给media_discover_workflows，按任务、输出类型、参考数量和输入角色分页筛选；用候选descriptor和contentHash调用media_use_remote_workflow，再media_inspect_workflow核对真实输入、节点、模型，最后以回执中的精确workflowId/revision准备media_prepare_run。影像任务不传canvasId或targetNodeId。不得按名称默认选第一项或擅自切到未授权服务；目录失败不能当作无匹配，真实无匹配时说明缺口并遵循已有媒体授权策略。旧固定工作流保持精确版本与参数。多个活动任务提供visualJobId。配置参数自动补入，可用当次inputs覆盖；超出参考上限须说明，不得悄悄拼图或丢弃参考。', fields: { ...target, offset: Type.Optional(Type.Integer({ minimum: 0 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })) } },
+    { name: 'visual_production_read_timeline', method: 'loadTimeline', description: '读取指定集的剪辑时间线、片段来源版本、待替换提示和候选摘要。只返回结构化元数据，不读取媒体二进制。', fields: { ...target, episodeId: id } },
     { name: 'visual_production_create', method: 'create', description: '创建用户明确要求的新影像作品。', fields: { title: Type.String(), kind }, write: true },
     { name: 'visual_production_begin_job', method: 'beginJob', description: '冻结当前正式版本与制作配置并登记本会话生成任务；shotId 限定为只修改一个镜头。后续媒体准备按冻结方案执行，多个活动任务须向媒体工具提供visualJobId。', fields: { ...base, instruction: Type.String(), shotId: Type.Optional(id) }, write: true },
     { name: 'visual_production_reference_media', method: 'referenceMedia', description: '把本轮任务允许使用的正式镜头或绑定资产媒体转换为完整 MediaAssetRef，供 media_prepare_generation 的 inputs.reference 使用；不会生成，不返回路径。必须沿用返回引用的全部字段。', fields: { ...base, jobId: id, mediaId: id }, write: true },
     { name: 'visual_production_update_job', method: 'updateJob', description: '记录本轮真实制作阶段：preparing 准备参考，generating 执行媒体工具，reviewing 检查产物；不代表供应商百分比或生成成功。终态不可恢复，重试须新建任务。', fields: { ...base, jobId: id, stage: Type.Union(['preparing', 'generating', 'reviewing'].map(value => Type.Literal(value))) }, write: true },
     { name: 'visual_production_propose_shot', method: 'proposeShot', description: '真实产物经 import_media/import_file 导入后，仅替换本轮单镜头任务的输出并提交候选；主mediaId为首选，alternativeMediaIds最多15个替选，宿主保留设定、资产、排序和其他镜头。空镜头且只有一个输出时宿主可自动采用；已有画面或多个输出仍由用户选择。', fields: { ...base, jobId: id, shotId: id, mediaId: id, alternativeMediaIds, summary: Type.String() }, write: true },
     { name: 'visual_production_propose', method: 'propose', description: '提交本会话任务的完整候选，保留锁定资产与任务范围。仅为空镜头填入唯一图片时宿主可自动采用，返回 adopted 后需重读正式版本；涉及规划、资产、设定或多图的候选由用户在影像面板采用。真实生成媒体须先通过既有媒体工具执行并导入副本；禁止把占位符描述成完成生成。', fields: { ...base, jobId: id, draft, summary: Type.String() }, write: true },
+    { name: 'visual_production_propose_timeline_edit', method: 'proposeTimelineEdit', description: '根据当前集剪辑时间线提出结构化修改候选，不直接修改正式时间线。候选必须基于最新 timeline revision；用户在剪辑面板预览并采用。', fields: { ...target, episodeId: id, expectedRevision: Type.Integer({ minimum: 1 }), operations: Type.Array(timelineOperation, { maxItems: 100 }), summary: Type.String() }, write: true },
     { name: 'visual_production_fail_job', method: 'failJob', description: '记录当前会话任务的失败原因，不重试外部调用。', fields: { ...target, jobId: id, message: Type.String() }, write: true },
     { name: 'visual_production_cancel_job', method: 'cancelJob', description: '取消当前会话任务，迟到结果不得登记。', fields: { ...target, jobId: id }, write: true },
     { name: 'visual_production_import_file', method: 'importFile', description: '从已授权项目相对路径复制真实媒体到作品独立素材库。', fields: { ...target, relativePath: Type.String() }, write: true },
@@ -139,6 +159,7 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
         /** 每种写操作也避免将完整历史草稿回传上下文。 */
         let response: unknown = result
         if (definition.name === 'visual_production_read_shot') response = projectShot(result as VisualProductionSnapshot, readShotId as string, { referenceOffset, referenceLimit, textOffset, textLimit } as ShotReadOptions)
+        else if (command.method === 'loadTimeline') response = projectTimeline(result as VisualEditingTimelineSnapshot)
         else if (command.method === 'load' || command.method === 'create' || command.method === 'failJob' || command.method === 'cancelJob') response = projectSnapshot(result as VisualProductionSnapshot, { section, offset, limit } as ReadOptions)
         if (definition.name === 'visual_production_read_media_configuration' || command.method === 'mediaCatalog') {
           /** 配置与目录按实际JSON长度分页，避免大型工作流参数挤爆上下文。 */
@@ -157,6 +178,10 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
         }
         if (command.method === 'propose' || command.method === 'proposeShot') {
           const { draft: _draft, ...summary } = result as VisualProductionResults['propose']
+          response = summary
+        }
+        if (command.method === 'proposeTimelineEdit') {
+          const { timeline: _timeline, operations: _operations, ...summary } = result as VisualProductionResults['proposeTimelineEdit']
           response = summary
         }
         const text = JSON.stringify(response)

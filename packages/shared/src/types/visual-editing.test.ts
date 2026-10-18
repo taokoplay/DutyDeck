@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperation } from './visual-editing'
+import { applyVisualEditingOperations, parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperation } from './visual-editing'
 import type { VisualEditingDocument } from './visual-editing'
 
 /** 构造包含画面和字幕的最小时间线，测试只关注合同边界。 */
@@ -52,5 +52,19 @@ describe('影像剪辑时间线合同', () => {
 
   it('Given 有效导出设置 When 解析 Then 保留轨道开关', () => {
     expect(parseVisualEditingExportSettings({ ratio: '16:9', fps: 24, includeVoice: true, includeMusic: false, includeCaptions: true })).toEqual({ ratio: '16:9', fps: 24, includeVoice: true, includeMusic: false, includeCaptions: true })
+  })
+
+  it('Given Agent 连续编辑操作 When 应用 Then 返回新时间线并保留输入不变', () => {
+    const original = timeline()
+    const next = applyVisualEditingOperations(original, [
+      { type: 'trimClip', trackId: 'video', clipId: 'clip-1', sourceIn: 1, sourceOut: 3 },
+      { type: 'splitClip', trackId: 'video', clipId: 'clip-2', at: 1 },
+      { type: 'setCaption', trackId: 'caption', text: '新的字幕', start: 2, duration: 1 },
+    ])
+    expect(next).not.toBe(original)
+    expect(original.tracks[0]!.clips).toHaveLength(2)
+    expect(next.tracks[0]!.clips).toHaveLength(3)
+    expect(next.tracks[0]!.clips[0]!.sourceIn).toBe(1)
+    expect(next.tracks[1]!.clips).toHaveLength(2)
   })
 })
