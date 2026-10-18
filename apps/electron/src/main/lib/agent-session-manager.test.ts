@@ -34,6 +34,8 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
       getSessionFile: () => sessionFile,
       getSessionId: () => 'pi-test-session',
       getEntry: (entryId: string) => entryId === 'entry-keep' ? { id: entryId } : undefined,
+      /** 当前分支至少包含可回退的 assistant，缺失或其它分支节点不会由 getBranch 返回。 */
+      getBranch: () => [{ type: 'message', id: 'entry-keep', timestamp: new Date(1).toISOString(), message: { role: 'assistant' } }],
     }),
     forkFrom: (_branchFile: string) => {
       const forkFile = join(tempHome, '.pi-fork.jsonl')
@@ -1719,6 +1721,48 @@ describe('Agent 会话引用搜索', () => {
 })
 
 describe('Pi entry binding recovery', () => {
+  test('Given 独立错误提示保留 Pi 原始 UUID When 回退 Then 同时保留提示与真实节点映射', async () => {
+    /** 已落盘的 Pi 文件及其原始 assistant 映射。 */
+    const piSessionFile = join(tempHome, '.pi-source-error-rewind.jsonl')
+    writeFileSync(piSessionFile, '', 'utf-8')
+    writeAgentSessionsIndex([{
+      id: 'pi-error-rewind', title: '失败回合', workspaceId: 'workspace-a', createdAt: 1, updatedAt: 1,
+      agentRuntime: 'pi', sdkSessionId: 'pi-source-session', piSessionFile,
+      piEntryBindings: { 'original-error': 'entry-keep' },
+    }])
+    writeAgentSessionJsonl('pi-error-rewind', [
+      JSON.stringify({ type: 'user', uuid: 'user-1', message: { content: [{ type: 'text', text: '开始' }] } }),
+      JSON.stringify({ type: 'assistant', uuid: 'error-notice', _piSourceUuid: 'original-error', error: { message: 'Request timed out.' }, message: { content: [{ type: 'text', text: '网络异常' }] } }),
+      JSON.stringify({ type: 'user', uuid: 'user-after', message: { content: [{ type: 'text', text: '继续' }] } }),
+    ])
+
+    expect(await manager.rewindPiAgentSession('pi-error-rewind', 'error-notice')).toBe(2)
+    expect(manager.getAgentSessionMeta('pi-error-rewind')?.piEntryBindings?.['error-notice']).toBe('entry-keep')
+    expect(manager.getAgentSessionSDKMessages('pi-error-rewind').map((message) => (message as { uuid?: string }).uuid))
+      .toEqual(['user-1', 'error-notice'])
+  })
+
+  test('Given 独立错误提示保留 Pi 原始 UUID When 分叉 Then 新会话继承提示并保存可重复回退的映射', async () => {
+    /** 源会话只有错误提示，Pi 原始响应的 UUID 仅存在于映射。 */
+    const piSessionFile = join(tempHome, '.pi-source-error-fork.jsonl')
+    writeFileSync(piSessionFile, '', 'utf-8')
+    writeAgentSessionsIndex([{
+      id: 'pi-error-fork', title: '失败回合', workspaceId: 'workspace-a', createdAt: 1, updatedAt: 1,
+      agentRuntime: 'pi', sdkSessionId: 'pi-source-session', piSessionFile,
+      piEntryBindings: { 'original-error': 'entry-keep' },
+    }])
+    writeAgentSessionJsonl('pi-error-fork', [
+      JSON.stringify({ type: 'user', uuid: 'user-1', message: { content: [{ type: 'text', text: '开始' }] } }),
+      JSON.stringify({ type: 'assistant', uuid: 'error-notice', _piSourceUuid: 'original-error', error: { message: '413 Request Entity Too Large' }, message: { content: [{ type: 'text', text: '请求过大' }] } }),
+    ])
+    /** 实际调用分叉入口，验证目标解析与复制流程同时接入修复。 */
+    const forked = await manager.forkAgentSession({ sessionId: 'pi-error-fork', upToMessageUuid: 'error-notice' })
+    expect(forked.piEntryBindings?.['error-notice']).toBe('entry-keep')
+    expect(manager.getAgentSessionSDKMessages(forked.id).map((message) => (message as { uuid?: string }).uuid))
+      .toEqual(['user-1', 'error-notice'])
+    expect(await manager.rewindPiAgentSession(forked.id, 'error-notice')).toBe(2)
+  })
+
   test('Given Pi branch excludes later entries When fork Then keeps only bindings in the fork artifact', async () => {
     const piSessionFile = join(tempHome, '.pi-source-fork.jsonl')
     writeFileSync(piSessionFile, '', 'utf-8')

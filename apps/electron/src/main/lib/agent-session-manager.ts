@@ -64,6 +64,7 @@ import { hasValidCanvasAgentOwnership, isAgentSessionUserVisible } from './agent
 import { projectSDKMessageForDisplay } from './agent-message-display'
 import { projectSessionAttachmentPaths } from './session-attachment-path-compat'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
+import { resolvePiHistoryTarget } from './pi-history-target'
 
 /**
  * 会话索引文件格式
@@ -1651,8 +1652,6 @@ export async function forkAgentSession(input: ForkSessionInput): Promise<AgentSe
 async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessionInput): Promise<AgentSessionMeta> {
   const targetUuid = input.upToMessageUuid
   if (!targetUuid) throw new Error('Pi 分叉需要指定一条已完成的 assistant 消息')
-  const entryId = sourceMeta.piEntryBindings?.[targetUuid]
-  if (!entryId) throw new Error('该 Pi 历史消息尚无 entry ID 映射，无法安全分叉；请在新版 DutyDeck 中继续一次对话后再试')
   if (!sourceMeta.piSessionFile || !existsSync(sourceMeta.piSessionFile)) {
     throw new Error('未找到 Pi session artifact，无法安全分叉')
   }
@@ -1666,6 +1665,16 @@ async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessi
   const sourceActiveWorktree = getActiveWorktreePath(sourceMeta) ? sourceMeta.activeWorktree : undefined
   const sourceDir = resolveAgentCwd(workspace, sourceMeta.id, sourceCwdMode, sourceActiveWorktree)
   const sourceWorkbenchDir = resolveAgentWorkbenchDir(workspace, sourceMeta.id)
+  /** 分叉也先严格读取展示历史，确认目标与当前 Pi 分支一致后才创建新会话。 */
+  const sourceMessages = parseJsonlStrict<unknown>(
+    readFileSync(getAgentSessionMessagesPath(sourceMeta.id), 'utf-8').split('\n').filter((line) => line.trim()),
+    `分叉读取 SDKMessage (${sourceMeta.id})`,
+  ).map(normalizePersistedSDKMessage)
+  const sdk = await import('@earendil-works/pi-coding-agent')
+  const sessionDir = join(getSdkConfigDir(), 'sessions')
+  const sourceManager = sdk.SessionManager.open(sourceMeta.piSessionFile, sessionDir, sourceDir)
+  /** 旧提示恢复只在内存定位，不能为一次分叉改写源会话。 */
+  const entryId = resolvePiHistoryTarget({ messages: sourceMessages, bindings: sourceMeta.piEntryBindings ?? {}, branch: sourceManager.getBranch(), targetUuid })
   const newMeta = createAgentSession(
     `${sourceMeta.title} (fork)`,
     sourceMeta.channelId,
@@ -1678,9 +1687,6 @@ async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessi
   const destWorkbenchDir = resolveAgentWorkbenchDir(workspace, newMeta.id)
 
   try {
-    const sdk = await import('@earendil-works/pi-coding-agent')
-    const sessionDir = join(getSdkConfigDir(), 'sessions')
-    const sourceManager = sdk.SessionManager.open(sourceMeta.piSessionFile, sessionDir, sourceDir)
     const branchFile = sourceManager.createBranchedSession(entryId)
     if (!branchFile || !existsSync(branchFile)) {
       throw new Error('Pi 未能生成分叉 session artifact')
@@ -1690,7 +1696,7 @@ async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessi
     if (!piSessionFile || !existsSync(piSessionFile)) throw new Error('Pi 分叉 artifact 校验失败')
     // 新 branch 只包含分叉点之前的 entry；不能把源树后续 turn 的映射带入 metadata。
     const branchBindings = Object.fromEntries(
-      Object.entries(sourceMeta.piEntryBindings ?? {})
+      Object.entries({ ...sourceMeta.piEntryBindings, [targetUuid]: entryId })
         .filter(([, mappedEntryId]) => Boolean(forkedManager.getEntry(mappedEntryId))),
     )
 
@@ -1741,8 +1747,6 @@ export async function rewindPiAgentSession(sessionId: string, assistantMessageUu
   const meta = getAgentSessionMeta(sessionId)
   if (!meta) throw new Error('Agent 会话不存在')
   if (meta.legacyTranscript) throw new Error('历史 Claude transcript 为只读，不能回退；请新建 Pi 会话继续')
-  const entryId = meta.piEntryBindings?.[assistantMessageUuid]
-  if (!entryId) throw new Error('该 Pi 历史消息尚无 entry ID 映射，无法安全回退')
   if (!meta.piSessionFile || !existsSync(meta.piSessionFile)) throw new Error('未找到 Pi session artifact，无法安全回退')
 
   const filePath = getAgentSessionMessagesPath(sessionId)
@@ -1758,18 +1762,31 @@ export async function rewindPiAgentSession(sessionId: string, assistantMessageUu
   const cwd = resolveAgentCwd(workspace, meta.id, meta.agentCwdMode, meta.activeWorktree) ?? process.cwd()
   const sdk = await import('@earendil-works/pi-coding-agent')
   const manager = sdk.SessionManager.open(meta.piSessionFile, join(getSdkConfigDir(), 'sessions'), cwd)
+  /** 新提示使用明确来源，旧提示通过同一分支的回合证据恢复，失败时尚未修改文件。 */
+  const entryId = resolvePiHistoryTarget({ messages: originalMessages, bindings: meta.piEntryBindings ?? {}, branch: manager.getBranch(), targetUuid: assistantMessageUuid })
   const branchFile = manager.createBranchedSession(entryId)
   if (!branchFile || !existsSync(branchFile)) throw new Error('Pi 未能生成回退 session artifact')
   const rewindManager = sdk.SessionManager.open(branchFile, join(getSdkConfigDir(), 'sessions'), cwd)
   const retainedAssistantUuids = new Set(
     kept.flatMap((message) => {
-      const candidate = message as { uuid?: unknown; type?: unknown }
-      return candidate.type === 'assistant' && typeof candidate.uuid === 'string' ? [candidate.uuid] : []
+      const candidate = message as { uuid?: unknown; type?: unknown; _piSourceUuid?: unknown }
+      // 提示的原始响应可能没有展示行；保留其来源映射，避免回退后更早的提示再次失效。
+      return candidate.type === 'assistant'
+        ? [candidate.uuid, candidate._piSourceUuid].filter((uuid): uuid is string => typeof uuid === 'string')
+        : []
     }),
   )
+  /** 旧提示没有显式来源，原始错误 UUID 仅存在于 bindings，后续回退仍需要它。 */
+  const originalDisplayUuids = new Set(originalMessages.flatMap((message) =>
+    'uuid' in message && typeof message.uuid === 'string' ? [message.uuid] : []))
   const retainedBindings = Object.fromEntries(
-    Object.entries(meta.piEntryBindings ?? {}).filter(([messageUuid, mappedEntryId]) =>
-      retainedAssistantUuids.has(messageUuid) && Boolean(rewindManager.getEntry(mappedEntryId))),
+    Object.entries({ ...meta.piEntryBindings, [assistantMessageUuid]: entryId }).filter(([messageUuid, mappedEntryId]) => {
+      /** 先以实际保留的 artifact 限定映射，再保留展示身份或旧错误的隐藏来源身份。 */
+      const mappedEntry = rewindManager.getEntry(mappedEntryId)
+      if (!mappedEntry) return false
+      return retainedAssistantUuids.has(messageUuid) || (!originalDisplayUuids.has(messageUuid)
+        && mappedEntry.type === 'message' && mappedEntry.message.role === 'assistant' && mappedEntry.message.stopReason === 'error')
+    }),
   )
 
   rewriteSDKTranscript(filePath, truncatedContent)

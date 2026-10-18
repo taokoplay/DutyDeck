@@ -54,6 +54,7 @@ import { getAgentWorkspaceBySlug } from './agent-workspace-manager'
 import { getMainRepoRoot } from './git-diff-service'
 import { getPiAssistantErrorDetails, hasPiAssistantTextContent, stripPiAssistantError } from './adapters/pi-message-adapter'
 import { friendlyErrorMessage, isPromptTooLongError, isThinkingSignatureError, mapAgentErrorToTypedError } from './agent-error-utils'
+import { createAgentErrorMessage } from './agent-error-message'
 import { getActiveRunRejectionMessage, shouldPersistInitialUserMessage } from './agent-send-message-policy'
 import { createAgentRunIdentity, type AgentRunIdentity } from './agent-run-identity'
 import { isSessionNotFoundError } from './error-patterns'
@@ -2784,23 +2785,8 @@ export class AgentOrchestrator {
                 const errorContent = typedError.title
                     ? `${typedError.title}: ${typedError.message}`
                     : typedError.message
-                const errorSDKMsg: SDKMessage = {
-                  type: 'assistant',
-                  message: {
-                    content: [{ type: 'text', text: errorContent }],
-                  },
-                  parent_tool_use_id: null,
-                  uuid: randomUUID(),
-                  _channelModelId: modelId,
-                  _channelProvider: channel.provider,
-                  error: { message: typedError.message, errorType: typedError.code },
-                  _createdAt: Date.now(),
-                  _errorCode: typedError.code,
-                  _errorTitle: typedError.title,
-                  _errorDetails: typedError.details,
-                  _errorCanRetry: typedError.canRetry,
-                  _errorActions: typedError.actions,
-                } as unknown as SDKMessage
+                /** 独立提示关联原始 Pi 消息，兼顾历史回退定位与部分正文的展示身份。 */
+                const errorSDKMsg = createAgentErrorMessage(assistantMsg, typedError, modelId, channel.provider)
                 appendSDKMessages(sessionId, [errorSDKMsg])
                 console.log(`[Agent 编排] 已保存 TypedError 消息: ${typedError.code} - ${typedError.title}`)
 

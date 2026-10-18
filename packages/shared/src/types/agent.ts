@@ -247,6 +247,8 @@ export interface SDKAssistantMessage {
   session_id?: string
   /** SDK 消息唯一标识，用于 forkSession / resumeSessionAt */
   uuid?: string
+  /** 宿主错误提示对应的原始 Pi assistant UUID；通过会话映射解析历史节点，不与展示 UUID 混用。 */
+  _piSourceUuid?: string
   error?: { message: string; errorType?: string }
   isReplay?: boolean
   /** 渠道配置的模型 ID，持久化/流式期间注入，用于正确匹配模型显示名 */
