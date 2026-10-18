@@ -1,285 +1,194 @@
-# DutyDeck
+<div align="center">
+  <img src="./docs/assets/brand/dutydeck-icon-256.png" alt="DutyDeck" width="96" height="96" />
+  <h1>DutyDeck</h1>
+  <p><strong>面向独立开发者的本地优先 AI 工作台</strong></p>
+  <p>把 Agent、交互设计、影像创作、运维与接口调试放在同一个工作台，减少工具切换，把注意力留给产品。</p>
+  <p>
+    <a href="https://github.com/taokoplay/DutyDeck/releases/latest"><img src="https://img.shields.io/github/v/release/taokoplay/DutyDeck?label=Release" alt="最新版本" /></a>
+    <a href="https://github.com/taokoplay/DutyDeck/releases"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-2563eb" alt="macOS、Windows、Linux" /></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-2563eb" alt="AGPL-3.0-only" /></a>
+  </p>
+  <p><a href="https://github.com/taokoplay/DutyDeck/releases/latest">下载最新版</a> · <a href="#功能一览">功能一览</a> · <a href="#快速开始">快速开始</a> · <a href="https://github.com/taokoplay/DutyDeck/releases">更新日志</a> · <a href="./README.en.md">English</a></p>
+</div>
 
-<img src="./docs/assets/brand/dutydeck-icon-256.png" alt="DutyDeck" width="96" height="96" />
+> DutyDeck 基于开源项目 [Proma](https://github.com/proma-ai/Proma) 演进，由 [taokoplay](https://github.com/taokoplay) 独立维护，以 AGPL-3.0-only 发布。它不是 Proma 官方发行版，也未获得官方背书。感谢 Proma 为 Chat、Agent、工作区、Skills、MCP 等能力提供基础。
 
-> **本仓库是 Proma 的修改版。** DutyDeck 基于上游开源项目 [Proma](https://github.com/proma-ai/Proma)（AGPL-3.0-only）演进，由 [taokoplay](https://github.com/taokoplay) 独立维护，与 Proma 官方没有从属关系，也没有得到官方背书。上游基线与差异说明见[与官方 Proma 的关系](#与官方-proma-的关系)。
+## 功能一览
 
-DutyDeck 是一个本地优先的工程 Agent 工作台：在 Proma 的 Chat、Agent、项目工作区、Skills、MCP 之上，补上画布编排、运维工作台、接口工作台和今日活动，把核心开发之外的项目维护琐事收拢到同一处，让专注时间能还给产品，数据和配置默认留在你自己的机器上。
+只需要讨论和分析时用 **Chat**，需要读取项目、调用工具和交付结果时用 **Agent**。在同一工作台中，继续完成设计、素材制作、联调和维护。
 
-[下载 DutyDeck](https://github.com/taokoplay/DutyDeck/releases/latest) | [Proma 使用教程（上游）](https://github.com/proma-ai/Proma/tree/main/tutorial) | [更新日志](./release-notes/bone) | [English README](./README.en.md)
+| 你要完成的事 | 使用的功能 | 能留下什么 |
+| --- | --- | --- |
+| 分析问题、实现功能、处理项目文件 | Chat / Agent、浏览器、文件、终端 | 对话、代码、文件与执行记录 |
+| 把产品想法变成可点击页面 | 交互设计 | 页面与状态、原型预览、候选版本、开发交接包 |
+| 制作漫剧、影片、宣传片或图片 | 影像创作 | 作品设定、资产、分镜、按集剪辑时间线与导出结果 |
+| 整理素材和多步骤产物 | 画布 | 节点、关系、候选与正式版本 |
+| 重复执行一套有验收标准的任务 | 编排工厂 | 场景步骤、批次记录、评审结果与版本历史 |
+| 排查服务器、数据库和容器问题 | 服务器运维 | 连接、查询历史、诊断与操作记录 |
+| 调试接口并复用测试流程 | 接口工作台 | 集合、环境、变量、断言、场景与请求证据 |
+| 管理知识、待办和周期任务 | 项目知识库、Obsidian、Skills、MCP、Todo、日程、定时任务 | 项目知识、可复用能力与任务记录 |
 
-## 由来与初衷
+功能说明以 [v0.20.4](./release-notes/v0.20.4.md) 为当前发布基准。工具是否可用取决于项目上下文、平台及已配置的模型或服务。
 
-DutyDeck 起于一句「谢谢」，和一个很具体的问题：个人开发者想专注做产品，但项目的维护琐事一直在把专注切碎。
+## 主要工作台
 
-**谢谢的是上游 Proma。** 在 Agent 还很粗糙的时候，它已经把 Chat / Agent 双模式、项目工作区、Skills、MCP、协作子会话、内嵌浏览器这些难啃的部分做成了可以每天使用的开源产品，并以 AGPL-3.0 持续维护。本仓库的 Chat、Agent、工作区、记忆、远程桥接和本地优先存储全部来自 Proma —— 没有它，就没有这个仓库。
+### 交互设计：先把产品体验做出来
 
-**要解决的是「专注被打断」这件事。** 做产品本身需要长时间不被打断的投入，但围绕一个项目运转的还有一大堆分内杂事：服务器和数据库要看着、接口要联调、环境和脚本要配、日志要翻、发布要盯、issue 和文档要回。单件都不大，却散落在终端、数据库客户端、接口调试工具、云控制台和聊天窗口里，每换一件事就得切一次上下文；等杂事清完，注意力已经回不到产品上了。
+按页面组织可点击原型，直接在桌面端或移动端视口中体验，再把明确的页面与交互交给开发。
 
-所以 DutyDeck 的初衷只有一句话：**给个人开发者一块专注工作台，把核心开发之外的职责性事务集中到一个地方**。Agent、画布、运维和接口共用同一份本地上下文，你在这一处把杂事清掉，再把注意力还给产品；需要人拍板的动作以审批卡的形式停在你面前，而不是事后审计。名字也来自这里：Duty（职责、分内之事）+ Deck（一块集中的操作台）。
+- 页面目录支持分组、排序、搜索和入口页；每页可维护默认状态与附加状态。
+- 在沙箱预览中体验页面、选择元素提出修改，并记录页面跳转与交互流程。
+- Agent 修改先形成候选，预览、采纳后更新正式版本；可查看历史、做结构检查并导出已采纳内容。
+- 支持 HTML / 图片导入与开发交接，页面原型有独立工作台入口。
 
-我们也给自己划了两条边界：
+### 影像创作与剪辑：从作品设定到镜头和时间线
 
-- **不改上游内核**：Agent 运行时、IPC 契约、数据目录都沿用 Proma，扩展只加在上面，保证上游更新能继续合入。
-- **不谈商业豁免**：本仓库以 AGPL-3.0-only 发布，不提供、也无权提供商业授权豁免。
+支持 **漫剧、影片、宣传片、图片** 四类作品。工作台包含项目、资产、分镜/图片、画布、剪辑成片、素材导出与制作配置。
 
-## 为什么值得用
+- 按作品管理资产与镜头，保留制作任务、候选和已采用画面；媒体能力以制作配置中可用的模型为准。
+- **空镜头只有一张生成图片时自动采用**；同镜头多图或已有正式画面时保留选择。采用一个独立镜头不会让其他镜头候选误过期。
+- 按集建立粗剪时间线，调整片段顺序、裁切、音量与字幕；视频和静帧可按轨道顺序连续播放。
+- Agent 可提交时间线候选，由你预览和采用；MP4 成片导出可配置比例、帧率、旁白、音乐与字幕。
 
-DutyDeck 的意义不在「多几个功能」，而在于把散落的维护工作并成一条链：
+使用前请留意：成片导出需要本机安装 **FFmpeg**；真实音视频导出仍待完整端到端验收。即梦图片使用本机 Dreamina CLI 登录态，即梦视频执行器尚未接入。模型出现在目录中不代表当前已可执行。
 
-- **一个客户端替掉一排工具**：终端、数据库客户端、接口调试工具、日志面板、文件传输都在同一个窗口里，少一次工具切换就少一次上下文重建。
-- **Agent 拿得到真实上下文**：它能看到你正在看的那台服务器、那个库、那条接口、那张画布，而不是等你把界面内容复制给它。
-- **危险动作停在人面前**：默认只读，写入要么只生成脚本、要么逐条走审批卡；凭据本地加密，Agent 不能替你取出凭据。
-- **数据留在你自己的机器上**：新安装的会话、工作区、配置、Skills 以 JSON / JSONL 存放在 `~/.DutyDeck/`，画布数据跟着项目目录走，不引入本地数据库。
-- **站在 Proma 的肩膀上**：Chat、Agent、工作区、Skills、MCP 这些成熟能力继续跟随上游维护，扩展只加在外面，上游的修复仍能合入。
+### 画布：管理素材、依赖与版本
 
-## 我们自己的扩展
+用节点组织 Agent、图片、音频、视频、文档与 WebView 内容，查看产物之间的依赖和引用关系。候选与正式版本分开保存，便于逐步修改和确认交付。页面原型优先使用交互设计；作品、分镜和时间线优先使用影像创作。
 
-下面四块由本仓库自研，也是 DutyDeck 与上游 Proma 的主要区别。每一块都把一类散在各处的维护杂事收拢到同一处，并且各配一篇独立说明页。
+[画布说明](./docs/extensions/canvas.md)
 
-### 画布（Canvas）—— 把多步骤交付画成一张图
+### 编排工厂：把重复任务变成可复用场景
 
-一次交付很少只有一步：写文案、出图、搭原型，改一版再改一版。画布用节点表示步骤、用连线表示依赖，产物带版本与归属，你能随时看清「现在用的是哪一版、改了上游谁要跟着改」。它不做通用工作流引擎，定位是普通 Agent 的多模态生产现场。
+为场景定义步骤、输入和验收标准，执行批次并查看历史结果。支持模型设置、评审评估、优化和交付；修改与回滚保留可追溯的版本历史，便于比较不同方案。
 
-- 节点类型：Agent、图片、文档、原型（WebView），视频标注「即将支持」。
-- 三种 Agent 分工：普通 Agent 负责总编排，Canvas Agent 承担长期分支，执行 Agent 跑单次生成。
-- 产物先成为候选、采用后才生效：节点卡片和下游只消费正式采用的版本。
+### 服务器运维：连接、排障与操作留在一个地方
 
-详细说明：[画布说明页](./docs/extensions/canvas.md)
+- 管理 SSH、MySQL、PostgreSQL、Redis 和本地 SQLite 连接，按项目组织。
+- 查看服务器概览、终端、systemd 服务、日志、远程文件、传输与 Docker。
+- 浏览库表与结构，使用 SQL 工作台、查询历史和只读诊断；Redis 当前提供连接与只读诊断。
+- Agent 访问按会话和资源范围授权；只读授权可撤销并有有效期，服务器写操作逐次审批，凭据由本机加密保存。
 
-### 运维工作台（Server Ops）—— 上线和排障不用离开客户端
+[运维工作台说明](./docs/extensions/server-ops.md)
 
-登服务器看负载、翻日志、查表结构、跑一条 SQL、传一个文件、看一眼容器——这些事单件都不大，却总把你从产品上拽走。运维工作台把它们收进同一个面板，并让 Agent 只在你显式授权、界面上写着范围和剩余时间的只读范围内帮忙。
+### 接口工作台：调试一次，保留可复用的请求与证据
 
-- 连接：SSH（密码 / 私钥 / SSH Agent）、MySQL、PostgreSQL、Redis 与本地 SQLite，按项目组织。
-- 服务器：概览、远程终端、systemd 服务、实时日志、远程文件与传输、Docker。
-- 数据库：库表与结构浏览、分页数据、SQL 工作台与查询历史、只读诊断；Redis 提供连接与只读诊断。
-- 安全：凭据本地加密且不回显；默认只读，写操作只生成脚本或逐次审批；Agent 只读授权按会话授予、30 分钟到期、可随时撤销。
+- 管理集合、文件夹、请求、环境、变量和鉴权，导入/导出 cURL 与集合。
+- 支持 HTTP/HTTPS、SSE、表单与文件正文、公共签名/加密配置及无脚本断言。
+- 将多个请求组织为场景，通过提取变量串联步骤；保留最终请求、响应、分阶段耗时、TLS 与断言结果。
+- Agent 发送请求和保存配置分别审批；人工创建的测试用例受保护。
 
-详细说明：[运维工作台说明页](./docs/extensions/server-ops.md)
+[接口工作台说明](./docs/extensions/api-workbench.md)
 
-### 接口工作台（API Workbench）—— 联调、鉴权与用例都留在项目里
+## 项目上下文与日常工具
 
-接口联调最碎：换环境要改地址、鉴权散在各处、用例写在聊天记录里、报错只看到一句 401。接口工作台把「配置」和「证据」分开沉淀：集合保存可复用配置，运行记录保存真实执行证据，手动操作与 Agent 走同一条链路，每个结论都能打开核对。
+- **工作区**：浏览器、文件和终端在项目内切换；`AGENTS.md` 用于声明项目指令，旧 `CLAUDE.md` 保留兼容。
+- **知识与能力**：项目知识库、独立 Obsidian Vault 入口、工作区 Skills 与 MCP，让可复用知识和工具跟随项目。
+- **效率**：Todo、日程与定时任务分别管理待办、安排和周期执行；[今日活动](./docs/extensions/today-activity.md) 汇总当天活跃会话，方便回到原上下文。
+- **桌面与远程**：内嵌浏览器、文件预览、语音输入、深浅主题，以及可配置的远程机器人桥接。
 
-- 组织：集合 / 文件夹 / 请求，环境与四层变量作用域，界面显示每个值最终来自哪一层。
-- 调试：HTTP/1.1 直连与 SSE，完整运行记录（最终请求头、正文原始字节、耗时分段、重定向、TLS、Cookie、断言结果）。
-- 加密签名：方案统一放在公共配置，接口只选方案；密钥只引用变量名，缺密钥时如实标记「明文发出」。
-- Agent：发送与保存是两次独立审批，重复调用不会重发，人工创建的用例 Agent 改不了。
+会话和业务配置默认保存在本机，可配置数据根，默认位置是 `~/.DutyDeck/`。项目内容保留自己的存储边界；选择云模型或远程服务时，相关输入仍会按你的配置发送到对应服务。本地优先不等于所有任务都离线运行。
 
-详细说明：[接口工作台说明页](./docs/extensions/api-workbench.md)
+## 模型与执行方式
 
-### 今日活动（Today）—— 一天做了什么，一眼看完
+| 方式 | 用途 | 配置要点 |
+| --- | --- | --- |
+| 云端 API / 兼容端点 | Chat 与 Agent | 自行配置渠道，支持 OpenAI、Anthropic、Google 等协议及兼容服务 |
+| ChatGPT / xAI 订阅授权 | Agent | 使用对应的 OAuth 登录入口与账户权限 |
+| DutyDeck 本地模型 | Agent | 内置 llama.cpp + GGUF；安装引擎、下载、加载、能力测试后启用，普通 Chat 当前不使用此供应商 |
+| 图片、视频、音频能力 | 素材生成与影像制作 | 单独配置媒体能力；是否可执行以界面显示的模型、执行器和授权状态为准 |
 
-在多个项目、多种模式之间来回切一天之后，「今天到底推进了什么」靠记忆往往说不清。今日活动把当天发生对话的会话跨项目汇总成一条按时间排序的流水，点一下就能回到原来的上下文。
+Agent 由 **Pi Agent Runtime** 驱动，支持工作区隔离、协作子任务、权限模式与会话历史。不同工具遵循各自的授权规则，运维只读授权不会自动扩展到普通 Agent 的 Shell 或其它工具。
 
-- 按最后一次对话时间降序，包含委派子会话与定时任务会话。
-- 排除已归档会话、草稿会话与内部执行会话。
-- 入口常驻侧栏底部并显示计数，跨零点自动重算。
-
-详细说明：[今日活动说明页](./docs/extensions/today-activity.md)
-
-四块共用同一套约定：凭据、密钥与连接信息本地加密且不回显；读取默认只读并可在界面随时撤销；写入要么只生成脚本、要么逐条走审批卡；Agent 触发的敏感动作会先在消息流里出卡，等确认后才真正执行。
-
-## 继承自上游 Proma
-
-上面那些之外的通用能力都来自上游 Proma，并在本仓库持续维护：
-
-- **Chat 与 Agent**：多模型对话、附件与图片输入、并排对话、系统提示词；Agent 由 Pi Agent Runtime 单一驱动，支持工作区隔离、权限模式、计划确认和长任务流式输出。
-- **工作区与项目指令**：每个项目独立配置 Skills 与 MCP Server，可用 `AGENTS.md` 声明受信项目指令，旧 `CLAUDE.md` 自动迁移。
-- **协作与工具**：协作子 Agent / Task、内置受管浏览器自动化、联网搜索、工作区记忆与记忆刷新提示。
-- **远程与桌面**：飞书 / Lark 机器人桥接（含钉钉、微信入口）、自动更新、代理设置、文件预览、全局快捷键、快速任务、语音输入、深浅主题。
-- **本地优先**：会话、工作区、附件、配置、Skills 默认以 JSON / JSONL 存放在 `~/.DutyDeck/`，不依赖本地数据库。
-
-从 Proma 升级时，DutyDeck 会只读发现旧的 `~/.proma/` 和项目内 `.proma/`，在确认后迁移到 `~/.DutyDeck/`；迁移前不会删除旧目录。`proma` CLI、`PROMA_*` 环境变量和历史协议值仍作为兼容入口保留。
-
-「怎么用」这件事和 Proma 完全一致，本仓库不再重复写一遍：
-
-- [Proma 使用教程](https://github.com/proma-ai/Proma/tree/main/tutorial)：环境与渠道配置、Chat 与 Agent 模式、Skills、MCP、远程机器人。
-- [Proma 仓库与功能列表](https://github.com/proma-ai/Proma#readme)：上游完整功能与截图说明。
-- 本仓库 `tutorial/` 目录保留了一份上游教程的本地副本，产品名与界面入口已按 DutyDeck 更新。
-
-选哪个模式也还是那句话：**只需要回答时用 Chat，需要动手交付结果时用 Agent。**
-
-## 与官方 Proma 的关系
-
-DutyDeck 是 Proma 的修改版，不是官方发行版：
-
-- **许可证**：AGPL-3.0-only，与上游一致，完整条款见 [LICENSE](./LICENSE)。
-- **上游基线**：已完整合入的上游内容基线是 `v0.19.31`（2026-09-05），其后的官方版本按需挑选移植，因此功能不等同于官方最新版。
-- **版本号含义**：`0.19.53-bone.12` 是「上游版本号 + 本仓库构建号」，`-bone.<构建号>` 只标记本仓库自己的发布顺序，不代表官方迭代进度。
-- **本仓库新增**：画布、运维工作台、接口工作台、今日活动，以及围绕它们的权限确认、审计与本地加密。
-- **归属**：上游代码的版权归 Proma 作者与贡献者所有，本仓库的修改同样以 AGPL-3.0 授权给任何人。
+DutyDeck 不附带模型 API 额度或订阅；本地模型需要可用的硬件资源，媒体服务可能单独计费。
 
 ## 快速开始
 
-### 下载安装
+1. 从 [Releases](https://github.com/taokoplay/DutyDeck/releases/latest) 下载与你的平台对应的安装包。
+2. 在设置中配置模型渠道，或按“DutyDeck 本地模型”页面指引安装、测试并启用本地模型。
+3. 打开或创建 Agent 项目，在工具菜单中选择交互设计、影像创作、运维、接口等工作台；配置需要的 Skills / MCP。
+4. 做影像任务时先检查制作配置；导出成片前准备 FFmpeg。
 
-从 [GitHub Releases](https://github.com/taokoplay/DutyDeck/releases) 下载 DutyDeck，提供 macOS Apple Silicon、macOS Intel、Windows、Ubuntu/Debian x86_64 的 `.deb` 安装包和 Linux x86_64 AppImage，产物名形如 `DutyDeck-<版本>-macos-arm64.dmg`、`DutyDeck-<版本>-windows-x64.exe` 与 `dutydeck_<版本>_amd64.deb`。Linux 的安装、安全边界和支持范围见 [Linux 说明](./docs/linux.md)。
+| 平台 | 安装包 |
+| --- | --- |
+| macOS Apple Silicon | `DutyDeck-<版本>-macos-arm64.dmg` |
+| macOS Intel | `DutyDeck-<版本>-macos-x64.dmg` |
+| Windows x64 | `DutyDeck-<版本>-windows-x64.exe` |
+| Ubuntu / Debian x86_64 | `dutydeck_<版本>_amd64.deb` |
+| Linux x86_64 | `DutyDeck-<版本>-linux-x86_64.AppImage` |
 
-DutyDeck 的模型渠道全部由你自己配置，不提供任何内置订阅通道。上游的商业版 Proma（proma.cool）与本项目无关。
+[Linux 安装说明](./docs/linux.md) · [从 Proma 迁移](./docs/migrations/2026-10-dutydeck-from-proma.md) · [Proma 基础教程](https://github.com/proma-ai/Proma/tree/main/tutorial)
 
-### 首次配置
+上游教程可用于理解 Chat、Agent、Skills、MCP 等基础概念；DutyDeck 的扩展入口和界面以当前版本为准。旧 `~/.proma/`、项目内 `.proma/` 及历史 CLI / 环境变量保留兼容，迁移按客户端提示确认。
 
-环境检查（Git、Node.js / Bun 和可用的 Shell）、**设置 > 渠道**、**设置 > Agent**，以及记忆、联网搜索、飞书 / 钉钉 / 微信桥接的配置流程与上游完全一致，跟着[上游教程](https://github.com/proma-ai/Proma/blob/main/tutorial/tutorial.md)走即可。
+## 界面预览
 
-基础设施上只有一处差异：Agent 由 Pi Agent Runtime 驱动，支持矩阵见[Agent 运行时与模型渠道](#agent-运行时与模型渠道)。其余改动都集中在[我们自己的扩展](#我们自己的扩展)。
+以下是仓库已有的功能截图，部分来自早期版本；当前入口与行为以上方说明为准。
 
-## 截图
+<details>
+<summary>运维工作台与接口工作台</summary>
 
-### 画布
-
-把 Agent 任务、素材与依赖画成节点图：按类型筛选、按上游/下游与关联定位节点，一张图推进多步骤交付。
-
-![DutyDeck 画布](./docs/assets/screenshots/dutydeck-canvas-demo.png)
-
-完整说明见[画布说明页](./docs/extensions/canvas.md)。
-
-### 运维工作台
-
-SSH、MySQL / PostgreSQL / Redis 连接集中管理，默认只读、写操作只生成脚本；概览、终端、服务、日志、远程文件与 Docker 面板在同一个工作台内完成。
+### 服务器运维
 
 ![DutyDeck 运维工作台](./docs/assets/screenshots/dutydeck-server-ops-demo.png)
 
-完整说明见[运维工作台说明页](./docs/extensions/server-ops.md)。
-
 ### 接口工作台
-
-按集合与环境组织接口：变量与集合级鉴权继承、请求侧加密与签名、用例与断言，以及由 Agent 批量执行并逐条确认。
 
 ![DutyDeck 接口工作台](./docs/assets/screenshots/dutydeck-api-workbench-demo.png)
 
-完整说明见[接口工作台说明页](./docs/extensions/api-workbench.md)。
+</details>
 
-以下截图是继承自上游 Proma 的通用能力（用法见上方教程链接）：
+<details>
+<summary>画布、Chat 与 Agent</summary>
 
-### Chat 快速分析
+### 画布
 
-用 Chat 处理轻量但真实的分析任务：整理读者关注点、生成对比表，并把首屏文案快速定稿。
+![DutyDeck 画布](./docs/assets/screenshots/dutydeck-canvas-demo.png)
 
-![DutyDeck Chat 快速分析](./docs/assets/screenshots/proma-chat-demo.png)
+### Chat
 
-### Agent 工作台
+![DutyDeck Chat](./docs/assets/screenshots/proma-chat-demo.png)
 
-Agent 在项目根目录与会话工作台中读取文件、推进任务、输出表格化结论，并把可复用文件保留在右侧文件面板中。
+### Agent
 
-![DutyDeck Agent 工作台](./docs/assets/screenshots/proma-agent-demo.png)
+![DutyDeck Agent](./docs/assets/screenshots/proma-agent-demo.png)
 
-### Skills
+</details>
 
-每个工作区都可以沉淀专属 Skills。截图中的 `feedback-synthesis` 用于把用户反馈、访谈记录和 issue 聚合成主题、证据与优先级建议。
+<details>
+<summary>Skills、MCP 与语音输入</summary>
 
-![DutyDeck 工作区 Skills](./docs/assets/screenshots/proma-skills-demo.png)
+![DutyDeck Skills](./docs/assets/screenshots/proma-skills-demo.png)
 
-### Skills & MCP
+![DutyDeck MCP](./docs/assets/screenshots/proma-mcp-demo.png)
 
-同一个工作区可以管理 stdio / HTTP MCP Server，按需启用或关闭，让 Agent 在不同项目里获得不同的外部上下文。
-
-![DutyDeck MCP 配置](./docs/assets/screenshots/proma-mcp-demo.png)
-
-### 流式语音输入(支持全局输入)
-DutyDeck 支持豆包的流式语音输入功能，并且支持在 DutyDeck 内使用和 DutyDeck 外部使用：
-- DutyDeck 内部使用：Ctrl + ` 触发识别，再次按下结束自动输入到 DutyDeck 内对应的输入框
-- DutyDeck 外部使用：Ctrl + ` 触发识别，再次按下结束自动输入到当前的光标所在处，如无光标则默认写入到剪贴板
-- 
 ![DutyDeck 语音输入](./docs/assets/screenshots/proma-typeless-input.png)
 
-## Agent 运行时与模型渠道
+</details>
 
-DutyDeck 的 Agent 模式由 **Pi Agent Runtime** 单一驱动，内核来自 `@earendil-works/pi-coding-agent`、`pi-agent-core` 和 `pi-ai`，不再依赖任何第三方 Agent 运行时。已启用的 DutyDeck 渠道会动态注册为 Pi provider，支持 OpenAI Chat Completions / Responses、Google Generative AI、Anthropic Messages 及其兼容端点。早期基于 Claude runtime 的历史会话保留为只读记录，可查看但不能继续、分叉或回退。
+## 由来与上游关系
 
-| 渠道类型 | Chat | Pi Agent |
-| --- | --- | --- |
-| Anthropic / Anthropic 兼容 | 支持 | 支持 |
-| DeepSeek、Kimi API / Coding Plan、智谱 Coding Plan、MiniMax、小米 MiMo 等 Anthropic 协议渠道 | 支持 | 支持 |
-| OpenAI、OpenAI Responses、Google、智谱 AI、豆包、通义千问 | 支持 | 支持 |
-| OpenAI 兼容自定义端点 | 支持 | 支持 |
-| ChatGPT 订阅（Codex OAuth） | — | 支持 |
-| xAI 订阅（Grok OAuth） | — | 支持 |
+个人开发者需要连续的时间做产品，却经常在页面设计、素材、服务器、数据库、接口、脚本与文档之间切换。DutyDeck 希望把这些职责集中在一个有项目上下文的工作台里：**Duty 是分内之事，Deck 是集中处理它们的操作台。**
 
-## 技术栈
+感谢 [Proma](https://github.com/proma-ai/Proma) 和作者 [erlich.fun](https://erlich.fun) 为这个项目提供开源基础。DutyDeck 在继承的能力上持续修改和扩展，按需移植上游更新，并独立维护交互设计、影像创作、编排工厂、运维、接口等功能；功能和发布时间不与官方版本同步。
 
-| 层级 | 技术 |
-| --- | --- |
-| 运行时 | Bun |
-| 桌面框架 | Electron 39 |
-| 前端 | React 18 + TypeScript |
-| 状态管理 | Jotai |
-| 样式 | Tailwind CSS + Radix UI |
-| 富文本输入 | TipTap |
-| Markdown / 图表 / 公式 | React Markdown + Beautiful Mermaid + KaTeX |
-| 代码高亮 | Shiki |
-| 构建 | Vite + esbuild |
-| 分发 | electron-builder |
-| Agent Runtime | Pi: `@earendil-works/pi-* @0.82.1` |
+自 `0.20.0` 起，DutyDeck 使用独立标准版本号，发布标签为 `v<应用版本>`。早期 `-bone.<构建号>` 版本保留在历史记录中。[当前发布说明](./release-notes)与[历史 Bone 说明](./release-notes/bone)可分别查阅。
 
-## 架构概览
+## 开发与贡献
 
-DutyDeck 的核心通信路径是：
+Bun monorepo，桌面应用位于 `apps/electron`，共享包位于 `packages/*`。主要技术栈：Electron、React、TypeScript、Jotai、Tailwind CSS、Radix UI 和 Pi Agent Runtime；具体版本以 [package.json](./apps/electron/package.json) 与锁文件为准。
 
-```text
-shared 类型和 IPC 常量
-  -> main/ipc.ts 注册处理器
-  -> preload/index.ts 暴露 window.electronAPI
-  -> renderer Jotai atoms 和 React 组件调用
+```bash
+bun install
+bun run dev
+bun run typecheck
+bun test
+bun run electron:build
 ```
 
-主进程服务集中在 `apps/electron/src/main/lib/`：
+新增功能请覆盖正常路径和主要边界；修改 IPC 时同步 shared 类型、主进程、preload 与 renderer。打包需要检查运行时依赖和目标平台产物，详见 [工程约定](./AGENTS.md)。欢迎提交问题、修复、文档和可复用 Skills。
 
-- `agent-orchestrator.ts`：Pi Agent 编排、环境变量、事件流、错误处理。
-- `adapters/pi-agent-adapter.ts`：Pi 运行时适配与会话管理。
-- `agent-session-manager.ts`：Agent 会话索引和 JSONL 消息持久化。
-- `agent-workspace-manager.ts`：DutyDeck 工作区、项目根目录、MCP 与 Skills 管理。
-- `browser-controller.ts`：内置受管浏览器控制、跨会话视图隔离与本地预览。
-- `agent-memory-refresh-service.ts`：工作区记忆变更追踪与刷新。
-- `chat-service.ts`：Chat 流式调用、Provider Adapter、工具活动。
-- `conversation-manager.ts`：Chat 会话索引和消息存储。
-- `channel-manager.ts`：渠道 CRUD、API Key 加密、连接测试、模型获取。
-- `feishu-bridge.ts` / `dingtalk-bridge.ts` / `wechat-bridge.ts`：远程机器人桥接。
-- `chat-tool-*`、`document-parser.ts`、`workspace-watcher.ts`：工具、文档解析和文件监听。
-
-渲染进程以 Jotai 管理状态，关键 atoms 位于 `apps/electron/src/renderer/atoms/`。Agent IPC 监听器在应用顶层全局挂载，避免切换页面时丢失流式事件、权限请求或后台任务状态。
-
-## 打包注意事项
-
-Pi 运行时在主进程中作为 esbuild external 依赖运行。`apps/electron` 的打包脚本会在 `electron-builder` 前执行 `bun run sync:runtime-deps`，把下列依赖及其运行时闭包复制到应用目录：
-
-- `@earendil-works/pi-coding-agent`、`pi-agent-core`、`pi-ai`
-- Pi 运行时所需的原生模块和 `pdfjs-dist`
-
-修改打包配置时，请确认：
-
-- `build:main` / `watch:main` 将 Pi runtime 依赖标记为 external。
-- `scripts/sync-runtime-deps.ts` 的 external runtime 清单与实际依赖一致。
-- `electron-builder.yml` 保留 Pi native addon 所需的 `asarUnpack` 规则。
-- 在目标平台测试 `bun run dist:fast` 后，验证 Pi Agent 可以启动、调用工具和恢复会话。
-
-更完整的工程约定见 [AGENTS.md](./AGENTS.md)。
-
-## 贡献
-
-欢迎修 Bug、补文档、加测试、完善体验，也欢迎围绕真实场景提交新的 Skills、MCP 配置或 Agent 工作流。
-
-提交 PR 前建议先确认：
-
-- 使用 Bun 运行脚本，不混用 npm / pnpm lockfile。
-- 状态管理使用 Jotai。
-- 尽量保持本地优先，优先使用配置文件和 JSON / JSONL。
-- TypeScript 不使用 `any`，对象结构优先使用 `interface`。
-- 新增 IPC 时同步修改 shared 类型、main handler、preload bridge 和 renderer 调用。
-- 影响包行为时递增对应 package 的 patch 版本。
-- 能用测试覆盖的行为尽量补上测试，尤其是共享逻辑、IPC 契约和持久化格式。
-
-## 作者与维护
-
-- 上游 Proma 作者：[erlich.fun](https://erlich.fun)
-- DutyDeck 维护者：[taokoplay](https://github.com/taokoplay)
-
-## 致谢
-
-- [Proma](https://github.com/proma-ai/Proma) 与作者 [erlich.fun](https://erlich.fun)：DutyDeck 的 Chat、Agent、工作区、Skills、MCP、远程桥接与本地优先存储全部来自这个开源项目。它在 AGPL-3.0 下长期开源并持续迭代，是这个仓库能存在的前提，值得被更多人知道。
-- [Shiki](https://shiki.style/)：代码高亮。
-- [Beautiful Mermaid](https://github.com/lukilabs/beautiful-mermaid) 与 [Mermaid](https://mermaid.js.org/)：Mermaid 图表渲染与官方兜底渲染。
+维护者：[taokoplay](https://github.com/taokoplay)。另感谢 [Shiki](https://shiki.style/)、[Beautiful Mermaid](https://github.com/lukilabs/beautiful-mermaid) 与 [Mermaid](https://mermaid.js.org/) 等开源项目。
 
 ## 许可证
 

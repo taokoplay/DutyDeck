@@ -42,9 +42,11 @@
 
 ## 数据存在哪里
 
-- Agent 会话索引：`~/.proma/agent-sessions.json`（轻量元数据）。
-- Agent 会话消息：`~/.proma/agent-sessions/{id}.jsonl`（JSONL，逐行追加）。
-- Chat 对话与会话元数据同样位于 `~/.proma/` 下的配置与 JSON / JSONL 文件，未引入本地数据库。
+以下路径按默认业务数据根 `~/.DutyDeck/` 表示；若已设置自定义数据根，以客户端设置为准。旧数据根保留迁移兼容。
+
+- Agent 会话索引：`~/.DutyDeck/agent-sessions.json`（轻量元数据）。
+- Agent 会话消息：`~/.DutyDeck/agent-sessions/{id}.jsonl`（JSONL，逐行追加）。
+- Chat 对话与会话元数据同样位于 `~/.DutyDeck/` 下的配置与 JSON / JSONL 文件，未引入本地数据库。
 
 ## 与其他模块的关系
 
