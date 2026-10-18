@@ -2,13 +2,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, opendirSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { visualProductionMediaSourceAllows, parseVisualProductionMediaConfiguration, parseVisualProductionMediaExecution, parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, assertVisualProductionId } from '@dutydeck/shared'
-import type { MediaAssetRef, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution } from '@dutydeck/shared'
+import type { MediaAssetRef, VisualCandidate, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
 import { interactionDirectory, interactionSourcePath, readInteractionFile } from '../interaction-design/paths'
 import { interactionImageMime } from '../interaction-design/asset-service'
 import { VisualEditingStore } from './editing-store'
+import { shotOutputChanges, withShotOutputs } from './shot-outputs'
 
 /** 宿主注入的可信项目边界；媒体与来源读取均需独立复核。 */
 export interface VisualProductionServiceDependencies {
@@ -91,6 +92,7 @@ export class VisualProductionService {
     for (const job of snapshot.jobs) {
       assertVisualProductionId(job.sessionId)
       if (!['running', 'candidate', 'cancelled', 'failed', 'interrupted'].includes(job.status) || !Number.isSafeInteger(job.baseRevision) || job.baseRevision < 1 || job.baseRevision > snapshot.document.revision || typeof job.instruction !== 'string' || typeof job.createdAt !== 'number') throw new Error('任务索引损坏')
+      if (job.compatibleRevision !== undefined && (!job.shotId || !Number.isSafeInteger(job.compatibleRevision) || job.compatibleRevision < job.baseRevision || job.compatibleRevision > snapshot.document.revision)) throw new Error('任务兼容版本损坏')
       if (job.stage !== undefined && !['preparing', 'generating', 'reviewing'].includes(job.stage)) throw new Error('任务阶段索引损坏')
       if (job.shotId) assertVisualProductionId(job.shotId)
       if (job.mediaConfiguration) job.mediaConfiguration = parseVisualProductionMediaConfiguration(job.mediaConfiguration)
@@ -105,6 +107,7 @@ export class VisualProductionService {
       this.references(snapshot, candidate.draft)
       if (!['ready', 'stale', 'adopted', 'discarded'].includes(candidate.status) || !Number.isSafeInteger(candidate.baseRevision) || candidate.baseRevision < 1 || candidate.baseRevision > snapshot.document.revision || typeof candidate.summary !== 'string' || !snapshot.jobs.some(job => job.id === candidate.jobId)) throw new Error('候选索引损坏')
       if (candidate.status === 'ready' && candidate.baseRevision !== snapshot.document.revision) throw new Error('候选版本索引损坏')
+      if (candidate.sourceRevision !== undefined && (!Number.isSafeInteger(candidate.sourceRevision) || candidate.sourceRevision < 1 || candidate.sourceRevision > candidate.baseRevision)) throw new Error('候选原始版本损坏')
     }
     for (const asset of snapshot.document.assets) if (!Number.isSafeInteger(snapshot.assetVersions[asset.id]) || snapshot.assetVersions[asset.id]! < 1) throw new Error('资产版本索引损坏')
     for (const shot of snapshot.document.shots) {
@@ -155,9 +158,13 @@ export class VisualProductionService {
     return options
   }
   /** 正式保存统一维护资产与镜头依赖；保留已采用媒体直到显式替换。 */
-  private commit(snapshot: VisualProductionSnapshot, draft: VisualProductionDraft): void {
+  private commit(snapshot: VisualProductionSnapshot, draft: VisualProductionDraft, preserveOutputs = false): void {
     this.references(snapshot, draft)
     const previous = snapshot.document
+    /** 只有宿主确认纯画面变更后才允许合并其他候选，正式编辑仍使旧输入失效。 */
+    const outputOnly = preserveOutputs && shotOutputChanges(previous, draft) !== null
+    /** 在更新正式版本前冻结每份候选自身的媒体差异，禁止用旧完整草稿覆盖新作品。 */
+    const pendingOutputs = new Map(snapshot.candidates.filter(candidate => candidate.status === 'ready').map(candidate => [candidate.id, outputOnly ? shotOutputChanges(previous, candidate.draft) : null]))
     const changedAssets = new Set<string>()
     /** 删除资产的计数不无限累积，正式引用只保留当前集合。 */
     const nextAssetVersions: Record<string, number> = {}
@@ -179,8 +186,87 @@ export class VisualProductionService {
     }
     snapshot.shotStates = nextStates
     snapshot.document = { ...draft, schemaVersion: 1, id: previous.id, revision: previous.revision + 1, createdAt: previous.createdAt, updatedAt: Date.now() }
-    for (const candidate of snapshot.candidates) if (candidate.status === 'ready') candidate.status = 'stale'
-    for (const job of snapshot.jobs) if (job.status === 'running') { job.status = 'interrupted'; job.message = '正式版本已改变，请基于新版本重新发起。' }
+    for (const candidate of snapshot.candidates) {
+      if (candidate.status !== 'ready') continue
+      /** 纯画面候选基于最新正式内容重建，保留原始生成基线用于追溯。 */
+      const outputs = pendingOutputs.get(candidate.id)
+      if (!outputs) { candidate.status = 'stale'; continue }
+      candidate.sourceRevision ??= candidate.baseRevision
+      candidate.baseRevision = snapshot.document.revision
+      candidate.draft = withShotOutputs(snapshot.document, outputs)
+      if (!shotOutputChanges(snapshot.document, candidate.draft)) { candidate.status = 'adopted'; candidate.adoptedRevision = snapshot.document.revision }
+    }
+    for (const job of snapshot.jobs) {
+      if (job.status !== 'running') continue
+      /** 画面替换没有改变镜头设定或绑定资产，单镜头任务可继续；完整作品任务保持严格基线。 */
+      if (outputOnly && job.shotId && (job.compatibleRevision ?? job.baseRevision) === previous.revision) job.compatibleRevision = snapshot.document.revision
+      else { job.status = 'interrupted'; job.message = '正式版本已改变，请基于新版本重新发起。' }
+    }
+  }
+
+  /**
+   * 从待采用结果中选择空镜头唯一图片，一次提交全部满足条件的镜头。
+   * @returns 是否推进正式版本；无可采用结果时不写盘。
+   */
+  private autoAdoptShots(snapshot: VisualProductionSnapshot): boolean {
+    /** 候选、任务、媒体与镜头索引限定在当前作品，避免逐镜头重复查找。 */
+    const ready = snapshot.candidates.filter(candidate => candidate.status === 'ready')
+    const jobs = new Map(snapshot.jobs.map(job => [job.id, job]))
+    const media = new Map(snapshot.media.map(item => [item.id, item]))
+    const shots = new Map(snapshot.document.shots.map(shot => [shot.id, shot]))
+    const choices = new Map<string, Set<string>>()
+    for (const candidate of ready) {
+      for (const shot of candidate.draft.shots) {
+        if (!shots.has(shot.id) || !shot.mediaId || shot.mediaId === shots.get(shot.id)!.mediaId) continue
+        const alternatives = choices.get(shot.id) ?? new Set<string>()
+        alternatives.add(shot.mediaId); choices.set(shot.id, alternatives)
+      }
+    }
+    /** 只合并纯画面候选；混有剧本或资产变更的草稿继续等待人工采用。 */
+    const selected: VisualCandidate[] = []
+    const outputs = new Map<string, string>()
+    for (const candidate of ready) {
+      const changes = shotOutputChanges(snapshot.document, candidate.draft)
+      /** 同镜头连续运行各一张也属于多图；整作品输出数超过改图镜头数时也无法证明每镜唯一。 */
+      const job = jobs.get(candidate.jobId)
+      const imageRuns = job?.mediaExecutions?.filter(receipt => receipt.kind === 'image') ?? []
+      const multipleOutputs = imageRuns.some(receipt => (receipt.outputCount ?? 0) > 1)
+        || imageRuns.reduce((count, receipt) => count + (receipt.outputCount ?? 0), 0) > (job?.shotId ? 1 : new Set(changes?.values()).size)
+      if (!changes || multipleOutputs) continue
+      if ([...changes].some(([shotId, mediaId]) => shots.get(shotId)?.mediaId !== null || media.get(mediaId)?.kind !== 'image' || choices.get(shotId)?.size !== 1)) continue
+      selected.push(candidate)
+      for (const [shotId, mediaId] of changes) outputs.set(shotId, mediaId)
+    }
+    if (!selected.length) return false
+    /** 提交前串行核验实际字节，损坏或缺失素材不能成为正式画面。 */
+    for (const mediaId of new Set(outputs.values())) this.mediaContent(snapshot, mediaId)
+    for (const candidate of selected) candidate.status = 'adopted'
+    this.commit(snapshot, withShotOutputs(snapshot.document, outputs), true)
+    for (const candidate of selected) candidate.adoptedRevision = snapshot.document.revision
+    return true
+  }
+
+  /** 校验并登记同一任务的全部候选，自动采用判断必须在所有替选入列之后进行。 */
+  private proposeCandidates(snapshot: VisualProductionSnapshot, job: VisualJob, drafts: VisualProductionDraft[], summary: string): VisualCandidate {
+    for (const draft of drafts) {
+      this.references(snapshot, draft)
+      for (const asset of snapshot.document.assets) if (asset.locked && !same(asset, draft.assets.find(item => item.id === asset.id))) throw new Error('候选不能修改锁定资产')
+      if (job.shotId) {
+        const original = editable(snapshot.document)
+        if (original.shots.find(shot => shot.id === job.shotId)?.episodeId !== draft.shots.find(shot => shot.id === job.shotId)?.episodeId || !same(original.shots.map(shot => shot.id), draft.shots.map(shot => shot.id)) || !draft.shots.some(shot => shot.id === job.shotId) || !same({ ...original, shots: original.shots.filter(shot => shot.id !== job.shotId) }, { ...draft, shots: draft.shots.filter(shot => shot.id !== job.shotId) })) throw new Error('单镜头任务不能修改其他内容')
+      }
+    }
+    /** 为整批候选一次预留容量，失败不能保存半批结果。 */
+    while (snapshot.candidates.length + drafts.length > VISUAL_PRODUCTION_LIMITS.candidates) {
+      const removable = snapshot.candidates.findIndex(candidate => candidate.status !== 'ready')
+      if (removable < 0) throw new Error('待采纳候选数量超过预算，请先采纳或丢弃')
+      snapshot.candidates.splice(removable, 1)
+    }
+    const candidates: VisualCandidate[] = drafts.map(draft => ({ id: randomUUID(), baseRevision: snapshot.document.revision, ...(job.baseRevision === snapshot.document.revision ? {} : { sourceRevision: job.baseRevision }), draft, summary, status: 'ready', jobId: job.id, createdAt: Date.now() }))
+    snapshot.candidates.push(...candidates)
+    job.status = 'candidate'
+    this.autoAdoptShots(snapshot)
+    return candidates[0]!
   }
   /** 执行经过严格解析的单命令；异步来源读取完成后重新读取当前快照。 */
   async invoke<M extends VisualProductionMethod>(method: M, input: VisualProductionInputs[M]): Promise<VisualProductionResults[M]> {
@@ -235,9 +321,17 @@ export class VisualProductionService {
     }
     const { snapshot, state } = this.load(command.input.productionId)
     const input = command.input
-    if ('baseRevision' in input && input.baseRevision !== snapshot.document.revision) throw new Error('VISUAL_PRODUCTION_CONFLICT: 正式版本已变化')
+    if ('baseRevision' in input && input.baseRevision !== snapshot.document.revision) {
+      /** 仅类型化单镜头操作可沿宿主证明兼容的旧基线继续，完整草稿与手工保存仍要求最新版本。 */
+      if (['proposeShot', 'referenceMedia', 'updateJob', 'recordMediaExecution'].includes(command.method) && 'jobId' in input) this.currentJob(snapshot, { sessionId: input.sessionId, baseRevision: input.baseRevision, jobId: input.jobId })
+      else throw new Error('VISUAL_PRODUCTION_CONFLICT: 正式版本已变化')
+    }
     switch (command.method) {
       case 'load': return snapshot
+      case 'autoAdoptShots': {
+        if (this.autoAdoptShots(snapshot)) this.persist(snapshot, state)
+        return snapshot
+      }
       case 'loadTimeline': return this.editing.load(snapshot, command.input.episodeId)
       case 'createRoughCut': {
         if (command.input.baseProductionRevision !== snapshot.document.revision) throw new Error('VISUAL_PRODUCTION_CONFLICT: 作品版本已变化')
@@ -341,42 +435,36 @@ export class VisualProductionService {
         return reference
       }
       case 'proposeShot': {
-        /** 固定任务归属与基线，不接受调用方提供完整草稿。 */
+        /** 只允许当前任务的目标镜头；各替选共享同一轮真实生成身份。 */
         const job = this.currentJob(snapshot, command.input)
         if (!job.shotId || job.shotId !== command.input.shotId) throw new Error('单镜头任务目标不匹配')
-        /** 独立复制正式草稿，仅替换目标输出。 */
-        const draft = parseVisualProductionDraft(editable(snapshot.document))
-        /** 保留目标镜头所有设定与原有顺序。 */
-        const shot = draft.shots.find(item => item.id === command.input.shotId)
-        if (!shot || shot.mediaId === command.input.mediaId) throw new Error('镜头输出没有变化')
-        shot.mediaId = command.input.mediaId
-        /** 沿用同一写锁内的候选检查，不再次 invoke 获取锁。 */
-        return this.execute({ method: 'propose', input: { sessionId: input.sessionId, productionId: input.productionId, baseRevision: command.input.baseRevision, jobId: job.id, draft, summary: command.input.summary } })
+        const shot = snapshot.document.shots.find(item => item.id === job.shotId)
+        const mediaIds = [command.input.mediaId, ...(command.input.alternativeMediaIds ?? [])]
+        if (!shot || mediaIds.some(mediaId => mediaId === shot.mediaId)) throw new Error('镜头输出没有变化')
+        /** 使用最新正式内容构造候选，旧基线兼容不能带回其他镜头的旧画面。 */
+        const drafts = mediaIds.map(mediaId => withShotOutputs(snapshot.document, new Map([[shot.id, mediaId]])))
+        const candidate = this.proposeCandidates(snapshot, job, drafts, command.input.summary)
+        this.persist(snapshot, state)
+        return candidate
       }
       case 'propose': {
-        const job = snapshot.jobs.find(item => item.id === command.input.jobId && item.sessionId === input.sessionId)
-        if (!job || job.status !== 'running' || job.baseRevision !== snapshot.document.revision) throw new Error('任务已取消、过期或不属于当前会话')
-        /** 最近终态历史有界保留，待采纳结果绝不自动丢弃。 */
-        while (snapshot.candidates.length >= VISUAL_PRODUCTION_LIMITS.candidates) {
-          const removable = snapshot.candidates.findIndex(candidate => candidate.status !== 'ready')
-          if (removable < 0) throw new Error('待采纳候选数量超过预算，请先采纳或丢弃')
-          snapshot.candidates.splice(removable, 1)
-        }
+        const job = this.currentJob(snapshot, command.input)
         const draft = parseVisualProductionDraft(command.input.draft)
-        this.references(snapshot, draft)
-        for (const asset of snapshot.document.assets) if (asset.locked && !same(asset, draft.assets.find(item => item.id === asset.id))) throw new Error('候选不能修改锁定资产')
-        if (job.shotId) {
-          const original = parseVisualProductionDraft(editable(snapshot.document))
-          if (original.shots.find(shot => shot.id === job.shotId)?.episodeId !== draft.shots.find(shot => shot.id === job.shotId)?.episodeId || !same(original.shots.map(shot => shot.id), draft.shots.map(shot => shot.id)) || !draft.shots.some(shot => shot.id === job.shotId) || !same({ ...original, shots: original.shots.filter(shot => shot.id !== job.shotId) }, { ...draft, shots: draft.shots.filter(shot => shot.id !== job.shotId) })) throw new Error('单镜头任务不能修改其他内容')
-        }
-        const candidate = { id: randomUUID(), baseRevision: job.baseRevision, draft, summary: command.input.summary, status: 'ready' as const, jobId: job.id, createdAt: Date.now() }
-        snapshot.candidates.push(candidate); job.status = 'candidate'; this.persist(snapshot, state); return candidate
+        const candidate = this.proposeCandidates(snapshot, job, [draft], command.input.summary)
+        this.persist(snapshot, state)
+        return candidate
       }
       case 'adopt': {
         const candidate = snapshot.candidates.find(item => item.id === command.input.candidateId)
         if (!candidate || candidate.status !== 'ready' || candidate.baseRevision !== snapshot.document.revision) throw new Error('候选已过期或不可采纳')
         for (const asset of snapshot.document.assets) if (asset.locked && !same(asset, candidate.draft.assets.find(item => item.id === asset.id))) throw new Error('候选不能修改锁定资产')
-        this.commit(snapshot, candidate.draft); candidate.status = 'adopted'; candidate.adoptedRevision = snapshot.document.revision; break
+        /** 手工选择也仅合并本次输出；完整创作候选仍沿用严格的整作品提交。 */
+        const outputs = shotOutputChanges(snapshot.document, candidate.draft)
+        if (outputs) for (const mediaId of new Set(outputs.values())) this.mediaContent(snapshot, mediaId)
+        candidate.status = 'adopted'
+        this.commit(snapshot, candidate.draft, outputs !== null)
+        candidate.adoptedRevision = snapshot.document.revision
+        break
       }
       case 'discardCandidate': {
         const candidate = snapshot.candidates.find(item => item.id === command.input.candidateId)
@@ -397,7 +485,7 @@ export class VisualProductionService {
   private currentJob(snapshot: VisualProductionSnapshot, input: { sessionId: string; baseRevision: number; jobId: string }): VisualJob {
     /** 身份匹配同时绑定发起会话。 */
     const job = snapshot.jobs.find(item => item.id === input.jobId && item.sessionId === input.sessionId)
-    if (!job || job.status !== 'running' || job.baseRevision !== input.baseRevision || snapshot.document.revision !== input.baseRevision) throw new Error('任务已取消、过期或不属于当前会话')
+    if (!job || job.status !== 'running' || (job.compatibleRevision ?? job.baseRevision) !== snapshot.document.revision || ![job.baseRevision, snapshot.document.revision].includes(input.baseRevision)) throw new Error('任务已取消、过期或不属于当前会话')
     return job
   }
   /** 优先使用生产稳定目录读取；测试回退仍禁止路径越界与链接。 */

@@ -69,6 +69,8 @@ export interface VisualProductionMediaConfiguration {
 }
 /** 宿主从真实运行记录生成的制作凭据，调用方不能自行填写。 */
 export interface VisualProductionMediaExecution {
+  /** 宿主从运行结果读取的真实输出数；多图结果不得自动替用户选择。 */
+  outputCount?: number
   /** 真实媒体运行身份。 */
   runId: string
   /** 运行引擎类别。 */

@@ -108,13 +108,16 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
     } catch (cause) { if (listGate.current.accepts(ticket)) setError(String(cause)) }
     finally { if (listGate.current.accepts(ticket)) setLoading(false) }
   }, [projectId, sessionId, view.productionId, updateView])
-  const load = React.useCallback(async (): Promise<void> => {
+  const load = React.useCallback(async (autoAdopt = false): Promise<void> => {
     if (!view.productionId || latest.current.busy) return
     const ticket = gate.current.next()
     const target = currentContext.current; const epoch = scope.current.capture()
     setLoading(true)
     try {
-      const next = await window.electronAPI.visualProduction.invoke('load', { sessionId, productionId: view.productionId })
+      /** 自动采用只在打开/切换或用户刷新时显式触发；后台通知始终保持纯读取。 */
+      const next = autoAdopt
+        ? await window.electronAPI.visualProduction.invoke('autoAdoptShots', { sessionId, productionId: view.productionId })
+        : await window.electronAPI.visualProduction.invoke('load', { sessionId, productionId: view.productionId })
       if (gate.current.accepts(ticket) && currentContext.current === target && scope.current.accepts(epoch)) accept(next)
     } catch (cause) { if (gate.current.accepts(ticket) && currentContext.current === target && scope.current.accepts(epoch)) setError(String(cause)) }
     finally { if (gate.current.accepts(ticket) && currentContext.current === target && scope.current.accepts(epoch)) setLoading(false) }
@@ -124,7 +127,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   React.useEffect(() => {
     latest.current.busy = false; editorSequence.current++
     setSnapshot(null); setEditor(null); setCreate(false); setAssetId(null); setError(''); setNotice(''); setBusy(false); setPlaying(false); setImportPath('')
-    void load()
+    void load(true)
     return () => { gate.current.next() }
   }, [context, load])
   React.useEffect(() => window.electronAPI.visualProduction.onChanged(event => {
@@ -279,7 +282,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
           const message = buildVisualRetryPrompt(document, job)
           if (message) { setPrompt({ sessionId, message, autoSend: false }); setNotice('已将重试要求引用到 Agent，请核对后发送。') }
         }} />}
-      <Button variant="ghost" size="icon" aria-label="刷新作品" disabled={busy} onClick={() => { void refreshList(); void load() }}>
+      <Button variant="ghost" size="icon" aria-label="刷新作品" disabled={busy} onClick={() => { void refreshList(); void load(true) }}>
         <RefreshCw size={15} />
       </Button>
     </header>

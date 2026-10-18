@@ -172,19 +172,20 @@ export function parseVisualProductionMediaConfiguration(value: unknown): VisualP
 }
 /** 可信运行回执仍做持久化预算和身份校验，返回独立副本。 */
 export function parseVisualProductionMediaExecution(value: unknown): VisualProductionMediaExecution {
-  const receipt = object(value, ['runId', 'engine', 'entryId', 'name', 'kind', 'source', 'parameters', 'referenceAssets', 'phase', 'createdAt', 'prompt'])
+  const receipt = object(value, ['runId', 'engine', 'entryId', 'name', 'kind', 'source', 'parameters', 'referenceAssets', 'phase', 'createdAt', 'prompt', 'outputCount'])
   if (!['model', 'workflow'].includes(String(receipt.engine)) || !['image', 'video', 'audio'].includes(String(receipt.kind))) return invalid('制作记录类型')
   if (typeof receipt.createdAt !== 'number' || !Number.isFinite(receipt.createdAt) || receipt.createdAt < 0) return invalid('制作记录时间')
+  if (receipt.outputCount !== undefined && (typeof receipt.outputCount !== 'number' || !Number.isSafeInteger(receipt.outputCount) || receipt.outputCount < 0 || receipt.outputCount > 500)) return invalid('制作输出数量')
   const source = mediaSource(receipt.source)
   if (source.type === 'connection' || source.type !== receipt.engine) return invalid('制作记录来源')
-  return { runId: id(receipt.runId), engine: receipt.engine as VisualProductionMediaExecution['engine'], ...(receipt.entryId === undefined ? {} : { entryId: id(receipt.entryId) }), name: string(receipt.name, '制作记录名称', 200), kind: receipt.kind as VisualProductionMediaExecution['kind'], source, parameters: mediaParameters(receipt.parameters), referenceAssets: array(receipt.referenceAssets, 128).map(mediaReference), phase: string(receipt.phase, '制作运行阶段', 80), createdAt: receipt.createdAt, ...(receipt.prompt === undefined ? {} : { prompt: string(receipt.prompt, '生成提示词', 16384, true) }) }
+  return { ...(receipt.outputCount === undefined ? {} : { outputCount: receipt.outputCount as number }), runId: id(receipt.runId), engine: receipt.engine as VisualProductionMediaExecution['engine'], ...(receipt.entryId === undefined ? {} : { entryId: id(receipt.entryId) }), name: string(receipt.name, '制作记录名称', 200), kind: receipt.kind as VisualProductionMediaExecution['kind'], source, parameters: mediaParameters(receipt.parameters), referenceAssets: array(receipt.referenceAssets, 128).map(mediaReference), phase: string(receipt.phase, '制作运行阶段', 80), createdAt: receipt.createdAt, ...(receipt.prompt === undefined ? {} : { prompt: string(receipt.prompt, '生成提示词', 16384, true) }) }
 }
 
 /** 输入白名单；调用方不能通过附加字段选择目录或伪造系统状态。 */
 const METHOD_FIELDS: Record<VisualProductionMethod, readonly string[]> = {
   resolveMediaWorkflow: ['source', 'kind'], mediaCatalog: [], saveMediaConfiguration: ['expectedRevision', 'entries', 'defaults'], recordMediaExecution: ['baseRevision', 'jobId', 'runId', 'engine'],
-  referenceMedia: ['baseRevision', 'jobId', 'mediaId'], proposeShot: ['baseRevision', 'jobId', 'shotId', 'mediaId', 'summary'], updateJob: ['baseRevision', 'jobId', 'stage'],
-  list: [], create: ['title', 'kind'], load: [], save: ['baseRevision', 'draft'], importFile: ['relativePath'], importMedia: ['reference'], mediaContent: ['mediaId'], beginJob: ['baseRevision', 'instruction', 'shotId'], propose: ['baseRevision', 'jobId', 'draft', 'summary'], adopt: ['baseRevision', 'candidateId'], discardCandidate: ['candidateId'], cancelJob: ['jobId'], failJob: ['jobId', 'message'], exportManifest: [], loadTimeline: ['episodeId'], createRoughCut: ['episodeId', 'baseProductionRevision'], saveTimeline: ['episodeId', 'expectedRevision', 'timeline'], proposeTimelineEdit: ['episodeId', 'expectedRevision', 'operations', 'summary'], adoptTimelineEdit: ['episodeId', 'candidateId', 'expectedRevision'], discardTimelineEdit: ['episodeId', 'candidateId'], requestExport: ['episodeId', 'expectedTimelineRevision', 'settings'], listExportJobs: ['episodeId'], cancelExport: ['episodeId', 'exportJobId'],
+  referenceMedia: ['baseRevision', 'jobId', 'mediaId'], proposeShot: ['baseRevision', 'jobId', 'shotId', 'mediaId', 'alternativeMediaIds', 'summary'], updateJob: ['baseRevision', 'jobId', 'stage'],
+  list: [], create: ['title', 'kind'], load: [], autoAdoptShots: [], save: ['baseRevision', 'draft'], importFile: ['relativePath'], importMedia: ['reference'], mediaContent: ['mediaId'], beginJob: ['baseRevision', 'instruction', 'shotId'], propose: ['baseRevision', 'jobId', 'draft', 'summary'], adopt: ['baseRevision', 'candidateId'], discardCandidate: ['candidateId'], cancelJob: ['jobId'], failJob: ['jobId', 'message'], exportManifest: [], loadTimeline: ['episodeId'], createRoughCut: ['episodeId', 'baseProductionRevision'], saveTimeline: ['episodeId', 'expectedRevision', 'timeline'], proposeTimelineEdit: ['episodeId', 'expectedRevision', 'operations', 'summary'], adoptTimelineEdit: ['episodeId', 'candidateId', 'expectedRevision'], discardTimelineEdit: ['episodeId', 'candidateId'], requestExport: ['episodeId', 'expectedTimelineRevision', 'settings'], listExportJobs: ['episodeId'], cancelExport: ['episodeId', 'exportJobId'],
 }
 
 /** 解析 UI/Agent 公用信封；返回 method/input 关联的判别联合。 */
@@ -200,6 +201,7 @@ export function parseVisualProductionCommand(value: unknown): VisualProductionCo
   if (method === 'create') return result(method, { sessionId, title: string(input.title, '作品名称', 120), kind: kind(input.kind) })
   const base = { sessionId, productionId: id(input.productionId) }
   switch (method) {
+    case 'autoAdoptShots': return result(method, base)
     case 'load': case 'exportManifest': case 'mediaCatalog': case 'loadTimeline': case 'listExportJobs': return result(method, method === 'load' || method === 'exportManifest' || method === 'mediaCatalog' ? base : { ...base, episodeId: id(input.episodeId) })
     case 'resolveMediaWorkflow': {
       const source = mediaSource(input.source)
@@ -221,7 +223,13 @@ export function parseVisualProductionCommand(value: unknown): VisualProductionCo
     case 'mediaContent': return result(method, { ...base, mediaId: id(input.mediaId) })
     case 'beginJob': return result(method, { ...base, baseRevision: revision(input.baseRevision), instruction: string(input.instruction, '任务要求', 16000), ...(input.shotId === undefined ? {} : { shotId: id(input.shotId) }) })
     case 'referenceMedia': return result(method, { ...base, baseRevision: revision(input.baseRevision), jobId: id(input.jobId), mediaId: id(input.mediaId) })
-    case 'proposeShot': return result(method, { ...base, baseRevision: revision(input.baseRevision), jobId: id(input.jobId), shotId: id(input.shotId), mediaId: id(input.mediaId), summary: string(input.summary, '候选说明', 2000) })
+    case 'proposeShot': {
+      /** 一次提交所有替选，先去重校验再由宿主决定是否存在唯一画面。 */
+      const primary = id(input.mediaId)
+      const alternatives = input.alternativeMediaIds === undefined ? undefined : array(input.alternativeMediaIds, 15).map(id)
+      unique([primary, ...(alternatives ?? [])])
+      return result(method, { ...base, baseRevision: revision(input.baseRevision), jobId: id(input.jobId), shotId: id(input.shotId), mediaId: primary, ...(alternatives === undefined ? {} : { alternativeMediaIds: alternatives }), summary: string(input.summary, '候选说明', 2000) })
+    }
     case 'updateJob': {
       if (!['preparing', 'generating', 'reviewing'].includes(String(input.stage))) return invalid('任务阶段无效')
       return result(method, { ...base, baseRevision: revision(input.baseRevision), jobId: id(input.jobId), stage: input.stage as VisualProductionInputs['updateJob']['stage'] })

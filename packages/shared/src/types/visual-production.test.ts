@@ -1,9 +1,29 @@
 import { describe, expect, it } from 'bun:test'
-import { parseVisualProductionCommand, parseVisualProductionDraft, parseVisualProductionRelativePath } from './visual-production-validation'
+import { parseVisualProductionCommand, parseVisualProductionDraft, parseVisualProductionRelativePath, parseVisualProductionMediaExecution, VISUAL_PRODUCTION_READ_METHODS } from './visual-production-validation'
 import type { VisualProductionDraft } from './visual-production'
 
 /** 最小真实作品，供边界测试独立修改。 */
 const draft = (): VisualProductionDraft => ({ title: '第一支影片', kind: 'film', brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [{ id: 'ep1', title: '第一集' }], assets: [{ id: 'a1', name: '主角', type: '角色', description: '', locked: false, mediaId: null }], shots: [{ id: 's1', episodeId: 'ep1', title: '开场', duration: 5, scene: '', motion: '', dialogue: '', assetIds: ['a1'], mediaId: null }] })
+
+it('Given 自动采用与多图请求 When 解析 Then 写权限独立且拒绝重复、越界与伪造系统字段', () => {
+  /** 自动采用只接收作品身份，调用者不能指定跳过检查的候选或输出数量。 */
+  const target = { sessionId: 'session', productionId: 'production' }
+  expect(parseVisualProductionCommand({ method: 'autoAdoptShots', input: target }).method).toBe('autoAdoptShots')
+  expect(VISUAL_PRODUCTION_READ_METHODS).not.toContain('autoAdoptShots')
+  expect(() => parseVisualProductionCommand({ method: 'autoAdoptShots', input: { ...target, candidateId: 'candidate' } })).toThrow()
+  /** 单批最多十六张，各身份必须互异且仍不能指定 adopted 状态。 */
+  const input = { ...target, baseRevision: 1, jobId: 'job', shotId: 'shot', mediaId: 'primary', summary: '多图' }
+  for (const alternativeMediaIds of [['primary'], ['second', 'second'], Array.from({ length: 16 }, (_, index) => `media${index}`)]) expect(() => parseVisualProductionCommand({ method: 'proposeShot', input: { ...input, alternativeMediaIds } })).toThrow()
+  expect(() => parseVisualProductionCommand({ method: 'proposeShot', input: { ...input, status: 'adopted' } })).toThrow()
+})
+
+it('Given 新旧媒体执行回执 When 解析真实输出数 Then 兼容缺省并拒绝无效数量', () => {
+  /** 回执数量来自宿主，旧记录没有此字段时仍可正常读取。 */
+  const receipt = { runId: 'run', engine: 'model', name: '模型', kind: 'image', source: { type: 'model', modelRef: 'image' }, parameters: {}, referenceAssets: [], phase: 'succeeded', createdAt: 1 }
+  expect(parseVisualProductionMediaExecution(receipt).outputCount).toBeUndefined()
+  expect(parseVisualProductionMediaExecution({ ...receipt, outputCount: 2 }).outputCount).toBe(2)
+  for (const outputCount of [-1, 1.5, 501, '2']) expect(() => parseVisualProductionMediaExecution({ ...receipt, outputCount })).toThrow()
+})
 
 describe('影像创作请求合同', () => {
   it('Given 合法作品 When 解析保存请求 Then 保留关联且生成独立对象', () => {

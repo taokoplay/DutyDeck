@@ -3214,6 +3214,7 @@ export function registerIpcHandlers(): void {
       let name: string
       let phase: string
       let createdAt: number
+      let outputCount: number | undefined
       let prompt: string | undefined
       if (engine === 'model') {
         const recorded = unifiedMediaGeneration.getAttachmentSource(sessionId, runId)
@@ -3223,6 +3224,7 @@ export function registerIpcHandlers(): void {
         kind = recorded.snapshot.mediaKind
         name = unifiedMediaCatalog.list(workspaceId).find(model => model.ref === recorded.request.modelRef)?.name ?? recorded.request.modelRef
         phase = recorded.snapshot.phase; createdAt = recorded.snapshot.createdAt; prompt = recorded.request.prompt
+        outputCount = recorded.snapshot.outputs.length
       } else {
         const origin = mediaRuns.getOrigin(workspaceId, runId)
         if (origin.actor?.sessionId !== sessionId) throw new Error('制作记录不属于当前会话')
@@ -3235,10 +3237,11 @@ export function registerIpcHandlers(): void {
         const configuration = getMediaConfiguration().read()
         name = `${configuration.connections.find(connection => connection.id === reference.connectionId)?.name ?? reference.connectionId} · ${configuration.workflows.find(workflow => workflow.id === reference.workflowId && workflow.revision === reference.workflowRevision)?.name ?? reference.workflowId}`
         phase = snapshot.phase; createdAt = snapshot.createdAt
+        outputCount = snapshot.outputs.length
       }
       return { runId, engine, name: name.slice(0, 200), kind, source,
         parameters: Object.fromEntries(Object.entries(inputs).flatMap(([key, value]) => value.kind === 'scalar' ? [[key, value.value]] : [])),
-        referenceAssets: Object.values(inputs).flatMap(value => value.kind === 'asset' ? [value.asset] : []), phase, createdAt, ...(prompt ? { prompt } : {}),
+        referenceAssets: Object.values(inputs).flatMap(value => value.kind === 'asset' ? [value.asset] : []), phase, createdAt, ...(outputCount === undefined ? {} : { outputCount }), ...(prompt ? { prompt } : {}),
       }
     },
     registerReference: (workspaceId, input) => {

@@ -25,7 +25,7 @@ interface ReadOptions { section?: 'overview' | 'episodes' | 'assets' | 'shots'; 
 function projectSnapshot(snapshot: VisualProductionSnapshot, options: ReadOptions = {}): unknown {
   /** 历史只保留身份与结果摘要；草稿只通过 propose 提交、UI 预览。 */
   const candidates = snapshot.candidates.map(candidate => ({ id: candidate.id, baseRevision: candidate.baseRevision, jobId: candidate.jobId, status: candidate.status, summary: candidate.summary.slice(0, 160) }))
-  const jobs = snapshot.jobs.map(job => ({ id: job.id, baseRevision: job.baseRevision, status: job.status, shotId: job.shotId }))
+  const jobs = snapshot.jobs.map(job => ({ id: job.id, baseRevision: job.baseRevision, ...('compatibleRevision' in job && typeof job.compatibleRevision === 'number' ? { compatibleRevision: job.compatibleRevision } : {}), status: job.status, shotId: job.shotId }))
   const full = { ...snapshot, candidates, jobs }
   if (!options.section && JSON.stringify(full).length <= MAX_AGENT_RESPONSE_CHARS) return full
   /** 概览不含镜头长描述；分页支持重建完整正式草稿。 */
@@ -102,6 +102,7 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
   const base = { ...target, baseRevision: revision }
   const kind = Type.Union(['comic', 'film', 'promo', 'image'].map(value => Type.Literal(value)))
   const mediaId = Type.Union([id, Type.Null()])
+  const alternativeMediaIds = Type.Optional(Type.Array(id, { maxItems: 15 }))
   const draft = Type.Object({ title: Type.String(), kind, brief: Type.String(), ratio: Type.String(), fps: Type.Number(), voice: Type.String(), music: Type.String(), episodes: Type.Array(Type.Object({ id, title: Type.String() })), assets: Type.Array(Type.Object({ id, name: Type.String(), type: Type.Union(['角色', '场景', '产品', '道具', '风格', '品牌', '声音'].map(value => Type.Literal(value))), description: Type.String(), locked: Type.Boolean(), mediaId })), shots: Type.Array(Type.Object({ id, episodeId: id, title: Type.String(), duration: Type.Number(), scene: Type.String(), motion: Type.String(), dialogue: Type.String(), assetIds: Type.Array(id), mediaId })) })
   const definitions: Array<{ name: string; method: VisualProductionMethod; description: string; fields: Record<string, TSchema>; write?: boolean }> = [
     { name: 'visual_production_list', method: 'list', description: '列出当前 Agent 项目下的影像作品。原画布与交互设计保持独立。', fields: {} },
@@ -113,8 +114,8 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
     { name: 'visual_production_begin_job', method: 'beginJob', description: '冻结当前正式版本与制作配置并登记本会话生成任务；shotId 限定为只修改一个镜头。后续媒体准备按冻结方案执行，多个活动任务须向媒体工具提供visualJobId。', fields: { ...base, instruction: Type.String(), shotId: Type.Optional(id) }, write: true },
     { name: 'visual_production_reference_media', method: 'referenceMedia', description: '把本轮任务允许使用的正式镜头或绑定资产媒体转换为完整 MediaAssetRef，供 media_prepare_generation 的 inputs.reference 使用；不会生成，不返回路径。必须沿用返回引用的全部字段。', fields: { ...base, jobId: id, mediaId: id }, write: true },
     { name: 'visual_production_update_job', method: 'updateJob', description: '记录本轮真实制作阶段：preparing 准备参考，generating 执行媒体工具，reviewing 检查产物；不代表供应商百分比或生成成功。终态不可恢复，重试须新建任务。', fields: { ...base, jobId: id, stage: Type.Union(['preparing', 'generating', 'reviewing'].map(value => Type.Literal(value))) }, write: true },
-    { name: 'visual_production_propose_shot', method: 'proposeShot', description: '真实产物经 import_media/import_file 导入后，仅替换本轮单镜头任务的输出并提交候选；宿主保留设定、资产、排序和其他镜头。用户采用前正式画面不变。', fields: { ...base, jobId: id, shotId: id, mediaId: id, summary: Type.String() }, write: true },
-    { name: 'visual_production_propose', method: 'propose', description: '提交本会话任务的完整候选，不修改正式版。保留锁定资产与任务范围。真实生成媒体须先通过既有媒体工具执行并导入副本；禁止把占位符描述成完成生成。用户在影像面板采纳。', fields: { ...base, jobId: id, draft, summary: Type.String() }, write: true },
+    { name: 'visual_production_propose_shot', method: 'proposeShot', description: '真实产物经 import_media/import_file 导入后，仅替换本轮单镜头任务的输出并提交候选；主mediaId为首选，alternativeMediaIds最多15个替选，宿主保留设定、资产、排序和其他镜头。空镜头且只有一个输出时宿主可自动采用；已有画面或多个输出仍由用户选择。', fields: { ...base, jobId: id, shotId: id, mediaId: id, alternativeMediaIds, summary: Type.String() }, write: true },
+    { name: 'visual_production_propose', method: 'propose', description: '提交本会话任务的完整候选，保留锁定资产与任务范围。仅为空镜头填入唯一图片时宿主可自动采用，返回 adopted 后需重读正式版本；涉及规划、资产、设定或多图的候选由用户在影像面板采用。真实生成媒体须先通过既有媒体工具执行并导入副本；禁止把占位符描述成完成生成。', fields: { ...base, jobId: id, draft, summary: Type.String() }, write: true },
     { name: 'visual_production_fail_job', method: 'failJob', description: '记录当前会话任务的失败原因，不重试外部调用。', fields: { ...target, jobId: id, message: Type.String() }, write: true },
     { name: 'visual_production_cancel_job', method: 'cancelJob', description: '取消当前会话任务，迟到结果不得登记。', fields: { ...target, jobId: id }, write: true },
     { name: 'visual_production_import_file', method: 'importFile', description: '从已授权项目相对路径复制真实媒体到作品独立素材库。', fields: { ...target, relativePath: Type.String() }, write: true },

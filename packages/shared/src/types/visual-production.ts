@@ -132,6 +132,8 @@ export interface VisualShotState {
 }
 /** 候选预览与正式采用分离，绑定冻结输入版本。 */
 export interface VisualCandidate {
+  /** 独立画面候选合并到新版本前的原始基线，供历史追溯。 */
+  sourceRevision?: number
   /** 采用后分配的正式版本，仅用于追溯。 */
   adoptedRevision?: number
   /** 候选身份。 */
@@ -151,6 +153,8 @@ export interface VisualCandidate {
 }
 /** 持久化生成任务，禁止自动重放未知消费。 */
 export interface VisualJob {
+  /** 仅镜头画面变化时由宿主推进的兼容版本；生成基线仍保留在 baseRevision。 */
+  compatibleRevision?: number
   /** 发起时冻结的制作范围；缺省兼容旧作品。 */
   mediaConfiguration?: VisualProductionMediaConfiguration
   /** 可信宿主读取的实际执行记录。 */
@@ -200,13 +204,15 @@ export interface VisualProductionInputs {
   list: { sessionId: string }
   create: { sessionId: string; title: string; kind: VisualProductionKind }
   load: { sessionId: string; productionId: string }
+  /** 打开作品时采用空镜头的唯一图片候选；这是显式写操作，load 保持只读。 */
+  autoAdoptShots: { sessionId: string; productionId: string }
   save: { sessionId: string; productionId: string; baseRevision: number; draft: VisualProductionDraft }
   importFile: { sessionId: string; productionId: string; relativePath: string }
   importMedia: { sessionId: string; productionId: string; reference: MediaAssetRef }
   mediaContent: { sessionId: string; productionId: string; mediaId: string }
   beginJob: { sessionId: string; productionId: string; baseRevision: number; instruction: string; shotId?: string }
   referenceMedia: { sessionId: string; productionId: string; baseRevision: number; jobId: string; mediaId: string }
-  proposeShot: { sessionId: string; productionId: string; baseRevision: number; jobId: string; shotId: string; mediaId: string; summary: string }
+  proposeShot: { sessionId: string; productionId: string; baseRevision: number; jobId: string; shotId: string; mediaId: string; alternativeMediaIds?: string[]; summary: string }
   updateJob: { sessionId: string; productionId: string; baseRevision: number; jobId: string; stage: 'preparing' | 'generating' | 'reviewing' }
   propose: { sessionId: string; productionId: string; baseRevision: number; jobId: string; draft: VisualProductionDraft; summary: string }
   adopt: { sessionId: string; productionId: string; baseRevision: number; candidateId: string }
@@ -242,6 +248,7 @@ export interface VisualProductionResults {
   list: VisualProductionSummary[]
   create: VisualProductionSnapshot
   load: VisualProductionSnapshot
+  autoAdoptShots: VisualProductionSnapshot
   save: VisualProductionSnapshot
   importFile: VisualMedia
   importMedia: VisualMedia

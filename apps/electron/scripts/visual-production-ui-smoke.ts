@@ -11,6 +11,7 @@ import { createVisualProductionAccess } from '../src/main/lib/visual-production/
 import { registerVisualProductionIpc } from '../src/main/lib/visual-production/ipc'
 import { VisualProductionService } from '../src/main/lib/visual-production/store'
 import { buildVisualProductionMediaCatalog } from '../src/main/lib/visual-production/media-catalog'
+import { writeJsonFileAtomicSecure } from '../src/main/lib/safe-file'
 
 /** 记录各测试窗口的指针位置，悬浮测试沿真实路径移动，避免跨过 Radix 的过渡判断。 */
 const pointerPositions = new WeakMap<BrowserWindow, { x: number; y: number }>()
@@ -279,7 +280,78 @@ async function runChild(): Promise<void> {
     await click(window, button('保存设置')); await wait(window, `!document.querySelector('[role="dialog"]') && document.querySelector('.vp-shot')`)
     const sessionId = 'smoke-session'
     const productionId = (await service.invoke('list', { sessionId }))[0]!.id
+    /** 首张与替选图片用于验证正式媒体读取及同镜候选选择。 */
     const media = await access().execute('importFile', { sessionId, productionId, relativePath: 'frame.png' })
+    await writeFile(join(projectRoot, 'frame-2.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'))
+    const alternativeMedia = await access().execute('importFile', { sessionId, productionId, relativePath: 'frame-2.png' })
+    /** 两个不同空镜头各有唯一图片候选：重新打开工作区时应一次自动采用，重复打开不得再次改版。 */
+    /** 自动采用 fixture 的正式版本基线。 */
+    const adoptionBaseline = await service.invoke('load', { sessionId, productionId })
+    const { schemaVersion: _adSchema, id: _adId, revision: adoptionRevision, createdAt: _adCreated, updatedAt: _adUpdated, ...adoptionDraft } = structuredClone(adoptionBaseline.document)
+    adoptionDraft.shots.push({ ...adoptionDraft.shots[0]!, id: 'auto-shot-2', title: '自动采用第二镜', mediaId: null })
+    adoptionDraft.shots[0]!.mediaId = null
+    await access().execute('save', { sessionId, productionId, baseRevision: adoptionRevision, draft: adoptionDraft })
+    /** 两个旧任务共享的空镜头版本。 */
+    const emptyRevision = (await service.invoke('load', { sessionId, productionId })).document.revision
+    const firstJob = await access().execute('beginJob', { sessionId, productionId, baseRevision: emptyRevision, instruction: '自动采用首镜', shotId: adoptionDraft.shots[0]!.id })
+    const secondJob = await access().execute('beginJob', { sessionId, productionId, baseRevision: emptyRevision, instruction: '自动采用第二镜', shotId: 'auto-shot-2' })
+    /** 模拟旧版本已提交但尚未采用的候选，避免新 proposeShot 的即时自动采用干扰并行旧结果。 */
+    const pending = await service.invoke('load', { sessionId, productionId })
+    const legacy = (job: typeof firstJob, shotId: string, id: string) => ({ id, jobId: job.id, baseRevision: emptyRevision, status: 'ready' as const, createdAt: Date.now(), summary: `唯一图片 ${shotId}`, draft: { ...adoptionDraft, shots: adoptionDraft.shots.map(shot => shot.id === shotId ? { ...shot, mediaId: media.id } : shot) } })
+    pending.jobs = pending.jobs.map(job => job.id === firstJob.id || job.id === secondJob.id ? { ...job, status: 'candidate' as const } : job)
+    pending.candidates = [legacy(firstJob, adoptionDraft.shots[0]!.id, 'legacy-auto-1'), legacy(secondJob, 'auto-shot-2', 'legacy-auto-2')]
+    writeJsonFileAtomicSecure(join(projectRoot, '.proma/visual-production/projects', productionId, 'snapshot.json'), pending)
+    /** 自动采用前的快照，用于验证单次版本推进。 */
+    const beforeAutoOpen = await service.invoke('load', { sessionId, productionId })
+    assert.equal(beforeAutoOpen.document.shots.filter(shot => shot.mediaId === null).length, 2)
+    await window.loadURL(process.env.VISUAL_SMOKE_URL!)
+    await wait(window, `document.querySelector('.vp-top')?.textContent.includes('影像首版验收')`)
+    await wait(window, `document.querySelector('.vp-tabs button')`)
+    await window.webContents.executeJavaScript(`document.querySelector('.vp-tabs button:nth-child(3)')?.click()`); await wait(window, `document.querySelectorAll('.vp-shot-status').length >= 2`)
+    /** 首次打开后的正式快照。 */
+    const afterAutoOpen = await service.invoke('load', { sessionId, productionId })
+    assert.equal(afterAutoOpen.document.revision, beforeAutoOpen.document.revision + 1, '打开工作区应一次采用两个唯一图片候选')
+    assert.equal(afterAutoOpen.document.shots.filter(shot => shot.mediaId === media.id).length, 2)
+    await window.loadURL(process.env.VISUAL_SMOKE_URL!)
+    await wait(window, `document.querySelector('.vp-top')?.textContent.includes('影像首版验收')`)
+    /** 重开后的正式快照，验证自动采用幂等。 */
+    const afterAutoReopen = await service.invoke('load', { sessionId, productionId })
+    assert.equal(afterAutoReopen.document.revision, afterAutoOpen.document.revision, '重复打开不能重复自动采用')
+    /** 同一正式镜头的两个旧候选必须保持待采用，并可从制作记录手工选择。 */
+    /** 同镜多候选的旧任务与正式快照。 */
+    const choiceJob = await access().execute('beginJob', { sessionId, productionId, baseRevision: afterAutoOpen.document.revision, instruction: '手工选择替代图', shotId: adoptionDraft.shots[0]!.id })
+    const choiceSnapshot = await service.invoke('load', { sessionId, productionId })
+    const { schemaVersion: _choiceSchema, id: _choiceId, revision: _choiceRevision, createdAt: _choiceCreated, updatedAt: _choiceUpdated, ...choiceEditable } = choiceSnapshot.document
+    const choiceDraft = (mediaId: string, id: string) => ({ id, jobId: choiceJob.id, baseRevision: choiceSnapshot.document.revision, status: 'ready' as const, createdAt: Date.now(), summary: '手工选择候选', draft: { ...choiceEditable, shots: choiceEditable.shots.map(shot => shot.id === adoptionDraft.shots[0]!.id ? { ...shot, mediaId } : shot) } })
+    choiceSnapshot.jobs = choiceSnapshot.jobs.map(job => job.id === choiceJob.id ? { ...job, status: 'candidate' as const } : job)
+    choiceSnapshot.candidates = [choiceDraft(media.id, 'choice-1'), choiceDraft(alternativeMedia.id, 'choice-2')]
+    writeJsonFileAtomicSecure(join(projectRoot, '.proma/visual-production/projects', productionId, 'snapshot.json'), choiceSnapshot)
+    await window.loadURL(process.env.VISUAL_SMOKE_URL!)
+    await wait(window, `document.querySelector('.vp-top')?.textContent.includes('影像首版验收')`)
+    await click(window, `document.querySelector('[aria-label^="制作记录"]')`)
+    await click(window, recordTab('pending'))
+    await wait(window, `document.querySelectorAll('.vp-record').length === 1`)
+    await click(window, `[...document.querySelectorAll('.vp-record')].find(node=>node.textContent.includes('手工选择候选'))?.querySelector('button')`)
+    await wait(window, `document.querySelector('[role="dialog"]')?.textContent.includes('候选预览')`)
+    await click(window, button('采用候选'))
+    await wait(window, `document.querySelector('[role="dialog"]')?.textContent.includes('已采用')`)
+    /** 手工采用后的正式快照。 */
+    const chosen = await service.invoke('load', { sessionId, productionId })
+    assert.equal(chosen.document.shots[0]!.mediaId, alternativeMedia.id)
+    if (process.env.VISUAL_SMOKE_AUTO_ADOPT_ONLY === '1') {
+      assert.deepEqual(errors, [])
+      console.log('PASS: legacy empty-shot auto adoption, single revision bump, idempotent reopen, and same-shot multi-candidate manual selection.')
+      return
+    }
+    /** 完整旧回归恢复新增场景前的原子快照，避免候选和第二镜污染既有断言。 */
+    writeJsonFileAtomicSecure(join(projectRoot, '.proma/visual-production/projects', productionId, 'snapshot.json'), adoptionBaseline)
+    await window.loadURL(process.env.VISUAL_SMOKE_URL!)
+    await wait(window, `document.querySelector('.vp-top')?.textContent.includes('影像首版验收')`)
+    await window.webContents.executeJavaScript(`document.querySelector('.vp-tabs button:nth-child(3)')?.click()`)
+    await wait(window, `document.querySelector('.vp-shot')`)
+    mediaReads.clear()
+    const mediaReadsBeforeSettings = 0
+    /** 后续测试继续使用首镜头，保留原有资产/候选交互覆盖。 */
     /** 已绑定图片、未绑定素材和视频资产共同验证悬浮预览的边界。 */
     const referenceClip = await access().execute('importFile', { sessionId, productionId, relativePath: 'clip.mp4' })
     const referenceSnapshot = await service.invoke('load', { sessionId, productionId })
@@ -289,7 +361,8 @@ async function runChild(): Promise<void> {
     await access().execute('save', { sessionId, productionId, baseRevision: assetRevision, draft: referenceDraft })
     await wait(window, `document.querySelector('.vp-top')?.textContent.includes('v${assetRevision + 1}')`)
     await click(window, button('镜头设置'))
-    assert.equal(mediaReads.get(media.id) ?? 0, 0, '打开镜头设置不应读取尚未预览的资产图片')
+    assert.equal(mediaReads.get(media.id) ?? 0, mediaReadsBeforeSettings, '打开镜头设置不应新增尚未预览的资产图片读取')
+    mediaReads.clear()
     /** 图片读取通过真实 IPC；悬浮不能改变已保存的引用集合。 */
     const referenceSelector = `document.querySelector('[data-asset-id="${referenceDraft.assets[0]!.id}"]')`
     await hover(window, referenceSelector)

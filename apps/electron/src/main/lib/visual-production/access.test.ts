@@ -13,6 +13,7 @@ describe('Given 会话绑定的影像能力', () => {
     })
     await expect(access.execute('list', { sessionId: 'other' })).rejects.toThrow('身份')
     await expect(access.execute('create', { sessionId: 'session', title: '作品', kind: 'film' })).rejects.toThrow('计划')
+    await expect(access.execute('autoAdoptShots', { sessionId: 'session', productionId: 'production' })).rejects.toThrow('计划')
     const controller = new AbortController(); controller.abort()
     await expect(access.execute('list', { sessionId: 'session' }, controller.signal)).rejects.toThrow('取消')
     expect(calls).toBe(0)

@@ -14,6 +14,25 @@ describe('Given 主 Agent 影像工具', () => {
     expect(writes).toEqual([true])
     await expect(create.execute('call', { title: '作品', kind: 'film', sessionId: 'other' }, new AbortController().signal, undefined, {} as never)).rejects.toThrow('INVALID_INPUT')
   })
+
+  test('When 提交单镜头多个输出 Then 将替选媒体身份完整透传并保留待采用', async () => {
+    const calls: unknown[] = []
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => {
+      calls.push({ method, input })
+      return { id: 'candidate-multi', baseRevision: 5, status: 'ready', jobId: 'job', summary: '多图待选择' }
+    }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+    const propose = tools.find(tool => tool.name === 'visual_production_propose_shot')!
+    const result = await propose.execute('call', { productionId: 'production', baseRevision: 5, jobId: 'job', shotId: 'shot', mediaId: 'media-main', alternativeMediaIds: ['media-alt-1', 'media-alt-2'], summary: '多图待选择' }, undefined, undefined, {} as never)
+    expect(calls).toEqual([{ method: 'proposeShot', input: { sessionId: 'session', productionId: 'production', baseRevision: 5, jobId: 'job', shotId: 'shot', mediaId: 'media-main', alternativeMediaIds: ['media-alt-1', 'media-alt-2'], summary: '多图待选择' } }])
+    expect(result.details).toMatchObject({ status: 'ready', id: 'candidate-multi' })
+  })
+
+  test('When 提交单镜头唯一输出 Then 返回自动采用状态与正式版本', async () => {
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async () => ({ id: 'candidate-single', baseRevision: 5, status: 'adopted', adoptedRevision: 6, jobId: 'job', summary: '唯一图自动采用' })) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+    const propose = tools.find(tool => tool.name === 'visual_production_propose_shot')!
+    const result = await propose.execute('call', { productionId: 'production', baseRevision: 5, jobId: 'job', shotId: 'shot', mediaId: 'media-main', summary: '唯一图自动采用' }, undefined, undefined, {} as never)
+    expect(result.details).toMatchObject({ status: 'adopted', adoptedRevision: 6 })
+  })
 })
 
 /** 构造大型正式内容与候选，证明工具不会重复输出整个历史草稿。 */

@@ -42,7 +42,7 @@ export function bindVisualProductionMediaTools(tools: ToolDefinition[], options:
       let snapshot = snapshots.get(owned.productionId)
       if (!snapshot) { snapshot = await load(owned.productionId); snapshots.set(owned.productionId, snapshot) }
       const job = snapshot.jobs.find(item => item.id === owned.job.id && item.sessionId === options.sessionId)
-      if (job?.status === 'running' && job.baseRevision === snapshot.document.revision) jobs.push({ productionId: owned.productionId, job })
+      if (job?.status === 'running' && (job.compatibleRevision ?? job.baseRevision) === snapshot.document.revision) jobs.push({ productionId: owned.productionId, job })
     }
     return jobs
   }
