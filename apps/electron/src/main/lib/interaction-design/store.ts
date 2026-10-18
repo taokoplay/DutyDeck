@@ -395,9 +395,8 @@ export class InteractionDesignService {
   }
   /** 项目还原任务必须按冻结的业务页面清单提交，防止导览页加整套 App 单页冒充拆分。 */
   private assertProjectRestoreScope(job: PrototypeJob, draft: PrototypeDraft): void {
-    /** 旧任务或损坏记录没有合法 mode 时按历史指令兼容推断，避免绕过采纳校验。 */
-    const mode = job.mode === 'design' || job.mode === 'page-edit' || job.mode === 'project-restore' ? job.mode : inferPrototypeJobMode(job.instruction, job.pageId)
-    if (mode !== 'project-restore' && !isProjectRestoreInstruction(job.instruction)) return
+    /** 显式整项目还原始终复核规划；其余任务沿用 pageId 优先的推断，单页越界由前置 assertJobScope 拦截。 */
+    if (job.mode !== 'project-restore' && inferPrototypeJobMode(job.instruction, job.pageId) !== 'project-restore') return
     /** 宿主共享校验逻辑，阻断导览页、完整单体和缺页候选。 */
     /** 新任务使用完整规划，旧任务仅保留 pageManifest 兼容读取。 */
     const issues = validateProjectRestoreDraft(draft, job.plan ?? job.pageManifest)

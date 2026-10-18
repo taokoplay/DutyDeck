@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { InteractionDesignService } from './store'
 import { InteractionSourceService, interactionHash } from './source-service'
+import { writeJsonFileAtomic } from '../safe-file'
 import { parsePrototypeDraft } from '@dutydeck/shared'
 import type { PrototypeCandidate } from '@dutydeck/shared'
 
@@ -110,6 +111,85 @@ describe('交互设计版本与候选', () => {
       instruction: '根据现有项目拆分多页面', mode: 'project-restore',
       pageManifest: [{ id: 'home', name: '首页' }, { id: 'parking', name: '停车记录' }],
     })).rejects.toThrow('页面规划')
+  })
+
+  it.each([undefined, 'page-edit', 'design'] as const)('Given 固定首页任务模式为 %s When 根据源码还原页面并采纳 Then 不要求整项目页面清单', async (mode) => {
+    /** 隔离服务，mode 覆盖自动推断与显式指定的单页任务。 */
+    const { service } = setup()
+    /** 已有首页及固定调用基线。 */
+    const first = await service.invoke('create', { sessionId, name: '首页原型', platform: 'mobile' })
+    /** 本轮读写始终针对同一原型的 v1。 */
+    const base = { sessionId, prototypeId: first.document.id, baseRevision: 1 }
+    /** 指令含还原关键词，但任务仅允许修改首页。 */
+    const job = await service.invoke('beginJob', { ...base, pageId: 'home', mode, instruction: '根据源码还原首页页面，其他业务页面不在范围' })
+    /** 保留页面、目录与流程身份，只更换目标正文。 */
+    const draft = { ...first.document, pages: first.document.pages.map(page => ({ ...page, html: '<h1>还原后的首页</h1>' })) }
+    /** 新候选应在正式版本不变时成功提交。 */
+    const candidate = await service.invoke('propose', { ...base, jobId: job.id, draft, summary: '还原首页' })
+    expect(candidate.status).toBe('ready')
+    expect((await service.invoke('load', base)).document.revision).toBe(1)
+    /** 用户采纳后才推进正式版本。 */
+    const adopted = await service.invoke('adopt', { ...base, candidateId: candidate.id })
+    expect(adopted.document.revision).toBe(2)
+    expect(adopted.document.pages).toEqual(draft.pages)
+    expect(adopted.candidates.find(value => value.id === candidate.id)?.status).toBe('adopted')
+  })
+
+  it('Given 缺少模式和规划的旧首页候选 When 采纳 Then 沿用固定单页范围且不重生成正文', async () => {
+    /** 隔离目录用于构造升级前的任务记录。 */
+    const { root, service } = setup()
+    /** 旧候选基于现有首页。 */
+    const first = await service.invoke('create', { sessionId, name: '旧首页', platform: 'mobile' })
+    /** 统一调用归属与基线。 */
+    const base = { sessionId, prototypeId: first.document.id, baseRevision: 1 }
+    /** 先以不触发误判的指令创建有效候选。 */
+    const job = await service.invoke('beginJob', { ...base, pageId: 'home', instruction: '调整首页' })
+    /** 既有候选正文必须原样保留。 */
+    const draft = { ...first.document, pages: first.document.pages.map(page => ({ ...page, html: '<h1>已生成的首页</h1>' })) }
+    /** 模拟旧版本成功生成且仍待采纳的候选。 */
+    const candidate = await service.invoke('propose', { ...base, jobId: job.id, draft, summary: '旧首页候选' })
+    /** 旧合同没有 mode、plan 或 pageManifest，仅以 pageId 固定范围。 */
+    const { mode: _mode, ...legacyJob } = job
+    writeJsonFileAtomic(join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`), {
+      ...legacyJob, status: 'candidate', instruction: '继续已确认的首页还原任务，页面仅 home，不修改其他页面',
+    })
+    /** 升级后的服务应直接采纳原候选，而非要求用户补造多页规划。 */
+    const adopted = await service.invoke('adopt', { ...base, candidateId: candidate.id })
+    expect(adopted.document.revision).toBe(2)
+    expect(adopted.document.pages).toEqual(draft.pages)
+  })
+
+  it('Given 显式整项目还原任务同时指定首页 When 提交缺页候选 Then 仍执行整项目规划校验', async () => {
+    /** 隔离服务与已有首页。 */
+    const { service } = setup()
+    /** 本例只存在首页，无法满足两个业务页面的规划。 */
+    const first = await service.invoke('create', { sessionId, name: '还原保护', platform: 'mobile' })
+    /** 固定原型身份与版本。 */
+    const base = { sessionId, prototypeId: first.document.id, baseRevision: 1 }
+    /** pageId 不能覆盖调用方明确声明的整项目还原模式。 */
+    const job = await service.invoke('beginJob', { ...base, pageId: 'home', mode: 'project-restore', instruction: '还原项目页面', plan: restorePlan() })
+    await expect(service.invoke('propose', { ...base, jobId: job.id, draft: first.document, summary: '缺少规划页面' })).rejects.toThrow('缺少业务页面')
+    expect((await service.invoke('load', base)).document.revision).toBe(1)
+  })
+
+  it('Given 旧候选未绑定具体页面 When 说明要求还原项目页面 Then 不能绕过整项目规划校验', async () => {
+    /** 隔离目录用于构造没有页面边界的旧任务。 */
+    const { root, service } = setup()
+    /** 已有原型和固定基线。 */
+    const first = await service.invoke('create', { sessionId, name: '旧项目任务', platform: 'mobile' })
+    /** 固定调用身份。 */
+    const base = { sessionId, prototypeId: first.document.id, baseRevision: 1 }
+    /** 创建没有 pageId 的任务与旧候选。 */
+    const job = await service.invoke('beginJob', { ...base, instruction: '调整原型' })
+    /** 已生成的候选不代表自动满足项目还原规划。 */
+    const candidate = await service.invoke('propose', { ...base, jobId: job.id, draft: first.document, summary: '旧候选' })
+    /** 旧任务没有 mode，也没有可约束候选的单页身份。 */
+    const { mode: _mode, ...legacyJob } = job
+    writeJsonFileAtomic(join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`), {
+      ...legacyJob, status: 'candidate', instruction: '根据现有项目还原业务页面',
+    })
+    await expect(service.invoke('adopt', { ...base, candidateId: candidate.id })).rejects.toThrow('缺少页面清单')
+    expect((await service.invoke('load', base)).document.revision).toBe(1)
   })
 
   it('Given 完整页面规划 When 候选按规划提交 Then 宿主保留页面分组和状态并生成候选', async () => {
@@ -492,8 +572,9 @@ describe('交付、预算与任务范围', () => {
     /** 页面级生成任务。 */
     const { service } = setup()
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
-    const job = await service.invoke('beginJob', { sessionId, prototypeId: first.document.id, baseRevision: 1, pageId: 'home', instruction: '改页面' })
+    const job = await service.invoke('beginJob', { sessionId, prototypeId: first.document.id, baseRevision: 1, pageId: 'home', instruction: '根据源码还原首页页面' })
     await expect(service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, jobId: job.id, draft: { ...first.document, name: '越界改名' }, summary: '改名' })).rejects.toThrow('超出任务页面范围')
+    await expect(service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, jobId: job.id, draft: { ...first.document, pages: [...first.document.pages, { ...first.document.pages[0]!, id: 'settings', name: '设置' }] }, summary: '越界新增页面' })).rejects.toThrow('超出任务页面范围')
     await expect(service.invoke('beginJob', { sessionId, prototypeId: first.document.id, baseRevision: 1, pageId: 'missing', instruction: '修改' })).rejects.toThrow('页面不存在')
     expect((await service.invoke('beginJob', { sessionId, prototypeId: first.document.id, baseRevision: 1, pageId: 'home', elementId: 'title', instruction: '修改' })).message).toContain('所属页面')
     await expect(service.invoke('beginJob', { sessionId, prototypeId: first.document.id, baseRevision: 1, pageId: 'home', elementId: 'missing', instruction: '修改' })).rejects.toThrow('元素')
