@@ -26,6 +26,8 @@ export * from './token-usage'
 
 // Agent 相关类型
 export * from './agent'
+export * from './agent-modules'
+export * from './agent-run-journal'
 export * from './agent-session-eligibility'
 export * from './browser'
 export * from './reasoning-profile'
