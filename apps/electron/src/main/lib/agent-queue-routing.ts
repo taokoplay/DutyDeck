@@ -25,7 +25,7 @@ export function isStaleActiveQueueError(error: unknown): boolean {
 /** queue-now 原子路由所需的可注入副作用。 */
 export interface AgentSubmitRouteDependencies<TPrepared> {
   isActive: (sessionId: string) => boolean
-  prepareNow: (input: AgentSubmitOrEnqueueInput) => TPrepared
+  prepareNow: (input: AgentSubmitOrEnqueueInput) => TPrepared | Promise<TPrepared>
   injectPrepared: (prepared: TPrepared) => Promise<void>
   enqueue: (input: AgentSubmitOrEnqueueInput) => void
   onStaleActive: (sessionId: string) => void
@@ -36,8 +36,13 @@ export async function routeAgentSubmitOrEnqueue<TPrepared>(
   input: AgentSubmitOrEnqueueInput,
   dependencies: AgentSubmitRouteDependencies<TPrepared>,
 ): Promise<AgentSubmitOrEnqueueResult> {
-  if (input.dispatch === 'now' && dependencies.isActive(input.sessionId)) {
-    const prepared = dependencies.prepareNow(input)
+  // 带影像目标的消息必须使用独立新运行，避免继承旧运行图片范围。
+  if (input.dispatch === 'now' && !input.visualProductionReferences?.length && dependencies.isActive(input.sessionId)) {
+    const prepared = await dependencies.prepareNow(input)
+    if (!dependencies.isActive(input.sessionId)) {
+      dependencies.enqueue(input)
+      return { disposition: 'queued' }
+    }
     try {
       await dependencies.injectPrepared(prepared)
       return { disposition: 'injected' }

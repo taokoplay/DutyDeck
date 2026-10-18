@@ -1,3 +1,4 @@
+import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
 /**
  * AI Elements - 消息组件原语
  *
@@ -847,7 +848,7 @@ interface UserMessageContentProps extends HTMLAttributes<HTMLDivElement> {
   /** 用户发送时持久化的 Canvas 节点引用快照。 */
   canvasNodeReferences?: readonly CanvasNodeReference[]
   /** SDK 用户消息原始公开元数据；历史渲染直接读取发送时快照。 */
-  sdkUserMessage?: Pick<SDKUserMessage, '_canvasNodeReferences'>
+  sdkUserMessage?: Pick<SDKUserMessage, '_canvasNodeReferences' | '_visualProductionReferences'>
 }
 
 /**
@@ -885,6 +886,7 @@ export const UserMessageContent = React.memo(
 
     return (
       <div className={cn('relative inline-block max-w-full rounded-[10px] bg-primary/10 px-3.5 py-2.5', className)} {...props}>
+        <VisualProductionReferenceChips references={sdkUserMessage?._visualProductionReferences ?? []} />
         <CanvasNodeReferenceChips
           references={canvasNodeReferences ?? sdkUserMessage?._canvasNodeReferences ?? []}
           className="mb-2"

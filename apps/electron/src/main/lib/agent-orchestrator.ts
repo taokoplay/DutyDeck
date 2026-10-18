@@ -138,6 +138,14 @@ import { browserController } from './browser-controller'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
 import { createWorkspaceOperationGuard } from './workspace-operation-guard'
 import type { AgentRunExtensions } from './agent-run-extensions'
+import type { VisualProductionReference } from '@dutydeck/shared'
+import type { VisualTaskContextRuntime } from './visual-production/task-context'
+import type { VisualTaskContextPolicy } from './visual-production/context-contract'
+import { createProductionVisualTaskContextRuntime } from './visual-production/integration'
+import { buildVisualTaskContextTools } from './visual-production/task-context-tools'
+import { prepareVisualTaskContext } from './visual-production/context-setup'
+import { buildVisualContextDelegationTools } from './visual-production/context-delegation-tools'
+import { assertVisualReviewRun } from './visual-production/context-delegation-policy'
 import {
   closeAgentQueryIterator,
   consumeStoppedGeneration,
@@ -711,6 +719,7 @@ export class AgentOrchestrator {
     vaultFocus?: import('@dutydeck/shared').VaultFocusAttribution,
     canvasNodeReferences?: CanvasNodeReference[],
     mediaAttachments?: AgentMediaAttachment[],
+    visualProductionReferences?: VisualProductionReference[],
   ): { uuid: string; receipt: SDKMessageAppendReceipt } {
     const persistedUuid = uuid ?? randomUUID()
     const userSDKMsg: SDKMessage = {
@@ -723,6 +732,7 @@ export class AgentOrchestrator {
       _createdAt: createdAt,
       ...(vaultFocus ? { _vaultFocus: vaultFocus } : {}),
       ...(canvasNodeReferences?.length ? { _canvasNodeReferences: canvasNodeReferences } : {}),
+      ...(visualProductionReferences?.length ? { _visualProductionReferences: visualProductionReferences } : {}),
       ...(mediaAttachments?.length ? { mediaAttachments } : {}),
     } as unknown as SDKMessage
     const receipt = appendSDKMessages(sessionId, [userSDKMsg])
@@ -817,7 +827,7 @@ export class AgentOrchestrator {
     callbacks: SessionCallbacks,
     extensions: AgentRunExtensions = {},
   ): Promise<void> {
-    const { sessionId, userMessage, rawUserMessage, userMessageUuid, channelId, modelId, workspaceId: requestedWorkspaceId, additionalDirectories, permissionModeOverride, mentionedSkills, mentionedMcpServers, mentionedSessionIds, mentionedServerOpsReferences, mentionedTodoIds, mentionedCalendarEventIds, mentionedMediaModelRefs, automationContext, retryOfErrorUuid, canvasNodeReferences, mediaAttachments } = input
+    const { sessionId, userMessage, rawUserMessage, userMessageUuid, channelId, modelId, workspaceId: requestedWorkspaceId, additionalDirectories, permissionModeOverride, mentionedSkills, mentionedMcpServers, mentionedSessionIds, mentionedServerOpsReferences, mentionedTodoIds, mentionedCalendarEventIds, mentionedMediaModelRefs, automationContext, retryOfErrorUuid, canvasNodeReferences, mediaAttachments, visualProductionReferences } = input
     /** 受限内部运行可关闭 Workspace Skills，避免 Pi 把普通 Skill 目录注入系统提示。 */
     const runSkillsEnabled = extensions.skillsMode !== 'disabled'
     // Capture the focus once per turn. Later UI focus changes must not rewrite this reply's attribution.
@@ -833,6 +843,9 @@ export class AgentOrchestrator {
     let interactionRun: ReturnType<typeof createInteractionDesignRun> | undefined
     /** 本轮影像任务只由当前普通会话拥有并结算。 */
     let visualProductionRun: ReturnType<typeof createVisualProductionRun> | undefined
+    /** 视觉上下文与生成 job 分开收尾，图片授权不跨运行恢复。 */
+    let visualTaskContext: VisualTaskContextRuntime | undefined
+    let visualContextDelegation: ReturnType<typeof buildVisualContextDelegationTools> | undefined
     /** 当前运行消息仍按原顺序落盘，知识维护在本回合工具内完成。 */
     const persistRunSDKMessages = (messages: SDKMessage[], durationMs?: number): void => {
       this.persistSDKMessages(sessionId, messages, durationMs)
@@ -860,6 +873,12 @@ export class AgentOrchestrator {
       return
     }
     /** 会话模式是主进程持久化事实；发送快照不允许隐式切换工具权限。 */
+    try { assertVisualReviewRun(sessionMeta, extensions) }
+    catch (error) {
+      terminalNotifier.onError(error instanceof Error ? error.message : String(error))
+      terminalNotifier.onComplete([], { startedAt: streamStartedAt, resultSubtype: 'error_during_execution', terminalReason: 'visual_review_resume_denied' })
+      return
+    }
     const persistedToolMode = sessionMeta?.toolMode ?? AGENT_DEFAULT_TOOL_MODE
     if (!isAgentToolMode(persistedToolMode) || (input.toolMode !== undefined && !isAgentToolMode(input.toolMode))) {
       terminalNotifier.onError('Agent 工具运行模式非法')
@@ -949,6 +968,7 @@ export class AgentOrchestrator {
         } : undefined,
         canvasNodeReferences,
         mediaAttachments,
+        visualProductionReferences,
       )
       initialUserMessageUuid = persisted.uuid
       userMessagePersisted = true
@@ -1431,6 +1451,34 @@ export class AgentOrchestrator {
       })
       if (visualProductionAccess) visualProductionRun = createVisualProductionRun(sessionId, visualProductionAccess,
         createProductionVisualProductionAccess(sessionId, { canWrite: () => getPermissionMode() !== 'plan' }))
+      /** 主会话建立域范围；受限子任务只接收宿主签发的独立策略。 */
+      let visualContextPolicy: VisualTaskContextPolicy | undefined = extensions.visualTaskContextPolicy
+      let visualContextPrompt = ''
+      if (visualProductionAccess) {
+        const visualRunId = randomUUID()
+        const assertVisualWrite = (): void => {
+          runIdentity.assertActive(); visualProductionAccess.assertCurrent()
+          if (getPermissionMode() === 'plan') throw new Error('计划模式不能保存影像观察或启动检查子任务')
+        }
+        const createVisualRuntime = (runId: string, parentContextId?: string): VisualTaskContextRuntime => {
+          const assertScope = (): void => {
+            runIdentity.assertActive()
+            if (parentContextId) visualTaskContext!.assertContextActive(parentContextId)
+          }
+          return createProductionVisualTaskContextRuntime(sessionId, {
+            runId, access: visualProductionAccess,
+            assertWrite: () => { assertScope(); assertVisualWrite() }, assertCaller: assertScope,
+          })
+        }
+        visualTaskContext = createVisualRuntime(visualRunId)
+        const preparedVisualContext = await prepareVisualTaskContext(visualTaskContext, visualRunId, visualProductionReferences ?? [], runIdentity.signal)
+        checkpoint()
+        visualContextPolicy = preparedVisualContext.policy
+        visualContextPrompt = preparedVisualContext.prompt
+        visualContextDelegation = buildVisualContextDelegationTools({ sdk: piSdk, sessionId, workspaceId: visualProductionAccess.workspaceId,
+          channelId, modelId: selectedModelId, runtime: visualTaskContext, createRuntime: createVisualRuntime,
+          assertActive: runIdentity.assertActive, assertWrite: assertVisualWrite })
+      }
       /**
        * 提示词编排工厂：存储按工作区隔离，所以服务按工作区根目录取。
        * 没有工作区（例如临时会话）时不注册工具 —— 工厂是工作区级的模块。
@@ -1550,6 +1598,17 @@ export class AgentOrchestrator {
             if (write && getPermissionMode() === 'plan') throw new Error('计划模式不能修改影像作品')
           },
         }) : []),
+        ...(visualProductionAccess && visualTaskContext ? buildVisualTaskContextTools({ sdk: piSdk, runtime: visualTaskContext,
+          assertAccess: (write) => {
+            visualProductionAccess.assertCurrent()
+            if (write && getPermissionMode() === 'plan') throw new Error('计划模式不能保存影像观察')
+          },
+        }).map(tool => ({ ...tool, execute: async (...args: Parameters<typeof tool.execute>) => {
+          const result = await tool.execute(...args)
+          if (tool.name === 'visual_production_open_context' || tool.name === 'visual_production_close_context') visualContextDelegation?.cancelAll()
+          return result
+        } })) : []),
+        ...(visualContextDelegation?.tools ?? []),
       ]
       const collaborationAvailable = builtinMcpResult.collaborationAvailable
 
@@ -1581,7 +1640,8 @@ export class AgentOrchestrator {
         userVaultContext: vaultUserContext,
       })
       // 11.5 注入 mention 引用指令（Skill/MCP/会话）— 仅影响 prompt，不影响持久化
-      let enrichedMessage = userMessage
+      let enrichedMessage = userMessage.trim() || !visualProductionReferences?.length ? userMessage
+        : '本条消息仅提供影像对象引用，未指定具体操作。请说明已引用对象并等待用户的任务要求，不要开始生成或修改。'
       const referencedSessionsBlock = buildReferencedSessionsPrompt(sessionId, mentionedSessionIds, workspaceSlug)
       if (referencedSessionsBlock) {
         enrichedMessage = `${referencedSessionsBlock}\n\n${enrichedMessage}`
@@ -1894,6 +1954,18 @@ export class AgentOrchestrator {
         }
 
         /** 影像 Agent 仅登记媒体和候选，用户正式采纳没有对应工具。 */
+        if (extensions.visualTaskContextPolicy && extensions.allowedToolNamesMode === 'replace'
+          && extensions.allowedToolNames?.includes(toolName)
+          && (toolName === 'visual_production_inspect_media' || toolName === 'visual_production_record_observation')) {
+          /** 受限子任务只使用主进程闭包签发的能力，绝不放宽普通委派的作品准入。 */
+          return { behavior: 'allow', updatedInput: input }
+        }
+        if (toolName === 'visual_production_delegate_review' || toolName === 'visual_production_read_review') {
+          if (!visualProductionAccess || !visualContextDelegation) return { behavior: 'deny', message: '当前运行没有影像检查范围' }
+          visualProductionAccess.assertCurrent()
+          if (toolName === 'visual_production_delegate_review' && currentMode === 'plan') return { behavior: 'deny', message: '计划模式不能启动检查子任务' }
+          return { behavior: 'allow', updatedInput: input }
+        }
         if (VISUAL_PRODUCTION_AGENT_TOOL_NAMES.some((name) => name === toolName)) {
           if (!visualProductionAccess) return { behavior: 'deny', message: '当前会话不具备影像创作能力' }
           try {
@@ -2331,9 +2403,11 @@ export class AgentOrchestrator {
       }) + (automationContext ? `\n\n## 定时任务执行上下文\n\n${automationContext}` : '')
       /** 单次可信运行场景放在通用规则之后，使专用会话覆盖普通入口分流语义。 */
       const systemPromptAppend = [baseSystemPrompt,
+        visualContextPrompt,
         visualProductionAccess ? `影像创作使用 visual_production_* 工具，承担漫剧、影片、宣传片和图片作品；交互稿由交互设计模块承接。一个 Agent 项目可有多个影像作品，作品下有集数、共用资产和有序镜头。新作品先与用户明确目标、受众、比例、时长和风格，提交脚本/分镜/资产规划候选，用户采用后再基于正式版本生成；不要把尚未确认的设定当作已批准资产。
-已有镜头重做按顺序执行：① list/read 确认作品，用 read_shot 读取准确 shotId、最新 revision、绑定资产和版本；shot.assetIds 仅含当前页，先沿 textPage.nextOffset 用 textOffset 续读并拼接完整长文本，再沿 referencePage.nextOffset 用 referenceOffset 续读所有引用并重置 textOffset；所有页 revision 必须一致，变更时重新读取。② read_media_configuration 和 media_catalog 读取作品启用范围及各类别默认来源，沿用用户明确指定的模型或服务；显式空 entries 禁止生成，无可用来源说明缺口。③ begin_job 绑定 shotId 与 baseRevision 并冻结制作配置，多个活动任务向媒体准备工具提供 visualJobId。④ reference_media 将目标已采用画面或绑定资产的 mediaId 转成完整 MediaAssetRef，禁止把影像内部 mediaId 或本地路径伪装成媒体引用。参考数量须遵守选中模型或工作流的真实约束；不能悄悄拼图或忽略其他资产。⑤ 使用 API 模型时按 media_prepare_generation → media_execute_generation → media_wait_generation 生成；使用 ComfyUI 服务时由 Agent 在允许的 connectionId 内通过 media_discover_workflows 按需分页筛选，核对输出、参考数量与输入角色，再用精确 descriptor/contentHash 调用 media_use_remote_workflow，随后 media_inspect_workflow 校验节点、模型和输入，按返回的 workflowId/revision 调用 media_prepare_run → media_execute_run → media_wait_run。影像任务不传 canvasId 或 targetNodeId。不得按名称默认选第一项或让用户从大量工作流里手选；服务条目不证明该服务具备所有输出能力。目录失败不能当作没有匹配，真实无匹配时说明缺口，遵循现有媒体授权策略；不擅自换到未授权服务。旧固定工作流保留精确版本及参数。按真实动作 update_job(preparing/generating/reviewing)，等待超时只代表尚未完成，不自动重发收费请求。⑥ 成功结果的全部 outputs[].asset 通过 import_media 导入独立副本并检查实际画面；用 propose_shot 提交 jobId/shotId/mediaId/alternativeMediaIds/summary，其中 mediaId 是首选、alternativeMediaIds 是最多15个去重替选。空镜头只有一个可用输出时宿主可自动采用，返回 status=adopted 和 adoptedRevision 后必须重新读取最新作品；已有画面或多个不同输出时保留候选，由用户选择。需改设定或规划时才使用完整 propose，保留未要求修改的内容及锁定资产。
+已有镜头重做按顺序执行：① list/read 确认作品，用 read_shot 读取准确 shotId、最新 revision、绑定资产和版本；shot.assetIds 仅含当前页，先沿 textPage.nextOffset 用 textOffset 续读并拼接完整长文本，再沿 referencePage.nextOffset 用 referenceOffset 续读所有引用并重置 textOffset；所有页 revision 必须一致，变更时重新读取。② read_media_configuration 和 media_catalog 读取作品启用范围及各类别默认来源，沿用用户明确指定的模型或服务；显式空 entries 禁止生成，无可用来源说明缺口。③ begin_job 绑定 shotId 与 baseRevision 并冻结制作配置，多个活动任务向媒体准备工具提供 visualJobId。④ reference_media 将目标已采用画面或绑定资产的 mediaId 转成完整 MediaAssetRef，禁止把影像内部 mediaId 或本地路径伪装成媒体引用。参考数量须遵守选中模型或工作流的真实约束；不能悄悄拼图或忽略其他资产。⑤ 使用 API 模型时按 media_prepare_generation → media_execute_generation → media_wait_generation 生成；使用 ComfyUI 服务时由 Agent 在允许的 connectionId 内通过 media_discover_workflows 按需分页筛选，核对输出、参考数量与输入角色，再用精确 descriptor/contentHash 调用 media_use_remote_workflow，随后 media_inspect_workflow 校验节点、模型和输入，按返回的 workflowId/revision 调用 media_prepare_run → media_execute_run → media_wait_run。影像任务不传 canvasId 或 targetNodeId。不得按名称默认选第一项或让用户从大量工作流里手选；服务条目不证明该服务具备所有输出能力。目录失败不能当作没有匹配，真实无匹配时说明缺口，遵循现有媒体授权策略；不擅自换到未授权服务。旧固定工作流保留精确版本及参数。按真实动作 update_job(preparing/generating/reviewing)，等待超时只代表尚未完成，不自动重发收费请求。⑥ 成功结果的全部 outputs[].asset 通过 import_media 导入独立副本；用 propose_shot 提交 jobId/shotId/mediaId/alternativeMediaIds/summary，其中 mediaId 是首选、alternativeMediaIds 是最多15个去重替选。空镜头只有一个可用输出时宿主可自动采用，返回 status=adopted 和 adoptedRevision 后必须重新读取最新作品；已有画面或多个不同输出时保留候选，由用户选择。候选提交后通过 open_context(candidateId) 绑定其当前版本，inspect_media 检查实际画面并 record_observation；若已自动采用则重新读取正式 revision 后检查。提交候选或采用本身不等于视觉验收，缺陷须如实报告。需改设定或规划时才使用完整 propose，保留未要求修改的内容及锁定资产。
 失败调用 fail_job 并说明原因；用户重试时重读最新版本并 begin_job 新任务，不复活旧任务。取消需分别处理已启动的媒体任务和影像任务；只取消影像任务会拒绝候选回流，不代表外部生成已停止。阶段是制作步骤，不是供应商百分比或质量验收证明。设定变更导致任务过期、取消或任务不属于本轮时不得继续提交；仅其他镜头画面采用导致的版本推进可由宿主验证兼容，不能借此修改旧设定。规划、资产和时间线候选仍由用户在面板手工采用。
+视觉上下文流程：先 open_context 固定 productionRevision、目标和 objective，按需要显式给出 continuityShotIds；仅 inspect_media 返回的授权素材可以用于本阶段看图。不要用普通 read 反复读取作品图片进入长期会话。检查或比较可多轮使用相同范围；先等待真正携图的模型响应，再 record_observation 保存绑定素材 hash 的结论和未检查项。阶段结束 close_context，后续需要时重新打开并取图，不重放生成。已有观察是可追溯判断，不证明本次已经看过；technical 仅技术事实，视频抽样不代表全片检查。需要子 Agent 审图时使用 delegate_review/read_review，子任务只读固定范围；必须核对 completed 和实际观察，普通 continue_delegation 不可用于恢复审图授权。
 完整 draft 仅含 title/kind/brief/ratio/fps/voice/music/episodes/assets/shots，不含系统 id/revision。不得用 Write/Edit 直接改 .proma/visual-production，不能用占位符冒充生成成功。静帧预演、单镜头生成及清单导出不代表成片合成；未真实合成不得报告影片已交付。` : undefined,
         interactionAccess ? '交互设计使用 prototype_* 工具：用户可直接描述要还原的项目页面，Agent 先调用 prototype_list，再读取现有原型、目标页面和当前版本，从路由、组件、主题和实际素材建立最小源码证据闭包；创建页面前必须按 pageId、路由、名称和职责判断目录中是否已有同一业务页面，已有页面复用 pageId，只有确认不存在才新增。现有项目还原必须先盘点并向用户确认页面数量、分组树、状态矩阵、页面流程和源码/素材证据，再 begin_job(mode=project-restore, plan=完整页面规划)，之后按规划提交候选并在基线仍匹配时自动采纳：单页正文先用 prototype_compare_page，再用 prototype_adopt_page；新增页面、跨页、目录或流程变更用 prototype_adopt。采纳后重新读取正式版本并报告实际 revision；CAS 冲突时重新读取，不覆盖人工修改。元素引用是修改上下文，自动保护范围为所属页面。不要用 Write/Edit 直接改 .proma/interaction-design 数据，也不要把结构检查或访问路径记录宣称为视觉一比一验证。不同业务页面分别写入 pages，同页有数据/无数据等状态写入该页 states 并排展示；禁止整套 App 塞一个 HTML、导览页或来源参考页冒充拆分；prototype_import_html 只用于用户明确要求导入的独立 HTML，不能用于现有项目还原。详细流程按 interaction-design Skill。' : undefined,
         extensions.systemPromptAppend]
@@ -2474,6 +2548,7 @@ export class AgentOrchestrator {
         piAgentDir: getSdkConfigDir(),
         piSessionDir: join(getSdkConfigDir(), 'sessions'),
         dataRootPaths: getDataRootPathSnapshot(),
+        ...(visualContextPolicy ? { visualTaskContextPolicy: visualContextPolicy } : {}),
         activeToolNames: runToolMode === 'server-ops-read' || runToolMode === 'server-ops-write' ? resolveAgentModeToolNames(runToolMode) : resolvePiActiveToolNames(
           extensions.allowedToolNames,
           extensions.allowedToolNamesMode,
@@ -3147,6 +3222,9 @@ export class AgentOrchestrator {
       }
     }
     }).catch((error: unknown) => { knowledgeRunFailed = true; throw error }).finally(async () => {
+      /** 先撤销子任务和图片范围，再结算本轮生成任务，迟到结果不能回写。 */
+      visualContextDelegation?.dispose()
+      visualTaskContext?.dispose()
       /** 运行结束仅结算本轮任务；归属或写权限变化时保留未知状态，不越权回填。 */
       try { await interactionRun?.finish(knowledgeRunStopped) }
       catch (error) { console.error('[交互设计] 保存任务终态失败:', error) }
@@ -3380,7 +3458,11 @@ export class AgentOrchestrator {
     canvasNodeReferences?: CanvasNodeReference[],
     mediaAttachments?: AgentMediaAttachment[],
     canvasWorkspacePrompt?: string,
+    visualProductionReferences?: VisualProductionReference[],
+    visualProductionPrompt?: string,
   ): Promise<string> {
+    /** 受限审图子会话不能被普通流式消息扩展任务范围。 */
+    assertVisualReviewRun(getAgentSessionMeta(sessionId) ?? {}, {})
     if (!this.activeSessions.has(sessionId)) {
       throw new Error(`[Agent 编排] 会话未运行，无法追加消息: ${sessionId}`)
     }
@@ -3405,6 +3487,7 @@ export class AgentOrchestrator {
     if (canvasWorkspacePrompt) {
       enrichedText = `${canvasWorkspacePrompt}\n\n${enrichedText}`
     }
+    if (visualProductionPrompt) enrichedText = `${visualProductionPrompt}\n\n${enrichedText}`
     const referencedSessionsBlock = buildReferencedSessionsPrompt(sessionId, mentionedSessionIds, workspaceSlug)
     if (referencedSessionsBlock) {
       enrichedText = `${referencedSessionsBlock}\n\n${enrichedText}`
@@ -3478,6 +3561,7 @@ export class AgentOrchestrator {
           },
         } : {}),
         ...(canvasNodeReferences?.length ? { _canvasNodeReferences: canvasNodeReferences } : {}),
+        ...(visualProductionReferences?.length ? { _visualProductionReferences: visualProductionReferences } : {}),
         ...(mediaAttachments?.length ? { mediaAttachments } : {}),
       } as unknown as SDKMessage
       appendSDKMessages(sessionId, [persistMsg])

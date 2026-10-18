@@ -1,3 +1,5 @@
+import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
+import { restoreVisualProductionReferences } from '@dutydeck/shared'
 import { mergeAgentRunFileChangesSnapshot } from '@/lib/agent-run-file-changes'
 import { createMobileMirrorAutoOpenConsumer } from '@/lib/mobile-mirror-auto-open'
 /**
@@ -224,6 +226,7 @@ export function mergeRestoredAgentQueuedMessages(
         attachments: input.queuePresentation?.attachments,
         additionalDirectories: input.additionalDirectories,
         canvasNodeReferences: input.canvasNodeReferences,
+        visualProductionReferences: input.visualProductionReferences,
       },
     ))
   return recovered.length === 0 ? [...current] : [...current, ...recovered]
@@ -761,6 +764,7 @@ export function applyAgentQueuedMessageStartedStatus(
         parent_tool_use_id: null,
         _createdAt: status.startedAt,
         _promaLiveRunStartedAt: status.startedAt,
+        ...(queuedMessage?.visualProductionReferences?.length ? { _visualProductionReferences: [...queuedMessage.visualProductionReferences] } : {}),
         ...(queuedMessage?.canvasNodeReferences && queuedMessage.canvasNodeReferences.length > 0
           ? { _canvasNodeReferences: [...queuedMessage.canvasNodeReferences] }
           : {}),
@@ -827,6 +831,9 @@ export function applyAgentQueuedMessageFailedStatus(
           sourcePath: attachment.targetPath,
         })),
       ])
+    }
+    if (queuedMessage.visualProductionReferences?.length) {
+      store.set(visualProductionReferencesAtomFamily(status.sessionId), current => restoreVisualProductionReferences(current, queuedMessage.visualProductionReferences ?? []))
     }
     if (canvasNodeReferences?.length) {
       store.set(agentCanvasNodeReferencesAtomFamily(status.sessionId), (current) => (

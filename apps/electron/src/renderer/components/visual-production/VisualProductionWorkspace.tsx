@@ -1,3 +1,5 @@
+import { mergeVisualProductionReferences } from '@dutydeck/shared'
+import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { ChevronLeft, ChevronRight, Film, FolderOpen, Plus, RefreshCw, Settings2, X } from 'lucide-react'
@@ -11,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { agentPendingPromptAtom } from '@/atoms/agent-atoms'
 import { visualProductionViewsAtom, type VisualProductionView } from '@/atoms/visual-production-atoms'
-import { buildVisualPrompt, buildVisualRetryPrompt, copyVisualDraft, reorderVisualShot, VisualRequestGate, VisualScopeEpoch, VISUAL_KIND_LABELS as KIND_LABELS } from './model'
+import { buildVisualReference, buildVisualRetryPrompt, copyVisualDraft, reorderVisualShot, VisualRequestGate, VisualScopeEpoch, VISUAL_KIND_LABELS as KIND_LABELS } from './model'
 import { VisualMediaView } from './VisualMediaView'
 import { VisualProductionMediaConfigurationPanel } from './VisualProductionMediaConfiguration'
 import { VisualProductionRecords } from './VisualProductionRecords'
@@ -37,6 +39,8 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   const [views, setViews] = useAtom(visualProductionViewsAtom)
   const view = views[projectId] ?? EMPTY_VIEW
   const setPrompt = useSetAtom(agentPendingPromptAtom)
+  /** 引用仅修改当前会话独立chip，不接触正文草稿。 */
+  const setReferences = useSetAtom(visualProductionReferencesAtomFamily(sessionId))
   const [summaries, setSummaries] = React.useState<VisualProductionSummary[]>([])
   const [snapshot, setSnapshot] = React.useState<VisualProductionSnapshot | null>(null)
   const [directory, setDirectory] = React.useState(false)
@@ -188,8 +192,8 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   }
   const reference = (targetShot?: string, targetAsset?: string): void => {
     if (!document) return
-    setPrompt({ sessionId, message: buildVisualPrompt(document, targetShot, targetAsset), autoSend: false })
-    setNotice('已引用到旁边 Agent 对话，请补充制作要求。')
+    setReferences(current => mergeVisualProductionReferences(current, [buildVisualReference(projectId, document, targetShot, targetAsset)]))
+    setNotice('已添加对象引用，草稿已保留；请在 Agent 中说明需要的操作。')
   }
   /** 在当前页签打开资产详情；记录原入口，关闭后恢复焦点与滚动位置。 */
   const openAsset = (targetId: string): void => {
@@ -280,7 +284,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
         onRetry={job => {
           /** 点击时用最新正式版本构造重试要求，不恢复旧任务或自动发送。 */
           const message = buildVisualRetryPrompt(document, job)
-          if (message) { setPrompt({ sessionId, message, autoSend: false }); setNotice('已将重试要求引用到 Agent，请核对后发送。') }
+          if (message) { reference(job.shotId); setPrompt({ sessionId, message, autoSend: false, appendToDraft: true }); setNotice('已将重试要求引用到 Agent，请核对后发送。') }
         }} />}
       <Button variant="ghost" size="icon" aria-label="刷新作品" disabled={busy} onClick={() => { void refreshList(); void load(true) }}>
         <RefreshCw size={15} />

@@ -1,3 +1,4 @@
+import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
 import * as React from 'react'
 import { useSkillMentionNames } from './SkillMentionNamesProvider'
 import { CalendarDays, Clock3, Clapperboard, CornerDownLeft, FileText, GripVertical, ListTodo, MessageSquareText, Paperclip, Quote, Server, Sparkles, Trash2, Undo2 } from 'lucide-react'
@@ -115,6 +116,7 @@ export function AgentMessageQueue({
               {isDropAfter && <div className="absolute left-2 right-2 bottom-0 h-0.5 rounded-full bg-primary" />}
               <GripVertical className="size-4 shrink-0 cursor-grab text-muted-foreground/55 active:cursor-grabbing" />
               <div className="min-w-0 flex-1 text-[13px] leading-5 text-foreground/80">
+                <VisualProductionReferenceChips references={item.visualProductionReferences ?? []} />
                 {item.canvasNodeReferences && item.canvasNodeReferences.length > 0 ? (
                   <CanvasNodeReferenceChips
                     references={item.canvasNodeReferences}

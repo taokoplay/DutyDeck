@@ -22,7 +22,7 @@ export interface AgentMessageIpcRegistrar {
 export interface AgentMessageIpcDependencies<TSession> {
   ipc: AgentMessageIpcRegistrar
   requireVisibleSession: (sessionId: string) => TSession
-  prepareRun: (input: AgentSendInput) => PreparedAgentCanvasMessage<AgentSendInput>
+  prepareRun: (input: AgentSendInput) => PreparedAgentCanvasMessage<AgentSendInput> | Promise<PreparedAgentCanvasMessage<AgentSendInput>>
   reserveStart: (sessionId: string) => () => void
   startSessionMirrorRun: (session: TSession) => Promise<unknown>
   runPrepared: (prepared: PreparedAgentCanvasMessage<AgentSendInput>, webContents: WebContents) => Promise<void>
@@ -43,9 +43,16 @@ export function registerAgentMessageIpcHandlers<TSession>(
       const session = requireVisibleSession(sendInput.sessionId)
       return runAgentMessageInvoke(async () => {
         /** 在任何消息接管副作用前固化 Canvas 引用。 */
-        const prepared = dependencies.prepareRun(sendInput)
-        const releaseStart = dependencies.reserveStart(sendInput.sessionId)
+        const preparation = dependencies.prepareRun(sendInput)
+        /** 异步引用读取期间占住可停止启动槽位；同步解析失败仍不产生接管副作用。 */
+        let releaseStart: () => void
+        try { releaseStart = dependencies.reserveStart(sendInput.sessionId) } catch (error) {
+          if (preparation instanceof Promise) void preparation.catch(() => undefined)
+          throw error
+        }
         try {
+          const prepared = await preparation
+          requireVisibleSession(sendInput.sessionId)
           await dependencies.startSessionMirrorRun(session).catch((error) => {
             console.error('[飞书 Session 镜像] 流式卡片初始化失败:', error)
           })

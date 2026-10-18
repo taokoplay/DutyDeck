@@ -265,6 +265,8 @@ export function isActivityGroup(item: ActivityGroup | ToolActivity): item is Act
 
 /** 外部入口交给 Agent 会话的提示词；默认只预填，显式 autoSend 时直接调度。 */
 export interface AgentPendingPrompt {
+  /** 显式追加到现有草稿，禁止覆盖用户尚未发送的输入。 */
+  appendToDraft?: boolean
   sessionId: string
   message: string
   additionalDirectories?: string[]

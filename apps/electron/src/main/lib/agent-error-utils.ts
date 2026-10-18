@@ -79,6 +79,7 @@ export function isThinkingSignatureError(...messages: string[]): boolean {
 function extractHttpStatusFromErrorText(...messages: string[]): number | null {
   const combined = messages.filter(Boolean).join('\n')
   const patterns = [
+    /^\s*(?:Error:\s*)?(413)\b(?:\s|$)/im,
     /API Error:\s*(\d{3})/i,
     /API error[^:]*:\s+(\d{3})/i,
     /\b(?:HTTP|status|statusCode)\s*[:=]?\s*(\d{3})\b/i,
@@ -116,7 +117,11 @@ export function mapAgentErrorToTypedError(
   }
 
   // 网关常用 413 返回 HTML 文案而不是模型上下文错误码；这类请求不能用同一份大上下文重试。
-  const requestTooLarge = isPromptTooLongError(detailedMessage, originalError)
+  /** 本地预算错误只在产品展示层分类，避免误触发 Pi 的 token overflow 自动压缩。 */
+  const requestBudgetMessage = `${detailedMessage}\n${originalError}`
+    .match(/\b(?:(?:IMAGE|MODEL)_REQUEST_(?:BUDGET_EXCEEDED|TOO_LARGE)):\s*([^\n]+)/)?.[1]
+  const requestTooLarge = requestBudgetMessage !== undefined
+    || isPromptTooLongError(detailedMessage, originalError)
     || extractHttpStatusFromErrorText(detailedMessage, originalError) === 413
 
   const errorMap: Record<string, { code: ErrorCode; title: string; message: string; canRetry: boolean }> = {
@@ -281,7 +286,7 @@ export function mapAgentErrorToTypedError(
     ? {
         code: 'prompt_too_long' as const,
         title: '请求内容过大',
-        message: '当前请求内容超过模型或网关限制，请压缩上下文、移除大附件或开启新会话',
+        message: requestBudgetMessage ?? '当前请求内容超过模型或网关限制，请压缩上下文、移除大附件或开启新会话',
         canRetry: false,
       }
     : errorMap[errorCode] || {

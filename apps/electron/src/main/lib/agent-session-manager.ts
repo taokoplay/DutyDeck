@@ -13,6 +13,7 @@ import { readFileSync, appendFileSync, existsSync, mkdirSync, unlinkSync, readdi
 import { createInterface } from 'node:readline'
 import { writeJsonFileAtomic, writeTextFileAtomic, readJsonFileSafe, readJsonFileStrict } from './safe-file'
 import { createHash, randomUUID } from 'node:crypto'
+import { assertVisualReviewRun } from './visual-production/context-delegation-policy'
 import { rmSyncWithRetry, renameWithRetry } from './fs-retry'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
@@ -1335,7 +1336,7 @@ export async function getAgentSessionSDKMessagesForDisplay(id: string): Promise<
  */
 export function updateAgentSessionMeta(
   id: string,
-  updates: Partial<Pick<AgentSessionMeta, 'title' | 'channelId' | 'modelId' | 'sdkSessionId' | 'piSessionFile' | 'piEntryBindings' | 'codexFastMode' | 'reasoningLevel' | 'openAIThinkingLevel' | 'workspaceId' | 'activeWorktree' | 'pinned' | 'starred' | 'archived' | 'attachedDirectories' | 'attachedFiles' | 'forkSourceDir' | 'explorationParentSessionId' | 'explorationSourceMessageId' | 'explorationSourceLabel' | 'explorationTitleInitializedAt' | 'stoppedByUser' | 'permissionMode' | 'toolMode' | 'completedButUnconfirmed' | 'sourceAutomationId' | 'sourceDesignProjectId' | 'sourceDesignJobId' | 'automationGraduated' | 'parentSessionId' | 'rootSessionId' | 'sourceDelegationId' | 'delegationRole' | 'delegationStatus' | 'delegationDepth' | 'delegationGoal'>>,
+  updates: Partial<Pick<AgentSessionMeta, 'title' | 'channelId' | 'modelId' | 'sdkSessionId' | 'piSessionFile' | 'piEntryBindings' | 'codexFastMode' | 'reasoningLevel' | 'openAIThinkingLevel' | 'workspaceId' | 'activeWorktree' | 'pinned' | 'starred' | 'archived' | 'attachedDirectories' | 'attachedFiles' | 'forkSourceDir' | 'explorationParentSessionId' | 'explorationSourceMessageId' | 'explorationSourceLabel' | 'explorationTitleInitializedAt' | 'stoppedByUser' | 'permissionMode' | 'toolMode' | 'completedButUnconfirmed' | 'sourceAutomationId' | 'sourceDesignProjectId' | 'sourceDesignJobId' | 'automationGraduated' | 'parentSessionId' | 'rootSessionId' | 'sourceDelegationId' | 'sourceVisualReviewRunId' | 'delegationRole' | 'delegationStatus' | 'delegationDepth' | 'delegationGoal'>>,
 ): AgentSessionMeta {
   if ('toolMode' in updates && !isAgentToolMode(updates.toolMode)) {
     throw new Error('Agent 工具运行模式非法')
@@ -1639,6 +1640,8 @@ export function migrateChatToAgentSession(conversationId: string, agentSessionId
 export async function forkAgentSession(input: ForkSessionInput): Promise<AgentSessionMeta> {
   const sourceMeta = getAgentSessionMeta(input.sessionId)
   if (!sourceMeta) throw new Error(`源 Agent 会话不存在: ${input.sessionId}`)
+  /** 专用检查记录不能通过普通分叉丢掉受限来源并恢复通用权限。 */
+  assertVisualReviewRun(sourceMeta, {})
   if (sourceMeta.legacyTranscript) {
     throw new Error('历史 Claude transcript 为只读，不能分叉；请新建 Pi 会话继续')
   }

@@ -9,9 +9,15 @@ import { runStableDirectoryNative } from '../stable-directory-native-host'
 import { createVisualProductionAccess } from './access'
 import type { VisualProductionExecutor } from './access'
 import { VisualProductionService } from './store'
+import { createVisualTaskContextRuntime } from './task-context'
+import type { VisualTaskContextRuntime } from './task-context'
+import { createVisualContextEvidenceStore } from './context-evidence-store'
+import type { MediaDeliveryInspectionResult } from '../media/media-delivery-inspection-service'
 
 /** 主进程注册可信图片读取与失效通知，Agent 与 IPC 使用同一宿主。 */
 interface VisualProductionHost {
+  /** 仅检查 access 已读取并核对 hash 的素材；抽帧字节不持久化。 */
+  inspectMedia?(workspaceId: string, input: { sessionId: string; productionId: string; media: VisualMedia; bytes: Uint8Array }, signal?: AbortSignal): Promise<MediaDeliveryInspectionResult>
   /** 只投影公开模型和服务，不枚举工作流、不探测网络或返回凭据。 */
   listMediaOptions?(workspaceId: string): Promise<VisualProductionMediaOption[]>
   /** 解析 Agent 选择的精确工作流；校验项目、服务归属及实际输入约束。 */
@@ -115,6 +121,43 @@ export function createProductionVisualProductionAccess(
     }),
     onChanged: (event) => {
       try { host?.onChanged(event) } catch { /* 写入已成功，窗口关闭不改变提交结果。 */ }
+    },
+  })
+}
+
+/**
+ * 将视觉结论存储与真实媒体检查绑定当前会话和项目。
+ * @param sessionId 宿主会话身份。
+ * @param options 本轮身份、访问能力及实时写入复验。
+ * @returns 不可恢复授权的任务视觉运行时。
+ */
+export function createProductionVisualTaskContextRuntime(sessionId: string, options: {
+  runId: string
+  access: VisualProductionExecutor
+  assertWrite?: () => void | Promise<void>
+  assertCaller?: () => void
+}): VisualTaskContextRuntime {
+  /** 固定根；所有异步检查返回后仍由 access 复验归属。 */
+  const initial = resolveSession(sessionId)
+  if (initial.workspaceId !== options.access.workspaceId) throw new Error('VISUAL_CONTEXT_ACCESS_CHANGED')
+  const assertCurrent = (): void => { options.assertCaller?.(); options.access.assertCurrent() }
+  const store = createVisualContextEvidenceStore(initial.projectRoot, assertCurrent)
+  return createVisualTaskContextRuntime({
+    runId: options.runId, sessionId, access: options.access, assertWrite: options.assertWrite,
+    evidenceStore: {
+      list: (productionId, scopeKey, runId) => store.list(productionId, scopeKey, runId),
+      append: observation => {
+        assertCurrent()
+        const release = acquireWorkspaceWriteLease(initial.workspaceId)
+        try { store.append(observation) } finally { release() }
+      },
+    },
+    inspectMedia: async (input, signal) => {
+      assertCurrent(); signal?.throwIfAborted()
+      if (!host?.inspectMedia) throw new Error('VISUAL_CONTEXT_INSPECTION_UNAVAILABLE: 媒体检查宿主尚未就绪')
+      const result = await host.inspectMedia(initial.workspaceId, { sessionId, ...input }, signal)
+      assertCurrent(); signal?.throwIfAborted()
+      return result
     },
   })
 }

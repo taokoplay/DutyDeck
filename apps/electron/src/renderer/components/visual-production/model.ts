@@ -1,3 +1,4 @@
+import type { VisualProductionReference } from '@dutydeck/shared'
 import type { VisualProductionDraft, VisualProductionDocument, VisualShot, VisualJob, VisualCandidate, VisualProductionKind, VisualProductionSnapshot } from '@dutydeck/shared'
 
 /** 作品类型名称由编辑入口和候选预览共用。 */
@@ -70,14 +71,20 @@ export function reorderVisualShot(shots: VisualShot[], shotId: string, offset: -
   ;[next[index], next[target]] = [next[target]!, next[index]!]
   return next
 }
-/** 引用绑定正式作品和版本，Agent 应先读取最新版本并提交候选。 */
-export function buildVisualPrompt(document: VisualProductionDocument, shotId?: string, assetId?: string): string {
-  return `请协助制作影像作品「${document.title}」。\nproductionId: ${document.id}\nrevision: ${document.revision}${shotId ? `\nshotId: ${shotId}` : ''}${assetId ? `\nassetId: ${assetId}` : ''}\n先读取当前作品和引用资产，保留范围外内容。请使用影像创作工具启动任务、生成真实媒体并提交候选，由我预览后采用。我的要求：`
+/** 从当前正式对象创建引用快照，不生成操作指令或覆盖用户草稿。 */
+export function buildVisualReference(workspaceId: string, document: VisualProductionDocument, shotId?: string, assetId?: string): VisualProductionReference {
+  /** 精确校验选中的子目标，不能降级为整个作品。 */
+  const shot = shotId ? document.shots.find(item => item.id === shotId) : undefined
+  const asset = assetId ? document.assets.find(item => item.id === assetId) : undefined
+  if (shotId && !shot || assetId && !asset || shotId && assetId) throw new Error('引用对象不存在，请刷新后重试。')
+  return { workspaceId, productionId: document.id, productionRevision: document.revision,
+    target: shot ? { kind: 'shot', shotId: shot.id } : asset ? { kind: 'asset', assetId: asset.id } : { kind: 'production' },
+    title: shot?.title ?? asset?.name ?? document.title, productionTitle: document.title }
 }
 /** 终态重试使用最新作品版本；删除目标不降级为整部作品重做。 */
 export function buildVisualRetryPrompt(document: VisualProductionDocument, job: VisualJob): string | null {
   if (!['failed', 'cancelled', 'interrupted'].includes(job.status) || (job.shotId && !document.shots.some(shot => shot.id === job.shotId))) return null
-  return `${buildVisualPrompt(document, job.shotId)}\n${job.instruction}\n请先核对最新设定和已确认资产，创建新任务重试，不恢复旧任务；只修改上述目标。`
+  return `请重试影像作品「${document.title}」${job.shotId ? `中镜头「${document.shots.find(shot => shot.id === job.shotId)!.title}」` : '的上述对象'}。\n${job.instruction}\n请先核对最新设定和已确认资产，创建新任务重试，不恢复旧任务；只修改上述目标。`
 }
 /** 迟到请求只有在同一上下文且最新代次时才可回填界面。 */
 export class VisualRequestGate {

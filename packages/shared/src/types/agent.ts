@@ -1,3 +1,4 @@
+import type { VisualProductionReference } from './visual-production-reference'
 import { isGpt6AstraFamily, isGpt6LunaFamily, isGpt6SolFamily, isGpt61SolFamily } from '../utils/model-family'
 import type { ProviderType } from './channel'
 import type { CanvasNodeReference } from './canvas'
@@ -275,6 +276,8 @@ export interface SDKUserMessage {
   skill_activations?: SkillActivation[]
   /** 持久化到 SDK JSONL 的 Canvas 节点引用快照；发送 IPC 使用无下划线字段。 */
   _canvasNodeReferences?: CanvasNodeReference[]
+  /** 消息发送时的权威影像对象引用快照。 */
+  _visualProductionReferences?: VisualProductionReference[]
   /** Host 固化后的用户图片、音频或视频附件；媒体来源服务只读取该结构化字段。 */
   mediaAttachments?: AgentMediaAttachment[]
 }
@@ -859,6 +862,8 @@ export interface AgentSessionMeta {
   rootSessionId?: string
   /** 来源委派任务 ID（由 collaboration 工具生成，用于父子会话关联） */
   sourceDelegationId?: string
+  /** 固定范围影像检查来源；后续普通继续/重试不得恢复通用工具权限。 */
+  sourceVisualReviewRunId?: string
   /** 委派角色，用于 UI 和后续统计 */
   delegationRole?: AgentDelegationRole
   /** 委派任务当前状态 */
@@ -1379,6 +1384,8 @@ export interface AgentSendInput {
   automationContext?: string
   /** 本次用户消息显式携带的 Canvas 节点引用快照。 */
   canvasNodeReferences?: CanvasNodeReference[]
+  /** 显式影像对象引用；仅携带身份，不授权生成。 */
+  visualProductionReferences?: VisualProductionReference[]
   /** latest 刷新普通发送快照；exact 保持历史重试的原 revision。 */
   canvasNodeReferenceMode?: CanvasNodeReferenceMode
   /** 本次消息显式携带的媒体附件；Host 会在运行或入队前重新校验并固化。 */
@@ -1461,7 +1468,7 @@ export interface AgentSubmitOrEnqueueResult {
 }
 
 /** Agent 消息接管阶段允许跨 IPC 暴露的稳定错误码。 */
-export type AgentMessagePublicErrorCode = 'CANVAS_REFERENCE_INVALID' | 'AGENT_RUN_FAILED'
+export type AgentMessagePublicErrorCode = 'CANVAS_REFERENCE_INVALID' | 'VISUAL_REFERENCE_INVALID' | 'AGENT_RUN_FAILED'
 
 /** Agent 消息接管失败的安全公开错误。 */
 export interface AgentMessagePublicError {
@@ -1506,6 +1513,8 @@ export interface AgentQueueMessageInput {
   mentionedMediaModelRefs?: string[]
   /** 本次队列消息显式携带的 Canvas 节点引用快照。 */
   canvasNodeReferences?: CanvasNodeReference[]
+  /** 显式影像对象引用；仅携带身份，不授权生成。 */
+  visualProductionReferences?: VisualProductionReference[]
   /** 本次队列消息显式携带的媒体附件。 */
   mediaAttachments?: AgentMediaAttachment[]
 }

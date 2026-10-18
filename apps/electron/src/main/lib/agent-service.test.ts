@@ -69,7 +69,7 @@ describe('Agent service 迁移准入', () => {
     expect(source).not.toContain('prepared.input.userMessage')
     expect(source).toContain("|| input.triggeredBy === 'user'")
     /** 只在运行准备函数体内比较调用顺序，避免 import 文本造成误报。 */
-    const functionStart = source.indexOf('export function prepareAgentRun')
+    const functionStart = source.indexOf('export async function prepareAgentRun')
     /** 下一个顶层文档注释标记函数体结束。 */
     const functionEnd = source.indexOf('/** Agent service', functionStart)
     /** 被测运行准备函数的源码片段。 */

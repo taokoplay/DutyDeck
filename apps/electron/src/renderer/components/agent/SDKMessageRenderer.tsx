@@ -1,3 +1,4 @@
+import type { VisualProductionReference } from '@dutydeck/shared'
 /**
  * SDKMessageRenderer — 渲染 SDKMessage 对象
  *
@@ -986,8 +987,9 @@ function ScheduledRunBadge(): React.ReactElement {
 export function shouldRenderUserMessageContent(
   text: string,
   canvasNodeReferences: readonly CanvasNodeReference[] | undefined,
+  visualProductionReferences?: readonly VisualProductionReference[],
 ): boolean {
-  return Boolean(text) || (canvasNodeReferences?.length ?? 0) > 0
+  return Boolean(text) || (canvasNodeReferences?.length ?? 0) > 0 || (visualProductionReferences?.length ?? 0) > 0
 }
 
 function UserInputMessage({ message, onAgentHistoryQuoteClick }: {
@@ -1110,7 +1112,7 @@ function UserInputMessage({ message, onAgentHistoryQuoteClick }: {
             ))}
           </div>
         )}
-        {shouldRenderUserMessageContent(text, message._canvasNodeReferences) && (
+        {shouldRenderUserMessageContent(text, message._canvasNodeReferences, message._visualProductionReferences) && (
           <UserMessageContent
             onAgentHistoryQuoteClick={onAgentHistoryQuoteClick}
             sdkUserMessage={message}

@@ -12,9 +12,9 @@ export interface VisualProductionAgentToolOptions {
   assertAccess(write: boolean): void | Promise<void>
 }
 /** 纯读取不产生持久状态。 */
-export const VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES = ['visual_production_list', 'visual_production_read', 'visual_production_read_shot', 'visual_production_export_manifest', 'visual_production_media_catalog', 'visual_production_read_media_configuration', 'visual_production_read_timeline'] as const
+export const VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES = ['visual_production_open_context', 'visual_production_inspect_media', 'visual_production_close_context', 'visual_production_list', 'visual_production_read', 'visual_production_read_shot', 'visual_production_export_manifest', 'visual_production_media_catalog', 'visual_production_read_media_configuration', 'visual_production_read_timeline'] as const
 /** 候选和媒体导入同样需要写权限；不暴露正式保存或采纳。 */
-export const VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES = ['visual_production_create', 'visual_production_begin_job', 'visual_production_propose', 'visual_production_propose_shot', 'visual_production_propose_timeline_edit', 'visual_production_reference_media', 'visual_production_update_job', 'visual_production_fail_job', 'visual_production_cancel_job', 'visual_production_import_file', 'visual_production_import_media'] as const
+export const VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES = ['visual_production_record_observation', 'visual_production_create', 'visual_production_begin_job', 'visual_production_propose', 'visual_production_propose_shot', 'visual_production_propose_timeline_edit', 'visual_production_reference_media', 'visual_production_update_job', 'visual_production_fail_job', 'visual_production_cancel_job', 'visual_production_import_file', 'visual_production_import_media'] as const
 /** 宿主权限包装使用精确工具白名单。 */
 export const VISUAL_PRODUCTION_AGENT_TOOL_NAMES = [...VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES, ...VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES] as const
 /** Agent 单次正文硬预算；历史候选正文始终不进入工具响应。 */

@@ -21,6 +21,12 @@ let testDataRoot: string
 const originalHome = process.env.HOME
 const originalPromaDev = process.env.PROMA_DEV
 
+test('Given 固定影像审图会话 When普通分叉 Then拒绝丢失授权范围创建通用会话', async () => {
+  const session = manager.createAgentSession('受限影像检查')
+  manager.updateAgentSessionMeta(session.id, { sourceVisualReviewRunId: 'review-run' })
+  await expect(manager.forkAgentSession({ sessionId: session.id, upToMessageUuid: 'missing' })).rejects.toThrow('VISUAL_REVIEW_RESUME_DENIED')
+})
+
 // agent-session-manager loads Pi lazily for fork/rewind, so this focused fake isolates
 // entry-tree semantics without requiring a real Pi session JSONL fixture.
 mock.module('@earendil-works/pi-coding-agent', () => ({

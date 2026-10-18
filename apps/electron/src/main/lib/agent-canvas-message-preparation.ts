@@ -1,3 +1,5 @@
+import { VisualReferenceInvalidError } from './visual-production/reference-preparation'
+import type { VisualProductionReference } from '@dutydeck/shared'
 import type {
   AgentMessageInvokeResult,
   AgentQueueMessageInput,
@@ -30,6 +32,10 @@ export interface PreparedAgentCanvasMessage<T extends AgentSendInput | AgentQueu
   extensions: AgentRunExtensions
   references: CanvasNodeReference[] | undefined
   canvasWorkspacePrompt?: string
+  /** 已验证的影像目标，可作为运行上下文初始范围。 */
+  visualProductionReferences?: VisualProductionReference[]
+  /** 供活跃通道注入的只读引用说明。 */
+  visualProductionPrompt?: string
 }
 
 /**
@@ -51,6 +57,7 @@ export function createAgentQueueNowInput(candidate: AgentSubmitOrEnqueueInput): 
     mentionedTodoIds: candidate.mentionedTodoIds,
     mentionedCalendarEventIds: candidate.mentionedCalendarEventIds,
     mentionedMediaModelRefs: candidate.mentionedMediaModelRefs,
+    ...(Object.prototype.hasOwnProperty.call(candidate, 'visualProductionReferences') ? { visualProductionReferences: candidate.visualProductionReferences } : {}),
     ...(Object.prototype.hasOwnProperty.call(candidate, 'mediaAttachments')
       ? { mediaAttachments: candidate.mediaAttachments }
       : {}),
@@ -105,6 +112,7 @@ export async function runAgentMessageInvoke<T>(
   try {
     return { ok: true, value: await effect() }
   } catch (error) {
+    if (error instanceof VisualReferenceInvalidError) return { ok: false, error: { code: error.code, message: error.message } }
     if (!(error instanceof CanvasReferenceInvalidError)) throw error
     reportCanvasError(error.cause ?? error)
     return {

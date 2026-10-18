@@ -2,7 +2,7 @@ import { resolveSkillMentionName, EMPTY_SKILL_MENTION_NAMES } from './skill-ment
 import type { AgentStreamState } from '@/atoms/agent-atoms'
 import type { QuotedSelection } from '@/atoms/preview-atoms'
 import { parseMediaModelRef } from '@dutydeck/shared'
-import type { CanvasNodeReference, ServerOpsAgentReference } from '@dutydeck/shared'
+import type { CanvasNodeReference, VisualProductionReference, ServerOpsAgentReference } from '@dutydeck/shared'
 import {
   buildQuotedSelectionLabel,
   expandAgentHistoryQuoteMentions,
@@ -31,6 +31,8 @@ export interface AgentQueuedMessage {
   additionalDirectories?: string[]
   /** 发送时使用的 Canvas 节点公开快照。 */
   canvasNodeReferences?: CanvasNodeReference[]
+  /** 显式影像引用快照，随排队和退回草稿保留。 */
+  visualProductionReferences?: VisualProductionReference[]
 }
 
 /** 生成 Canvas 引用的稳定去重键；项目归属由引用合同继续完整保留。 */
@@ -162,6 +164,8 @@ export function createAgentQueuedMessage(
     attachments?: AgentQueuedAttachment[]
     additionalDirectories?: string[]
     canvasNodeReferences?: CanvasNodeReference[]
+    /** 显式影像引用快照，随排队和退回草稿保留。 */
+    visualProductionReferences?: VisualProductionReference[]
   },
 ): AgentQueuedMessage {
   const message: AgentQueuedMessage = {
@@ -176,6 +180,7 @@ export function createAgentQueuedMessage(
   if (options?.canvasNodeReferences && options.canvasNodeReferences.length > 0) {
     message.canvasNodeReferences = [...options.canvasNodeReferences]
   }
+  if (options?.visualProductionReferences?.length) message.visualProductionReferences = [...options.visualProductionReferences]
   return message
 }
 
@@ -268,6 +273,8 @@ export interface QueuedMessageSendPayload {
   sdkText: string
   mentions: ParsedQueuedMessageMentions
   canvasNodeReferences?: CanvasNodeReference[]
+  /** 显式影像引用快照，随排队和退回草稿保留。 */
+  visualProductionReferences?: VisualProductionReference[]
 }
 
 /** Renderer 消息提交结果；skipped 表示没有任何可发送内容。 */
@@ -285,7 +292,7 @@ export async function submitQueuedMessagePayload(
 ): Promise<AgentMessageSubmissionOutcome> {
   /** 结构化 Canvas 引用与正文都是独立、合法的用户输入。 */
   const hasCanvasNodeReferences = (payload.canvasNodeReferences?.length ?? 0) > 0
-  if (!payload.rawText && !hasCanvasNodeReferences) return 'skipped'
+  if (!payload.rawText && !hasCanvasNodeReferences && !payload.visualProductionReferences?.length) return 'skipped'
 
   await submit(payload)
   return 'submitted'
@@ -568,5 +575,6 @@ export function buildQueuedMessageSendPayload(
   if (message.canvasNodeReferences && message.canvasNodeReferences.length > 0) {
     payload.canvasNodeReferences = [...message.canvasNodeReferences]
   }
+  if (message.visualProductionReferences?.length) payload.visualProductionReferences = [...message.visualProductionReferences]
   return payload
 }

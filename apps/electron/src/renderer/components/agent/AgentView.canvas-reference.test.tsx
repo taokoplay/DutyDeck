@@ -127,7 +127,8 @@ describe('Agent Canvas 节点引用 composer', () => {
     const sendPrefix = source.slice(optimisticStart, sendStart)
     const sendBody = source.slice(sendStart, sendEnd)
     /** 引用不能等待整轮 Agent 完成才清理，否则运行期间继续发送会重复引用同一节点。 */
-    expect(sendPrefix).toContain('clearSentCanvasNodeReferences(canvasNodeReferencesSnapshot)')
+    expect(sendPrefix).toContain('clearSentComposerReferences(canvasNodeReferencesSnapshot, visualProductionReferencesSnapshot)')
+    expect(source).toContain('clearSentCanvasNodeReferences(canvas)')
     expect(source.indexOf(sendCall, optimisticStart)).toBe(sendStart)
     expect(sendBody).toContain('rollbackOptimisticPersistedMessage(tempUserSDKMsg)')
     expect(sendBody).toContain('restoreMissingCanvasNodeReferences(current, canvasNodeReferencesSnapshot)')

@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { createStore, Provider } from 'jotai'
-import { agentPendingPromptAtom } from '../src/renderer/atoms/agent-atoms'
+import { visualProductionReferencesAtomFamily } from '../src/renderer/atoms/visual-production-reference-atoms'
+import { agentPendingPromptAtom, agentSessionDraftsAtom } from '../src/renderer/atoms/agent-atoms'
 import { visualProductionViewsAtom } from '../src/renderer/atoms/visual-production-atoms'
 import { TooltipProvider } from '../src/renderer/components/ui/tooltip'
 import { VisualProductionWorkspace } from '../src/renderer/components/visual-production/VisualProductionWorkspace'
@@ -17,6 +18,9 @@ const revokeObjectURL = URL.revokeObjectURL.bind(URL)
 URL.revokeObjectURL = (url: string): void => { revokedUrls.push(url); revokeObjectURL(url) }
 Object.defineProperty(window, '__visualSmoke', { value: {
   prompt: () => store.get(agentPendingPromptAtom),
+  references: () => store.get(visualProductionReferencesAtomFamily('smoke-session')),
+  draft: () => store.get(agentSessionDraftsAtom).get('smoke-session'),
+  setDraft: (text: string) => store.set(agentSessionDraftsAtom, new Map([['smoke-session', text]])),
   active: (value: boolean) => setActive(value),
   revokedUrls: () => [...revokedUrls],
   select: (productionId: string) => store.set(visualProductionViewsAtom, previous => ({ ...previous, 'smoke-project': { productionId, episodeId: null, shotId: null, tab: 'project' } })),

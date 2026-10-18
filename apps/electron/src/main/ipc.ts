@@ -18,6 +18,7 @@ import { registerVisualProductionIpc } from './lib/visual-production/ipc'
 import { createProductionVisualProductionAccess, setVisualProductionHost } from './lib/visual-production/integration'
 import { buildVisualProductionMediaCatalog, resolveVisualProductionMediaWorkflow } from './lib/visual-production/media-catalog'
 import { renderVisualEditingExport } from './lib/visual-production/visual-editing-export'
+import { inspectVisualProductionMedia } from './lib/visual-production/media-inspection'
 import { visualMediaExecutionContext, visualMediaOrigin, assertVisualMediaOrigin } from './lib/visual-production/media-execution-context'
 import type { MediaInputValue, VisualProductionMediaExecutionSource } from '@dutydeck/shared'
 import { INTERACTION_DESIGN_CHANNELS, VISUAL_PRODUCTION_CHANNELS, VISUAL_PRODUCTION_LIMITS } from '@dutydeck/shared'
@@ -3191,6 +3192,8 @@ export function registerIpcHandlers(): void {
   })
   /** 影像作品保存独立媒体副本；先检查元数据预算，再读取真实字节。 */
   setVisualProductionHost({
+    /** 检查已授权的作品副本，临时抽帧不登记到普通会话或全局媒体库。 */
+    inspectMedia: inspectVisualProductionMedia,
     listMediaOptions: async (workspaceId) => {
       /** 公开连接只保留凭据存在性，目录计算完全在本地完成。 */
       const configuration = getMediaConfiguration().read()

@@ -9,6 +9,9 @@ import { normalizePiTokenUsage, type TokenUsageObserver } from '../token-usage-o
 import { randomUUID } from 'node:crypto'
 import { installCanvasMediaSampleLifecycle } from './pi-canvas-media-samples'
 import { installPiAttachmentPathProjection } from './pi-attachment-path-projection'
+import { installPiImageRequestPolicy } from './pi-image-request-policy'
+import { installVisualTaskContextLifecycle } from './pi-visual-task-context'
+import type { VisualTaskContextPolicy } from '../visual-production/context-contract'
 import type { DataRootPathSnapshot } from '../data-root-reference'
 import { spawn } from 'node:child_process'
 import type { Dispatcher } from 'undici'
@@ -270,6 +273,8 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
   /** 宿主解析的业务数据根，仅用于历史附件请求投影。 */
   dataRootPaths?: DataRootPathSnapshot
   customTools?: ToolDefinition[]
+  /** 宿主为本轮影像任务签发的可序列化范围，不从历史文字或模型参数推断。 */
+  visualTaskContextPolicy?: VisualTaskContextPolicy
   /** 本轮真正暴露给模型的 Pi 工具名；缺失时保持普通 Agent 的完整工具集合。 */
   activeToolNames?: string[]
   onSessionId?: (sdkSessionId: string, sessionFile?: string) => void
@@ -1635,6 +1640,8 @@ export class PiAgentAdapter implements AgentProviderAdapter {
     let requestProxyDispatcher: Dispatcher | undefined
     /** 音视频抽样只保留到下一次模型读取，结束或取消时主动释放。 */
     let releaseMediaSamples: (() => void) | undefined
+    /** 影像任务图片跨原生重试保留，只在真实 query 收尾释放。 */
+    let releaseVisualTaskContext: (() => void) | undefined
 
     const cleanupActiveSession = (): void => {
       try {
@@ -1642,6 +1649,8 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         unsubscribe = undefined
         releaseMediaSamples?.()
         releaseMediaSamples = undefined
+        releaseVisualTaskContext?.()
+        releaseVisualTaskContext = undefined
         if (!active.disposed) {
           active.disposed = true
           active.completionEvaluationAbortController?.abort()
@@ -1855,6 +1864,11 @@ export class PiAgentAdapter implements AgentProviderAdapter {
       if (customTools.some(tool => tool.name === 'canvas_inspect_media_content')) {
         releaseMediaSamples = installCanvasMediaSampleLifecycle(session.agent)
       }
+      if (input.visualTaskContextPolicy) {
+        releaseVisualTaskContext = installVisualTaskContextLifecycle(session.agent, input.visualTaskContextPolicy)
+      }
+      // 最后接入请求投影，覆盖工具临时注入的样本、旧历史图片及压缩请求预算。
+      installPiImageRequestPolicy(session.agent)
       active.session = session
       resolveActiveReady(active, session)
 

@@ -7,7 +7,7 @@ describe('Given 主 Agent 影像工具', () => {
   test('When 注册工具 Then 不提供正式保存采纳且写操作检查权限', async () => {
     const writes: boolean[] = []
     const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess: write => { writes.push(write) }, async execute<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { return largeSnapshot() as unknown as VisualProductionResults[M] } })
-    expect(tools.map(tool => tool.name).sort()).toEqual([...VISUAL_PRODUCTION_AGENT_TOOL_NAMES].sort())
+    expect(tools.map(tool => tool.name).sort()).toEqual([...VISUAL_PRODUCTION_AGENT_TOOL_NAMES].filter(name => !['visual_production_open_context', 'visual_production_inspect_media', 'visual_production_record_observation', 'visual_production_close_context'].includes(name)).sort())
     expect(tools.some(tool => /adopt|save/.test(tool.name))).toBe(false)
     const create = tools.find(tool => tool.name === 'visual_production_create')!
     await create.execute('call', { title: '作品', kind: 'film' }, new AbortController().signal, undefined, {} as never)

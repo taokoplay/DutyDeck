@@ -24,10 +24,11 @@ import {
   streamSSE,
   fetchTitle,
 } from '@dutydeck/core'
-import type { ImageAttachmentData, ContinuationMessage } from '@dutydeck/core'
+import type { ContinuationMessage } from '@dutydeck/core'
 import { listChannels, resolveChannelRuntimeApiKey } from './channel-manager'
 import { appendMessage, updateConversationMeta, getConversationMessages } from './conversation-manager'
-import { readAttachmentAsBase64, isImageAttachment } from './attachment-service'
+import { prepareChatImageRequest } from './chat-image-request-preparation'
+import { assertModelRequestBudget } from './image-request-preparation'
 import { extractTextFromAttachment, isDocumentAttachment } from './document-parser'
 import { getFetchFn } from './proxy-fetch'
 import { getEffectiveProxyUrl } from './proxy-settings-service'
@@ -40,25 +41,6 @@ const activeControllers = new Map<string, AbortController>()
 
 /** 最大工具续接轮数（安全上限，防止极端情况下的无限循环） */
 const MAX_TOOL_ROUNDS = 999
-
-// ===== 平台相关：图片附件读取器 =====
-
-/**
- * 读取图片附件的 base64 数据
- *
- * 此函数作为 ImageAttachmentReader 注入给 core 层，
- * 因为文件系统读取属于 Electron 平台操作。
- */
-function getImageAttachmentData(attachments?: FileAttachment[]): ImageAttachmentData[] {
-  if (!attachments || attachments.length === 0) return []
-
-  return attachments
-    .filter((att) => isImageAttachment(att.mediaType))
-    .map((att) => ({
-      mediaType: att.mediaType,
-      data: readAttachmentAsBase64(att.localPath),
-    }))
-}
 
 // ===== 文档附件文本提取 =====
 
@@ -278,12 +260,7 @@ export async function sendMessage(
   }
   appendMessage(conversationId, userMsg)
 
-  // 5. 过滤历史并提取文档附件文本
-  const filteredHistory = filterHistory(fullHistory, contextDividers, contextLength)
-  const enrichedHistory = await enrichHistoryWithDocuments(filteredHistory)
-  const enrichedUserMessage = await enrichMessageWithDocuments(userMessage, attachments)
-
-  // 6. 创建 AbortController
+  // 5. 创建 AbortController，让文档与图片准备阶段也能响应取消
   const controller = new AbortController()
   activeControllers.set(conversationId, controller)
 
@@ -294,6 +271,15 @@ export async function sendMessage(
   const accumulatedGeneratedAttachments: FileAttachment[] = []
 
   try {
+    // 6. 过滤历史并提取文档附件文本
+    const filteredHistory = filterHistory(fullHistory, contextDividers, contextLength)
+    const enrichedHistory = await enrichHistoryWithDocuments(filteredHistory)
+    const enrichedUserMessage = await enrichMessageWithDocuments(userMessage, attachments)
+
+    /** 图片只投影到模型请求，工具上下文与持久化继续使用原始附件。 */
+    const preparedImages = await prepareChatImageRequest({ history: enrichedHistory, userMessage: enrichedUserMessage, attachments, signal: controller.signal })
+    controller.signal.throwIfAborted()
+
     // 7. 获取适配器
     const adapter = getAdapter(channel.provider)
 
@@ -356,16 +342,19 @@ export async function sendMessage(
         baseUrl: channel.baseUrl,
         apiKey,
         modelId,
-        history: enrichedHistory,
-        userMessage: enrichedUserMessage,
+        history: preparedImages.history,
+        userMessage: preparedImages.userMessage,
         systemMessage: effectiveSystemMessage,
-        attachments,
-        readImageAttachments: getImageAttachmentData,
+        attachments: preparedImages.attachments,
+        readImageAttachments: preparedImages.readImageAttachments,
         thinkingEnabled,
         thinkingLevel,
         tools,
         continuationMessages: continuationMessages.length > 0 ? continuationMessages : undefined,
       })
+
+      controller.signal.throwIfAborted()
+      assertModelRequestBudget(request.body)
 
       const { content, reasoning, thinkingBlocks, toolCalls, stopReason } = await streamSSE({
         request,
@@ -434,16 +423,19 @@ export async function sendMessage(
         baseUrl: channel.baseUrl,
         apiKey,
         modelId,
-        history: enrichedHistory,
-        userMessage: enrichedUserMessage,
+        history: preparedImages.history,
+        userMessage: preparedImages.userMessage,
         systemMessage: effectiveSystemMessage,
-        attachments,
-        readImageAttachments: getImageAttachmentData,
+        attachments: preparedImages.attachments,
+        readImageAttachments: preparedImages.readImageAttachments,
         thinkingEnabled,
         thinkingLevel,
         // 不传 tools，强制模型生成文本回复而非继续调用工具
         continuationMessages,
       })
+
+      controller.signal.throwIfAborted()
+      assertModelRequestBudget(finalRequest.body)
 
       await streamSSE({
         request: finalRequest,
@@ -526,7 +518,9 @@ export async function sendMessage(
       return true
     }
 
-    const errorMessage = error instanceof Error ? error.message : '未知错误'
+    /** 原始错误保留稳定代码供内部诊断；用户展示仅保留中文原因与处理建议。 */
+    const rawErrorMessage = error instanceof Error ? error.message : '未知错误'
+    const errorMessage = rawErrorMessage.replace(/^(?:IMAGE_REQUEST_(?:BUDGET_EXCEEDED|TOO_LARGE|INVALID)|MODEL_REQUEST_(?:BUDGET_EXCEEDED|TOO_LARGE)):\s*/, '')
     console.error(`[聊天服务] 流式请求失败:`, error)
 
     // 保存已累积的部分助手消息（与 abort 逻辑一致，防止内容丢失）

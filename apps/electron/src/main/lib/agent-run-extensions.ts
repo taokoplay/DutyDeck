@@ -3,6 +3,7 @@ import type { DesignJobRecord, ImageGenerationModelSnapshot } from '@dutydeck/sh
 import type { ResolveImageGenerationRoute } from './image-generation-runtime'
 import type { AgentCompletionEvaluation } from './agent-completion-policy'
 import type { ImageRequestAudit } from './chat-tools/image-request-context'
+import type { VisualTaskContextPolicy } from './visual-production/context-contract'
 
 /** 高影响工具的动态审批策略，只能作用于本轮显式列入逐次审批名单的工具。 */
 export interface AgentToolApprovalPolicy {
@@ -24,6 +25,8 @@ export interface TrustedImageParameters {
  * 不经过 IPC、会话 JSONL 或全局工具配置持久化。
  */
 export interface AgentRunExtensions {
+  /** 宿主签发的本轮影像范围，只用于受限子任务和 Pi 临时样本策略。 */
+  visualTaskContextPolicy?: VisualTaskContextPolicy
   /** 本次可信运行场景追加到通用系统提示词末尾，不写入用户消息或会话 JSONL。 */
   systemPromptAppend?: string
   /** 本次运行额外注入的 Pi 工具。 */

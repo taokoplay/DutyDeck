@@ -145,6 +145,7 @@ export * from './interaction-design-validation'
 export * from './server-ops-deployment'
 export * from './canvas-view-command'
 export * from './visual-production'
+export * from './visual-production-reference'
 export * from './visual-production-validation'
 
 export * from './visual-production-media'

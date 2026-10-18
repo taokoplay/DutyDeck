@@ -47,8 +47,10 @@ it('失败重试引用最新正式版本，已删除目标或活动任务不允�
   const document = { schemaVersion: 1 as const, id: 'production', revision: 8, createdAt: 1, updatedAt: 2, title: '作品', kind: 'film' as const, brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [{ id: 'one', title: '一' }], assets: [], shots: [shot('third', 'one')] }
   const job = { id: 'old-job', sessionId: 'session', baseRevision: 2, shotId: 'third', instruction: '第三镜头缓慢推进', status: 'failed' as const, createdAt: 1 }
   const prompt = buildVisualRetryPrompt(document, job)
-  expect(prompt).toContain('revision: 8')
-  expect(prompt).toContain('shotId: third')
+  expect(prompt).toContain('作品「作品」')
+  expect(prompt).not.toContain('revision:')
+  expect(prompt).toContain('镜头「third」')
+  expect(prompt).not.toContain('shotId:')
   expect(prompt).toContain('第三镜头缓慢推进')
   expect(prompt).toContain('新任务')
   expect(prompt).not.toContain('jobId: old-job')

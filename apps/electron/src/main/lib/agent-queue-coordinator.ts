@@ -16,13 +16,22 @@ interface QueueEntry {
   queuedAt: number
 }
 
+/** 单条准备的身份与协作取消入口，防旧异步回调释放新占用。 */
+interface QueuePreparation {
+  /** 当前正在解析的队列消息。 */
+  messageId: string
+  /** 取消引用读取与异步返回后的处理。 */
+  controller: AbortController
+}
+
 /** deferred 在发布 started 前完成的权威运行准备结果。 */
 export type PreparedAgentQueueRun = PreparedAgentCanvasMessage<AgentDeferredQueueMessageInput>
 
 export interface AgentQueueCoordinatorOptions {
   isActive: (sessionId: string) => boolean
   getWebContents: (sessionId: string) => WebContents | null
-  prepareRun: (input: AgentDeferredQueueMessageInput) => PreparedAgentQueueRun
+  /** 解析输入，信号取消后不得继续创建运行或提交引用结果。 */
+  prepareRun: (input: AgentDeferredQueueMessageInput, signal?: AbortSignal) => PreparedAgentQueueRun | Promise<PreparedAgentQueueRun>
   startRun: (prepared: PreparedAgentQueueRun, webContents: WebContents) => Promise<void>
   sendStatus: (webContents: WebContents, status: AgentQueuedMessageStatus) => void
   onPrepareError: (input: AgentDeferredQueueMessageInput, error: unknown) => AgentMessagePublicError
@@ -33,6 +42,8 @@ export interface AgentQueueCoordinatorOptions {
 /** 主进程持有 deferred queue；renderer 只保留展示投影。 */
 export class AgentQueueCoordinator {
   private readonly queues = new Map<string, QueueEntry[]>()
+  /** 正在读取引用的准备任务；取消时通过该控制器中断异步读取。 */
+  private readonly preparing = new Map<string, QueuePreparation>()
   private readonly dispatching = new Map<string, string>()
 
   constructor(private readonly options: AgentQueueCoordinatorOptions) {}
@@ -56,8 +67,17 @@ export class AgentQueueCoordinator {
     const index = queue.findIndex((entry) => entry.input.queueMessageId === input.messageId)
     if (index < 0) return false
     const [discarded] = queue.splice(index, 1)
-    if (discarded) this.notifyDiscard(discarded.input, 'queue_cancelled')
     if (queue.length === 0) this.queues.delete(input.sessionId)
+    if (discarded) {
+      /** 先撤销占用身份，再发送取消信号，迟到回调只能无操作返回。 */
+      const preparation = this.preparing.get(input.sessionId)
+      if (preparation?.messageId === discarded.input.queueMessageId) {
+        this.preparing.delete(input.sessionId)
+        preparation.controller.abort()
+      }
+      this.notifyDiscard(discarded.input, 'queue_cancelled')
+    }
+    this.tryDispatch(input.sessionId)
     return true
   }
 
@@ -102,7 +122,7 @@ export class AgentQueueCoordinator {
   }
 
   isDispatching(sessionId: string): boolean {
-    return this.dispatching.has(sessionId)
+    return this.preparing.has(sessionId) || this.dispatching.has(sessionId)
   }
 
   hasPending(sessionId: string): boolean {
@@ -112,6 +132,10 @@ export class AgentQueueCoordinator {
   clear(sessionId: string): void {
     const queued = this.queues.get(sessionId) ?? []
     this.queues.delete(sessionId)
+    /** 不等待底层 I/O 响应取消，立即释放会话准备槽位。 */
+    const preparation = this.preparing.get(sessionId)
+    this.preparing.delete(sessionId)
+    preparation?.controller.abort()
     for (const entry of queued) this.notifyDiscard(entry.input, 'queue_cancelled')
     this.dispatching.delete(sessionId)
   }
@@ -127,8 +151,8 @@ export class AgentQueueCoordinator {
     }
   }
 
-  private tryDispatch(sessionId: string, synchronousMessageId?: string): void {
-    if (this.dispatching.has(sessionId) || this.options.isActive(sessionId)) return
+  private tryDispatch(sessionId: string, synchronousMessageId?: string, resolved?: PreparedAgentQueueRun): void {
+    if (this.preparing.has(sessionId) || this.dispatching.has(sessionId) || this.options.isActive(sessionId)) return
     while (true) {
       const queue = this.queues.get(sessionId)
       const entry = queue?.[0]
@@ -136,10 +160,44 @@ export class AgentQueueCoordinator {
       const messageId = entry.input.queueMessageId
       const webContents = this.options.getWebContents(sessionId)
       if (!webContents || webContents.isDestroyed()) return
-      const startedAt = Date.now()
+      const startedAt = resolved?.input.startedAt ?? Date.now()
       let prepared: PreparedAgentQueueRun
       try {
-        prepared = this.options.prepareRun({ ...entry.input, startedAt, userMessageUuid: messageId })
+        /** 同步端口保持原有同步拒绝语义；异步端口先锁定队首再等待。 */
+        /** 每条准备独立取消，旧任务不得影响后续消息。 */
+        const preparationController = new AbortController()
+        const candidate = resolved ?? this.options.prepareRun({ ...entry.input, startedAt, userMessageUuid: messageId }, preparationController.signal)
+        if (candidate instanceof Promise) {
+          this.preparing.set(sessionId, { messageId, controller: preparationController })
+          void candidate.then((result) => {
+            if (this.preparing.get(sessionId)?.controller !== preparationController) return
+            this.preparing.delete(sessionId)
+            /** 取消、改序或外部运行抢先接管后不得启动过时队首。 */
+            if (preparationController.signal.aborted || this.queues.get(sessionId)?.[0] !== entry || this.options.isActive(sessionId)) {
+              this.tryDispatch(sessionId)
+              return
+            }
+            this.tryDispatch(sessionId, undefined, result)
+          }, (error: unknown) => {
+            if (this.preparing.get(sessionId)?.controller !== preparationController) return
+            this.preparing.delete(sessionId)
+            const current = this.queues.get(sessionId)
+            const index = current?.indexOf(entry) ?? -1
+            if (preparationController.signal.aborted) {
+              this.tryDispatch(sessionId)
+              return
+            }
+            if (current && index >= 0) {
+              current.splice(index, 1)
+              if (!current.length) this.queues.delete(sessionId)
+              this.notifyDiscard(entry.input, 'dispatch_failed')
+              this.options.sendStatus(webContents, { sessionId, messageId, status: 'failed', error: this.options.onPrepareError(entry.input, error) })
+            }
+            this.tryDispatch(sessionId)
+          }).catch(error => console.error('[Agent 队列] 异步引用准备失败:', error))
+          return
+        }
+        prepared = candidate
       } catch (error) {
         this.notifyDiscard(entry.input, 'dispatch_failed')
         const publicError = this.options.onPrepareError(entry.input, error)

@@ -254,6 +254,18 @@ async function runChild(): Promise<void> {
     await wait(window, `!document.querySelector('[role="listbox"]') && document.querySelector('[role="dialog"]') && document.activeElement?.getAttribute('aria-label') === '作品类型'`)
     await selectOption(window, '作品类型', '宣传片'); await click(window, button('创建作品'))
     await wait(window, `document.querySelector('.vp-top')?.textContent.includes('影像首版验收')`)
+    if (process.env.VISUAL_SMOKE_REFERENCE_ONLY === '1') {
+      /** 真实工作台引用入口不依赖 Agent 网络，不得覆盖现有正文或自动创建任务。 */
+      const beforeReference = (await service.invoke('list', { sessionId: 'smoke-session' }))[0]!
+      await window.webContents.executeJavaScript("window.__visualSmoke.setDraft('已有草稿与要求')")
+      await click(window, button('引用到 Agent'))
+      assert.ok(await window.webContents.executeJavaScript(`window.__visualSmoke.references().length===1 && window.__visualSmoke.references()[0].productionId===${JSON.stringify(beforeReference.id)} && window.__visualSmoke.draft()==='已有草稿与要求' && window.__visualSmoke.prompt()===null`))
+      await click(window, button('引用到 Agent'))
+      assert.equal(await window.webContents.executeJavaScript('window.__visualSmoke.references().length'), 1)
+      assert.deepEqual(errors, [])
+      console.log('PASS: real reference action preserves draft, adds stable object chip state, deduplicates, and does not submit prompts.')
+      return
+    }
     if (process.env.VISUAL_SMOKE_CONFIGURATION_ONLY === '1') {
       const created = (await service.invoke('list', { sessionId: 'smoke-session' }))[0]!
       await verifyMediaConfiguration(created.id, created.revision)
@@ -439,8 +451,9 @@ async function runChild(): Promise<void> {
     await wait(window, `!document.querySelector('[role="dialog"]') && document.querySelector('.vp-player img')?.naturalWidth > 0`)
     await click(window, button('镜头设置')); await fill(window, '画面描述', '尚未保存的描述'); await click(window, button('关闭')); await click(window, button('镜头设置'))
     assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[role="dialog"] textarea').value`), '尚未保存的描述')
+    await window.webContents.executeJavaScript("window.__visualSmoke.setDraft('用户已有草稿，不得覆盖')")
     await click(window, button('关闭')); await click(window, button('引用到 Agent'))
-    assert.ok(await window.webContents.executeJavaScript(`window.__visualSmoke.prompt().message.includes(${JSON.stringify(productionId)})`))
+    assert.ok(await window.webContents.executeJavaScript(`window.__visualSmoke.references().some(reference=>reference.productionId===${JSON.stringify(productionId)}) && window.__visualSmoke.draft()==='用户已有草稿，不得覆盖' && window.__visualSmoke.prompt()===null`))
     const current = await service.invoke('load', { sessionId, productionId })
     assert.equal(current.document.kind, 'promo')
     assert.equal(current.document.ratio, '4:3')
@@ -539,7 +552,7 @@ async function runChild(): Promise<void> {
     await click(window, recordTab('failed'))
     await wait(window, button('引用到 Agent 重试'))
     await click(window, button('引用到 Agent 重试'))
-    assert.ok(await window.webContents.executeJavaScript(`window.__visualSmoke.prompt().message.includes('shotId: second-shot') && window.__visualSmoke.prompt().message.includes('revision: ${afterReplacement.document.revision}') && window.__visualSmoke.prompt().autoSend === false`))
+    assert.ok(await window.webContents.executeJavaScript(`window.__visualSmoke.references().some(reference=>reference.target.kind==='shot' && reference.target.shotId==='second-shot' && reference.productionRevision===${afterReplacement.document.revision}) && window.__visualSmoke.prompt().appendToDraft===true && window.__visualSmoke.prompt().autoSend === false`))
     /** A → B → A 的旧保存回流不得清掉新打开的草稿。 */
     const another = await access().execute('create', { sessionId, title: '另一个作品', kind: 'image' })
     await click(window, button('镜头设置'))

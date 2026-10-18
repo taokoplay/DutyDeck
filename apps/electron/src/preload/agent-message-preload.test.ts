@@ -3,6 +3,15 @@ import { AGENT_IPC_CHANNELS } from '@dutydeck/shared'
 import { invokeAgentMessage, unwrapAgentMessageInvokeResult } from './agent-message-preload'
 
 describe('Agent 消息 Preload 公开错误', () => {
+  test('Given 影像引用发送 When IPC拒绝过期版本 Then 身份原样透传且公开错误可恢复', async () => {
+    /** 不能从正文重新解析或省略作品版本。 */
+    const input = { sessionId: 's', userMessage: '', visualProductionReferences: [{ workspaceId: 'w', productionId: 'p', productionRevision: 3, target: { kind: 'shot', shotId: 'shot' }, title: '镜头', productionTitle: '作品' }] }
+    await expect(invokeAgentMessage({ invoke: async (_channel, actual) => {
+      expect(actual).toEqual(input)
+      return { ok: false, error: { code: 'VISUAL_REFERENCE_INVALID', message: '影像引用版本已变化，请重新引用对象后发送。' } }
+    } }, AGENT_IPC_CHANNELS.SEND_MESSAGE, input)).rejects.toMatchObject({ code: 'VISUAL_REFERENCE_INVALID', message: '影像引用版本已变化，请重新引用对象后发送。' })
+  })
+
   test('Given 主进程拒绝 Canvas 引用 When unwrap Then Promise 以稳定 code/message 拒绝', async () => {
     const promise = unwrapAgentMessageInvokeResult(Promise.resolve({
       ok: false as const,

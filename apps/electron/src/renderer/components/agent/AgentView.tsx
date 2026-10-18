@@ -1,3 +1,7 @@
+import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
+import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
+import { removeSentVisualProductionReferences, restoreVisualProductionReferences, visualProductionReferenceKey } from '@dutydeck/shared'
+import type { VisualProductionReference } from '@dutydeck/shared'
 import { mergeAgentRunFileChangesSnapshot } from '@/lib/agent-run-file-changes'
 import { agentRunFileChangesAtom } from '@/atoms/agent-atoms'
 /**
@@ -264,6 +268,7 @@ function createUserSDKMessage(
   createdAt = Date.now(),
   canvasNodeReferences?: readonly CanvasNodeReference[],
   mediaAttachments?: readonly AgentMediaAttachment[],
+  visualProductionReferences?: readonly VisualProductionReference[],
 ): SDKMessage {
   const message: OptimisticSDKUserMessage = {
     type: 'user',
@@ -273,6 +278,7 @@ function createUserSDKMessage(
     },
     parent_tool_use_id: null,
     _createdAt: createdAt,
+    ...(visualProductionReferences?.length ? { _visualProductionReferences: [...visualProductionReferences] } : {}),
     ...(canvasNodeReferences && canvasNodeReferences.length > 0
       ? { _canvasNodeReferences: [...canvasNodeReferences] }
       : {}),
@@ -592,6 +598,8 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   const [pendingPrompt, setPendingPrompt] = useAtom(agentPendingPromptAtom)
   const [pendingFiles, setPendingFiles] = useAtom(agentPendingFilesAtomFamily(sessionId))
   /** 当前普通 Agent composer 的 Canvas 引用，按 session atom 隔离。 */
+  /** 当前会话的影像引用与正文草稿独立管理。 */
+  const [visualProductionReferences, setVisualProductionReferences] = useAtom(visualProductionReferencesAtomFamily(sessionId))
   const [canvasNodeReferences, setCanvasNodeReferences] = useAtom(agentCanvasNodeReferencesAtomFamily(sessionId))
   /** Canvas metadata 只用于友好标题，缺失时 chip 统一回退“画布”。 */
   const canvasSessionsByProject = useAtomValue(canvasSessionsByProjectAtom)
@@ -1163,6 +1171,12 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     setCanvasNodeReferences((current) => removeSentCanvasNodeReferences(current, sent))
   }, [setCanvasNodeReferences])
 
+  /** 两类引用均按发送快照清理，异步期间新加入的内容保持。 */
+  const clearSentComposerReferences = React.useCallback((canvas: readonly CanvasNodeReference[], visual: readonly VisualProductionReference[]): void => {
+    clearSentCanvasNodeReferences(canvas)
+    setVisualProductionReferences(current => removeSentVisualProductionReferences(current, visual))
+  }, [clearSentCanvasNodeReferences, setVisualProductionReferences])
+
   /** 发送前把当前焦点画布提交到主进程；读取Jotai实时状态，不使用旧默认或render闭包。 */
   const synchronizeCanvasBeforeSend = React.useCallback(async (): Promise<void> => {
     if (!currentWorkspaceId) return
@@ -1215,6 +1229,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         mentionedCalendarEventIds: submittedPayload.mentions.mentionedCalendarEventIds,
         mentionedMediaModelRefs: submittedPayload.mentions.mentionedMediaModelRefs,
         ...(mediaAttachments ? { mediaAttachments } : {}),
+        ...(submittedPayload.visualProductionReferences?.length ? { visualProductionReferences: submittedPayload.visualProductionReferences } : {}),
         ...(submittedPayload.canvasNodeReferences && submittedPayload.canvasNodeReferences.length > 0
           ? { canvasNodeReferences: submittedPayload.canvasNodeReferences }
           : {}),
@@ -1226,6 +1241,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           Date.now(),
           submittedPayload.canvasNodeReferences,
           mediaAttachments,
+          submittedPayload.visualProductionReferences,
         ))
         setQueuedMessages((prev) => removeQueuedMessage(prev, message.id))
         return
@@ -1430,7 +1446,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       return
     }
 
-    setInputContent(pendingPrompt.message)
+    /** 追加重试要求时保留发送前已有的完整正文。 */
+    const existingDraft = store.get(agentSessionDraftsAtom).get(sessionId) ?? ''
+    setInputContent(pendingPrompt.appendToDraft && existingDraft.trim() ? `${existingDraft}\n\n${pendingPrompt.message}` : pendingPrompt.message)
     setInputHtmlContent('')
     setPendingPrompt(null)
   }, [
@@ -2221,10 +2239,13 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     const pendingFilesSnapshot = pendingFilesRef.current
     /** 同步读取当前 session 引用，避免 Canvas 动作与 React render 间隙发送旧数组。 */
     const canvasNodeReferencesSnapshot = store.get(agentCanvasNodeReferencesAtomFamily(sessionId))
+    /** 按发送瞬间快照固化影像目标。 */
+    const visualProductionReferencesSnapshot = store.get(visualProductionReferencesAtomFamily(sessionId))
     if (!messagesLoaded || (
       !effectiveText
       && pendingFilesSnapshot.length === 0
       && canvasNodeReferencesSnapshot.length === 0
+      && visualProductionReferencesSnapshot.length === 0
     ) || !agentChannelId || !hasAvailableModel) return
     if (isStopping) {
       toast.info('正在停止上一轮 Agent', { description: '请等待停止完成后再发送消息。' })
@@ -2265,6 +2286,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             additionalDirectories: attachmentContext.additionalDirectories,
           }
           : {}),
+        ...(visualProductionReferencesSnapshot.length > 0 ? { visualProductionReferences: visualProductionReferencesSnapshot } : {}),
         ...(canvasNodeReferencesSnapshot.length > 0
           ? { canvasNodeReferences: canvasNodeReferencesSnapshot }
           : {}),
@@ -2295,6 +2317,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         ...(queuedMediaAttachments
           ? { mediaAttachments: queuedMediaAttachments }
           : {}),
+        ...(payload.visualProductionReferences?.length ? { visualProductionReferences: payload.visualProductionReferences } : {}),
         ...(payload.canvasNodeReferences && payload.canvasNodeReferences.length > 0
           ? { canvasNodeReferences: payload.canvasNodeReferences }
           : {}),
@@ -2310,12 +2333,13 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       }
       setQueuedMessages((prev) => [...prev, message])
       void window.electronAPI.submitOrEnqueueAgentMessage(queuedInput)
-        .then(() => clearSentCanvasNodeReferences(canvasNodeReferencesSnapshot))
+        .then(() => clearSentComposerReferences(canvasNodeReferencesSnapshot, visualProductionReferencesSnapshot))
         .catch((error) => {
           console.error('[AgentView] 主进程消息提交失败:', error)
           setQueuedMessages((prev) => removeQueuedMessage(prev, message.id))
           restoreFailedInputContent(effectiveText)
           restoreQueuedAttachmentsToPending(message.attachments)
+        if (message.visualProductionReferences?.length) setVisualProductionReferences(current => restoreVisualProductionReferences(current, message.visualProductionReferences ?? []))
           if (quotedSelection) {
             setQuotedSelectionMap((prev) => {
               const map = new Map(prev)
@@ -2356,6 +2380,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             additionalDirectories: attachmentContext.additionalDirectories,
           }
           : {}),
+        ...(visualProductionReferencesSnapshot.length > 0 ? { visualProductionReferences: visualProductionReferencesSnapshot } : {}),
         ...(canvasNodeReferencesSnapshot.length > 0
           ? { canvasNodeReferences: canvasNodeReferencesSnapshot }
           : {}),
@@ -2372,7 +2397,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       })
       sendPlainTextAgentMessage(message).then((outcome) => {
         if (outcome === 'submitted') {
-          clearSentCanvasNodeReferences(canvasNodeReferencesSnapshot)
+          clearSentComposerReferences(canvasNodeReferencesSnapshot, visualProductionReferencesSnapshot)
         }
       }).catch((error) => {
         console.error('[AgentView] 追加消息失败:', error)
@@ -2397,6 +2422,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           })
         }
         restoreQueuedAttachmentsToPending(message.attachments)
+        if (message.visualProductionReferences?.length) setVisualProductionReferences(current => restoreVisualProductionReferences(current, message.visualProductionReferences ?? []))
         if (message.canvasNodeReferences && message.canvasNodeReferences.length > 0) {
           setCanvasNodeReferences((current) => restoreMissingCanvasNodeReferences(current, message.canvasNodeReferences ?? []))
         }
@@ -2484,6 +2510,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       },
       parent_tool_use_id: null,
       _createdAt: Date.now(),
+      ...(visualProductionReferencesSnapshot.length > 0 ? { _visualProductionReferences: [...visualProductionReferencesSnapshot] } : {}),
       ...(canvasNodeReferencesSnapshot.length > 0
         ? { _canvasNodeReferences: [...canvasNodeReferencesSnapshot] }
         : {}),
@@ -2509,6 +2536,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       ...(mentions.mentionedTodoIds.length > 0 && { mentionedTodoIds: mentions.mentionedTodoIds }),
       ...(mentions.mentionedCalendarEventIds.length > 0 && { mentionedCalendarEventIds: mentions.mentionedCalendarEventIds }),
       ...(mentions.mentionedMediaModelRefs.length > 0 && { mentionedMediaModelRefs: mentions.mentionedMediaModelRefs }),
+      ...(visualProductionReferencesSnapshot.length > 0 && { visualProductionReferences: visualProductionReferencesSnapshot }),
       ...(canvasNodeReferencesSnapshot.length > 0 && { canvasNodeReferences: canvasNodeReferencesSnapshot }),
       ...(mediaAttachments && { mediaAttachments }),
     }
@@ -2521,7 +2549,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     }
 
     /** IPC 会等待整轮 Agent 结束，引用必须在请求接管时清理，避免运行期间被重复发送。 */
-    clearSentCanvasNodeReferences(canvasNodeReferencesSnapshot)
+    clearSentComposerReferences(canvasNodeReferencesSnapshot, visualProductionReferencesSnapshot)
     window.electronAPI.sendAgentMessage(input)
       .catch((error) => {
         console.error('[AgentView] 发送消息失败:', error)
@@ -2542,13 +2570,14 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             return map
           })
         }
+        setVisualProductionReferences(current => restoreVisualProductionReferences(current, visualProductionReferencesSnapshot))
         /** 若用户期间已重新选择同一节点的新版本，以当前引用为准，只补回缺失引用。 */
         setCanvasNodeReferences((current) => (
           restoreMissingCanvasNodeReferences(current, canvasNodeReferencesSnapshot)
         ))
         toast.error('消息发送失败', { description: getErrorMessage(error) })
       })
-  }, [clearSentCanvasNodeReferences, createBaseAdditionalDirectories, preparePendingFilesForSend, restoreFailedInputContent, restoreQueuedAttachmentsToPending, rollbackOptimisticPersistedMessage, sessionId, agentChannelId, agentModelId, agentChannelProvider, currentWorkspaceId, streaming, backgroundWaiting, suggestion, hasAvailableModel, store, consumeQuotedSelection, currentQuotedSelection, setStreamingStates, setAgentStreamErrors, setPromptSuggestions, setInputContent, setInputHtmlContent, setLiveMessagesMap, permissionMode, messagesLoaded, setQueuedMessages, setQuotedSelectionMap, sendPlainTextAgentMessage, synchronizeCanvasBeforeSend, isLegacyTranscript, isStopping])
+  }, [clearSentComposerReferences, setVisualProductionReferences, clearSentCanvasNodeReferences, createBaseAdditionalDirectories, preparePendingFilesForSend, restoreFailedInputContent, restoreQueuedAttachmentsToPending, rollbackOptimisticPersistedMessage, sessionId, agentChannelId, agentModelId, agentChannelProvider, currentWorkspaceId, streaming, backgroundWaiting, suggestion, hasAvailableModel, store, consumeQuotedSelection, currentQuotedSelection, setStreamingStates, setAgentStreamErrors, setPromptSuggestions, setInputContent, setInputHtmlContent, setLiveMessagesMap, permissionMode, messagesLoaded, setQueuedMessages, setQuotedSelectionMap, sendPlainTextAgentMessage, synchronizeCanvasBeforeSend, isLegacyTranscript, isStopping])
 
   /** 停止生成。异常流未发出终态时，允许再次下发幂等的 abort 请求。 */
   const handleStop = React.useCallback((): void => {
@@ -2755,6 +2784,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       ...(lastUserSDKMessage.mediaAttachments?.length
         ? { mediaAttachments: [...lastUserSDKMessage.mediaAttachments] }
         : {}),
+      ...(lastUserSDKMessage._visualProductionReferences?.length ? { visualProductionReferences: [...lastUserSDKMessage._visualProductionReferences] } : {}),
       ...(lastUserSDKMessage._canvasNodeReferences?.length
         ? {
             canvasNodeReferences: [...lastUserSDKMessage._canvasNodeReferences],
@@ -3020,6 +3050,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           })
         }
         restoreQueuedAttachmentsToPending(message.attachments)
+        if (message.visualProductionReferences?.length) setVisualProductionReferences(current => restoreVisualProductionReferences(current, message.visualProductionReferences ?? []))
         if (message.canvasNodeReferences && message.canvasNodeReferences.length > 0) {
           setCanvasNodeReferences((current) => restoreMissingCanvasNodeReferences(current, message.canvasNodeReferences ?? []))
         }
@@ -3112,7 +3143,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     setInputHasContent(hasContent)
   }, [])
   const hasTextInput = inputHasContent
-  const canSend = !isStopping && messagesLoaded && (streaming || !messagesRefreshing) && (hasTextInput || pendingFiles.length > 0 || !!suggestion || canvasNodeReferences.length > 0) && agentChannelId !== null && hasAvailableModel && (!streaming || hasTextInput || canvasNodeReferences.length > 0)
+  const canSend = !isStopping && messagesLoaded && (streaming || !messagesRefreshing) && (hasTextInput || pendingFiles.length > 0 || !!suggestion || canvasNodeReferences.length > 0 || visualProductionReferences.length > 0) && agentChannelId !== null && hasAvailableModel && (!streaming || hasTextInput || canvasNodeReferences.length > 0 || visualProductionReferences.length > 0)
 
   const inputToolbarItems = React.useMemo<ToolbarItem[]>(() => [
     ...(isCodexFastModeAvailable ? [{
@@ -3488,8 +3519,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
               sessionAttachedDirs={sessionMentionPaths}
               sendWithCmdEnter={sendWithCmdEnter}
               onAgentHistoryQuoteClick={handleAgentHistoryQuoteClick}
-              accessory={canvasNodeReferences.length > 0 ? (
+              accessory={canvasNodeReferences.length > 0 || visualProductionReferences.length > 0 ? (
                 <div className="px-3 pt-2.5 pb-1">
+                  <VisualProductionReferenceChips references={visualProductionReferences} onRemove={reference => setVisualProductionReferences(current => current.filter(item => visualProductionReferenceKey(item) !== visualProductionReferenceKey(reference)))} />
                   <CanvasNodeReferenceChips
                     references={canvasNodeReferences}
                     getCanvasTitle={getCanvasReferenceTitle}

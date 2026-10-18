@@ -1,3 +1,6 @@
+import { parseVisualProductionReferences } from '@dutydeck/shared'
+import { createProductionVisualProductionAccess } from './visual-production/integration'
+import { prepareVisualProductionReferences, VisualReferenceInvalidError } from './visual-production/reference-preparation'
 /**
  * Agent 服务层（IPC 薄层）
  *
@@ -151,11 +154,13 @@ const unavailableCanvasReferenceResolver: CanvasNodeReferenceResolver = {
 }
 
 /** 单次发送前解析引用，并把轻量摘要固化进准备结果。 */
-export function prepareAgentRun<T extends AgentSendInput | AgentQueueMessageInput>(
+export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessageInput>(
   input: T,
   extensions: AgentRunExtensions = {},
   dialogOwnerWebContentsId?: number,
-): PreparedAgentCanvasMessage<T> {
+  signal?: AbortSignal,
+): Promise<PreparedAgentCanvasMessage<T>> {
+  signal?.throwIfAborted()
   assertAgentSessionAcceptsInput(input.sessionId)
   /** 媒体授权先于 Canvas 与运行准备完成，后续阶段只使用会话内固化路径。 */
   const mediaPreparedInput = prepareAgentMediaInput(input)
@@ -171,6 +176,28 @@ export function prepareAgentRun<T extends AgentSendInput | AgentQueueMessageInpu
     extensions,
     referenceResolver,
   )
+  /** 影像引用通过普通只读 access 校验，不能信任 renderer 标题或绕过归属。 */
+  if (Object.prototype.hasOwnProperty.call(input, 'visualProductionReferences')) {
+    try {
+      /** 空引用数组不要求项目绑定；畸形数组仍稳定拒绝。 */
+      const references = parseVisualProductionReferences(input.visualProductionReferences)
+      if (references.length) {
+        const visualAccess = createProductionVisualProductionAccess(input.sessionId, { canWrite: () => false })
+        const visual = await prepareVisualProductionReferences({ ...input, visualProductionReferences: references }, {
+          workspaceId: visualAccess.workspaceId,
+          assertCurrent: () => { assertAgentSessionAcceptsInput(input.sessionId); visualAccess.assertCurrent() },
+          load: async (productionId, loadSignal) => (await visualAccess.execute('load', { sessionId: input.sessionId, productionId }, loadSignal)).document,
+        }, signal)
+        prepared.input = { ...prepared.input, visualProductionReferences: visual.references }
+        prepared.visualProductionReferences = visual.references
+        prepared.visualProductionPrompt = visual.prompt
+        prepared.extensions = { ...prepared.extensions, systemPromptAppend: [prepared.extensions.systemPromptAppend, visual.prompt].filter(Boolean).join('\n\n') }
+      }
+    } catch (error) {
+      throw error instanceof VisualReferenceInvalidError ? error : new VisualReferenceInvalidError(error instanceof Error ? error.message : '影像引用无效，请重新引用。')
+    }
+  }
+  signal?.throwIfAborted()
   const sessionMeta = getAgentSessionMeta(input.sessionId)
   const isInteractiveUserRun = !('triggeredBy' in input)
     || input.triggeredBy === undefined
@@ -336,13 +363,14 @@ const agentQueueCoordinator = new AgentQueueCoordinator({
   },
   isActive: (sessionId) => orchestrator.isActive(sessionId),
   getWebContents: (sessionId) => streamRoutes.get(sessionId)?.target ?? getMainRendererWebContents(),
-  prepareRun: (input) => prepareAgentRun(input),
+  prepareRun: (input, signal) => prepareAgentRun(input, {}, undefined, signal),
   startRun: (prepared, webContents) => runPreparedAgent(prepared, webContents),
   sendStatus: (webContents, status) => {
     if (!webContents.isDestroyed()) webContents.send(AGENT_IPC_CHANNELS.QUEUED_MESSAGE_STATUS, status)
   },
   onPrepareError: (input, error) => {
     console.error(`[Agent Canvas 引用] deferred 消息解析失败: sessionId=${input.sessionId}`, error instanceof Error ? error.cause ?? error : error)
+    if (error instanceof VisualReferenceInvalidError) return { code: error.code, message: error.message }
     return { code: 'CANVAS_REFERENCE_INVALID', message: '画布节点引用已失效，请重新选择后发送。' }
   },
 })
@@ -481,7 +509,7 @@ export async function runAgent(
   terminalObserver?: AgentRunTerminalObserver,
 ): Promise<void> {
   /** 引用解析位于 IPC 接管完成前，失败必须直接拒绝调用方。 */
-  const prepared = prepareAgentRun(input, extensions, webContents.id)
+  const prepared = await prepareAgentRun(input, extensions, webContents.id)
   return runPreparedAgent(prepared, webContents, terminalObserver)
 }
 
@@ -754,7 +782,7 @@ export async function runAgentHeadless(
 
   try {
     /** 外部入口携带引用时同样执行普通宿主与项目归属复核。 */
-    const resolved = prepareAgentRun(runInput, extensions)
+    const resolved = await prepareAgentRun(runInput, extensions)
     await orchestrator.sendMessage(resolved.input, {
       onError: (error) => {
         runErrored = true
@@ -1040,8 +1068,9 @@ export async function queueAgentMessage(
   input: AgentQueueMessageInput,
   _webContents: WebContents,
 ): Promise<string> {
+  if (input.visualProductionReferences?.length) throw new VisualReferenceInvalidError('带影像引用的消息需排队启动新任务，请通过发送或队列入口提交。')
   /** queue-now 在注入当前 Pi 通道前重新读取权威节点。 */
-  const resolved = prepareAgentRun(input)
+  const resolved = await prepareAgentRun(input)
   return queuePreparedAgentMessage(resolved)
 }
 
@@ -1066,6 +1095,8 @@ async function queuePreparedAgentMessage(
     resolved.references,
     resolved.input.mediaAttachments,
     resolved.canvasWorkspacePrompt,
+    resolved.visualProductionReferences,
+    resolved.visualProductionPrompt,
   )
 }
 
