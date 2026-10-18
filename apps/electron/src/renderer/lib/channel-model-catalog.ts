@@ -21,6 +21,9 @@ export function mergeFetchedChannelModels(
       ...model,
       enabled: provider === 'openai-codex' || provider === 'xai'
         ? true : previousById.get(model.id)?.enabled ?? false,
+      ...(previousById.get(model.id)?.contextWindow === undefined
+        ? {}
+        : { contextWindow: previousById.get(model.id)!.contextWindow }),
     })),
   ]
 }

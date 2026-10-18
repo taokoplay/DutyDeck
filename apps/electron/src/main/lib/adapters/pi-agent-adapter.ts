@@ -234,6 +234,8 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
   apiKey: string
   baseUrl?: string
   provider: ProviderType
+  /** 渠道模型实际可接受的上下文窗口；第三方网关配置后优先使用。 */
+  modelContextWindow?: number
   /** 主进程取得的本地模型端点快照；只在当前查询内存中传递。 */
   localModelBinding?: {
     assetId: string

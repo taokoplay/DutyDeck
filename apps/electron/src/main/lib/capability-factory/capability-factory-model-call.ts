@@ -256,7 +256,8 @@ export function createCapabilityFactoryModelCall(
         /** OpenCode Go 按模型选择 Messages 或 Responses，不能固定使用 Chat Completions。 */
         const text = await callCapabilityFactoryPiModel({
           ...credentials, channelId: channel.id, channelName: channel.name, provider: channel.provider,
-          modelId, baseUrl: channel.baseUrl, apiKey: subscription ? '' : await deps.resolveApiKey(channel.id), prompt: userMessage,
+          modelId, modelContextWindow: channel.models.find((model) => model.id === modelId)?.contextWindow,
+          baseUrl: channel.baseUrl, apiKey: subscription ? '' : await deps.resolveApiKey(channel.id), prompt: userMessage,
           signal: invocation.signal, temperature: invocation.temperature, maxTokens: invocation.maxTokens,
           proxyUrl: await deps.resolveProxyUrl(),
           onBeforeSend: () => { invocation.signal.throwIfAborted(); if (reservation) ledger!.markSent(reservation, invocation.signal, true) },

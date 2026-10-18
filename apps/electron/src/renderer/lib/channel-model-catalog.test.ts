@@ -17,6 +17,11 @@ describe('渠道模型目录刷新', () => {
     expect(mergeFetchedChannelModels('custom', previousModels, [{ id: 'new', name: '新模型', enabled: true }]))
       .toEqual([...previousModels, { id: 'new', name: '新模型', enabled: false }])
   })
+  test('Given 模型配置了渠道窗口 When 刷新供应商目录 Then 保留窗口覆盖', () => {
+    const previous = [{ id: 'gpt', name: 'GPT', enabled: true, contextWindow: 96_000 }]
+    expect(mergeFetchedChannelModels('openai', previous, [{ id: 'gpt', name: 'GPT', enabled: true }]))
+      .toEqual([{ id: 'gpt', name: 'GPT', enabled: true, contextWindow: 96_000 }])
+  })
   test('Given Codex 渠道有旧模型 When 刷新 Then 保持订阅模型默认启用的原行为', () => {
     expect(mergeFetchedChannelModels('openai-codex', [], [{ id: 'gpt', name: 'GPT', enabled: false }]))
       .toEqual([{ id: 'gpt', name: 'GPT', enabled: true }])

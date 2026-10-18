@@ -2761,8 +2761,26 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             canvasNodeReferenceMode: 'exact' as const,
           }
         : {}),
+      ...(retryMentions.mentionedSkills.length > 0
+        ? { mentionedSkills: [...retryMentions.mentionedSkills] }
+        : {}),
+      ...(retryMentions.mentionedMcpServers.length > 0
+        ? { mentionedMcpServers: [...retryMentions.mentionedMcpServers] }
+        : {}),
+      ...(retryMentions.mentionedSessionIds.length > 0
+        ? { mentionedSessionIds: [...retryMentions.mentionedSessionIds] }
+        : {}),
+      ...(retryMentions.mentionedTodoIds.length > 0
+        ? { mentionedTodoIds: [...retryMentions.mentionedTodoIds] }
+        : {}),
+      ...(retryMentions.mentionedCalendarEventIds.length > 0
+        ? { mentionedCalendarEventIds: [...retryMentions.mentionedCalendarEventIds] }
+        : {}),
+      ...(retryMentions.mentionedMediaModelRefs.length > 0
+        ? { mentionedMediaModelRefs: [...retryMentions.mentionedMediaModelRefs] }
+        : {}),
       ...(retryMentions.mentionedServerOpsReferences.length > 0
-        ? { mentionedServerOpsReferences: retryMentions.mentionedServerOpsReferences }
+        ? { mentionedServerOpsReferences: [...retryMentions.mentionedServerOpsReferences] }
         : {}),
     }).catch(console.error)
   }, [persistedSDKMessages, sessionId, agentChannelId, agentModelId, agentChannelProvider, currentWorkspaceId, streaming, setAgentStreamErrors, setStreamingStates, setMessagesCache, permissionMode])

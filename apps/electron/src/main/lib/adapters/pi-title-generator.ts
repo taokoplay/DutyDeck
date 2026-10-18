@@ -40,6 +40,8 @@ export interface PiTitleGenerationInput {
   channelName: string
   provider: ProviderType
   modelId: string
+  /** 渠道模型实际窗口；第三方网关未必与同名官方模型一致。 */
+  modelContextWindow?: number
   baseUrl?: string
   apiKey: string
   prompt: string
@@ -203,6 +205,7 @@ export async function generatePiTitle(input: PiTitleGenerationInput): Promise<st
     provider: input.provider,
     channelId: input.channelId,
     channelName: input.channelName,
+    modelContextWindow: input.modelContextWindow,
     codexOAuthCredentials: input.codexOAuthCredentials,
     xaiOAuthCredentials: input.xaiOAuthCredentials,
     onCodexOAuthCredentialsRefreshed: input.onCodexOAuthCredentialsRefreshed,

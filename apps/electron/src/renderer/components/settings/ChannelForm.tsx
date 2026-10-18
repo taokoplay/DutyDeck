@@ -559,6 +559,16 @@ export function ChannelForm({ channel, onSaved, onCancel }: ChannelFormProps): R
     )
   }
 
+  /** 修改单个模型的渠道上下文窗口；留空表示交给运行时保守推断。 */
+  const handleContextWindowChange = (modelId: string, value: string): void => {
+    const trimmed = value.trim()
+    const parsed = trimmed ? Number(trimmed) : undefined
+    const contextWindow = parsed !== undefined && Number.isSafeInteger(parsed) && parsed >= 256 ? parsed : undefined
+    setModels((prev) => prev.map((model) => model.id === modelId
+      ? { ...model, ...(contextWindow === undefined ? { contextWindow: undefined } : { contextWindow }) }
+      : model))
+  }
+
   const handleCancelCodexLogin = (): void => {
     codexLoggingInRef.current = false
     void window.electronAPI.codexOAuthCancel()
@@ -1311,7 +1321,9 @@ export function ChannelForm({ channel, onSaved, onCancel }: ChannelFormProps): R
       {/* 已启用模型 */}
       <SettingsSection
         title="已启用模型"
-        description={enabledModels.length > 0 ? `${enabledModels.length} 个模型` : undefined}
+        description={enabledModels.length > 0
+          ? `${enabledModels.length} 个模型 · 右侧可填写第三方网关上下文上限（token）`
+          : '右侧可填写第三方网关上下文上限（token）'}
       >
         <SettingsCard divided={false}>
           {enabledModels.length === 0 ? (
@@ -1332,6 +1344,18 @@ export function ChannelForm({ channel, onSaved, onCancel }: ChannelFormProps): R
                       <span className="text-muted-foreground ml-1">({model.id})</span>
                     )}
                   </span>
+                  <Input
+                    type="number"
+                    min={256}
+                    step={1024}
+                    value={model.contextWindow ?? ''}
+                    onChange={(event) => handleContextWindowChange(model.id, event.target.value)}
+                    onClick={(event) => event.stopPropagation()}
+                    placeholder="自动"
+                    aria-label={`${model.name} 上下文窗口`}
+                    className="h-7 w-24 text-xs"
+                    title="第三方网关的上下文上限（token）；留空自动推断"
+                  />
                   <button
                     type="button"
                     onClick={() => handleToggleModel(model.id)}
@@ -1350,6 +1374,7 @@ export function ChannelForm({ channel, onSaved, onCancel }: ChannelFormProps): R
       {/* 可用模型 */}
       <SettingsSection
         title="可用模型"
+        description="第三方网关与官方同名模型的上下文限制可能不同；留空使用保守推断"
         action={!isLocalProvider ? (
           <Button
             variant="outline"
@@ -1419,6 +1444,18 @@ export function ChannelForm({ channel, onSaved, onCancel }: ChannelFormProps): R
                       <span className="text-muted-foreground ml-1">({model.id})</span>
                     )}
                   </span>
+                  <Input
+                    type="number"
+                    min={256}
+                    step={1024}
+                    value={model.contextWindow ?? ''}
+                    onChange={(event) => handleContextWindowChange(model.id, event.target.value)}
+                    onClick={(event) => event.stopPropagation()}
+                    placeholder="自动"
+                    aria-label={`${model.name} 上下文窗口`}
+                    className="h-7 w-24 text-xs"
+                    title="第三方网关的上下文上限（token）；留空自动推断"
+                  />
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleRemoveModel(model.id) }}

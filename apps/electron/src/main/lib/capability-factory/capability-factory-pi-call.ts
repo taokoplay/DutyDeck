@@ -119,6 +119,7 @@ export async function callCapabilityFactoryPiModel(input: CapabilityFactoryPiInp
   const { modelRuntime, model } = await buildModel(sdk, {
     sessionId: randomUUID(), model: input.modelId, provider: input.provider,
     apiKey: input.apiKey, baseUrl: input.baseUrl, channelId: input.channelId, channelName: input.channelName,
+    modelContextWindow: input.modelContextWindow,
     codexOAuthCredentials: input.codexOAuthCredentials,
     xaiOAuthCredentials: input.xaiOAuthCredentials,
     githubCopilotOAuthCredentials: input.githubCopilotOAuthCredentials,

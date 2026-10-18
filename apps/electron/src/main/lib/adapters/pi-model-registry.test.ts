@@ -291,6 +291,65 @@ describe('Pi 0.87 Codex 目录与运行时', () => {
   })
 })
 
+describe('第三方 OpenAI 网关上下文窗口', () => {
+  function createRuntime(): { sdk: Parameters<typeof buildModel>[0], getModel: () => Model<Api> | undefined } {
+    let registeredModel: Model<Api> | undefined
+    const modelRuntime = {
+      registerProvider: (_providerName: string, provider: { models: Model<Api>[] }) => { registeredModel = provider.models[0] },
+      getModel: () => registeredModel,
+    }
+    const sdk = {
+      ModelRuntime: { create: async () => modelRuntime },
+    } as unknown as Parameters<typeof buildModel>[0]
+    return { sdk, getModel: () => registeredModel }
+  }
+
+  test('Given 同名 GPT 模型走第三方 Base URL When 未配置窗口 Then 使用保守默认值', async () => {
+    const runtime = createRuntime()
+    await buildModel(runtime.sdk, {
+      sessionId: 'third-party-openai', provider: 'openai', model: 'gpt-6.1-sol',
+      apiKey: 'test-key', baseUrl: 'https://gateway.example/v1',
+    })
+    expect(runtime.getModel()?.contextWindow).toBe(200_000)
+  })
+
+  test('Given custom OpenAI 兼容渠道 When 未配置窗口 Then 不套用 GPT 家族的官方基线', async () => {
+    const runtime = createRuntime()
+    await buildModel(runtime.sdk, {
+      sessionId: 'custom-openai', provider: 'custom', model: 'gpt-6.1-sol',
+      apiKey: 'test-key', baseUrl: 'https://gateway.example/v1/chat/completions',
+    })
+    expect(runtime.getModel()?.contextWindow).toBe(200_000)
+  })
+
+  test('Given 第三方网关明确配置模型窗口 When 构建模型 Then 使用渠道覆盖值', async () => {
+    const runtime = createRuntime()
+    await buildModel(runtime.sdk, {
+      sessionId: 'third-party-openai-configured', provider: 'openai', model: 'gpt-6.1-sol',
+      apiKey: 'test-key', baseUrl: 'https://gateway.example/v1', modelContextWindow: 96_000,
+    })
+    expect(runtime.getModel()?.contextWindow).toBe(96_000)
+  })
+
+  test('Given 渠道覆盖窗口小于默认输出上限 When 构建模型 Then 同步收窄输出预算', async () => {
+    const runtime = createRuntime()
+    await buildModel(runtime.sdk, {
+      sessionId: 'third-party-openai-small-window', provider: 'openai', model: 'gpt-6.1-sol',
+      apiKey: 'test-key', baseUrl: 'https://gateway.example/v1', modelContextWindow: 512,
+    })
+    expect(runtime.getModel()).toMatchObject({ contextWindow: 512, maxTokens: 511 })
+  })
+
+  test('Given 官方 OpenAI API When 构建同名模型 Then 保留官方目录窗口', async () => {
+    const runtime = createRuntime()
+    await buildModel(runtime.sdk, {
+      sessionId: 'official-openai', provider: 'openai', model: 'gpt-6.1-sol',
+      apiKey: 'test-key', baseUrl: 'https://api.openai.com/v1',
+    })
+    expect(runtime.getModel()?.contextWindow).toBe(1_050_000)
+  })
+})
+
 
 describe('Codex 官方费用与预算边界', () => {
   test.each(['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])(

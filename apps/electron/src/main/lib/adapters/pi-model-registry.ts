@@ -27,6 +27,7 @@ import {
   type ReasoningTransport,
   type ProviderType,
   type ModelCapabilityCost,
+  PROVIDER_DEFAULT_URLS,
 } from '@dutydeck/shared'
 import {
   getPromaUserAgent,
@@ -203,6 +204,8 @@ export interface PiModelBuildInput extends CodexModelInput, GithubCopilotModelIn
   baseUrl?: string
   provider: ProviderType
   channelName?: string
+  /** 当前渠道模型的显式上下文窗口；第三方网关应优先使用此值。 */
+  modelContextWindow?: number
   /** 主进程取得的本地运行时租约快照；utility 进程不得自行创建或管理引擎。 */
   localModelBinding?: {
     assetId: string
@@ -792,7 +795,23 @@ function resolveModelCost(catalogCost: PiModelCost | undefined, updated: ModelCa
   return { ...base, ...(tiers ? { tiers } : {}) }
 }
 
-async function resolvePiModelDefaults(input: Pick<PiModelBuildInput, 'provider' | 'model'>): Promise<PiModelDefaults> {
+/** 规范化用户配置的上下文窗口，拒绝会让 Pi 压缩逻辑失真的非法值。 */
+function normalizeConfiguredContextWindow(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 256 ? value : undefined
+}
+
+/** 判断 OpenAI 协议是否指向官方 API；自定义网关不能直接信任 models.dev 的窗口声明。 */
+function isThirdPartyOpenAIEndpoint(provider: ProviderType, baseUrl: string | undefined): boolean {
+  /** custom 本身就是用户自定义的 OpenAI Chat Completions 地址。 */
+  if (provider === 'custom') return true
+  if (provider !== 'openai' && provider !== 'openai-responses') return false
+  const canonical = (value: string): string => normalizeOpenAIBaseUrlForSdk(value).replace(/\/v1$/i, '')
+  const configured = baseUrl?.trim() ? canonical(baseUrl) : undefined
+  const official = canonical(PROVIDER_DEFAULT_URLS[provider])
+  return !configured || configured !== official
+}
+
+async function resolvePiModelDefaults(input: Pick<PiModelBuildInput, 'provider' | 'model' | 'baseUrl' | 'modelContextWindow'>): Promise<PiModelDefaults> {
   const catalogModel = input.model ? await findPiCatalogModel(input.provider, input.model) : undefined
   /** 只覆盖该供应商的精确模型；未知代理继续使用 Pi catalog。 */
   const capability = getModelCapabilities(input.provider, input.model)
@@ -807,7 +826,25 @@ async function resolvePiModelDefaults(input: Pick<PiModelBuildInput, 'provider' 
     && (glmModelId === 'glm-5.3' || glmModelId === 'glm-5.3-flash' || glmModelId === 'glm-5.3-flashx')
   // 新模型可能尚未进入 Pi catalog，使用共享层的精确 ID 判断避免误伤未来版本。
   const isCatalogMissingMimoV26Family = !catalogModel && isMimoV26Model(glmModelId)
-  const inferredContextWindow = inferContextWindow(input.model) ?? DEFAULT_CONTEXT_WINDOW
+  /** 传入 provider，避免第三方同名 GPT 被误判为 ChatGPT Codex 模型。 */
+  const inferredContextWindow = inferContextWindow(input.model, input.provider) ?? DEFAULT_CONTEXT_WINDOW
+  const configuredContextWindow = normalizeConfiguredContextWindow(input.modelContextWindow)
+  /**
+   * 第三方 OpenAI 网关没有统一的上下文字段；静态供应商快照只代表官方端点。
+   * 没有渠道级覆盖时回退到保守值，用户可在渠道模型设置中填写真实上限。
+   */
+  const thirdPartyOpenAI = isThirdPartyOpenAIEndpoint(input.provider, input.baseUrl)
+  const catalogContextWindow = capability?.contextWindow ?? catalogModel?.contextWindow
+  const contextWindow = configuredContextWindow
+    ?? (thirdPartyOpenAI ? DEFAULT_CONTEXT_WINDOW : catalogContextWindow ?? inferredContextWindow)
+  const maxTokens = capability?.maxOutputTokens ?? (isVolcengineGlm5x
+    ? VOLCENGINE_GLM_MAX_TOKENS
+    : (catalogModel?.maxTokens
+      ?? (isCatalogMissingGlm53Family
+        ? GLM_53_FAMILY_MAX_TOKENS
+        : isCatalogMissingMimoV26Family
+          ? MIMO_V26_FAMILY_MAX_TOKENS
+          : DEFAULT_MAX_TOKENS)))
   const shouldForceAdaptiveThinking = shouldForcePiAdaptiveThinking(api, catalogModel, input.model)
   /** 支持性必须显式写 null，Pi 会把省略的标准等级视为支持。 */
   const thinkingLevelMap = reasoningCapability
@@ -843,17 +880,11 @@ async function resolvePiModelDefaults(input: Pick<PiModelBuildInput, 'provider' 
       ? capability.inputModalities.includes('image') ? ['text', 'image'] : ['text']
       : catalogModel ? [...catalogModel.input] : ['text', 'image'],
     cost: resolveModelCost(catalogModel?.cost, capability?.cost),
-    // 精确供应商目录优先，不能用无渠道的默认 200K 抬高小窗口模型。
-    contextWindow: capability?.contextWindow ?? catalogModel?.contextWindow ?? inferredContextWindow,
+    // 渠道级覆盖优先；第三方网关未声明时不把官方模型能力当成网关合同。
+    contextWindow,
     // Pi catalog 缺少时，GLM-5.3 系列仍按官方 128K 输出上限注册。
-    maxTokens: capability?.maxOutputTokens ?? (isVolcengineGlm5x
-      ? VOLCENGINE_GLM_MAX_TOKENS
-      : (catalogModel?.maxTokens
-        ?? (isCatalogMissingGlm53Family
-          ? GLM_53_FAMILY_MAX_TOKENS
-          : isCatalogMissingMimoV26Family
-            ? MIMO_V26_FAMILY_MAX_TOKENS
-            : DEFAULT_MAX_TOKENS))),
+    // 覆盖值可能小于默认输出上限；保证 Pi 的上下文与输出预算始终可同时成立。
+    maxTokens: Math.min(maxTokens, Math.max(1, contextWindow - 1)),
   }
 }
 
@@ -1169,7 +1200,12 @@ export async function buildModel(sdk: PiSdk, input: PiModelBuildInput) {
     api: 'openai-completions', reasoning: false, input: ['text'], cost: ZERO_MODEL_COST,
     contextWindow: localBinding.contextWindow, maxTokens: localBinding.maxTokens,
     compat: { supportsDeveloperRole: false, supportsReasoningEffort: false, supportsStore: false, maxTokensField: 'max_tokens' },
-  } : await resolvePiModelDefaults({ ...input, model: resolvedModelId })
+  } : await resolvePiModelDefaults({
+    provider: input.provider,
+    model: resolvedModelId,
+    baseUrl: input.baseUrl,
+    modelContextWindow: input.modelContextWindow,
+  })
   const api = modelDefaults.api
   const baseUrl = normalizePiBaseUrl(localBinding?.baseUrl ?? input.baseUrl, input.provider, api)
   if (!baseUrl) {

@@ -18,7 +18,7 @@ export const DEFAULT_CONTEXT_WINDOW = 200_000
 /** 1M 上下文窗口 */
 export const ONE_MILLION_CONTEXT_WINDOW = 1_000_000
 
-/** ChatGPT Codex 已验证的 GPT-5.x 上下文窗口；第三方同名模型沿用此展示基线。 */
+/** ChatGPT Codex 已验证的 GPT-5.x 上下文窗口；第三方渠道只在未提供端点信息时作为展示基线。 */
 export const CODEX_GPT_54_55_CONTEXT_WINDOW = 272_000
 export const CODEX_GPT_54_MINI_CONTEXT_WINDOW = 400_000
 export const CODEX_GPT_56_CONTEXT_WINDOW = 372_000

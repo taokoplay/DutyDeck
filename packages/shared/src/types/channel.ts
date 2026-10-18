@@ -348,6 +348,11 @@ export interface ChannelModel {
   enabled: boolean
   /** 来源标记：手动添加的模型在拉取供应商列表时保留，不会被覆盖清除 */
   source?: 'manual' | 'fetched'
+  /**
+   * 当前渠道实际可接受的上下文窗口（token）。
+   * 第三方网关可能复用官方模型 ID，但上下文限制不同；未填写时由运行时按渠道保守推断。
+   */
+  contextWindow?: number
 }
 
 /**

@@ -59,6 +59,10 @@ const PROMPT_TOO_LONG_PATTERNS = [
   'too many tokens',
   'token limit',
   'exceeds the model',
+  '413 request entity too large',
+  'request entity too large',
+  'request body too large',
+  'payload too large',
 ] as const
 
 /** 检测错误消息是否为 prompt too long 类型 */
@@ -110,6 +114,10 @@ export function mapAgentErrorToTypedError(
       originalError,
     }
   }
+
+  // 网关常用 413 返回 HTML 文案而不是模型上下文错误码；这类请求不能用同一份大上下文重试。
+  const requestTooLarge = isPromptTooLongError(detailedMessage, originalError)
+    || extractHttpStatusFromErrorText(detailedMessage, originalError) === 413
 
   const errorMap: Record<string, { code: ErrorCode; title: string; message: string; canRetry: boolean }> = {
     'authentication_failed': {
@@ -196,6 +204,7 @@ export function mapAgentErrorToTypedError(
   // assistant.error 路径下，Pi adapter 常把这类错误标记为 errorType='unknown'，
   // 这里从 detailedMessage / originalError 兜底匹配，归类为可重试的 network_error。
   const looksLikeNetwork =
+    !requestTooLarge &&
     (!errorMap[errorCode]) &&
     (TRANSIENT_NETWORK_PATTERN.test(detailedMessage ?? '') || TRANSIENT_NETWORK_PATTERN.test(originalError ?? ''))
   if (looksLikeNetwork) {
@@ -217,6 +226,7 @@ export function mapAgentErrorToTypedError(
   // 网关返回 HTML 错误页 / SSE 流截断 / 代理注入脏数据导致 SDK 解析非 JSON 体失败，
   // Pi adapter 常标记为 errorType='unknown'。归类为可重试的 service_error（已在重试白名单内）。
   const looksLikeMalformedResponse =
+    !requestTooLarge &&
     (!errorMap[errorCode]) &&
     isMalformedResponseError(detailedMessage, originalError)
   if (looksLikeMalformedResponse) {
@@ -235,7 +245,7 @@ export function mapAgentErrorToTypedError(
   }
 
   const httpStatus = extractHttpStatusFromErrorText(detailedMessage, originalError)
-  if (httpStatus != null && (httpStatus === 429 || httpStatus >= 500)) {
+  if (!requestTooLarge && httpStatus != null && (httpStatus === 429 || httpStatus >= 500)) {
     const isRateLimited = httpStatus === 429
     const isUnavailable = httpStatus === 503
     const isOverloaded = httpStatus === 529
@@ -266,12 +276,20 @@ export function mapAgentErrorToTypedError(
     }
   }
 
-  const mapped = errorMap[errorCode] || {
-    code: 'unknown_error' as ErrorCode,
-    title: '',
-    message: detailedMessage || errorCode,
-    canRetry: false,
-  }
+  // 统一转成上下文过长，让 UI 提供压缩上下文 / 新会话，而不是再次提交原请求。
+  const mapped = requestTooLarge
+    ? {
+        code: 'prompt_too_long' as const,
+        title: '请求内容过大',
+        message: '当前请求内容超过模型或网关限制，请压缩上下文、移除大附件或开启新会话',
+        canRetry: false,
+      }
+    : errorMap[errorCode] || {
+        code: 'unknown_error' as ErrorCode,
+        title: '',
+        message: detailedMessage || errorCode,
+        canRetry: false,
+      }
 
   // “未选择正确渠道/模型”场景：友好化后的文案已固定，无法登录多半是渠道或模型配置有误，
   // 引导用户直接重新选择模型，而非跳转设置页面
@@ -280,7 +298,7 @@ export function mapAgentErrorToTypedError(
   return {
     code: mapped.code,
     title: mapped.title,
-    message: detailedMessage || mapped.message,
+    message: requestTooLarge ? mapped.message : (detailedMessage || mapped.message),
     actions: [
       isInvalidChannelOrModel
         ? { key: 'm', label: '重新选择模型', action: 'select_model' }

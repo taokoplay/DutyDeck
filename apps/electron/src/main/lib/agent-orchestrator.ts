@@ -499,6 +499,7 @@ export class AgentOrchestrator {
         channelName: channel.name,
         provider: channel.provider,
         modelId,
+        modelContextWindow: channel.models.find((candidate) => candidate.id === modelId)?.contextWindow,
         baseUrl: channel.baseUrl,
         apiKey,
         prompt: TITLE_PROMPT + userMessage,
@@ -2401,7 +2402,9 @@ export class AgentOrchestrator {
       }
       const handleContextWindow = (cw: number): void => {
         if (!isLatestRunGeneration(this.latestRunGenerations, sessionId, runGeneration)) return
-        const inferredWindow = inferContextWindow(modelId, channel.provider)
+        /** 渠道模型覆盖必须与 Pi 注册使用同一窗口，避免 UI 先显示官方能力再跳回保守值。 */
+        const configuredWindow = channel.models.find((candidate) => candidate.id === selectedModelId)?.contextWindow
+        const inferredWindow = configuredWindow ?? inferContextWindow(modelId, channel.provider)
         const contextWindow = Number.isFinite(cw) && cw > 0 ? cw : inferredWindow ?? 200_000
         console.log(`[Agent 编排] 缓存 contextWindow: ${contextWindow}`)
         // result 消息里的真实 contextWindow 透传到 renderer，
@@ -2433,6 +2436,7 @@ export class AgentOrchestrator {
         // 智谱等端点不识别 glm-5.2[1m] 这类后缀，会返回 1211「模型不存在」。
         // 因此 pi 分支直接使用用户配置的原始模型 ID，不追加任何 `[1m]`。
         model: selectedModelId,
+        modelContextWindow: channel.models.find((candidate) => candidate.id === selectedModelId)?.contextWindow,
         cwd: agentCwd,
         apiKey,
         baseUrl: channel.baseUrl,
