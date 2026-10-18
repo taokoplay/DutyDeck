@@ -1,6 +1,7 @@
 import { atom } from 'jotai'
 import type { LanBridgeAutomationDto } from '@dutydeck/shared'
 import type { AgentRuntimeStatus } from '../lib/session-runtime-state'
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS, readStorageWithLegacy } from '../utils/storage'
 
 // ===== 消息类型 =====
 
@@ -31,10 +32,10 @@ export interface MobileStreamSegments {
 }
 
 // ===== 连接状态 =====
-export const tokenAtom = atom<string | null>(localStorage.getItem('proma_mobile_token'))
+export const tokenAtom = atom<string | null>(readStorageWithLegacy(localStorage, STORAGE_KEYS.token, LEGACY_STORAGE_KEYS.token, null))
 export const pinAtom = atom('')
-export const bridgeHostAtom = atom(localStorage.getItem('proma_mobile_host') || window.location.hostname)
-export const bridgePortAtom = atom(localStorage.getItem('proma_mobile_port') || '29888')
+export const bridgeHostAtom = atom(readStorageWithLegacy(localStorage, STORAGE_KEYS.host, LEGACY_STORAGE_KEYS.host, window.location.hostname))
+export const bridgePortAtom = atom(readStorageWithLegacy(localStorage, STORAGE_KEYS.port, LEGACY_STORAGE_KEYS.port, '29888'))
 export const connectedAtom = atom(false)
 
 // ===== 视图 =====

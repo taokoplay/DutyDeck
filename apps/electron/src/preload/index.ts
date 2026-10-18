@@ -148,7 +148,7 @@ import type {
   GitHubReleaseListOptions,
   PermissionRequest,
   PermissionResponse,
-  PromaPermissionMode,
+  DutyDeckPermissionMode,
   AskUserRequest,
   AskUserResponse,
   ExitPlanModeResponse,
@@ -614,8 +614,6 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   /** 另存图片到用户选择的位置（原生 Save As 对话框） */
   saveImageAs: (localPath: string, defaultFilename: string) => Promise<boolean>
 
-  /** 保存应用内置资源文件到用户选择的位置（原生 Save As 对话框） */
-  saveResourceFileAs: (resourceRelativePath: string, defaultFilename: string) => Promise<boolean>
 
   /** 删除附件 */
   deleteAttachment: (localPath: string) => Promise<void>
@@ -1052,7 +1050,7 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   respondPermission: (response: PermissionResponse) => Promise<void>
 
   /** 热切换指定会话的权限模式（运行中生效，仅影响该 session） */
-  updateSessionPermissionMode: (sessionId: string, mode: PromaPermissionMode) => Promise<void>
+  updateSessionPermissionMode: (sessionId: string, mode: DutyDeckPermissionMode) => Promise<void>
   /** 停止旧运行并为后续运行保存工具边界。 */
   updateAgentSessionToolMode: (sessionId: string, mode: AgentToolMode) => Promise<AgentSessionMeta>
 
@@ -2142,10 +2140,6 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke(CHAT_IPC_CHANNELS.SAVE_IMAGE_AS, localPath, defaultFilename)
   },
 
-  saveResourceFileAs: (resourceRelativePath: string, defaultFilename: string) => {
-    return ipcRenderer.invoke(CHAT_IPC_CHANNELS.SAVE_RESOURCE_FILE_AS, resourceRelativePath, defaultFilename)
-  },
-
   deleteAttachment: (localPath: string) => {
     return ipcRenderer.invoke(CHAT_IPC_CHANNELS.DELETE_ATTACHMENT, localPath)
   },
@@ -2755,7 +2749,7 @@ const electronAPI: ElectronAPI = {
   },
 
   updateAgentSessionToolMode: (sessionId: string, mode: AgentToolMode) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.UPDATE_SESSION_TOOL_MODE, sessionId, mode),
-  updateSessionPermissionMode: (sessionId: string, mode: PromaPermissionMode) => {
+  updateSessionPermissionMode: (sessionId: string, mode: DutyDeckPermissionMode) => {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.UPDATE_SESSION_PERMISSION_MODE, sessionId, mode)
   },
 

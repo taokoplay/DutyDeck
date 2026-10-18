@@ -5,14 +5,14 @@
  */
 
 import {
-  PROMA_DEFAULT_PERMISSION_MODE,
+  DUTYDECK_DEFAULT_PERMISSION_MODE,
   type AgentDelegationRole,
   type AgentDelegationStatus,
   type AgentSessionMeta,
-  type PromaPermissionMode,
+  type DutyDeckPermissionMode,
 } from '@dutydeck/shared'
 
-const PERMISSION_RANK: Record<PromaPermissionMode, number> = {
+const PERMISSION_RANK: Record<DutyDeckPermissionMode, number> = {
   plan: 0,
   bypassPermissions: 1,
 }
@@ -63,16 +63,16 @@ export interface RecoveredDelegationState {
   title: string
   role: AgentDelegationRole
   goal: string
-  permissionMode: PromaPermissionMode
+  permissionMode: DutyDeckPermissionMode
   status: AgentDelegationStatus
   startedAt: number
   completedAt?: number
 }
 
 export function resolveDelegationPermissionMode(
-  _parentMode: PromaPermissionMode | undefined,
-  _requestedMode: PromaPermissionMode | undefined,
-): PromaPermissionMode {
+  _parentMode: DutyDeckPermissionMode | undefined,
+  _requestedMode: DutyDeckPermissionMode | undefined,
+): DutyDeckPermissionMode {
   // Pi 子会话目前固定直接执行。
   return 'bypassPermissions'
 }
@@ -81,7 +81,7 @@ export function buildRecoveredDelegationState(input: {
   parentSessionId: string
   delegationId: string
   session: AgentSessionMeta
-  fallbackPermissionMode?: PromaPermissionMode
+  fallbackPermissionMode?: DutyDeckPermissionMode
 }): RecoveredDelegationState {
   const persistedStatus = input.session.delegationStatus
   // 从持久化记录恢复但不在 live Map 中，说明当前进程并没有这个委派在跑。
@@ -97,7 +97,7 @@ export function buildRecoveredDelegationState(input: {
     title: input.session.title,
     role: input.session.delegationRole ?? 'custom',
     goal: input.session.delegationGoal ?? '',
-    permissionMode: input.session.permissionMode ?? input.fallbackPermissionMode ?? PROMA_DEFAULT_PERMISSION_MODE,
+    permissionMode: input.session.permissionMode ?? input.fallbackPermissionMode ?? DUTYDECK_DEFAULT_PERMISSION_MODE,
     status,
     startedAt: input.session.createdAt,
     completedAt: persistedStatus ? input.session.updatedAt : undefined,

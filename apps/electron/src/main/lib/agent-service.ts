@@ -30,7 +30,7 @@ import type {
   AgentSubmitOrEnqueueResult,
   AgentQueuedMessageControlInput,
   AgentMoveQueuedMessageInput,
-  PromaPermissionMode,
+  DutyDeckPermissionMode,
   AgentExternalRunSource,
   AgentActiveSessionSnapshot,
   AgentStopResult,
@@ -1025,7 +1025,7 @@ export function stopAllAgents(): void {
  *
  * 同时更新 Proma 侧（canUseTool 动态读取）和 SDK 侧（query.setPermissionMode）。
  */
-export async function updateAgentPermissionMode(sessionId: string, mode: PromaPermissionMode): Promise<void> {
+export async function updateAgentPermissionMode(sessionId: string, mode: DutyDeckPermissionMode): Promise<void> {
   await orchestrator.updateSessionPermissionMode(sessionId, mode)
 }
 

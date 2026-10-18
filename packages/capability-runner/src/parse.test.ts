@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { parseCapabilityPackage, parseCapabilityPackageValue } from './parse'
+import { DUTYDECK_CAPABILITY_PACKAGE_KIND } from './spec'
 
 /** 构造一份最小合法能力包；各用例只覆盖自己关心的字段。 */
 function packageValue(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    kind: 'proma-ai-capability-package',
+    kind: DUTYDECK_CAPABILITY_PACKAGE_KIND,
     specVersion: 1,
     packageVersion: '1.0.0',
     name: 'demo',
@@ -22,7 +23,7 @@ function packageValue(overrides: Record<string, unknown> = {}): Record<string, u
 describe('能力包严格解析', () => {
   test('合法包通过，并保留声明的字段', () => {
     const pkg = parseCapabilityPackageValue(packageValue())
-    expect(pkg.kind).toBe('proma-ai-capability-package')
+    expect(pkg.kind).toBe(DUTYDECK_CAPABILITY_PACKAGE_KIND)
     expect(pkg.steps).toHaveLength(1)
     expect(pkg.acceptance.criteria).toEqual(['必须给出结论'])
   })

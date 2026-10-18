@@ -1,5 +1,5 @@
 import type { Store } from 'jotai/vanilla/store'
-import type { PromaEvent } from '@dutydeck/shared'
+import type { DutyDeckEvent } from '@dutydeck/shared'
 import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { activeViewAtom } from '@/atoms/active-view'
 import { appModeAtom } from '@/atoms/app-mode'
@@ -76,7 +76,7 @@ export function createMobileMirrorAutoOpenConsumer(
 
   return {
     /** 主进程已签发的执行通知；重复、过期、后台或隐藏会话均不改前台。 */
-    handle(sessionId: string, event: Extract<PromaEvent, { type: 'mobile_device_activity' }>): void {
+    handle(sessionId: string, event: Extract<DutyDeckEvent, { type: 'mobile_device_activity' }>): void {
       if (disposed) return
       const runKey = currentRunKey(store, sessionId)
       if (!runKey || runKey !== JSON.stringify([event.runStartedAt, event.runGeneration])

@@ -5,7 +5,7 @@
  */
 
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithDutyDeckStorage } from '../lib/legacy-storage'
 import { currentAgentSessionIdAtom } from './agent-atoms'
 
 // ===== 类型定义 =====
@@ -62,11 +62,11 @@ export const previewFilesMapAtom = atom<Map<string, PreviewFile[]>>(new Map())
 export const previewFileMapAtom = atom<Map<string, PreviewFile | null>>(new Map())
 
 /** 分栏比例（对话占比），持久化 */
-export const previewSplitRatioAtom = atomWithStorage<number>('proma-preview-split-ratio', 0.5, undefined, { getOnInit: true })
+export const previewSplitRatioAtom = atomWithDutyDeckStorage<number>('dutydeck-preview-split-ratio', 0.5, undefined, { getOnInit: true })
 
 /** 代码预览换行偏好（默认不换行，保持现有横向滚动行为） */
-export const previewCodeWrapAtom = atomWithStorage<boolean>(
-  'proma-preview-code-wrap',
+export const previewCodeWrapAtom = atomWithDutyDeckStorage<boolean>(
+  'dutydeck-preview-code-wrap',
   false,
   undefined,
   { getOnInit: true },

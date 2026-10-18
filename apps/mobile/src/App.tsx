@@ -35,6 +35,7 @@ import {
   saveTrustedDeviceAuthentication,
 } from './lib/device-credentials'
 import { recoverTrustedDeviceAuth } from './lib/auth-recovery'
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS, readStorageWithLegacy, removeStorage, writeStorage } from './utils/storage'
 import {
   normalizeAgentSessionSnapshot,
   readAgentRuntimeUpdate,
@@ -152,7 +153,7 @@ export function App() {
         }>,
       }).then((result) => {
         if (result.status === 'authenticated') {
-          localStorage.setItem('proma_mobile_token', result.token)
+          localStorage.setItem(STORAGE_KEYS.token, result.token)
           setToken(result.token); setConnected(true); setView('chat')
           window.dispatchEvent(new CustomEvent('proma:ws-reconnected'))
           return
@@ -238,7 +239,7 @@ export function App() {
 
       /** 当前连接最终可用的短期访问令牌。 */
       const currentToken = recovery.token
-      if (recovery.refreshed) localStorage.setItem('proma_mobile_token', currentToken)
+      if (recovery.refreshed) localStorage.setItem(STORAGE_KEYS.token, currentToken)
       setToken(currentToken); setConnected(true)
       const loadResult = await loadData(
         setConvs,
@@ -263,9 +264,9 @@ export function App() {
         )) ?? conversations[0] ?? null
         setActive(activeConversation)
         if (activeConversation) {
-          localStorage.setItem('proma_mobile_active_conv', JSON.stringify(activeConversation))
+          writeStorage(STORAGE_KEYS.activeConv, activeConversation)
         } else {
-          localStorage.removeItem('proma_mobile_active_conv')
+          removeStorage(STORAGE_KEYS.activeConv)
         }
       }
       setView('chat')
@@ -285,7 +286,7 @@ export function App() {
           /** 请求期间 ticket 只存在于调用栈，不写日志或持久化。 */
           const result = await wsReq('auth.pairTicket', {
             ticket,
-            deviceName: 'Proma 手机端',
+            deviceName: 'DutyDeck 手机端',
             deviceId: mobileDeviceId,
           })
           /** 未知协议响应在协调器中按无效结果回退 PIN。 */
@@ -300,8 +301,8 @@ export function App() {
           if (cancelled || !connectionGenerations.current.isCurrent(generation)) return
           setPairingPending(false)
           /** 只保存本次 socket 实际使用的 atoms 快照，避免记录旧扫码端口。 */
-          localStorage.setItem('proma_mobile_host', host)
-          localStorage.setItem('proma_mobile_port', port)
+          localStorage.setItem(STORAGE_KEYS.host, host)
+          localStorage.setItem(STORAGE_KEYS.port, port)
           void handleAuthSuccess(authentication)
         },
         onFallback: (messageText) => {
@@ -376,7 +377,7 @@ export function App() {
 
   // 持久化 view 状态
   useEffect(() => {
-    if (view !== 'auth') localStorage.setItem('proma_mobile_view', view)
+    if (view !== 'auth') writeStorage(STORAGE_KEYS.view, view)
   }, [view])
 
   if (view === 'auth') {
@@ -395,10 +396,10 @@ export function App() {
 
 /** 安全读取保存的会话；损坏数据按不存在处理。 */
 function readSavedConversation(): ConvItem | null {
-  const saved = localStorage.getItem('proma_mobile_active_conv')
+  const saved = readStorageWithLegacy<ConvItem | null>(localStorage, STORAGE_KEYS.activeConv, LEGACY_STORAGE_KEYS.activeConv, null)
   if (!saved) return null
   try {
-    const parsed = JSON.parse(saved) as Partial<ConvItem>
+    const parsed = saved as Partial<ConvItem>
     if (typeof parsed.id === 'string' && (parsed.type === 'chat' || parsed.type === 'agent')) {
       return parsed as ConvItem
     }
@@ -468,7 +469,7 @@ async function executeLoadData(
   }
   if (results[3].status === 'fulfilled' && setCurrentWsId && isCurrent()) {
     const settings = results[3].value as SettingsResponse
-    const stored = localStorage.getItem('proma_mobile_workspace_id')
+    const stored = readStorageWithLegacy<string | null>(localStorage, STORAGE_KEYS.workspaceId, LEGACY_STORAGE_KEYS.workspaceId, null)
     if (stored === null && settings.agentWorkspaceId) {
       setCurrentWsId(settings.agentWorkspaceId)
     } else if (stored !== null && stored !== '') {

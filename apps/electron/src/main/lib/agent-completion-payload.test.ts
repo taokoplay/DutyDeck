@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSendInput, AgentSessionMeta, AgentStreamCompletePayload, PromaEvent } from '@dutydeck/shared'
+import type { AgentSendInput, AgentSessionMeta, AgentStreamCompletePayload, DutyDeckEvent } from '@dutydeck/shared'
 import * as completionPayload from './agent-completion-payload'
 
 describe('Agent completion payload', () => {
@@ -10,7 +10,7 @@ describe('Agent completion payload', () => {
         sessionId: string,
         startedAt: number,
         getSession: (sessionId: string) => AgentSessionMeta | undefined,
-      ) => Extract<PromaEvent, { type: 'run_started' }>
+      ) => Extract<DutyDeckEvent, { type: 'run_started' }>
     }).buildAuthoritativeAgentRunStartedEvent
     expect(buildRunStarted).toBeFunction()
     if (!buildRunStarted) return

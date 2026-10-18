@@ -1,6 +1,6 @@
 {
   "name": "@dutydeck/electron",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "DutyDeck，为专业用户设计的 Agent - Electron App",
   "homepage": "https://github.com/taokoplay/DutyDeck",
   "main": "dist/main.cjs",

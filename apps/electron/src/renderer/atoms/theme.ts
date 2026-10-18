@@ -14,15 +14,16 @@ import { atom } from 'jotai'
 import { THEME_STYLES, type ThemeMode, type ThemeStyle } from '../../types'
 
 /** localStorage 缓存键 */
-const THEME_CACHE_KEY = 'proma-theme-mode'
-const THEME_STYLE_CACHE_KEY = 'proma-theme-style'
+const THEME_CACHE_KEY = 'dutydeck-theme-mode'
+const THEME_STYLE_CACHE_KEY = 'dutydeck-theme-style'
 
 /**
  * 从 localStorage 读取缓存的主题模式
  */
 function getCachedThemeMode(): ThemeMode {
   try {
-    const cached = localStorage.getItem(THEME_CACHE_KEY)
+    const cached = localStorage.getItem(THEME_CACHE_KEY) ?? localStorage.getItem('proma-theme-mode')
+    if (!localStorage.getItem(THEME_CACHE_KEY) && cached) localStorage.setItem(THEME_CACHE_KEY, cached)
     if (cached === 'light' || cached === 'dark' || cached === 'system' || cached === 'special') {
       return cached
     }
@@ -37,7 +38,8 @@ function getCachedThemeMode(): ThemeMode {
  */
 function getCachedThemeStyle(): ThemeStyle {
   try {
-    const cached = localStorage.getItem(THEME_STYLE_CACHE_KEY)
+    const cached = localStorage.getItem(THEME_STYLE_CACHE_KEY) ?? localStorage.getItem('proma-theme-style')
+    if (!localStorage.getItem(THEME_STYLE_CACHE_KEY) && cached) localStorage.setItem(THEME_STYLE_CACHE_KEY, cached)
     if ((THEME_STYLES as readonly string[]).includes(cached ?? '')) {
       return cached as ThemeStyle
     }

@@ -20,17 +20,15 @@ import { DingTalkSettings } from './DingTalkSettings'
 import { WeChatSettings } from './WeChatSettings'
 import { LanBridgeSettings } from './LanBridgeSettings'
 import { BotDefaultSettings } from './BotDefaultSettings'
-import { PromaLogoSettings } from './PromaLogoSettings'
 import feishuLogo from '@/assets/bots/feishu.png'
 import dingtalkLogo from '@/assets/bots/dingding.png'
 import slackLogo from '@/assets/bots/slack.png'
 import wechatLogo from '@/assets/bots/wechat.png'
 import lanIcon from '@/assets/models/lan.svg'
-import promaLogo from '@/assets/models/proma.png'
 
 // ===== 类型 =====
 
-type BotPlatformId = 'feishu' | 'slack' | 'dingtalk' | 'wechat' | 'lan' | 'defaults' | 'logos'
+type BotPlatformId = 'feishu' | 'slack' | 'dingtalk' | 'wechat' | 'lan' | 'defaults'
 
 interface BotPlatformDef {
   id: BotPlatformId
@@ -83,12 +81,6 @@ const PLATFORMS: readonly BotPlatformDef[] = [
     iconBgClass: 'bg-muted',
     iconTextClass: 'text-muted-foreground',
   },
-  {
-    id: 'logos',
-    name: '品牌素材',
-    iconSrc: promaLogo,
-    iconBgClass: 'bg-muted',
-  },
 ] as const
 
 /** 连接状态颜色映射 */
@@ -112,7 +104,7 @@ function PlatformStatusDot({ platformId }: { platformId: BotPlatformId }): React
   const wechatState = useAtomValue(wechatBridgeStateAtom)
   const lanState = useAtomValue(lanBridgeStateAtom)
 
-  if (platformId === 'defaults' || platformId === 'logos') return null
+  if (platformId === 'defaults') return null
 
   const statusMap: Record<string, string> = {
     feishu: getPlatformStatus(feishuBotStates),
@@ -199,8 +191,6 @@ function renderPlatformPanel(id: BotPlatformId): React.ReactElement {
       return <LanBridgeSettings />
     case 'defaults':
       return <BotDefaultSettings />
-    case 'logos':
-      return <PromaLogoSettings />
   }
 }
 

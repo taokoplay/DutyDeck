@@ -18,6 +18,12 @@ function sanitizeAgentIslandSettings(input: unknown): AgentIslandSettings | unde
   return typeof raw.enabled === 'boolean' ? { enabled: raw.enabled } : undefined
 }
 
+/** 将旧版或未知应用图标偏好统一为当前 DutyDeck 默认图标。 */
+function normalizeAppIconVariant(input: unknown): 'default' {
+  void input
+  return 'default'
+}
+
 export function sanitizeWindowsTerminalProfile(input: unknown): AppSettings['lastWindowsTerminalProfile'] {
   return isTerminalProfile(input) && getTerminalProfilesForPlatform('win32').includes(input)
     ? input
@@ -70,7 +76,7 @@ export function getSettings(): AppSettings {
       lastTerminalProfile: legacyLastTerminalProfile,
       ...settings
     } = data
-    return {
+    const normalizedSettings: AppSettings = {
       ...settings,
       themeMode: data.themeMode || DEFAULT_THEME_MODE,
       onboardingCompleted: data.onboardingCompleted ?? false,
@@ -91,7 +97,16 @@ export function getSettings(): AppSettings {
       productivityTools: normalizeProductivityToolsSettings(data.productivityTools),
       // 仅保留 macOS 原生 Island 开关；清理旧非原生 surface 的持久化残留字段。
       agentIsland: sanitizeAgentIslandSettings(data.agentIsland),
+      appIconVariant: normalizeAppIconVariant(data.appIconVariant),
     }
+    if (data.appIconVariant !== undefined && data.appIconVariant !== 'default') {
+      try {
+        writeJsonFileAtomic(filePath, normalizedSettings)
+      } catch (error) {
+        console.warn('[设置] 归一化旧应用图标偏好失败:', error)
+      }
+    }
+    return normalizedSettings
   } catch (error) {
     console.error('[设置] 读取失败:', error)
     return {

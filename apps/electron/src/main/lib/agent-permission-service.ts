@@ -12,7 +12,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type {
-  PromaPermissionMode,
+  DutyDeckPermissionMode,
   PermissionRequest,
   DangerLevel,
   AskUserRequest,
@@ -81,7 +81,7 @@ export type PermissionResult = {
 export function revalidateSingleApprovalResult(
   result: PermissionResult,
   denyStaleToolRun: () => PermissionResult | undefined,
-  getPermissionMode: () => PromaPermissionMode,
+  getPermissionMode: () => DutyDeckPermissionMode,
 ): PermissionResult {
   const staleDenial = denyStaleToolRun()
   if (staleDenial) return staleDenial

@@ -59,7 +59,6 @@ import {
 /** Workspace 单测不验证模型品牌资源，避免 Bun 直接解析 Vite 位图导入。 */
 mock.module('@/lib/model-logo', () => ({
   DefaultLogo: 'model-logo.png',
-  PromaLogo: 'proma-logo.png',
   getChannelLogo: () => 'model-logo.png',
   getModelLogo: () => 'model-logo.png',
   getProviderLogo: () => 'model-logo.png',

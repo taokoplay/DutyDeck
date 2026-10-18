@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { PermissionRequest, PromaPermissionMode, CapabilitySceneDefinition } from '@dutydeck/shared'
+import type { PermissionRequest, DutyDeckPermissionMode, CapabilitySceneDefinition } from '@dutydeck/shared'
 import {
   AgentPermissionService,
   revalidateSingleApprovalResult,
@@ -25,7 +25,7 @@ function withPrompt(definition: CapabilitySceneDefinition, prompt: string): Capa
 
 /** 创建隔离的真实持久层、服务与 facade，并允许测试动态切换权限模式。 */
 function fixture() {
-  let mode: PromaPermissionMode = 'bypassPermissions'
+  let mode: DutyDeckPermissionMode = 'bypassPermissions'
   const service = new CapabilityFactoryService({
     store: new CapabilityFactoryStore(mkdtempSync(join(tmpdir(), 'factory-permission-'))),
   })
@@ -40,7 +40,7 @@ function fixture() {
     sceneId: scene.id,
     facade,
     getMode: () => mode,
-    setMode: (nextMode: PromaPermissionMode) => { mode = nextMode },
+    setMode: (nextMode: DutyDeckPermissionMode) => { mode = nextMode },
   }
 }
 

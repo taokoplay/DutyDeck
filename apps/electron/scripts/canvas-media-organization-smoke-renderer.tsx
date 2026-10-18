@@ -100,7 +100,7 @@ const adapter: CanvasMediaWorkbenchAdapter = {
   mediaWatchProject: async () => {}, mediaUnwatchProject: async () => {}, onMediaRunChanged: () => () => {},
 }
 /** 使用已有授权图片URL，避免向主进程请求用户图片。 */
-const previews = [1, 2].map((index) => ({ assetId: `asset-${index}`, width: 256, height: 256, previewUrl: new URL('../resources/proma-logos/proma-emerald.png', import.meta.url).href }))
+const previews = [1, 2].map((index) => ({ assetId: `asset-${index}`, width: 256, height: 256, previewUrl: new URL('../src/renderer/assets/brand/dutydeck-icon.png', import.meta.url).href }))
 /** fixture 装配真实工作台、进度 hook、补线命令与 Radix 来源选择器。 */
 function Fixture(): React.ReactElement {
   const [document, setDocument] = React.useState(graph)

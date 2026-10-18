@@ -15,7 +15,7 @@ import type {
   AgentThinkingLevel,
   AskUserRequest,
   PermissionRequest,
-  PromaPermissionMode,
+  DutyDeckPermissionMode,
   SDKMessage,
 } from '@dutydeck/shared'
 import {
@@ -47,7 +47,7 @@ interface CollaborationToolContext {
   channelId: string
   modelId?: string
   workspaceId?: string
-  permissionMode?: PromaPermissionMode
+  permissionMode?: DutyDeckPermissionMode
   triggeredBy?: 'user' | 'automation' | 'delegation'
 }
 
@@ -65,7 +65,7 @@ interface DelegationRecord {
   thinkingLevel?: AgentThinkingLevel
   role: AgentDelegationRole
   goal: string
-  permissionMode: PromaPermissionMode
+  permissionMode: DutyDeckPermissionMode
   status: AgentDelegationStatus
   startedAt: number
   completedAt?: number
@@ -141,7 +141,7 @@ export function registerCollaborationEventBus(eventBus: import('./agent-event-bu
           type: 'delegation_blocked' as const,
           delegationId: record.delegationId,
           blockedEvent: blocked,
-        } as import('@dutydeck/shared').PromaEvent,
+        } as import('@dutydeck/shared').DutyDeckEvent,
       })
     }
 
@@ -165,7 +165,7 @@ export function registerCollaborationEventBus(eventBus: import('./agent-event-bu
           type: 'delegation_blocked' as const,
           delegationId: record.delegationId,
           blockedEvent: blocked,
-        } as import('@dutydeck/shared').PromaEvent,
+        } as import('@dutydeck/shared').DutyDeckEvent,
       })
     }
 
@@ -234,7 +234,7 @@ interface DelegateAgentArgs {
   role?: AgentDelegationRole
   task: string
   expectedOutput?: string
-  permissionMode?: PromaPermissionMode
+  permissionMode?: DutyDeckPermissionMode
   modelId?: string
   /** 子会话的目标思考强度；未传入时保持新会话默认值。 */
   thinkingLevel?: AgentThinkingLevel
@@ -242,14 +242,14 @@ interface DelegateAgentArgs {
 
 interface StartDelegationResult {
   record: DelegationRecord
-  effectivePermissionMode: PromaPermissionMode
+  effectivePermissionMode: DutyDeckPermissionMode
   effectiveModelId?: string
   configuredThinkingLevel: AgentThinkingLevel
 }
 
 interface PiDelegationToolResult {
   delegationId: string
-  effectivePermissionMode: PromaPermissionMode
+  effectivePermissionMode: DutyDeckPermissionMode
   effectiveModelId?: string
   configuredThinkingLevel: AgentThinkingLevel
 }
@@ -525,7 +525,7 @@ function recoverDelegationRecordFromSession(
   parentSessionId: string,
   delegationId: string,
   session: AgentSessionMeta,
-  fallbackPermissionMode: PromaPermissionMode | undefined,
+  fallbackPermissionMode: DutyDeckPermissionMode | undefined,
   fallbackChannelId: string,
   fallbackModelId: string | undefined,
 ): DelegationRecord {
@@ -638,8 +638,8 @@ async function waitForLiveRecords(
 
 function getCurrentParentPermissionMode(
   parent: AgentSessionMeta | undefined,
-  fallback: PromaPermissionMode | undefined,
-): PromaPermissionMode | undefined {
+  fallback: DutyDeckPermissionMode | undefined,
+): DutyDeckPermissionMode | undefined {
   const latestParent = parent ? getAgentSessionMeta(parent.id) : undefined
   return latestParent?.permissionMode ?? parent?.permissionMode ?? fallback
 }

@@ -1,4 +1,4 @@
-import type { PromaEvent } from '@dutydeck/shared'
+import type { DutyDeckEvent } from '@dutydeck/shared'
 import type { PiMcpToolExecution } from '../adapters/pi-mcp-tools'
 /** 只观察已指定设备的实际操作；发现设备、云授权与云资源分配不触发面板。 */
 const DEVICE_TOOLS = new Set([
@@ -14,7 +14,7 @@ const DEVICE_TOOLS = new Set([
   'mobile_list_crashes', 'mobile_get_crash',
 ])
 /** 从主进程真实绑定构造最小展示事件，禁止将文本、图片或完整参数广播到 renderer。 */
-export function createMobileDeviceActivity(execution: PiMcpToolExecution, runStartedAt: number, runGeneration: number): Extract<PromaEvent, { type: 'mobile_device_activity' }> | null {
+export function createMobileDeviceActivity(execution: PiMcpToolExecution, runStartedAt: number, runGeneration: number): Extract<DutyDeckEvent, { type: 'mobile_device_activity' }> | null {
   const deviceId = execution.args.device
   if (execution.serverName !== 'mobile-mcp' || !DEVICE_TOOLS.has(execution.toolName)
     || typeof deviceId !== 'string' || !deviceId.trim() || deviceId.length > 256 || /[\x00-\x1f]/.test(deviceId)) return null

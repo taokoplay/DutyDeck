@@ -6,7 +6,7 @@
  */
 
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithDutyDeckStorage } from '../lib/legacy-storage'
 import { atomFamily } from 'jotai-family'
 import type { AgentThinkingLevel, ConversationMeta, ChatMessage, FileAttachment, ChatToolActivity, Channel } from '@dutydeck/shared'
 import type { QuotedSelection } from './preview-atoms'
@@ -149,8 +149,8 @@ export const streamingToolActivitiesAtom = atom<ChatToolActivity[]>(
 )
 
 /** 选中的模型（持久化到 localStorage） */
-export const selectedModelAtom = atomWithStorage<SelectedModel | null>(
-  'proma-selected-model',
+export const selectedModelAtom = atomWithDutyDeckStorage<SelectedModel | null>(
+  'dutydeck-selected-model',
   null,
 )
 
@@ -164,8 +164,8 @@ export const currentConversationAtom = atom<ConversationMeta | null>((get) => {
 })
 
 /** 上下文长度（持久化到 localStorage，默认不限制） */
-export const contextLengthAtom = atomWithStorage<ContextLengthValue>(
-  'proma-context-length',
+export const contextLengthAtom = atomWithDutyDeckStorage<ContextLengthValue>(
+  'dutydeck-context-length',
   'infinite',
 )
 
@@ -173,14 +173,14 @@ export const contextLengthAtom = atomWithStorage<ContextLengthValue>(
 export const parallelModeAtom = atom<boolean>(false)
 
 /** 思考模式（持久化到 localStorage） */
-export const thinkingEnabledAtom = atomWithStorage<boolean>(
-  'proma-thinking-enabled',
+export const thinkingEnabledAtom = atomWithDutyDeckStorage<boolean>(
+  'dutydeck-thinking-enabled',
   false,
 )
 
 /** Chat 思考深度（具体模型不支持的档位会按其能力安全归一化）。 */
-export const thinkingLevelAtom = atomWithStorage<AgentThinkingLevel>(
-  'proma-thinking-level',
+export const thinkingLevelAtom = atomWithDutyDeckStorage<AgentThinkingLevel>(
+  'dutydeck-thinking-level',
   'medium',
 )
 

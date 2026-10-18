@@ -272,10 +272,13 @@ function mergeAdjacentSameModelTurns(groups: MessageGroup[]): MessageGroup[] {
 
 // ===== 预览/摘要 =====
 
-const SCHEDULED_RUN_MARKER = '<!--PROMA_SCHEDULED_RUN-->'
+export const DUTYDECK_SCHEDULED_RUN_MARKER = '<!--PROMA_SCHEDULED_RUN-->'
+
+/** @deprecated 使用 DUTYDECK_SCHEDULED_RUN_MARKER；持久化 marker 值保持兼容。 */
+export const SCHEDULED_RUN_MARKER = DUTYDECK_SCHEDULED_RUN_MARKER
 
 export function stripScheduledRunMarker(text: string): string {
-  return text.replaceAll(SCHEDULED_RUN_MARKER, '').trim()
+  return text.replaceAll(DUTYDECK_SCHEDULED_RUN_MARKER, '').trim()
 }
 
 /**

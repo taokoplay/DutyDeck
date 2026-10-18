@@ -645,12 +645,12 @@ export type AgentEvent =
   // 模型确认（SDK 确认实际使用的模型）
   | { type: 'model_resolved'; model: string }
   // 权限模式变更（Plan → bypassPermissions 等）
-  | { type: 'permission_mode_changed'; mode: PromaPermissionMode }
+  | { type: 'permission_mode_changed'; mode: DutyDeckPermissionMode }
 
 // ===== Proma 内部事件（SDK 不覆盖的场景） =====
 
-/** Proma 内部事件类型 */
-export type PromaEvent =
+/** DutyDeck 内部事件类型；事件 discriminator 和 payload 仍保持历史 wire contract。 */
+export type DutyDeckEvent =
   /** 已通过权限检查的真实 Mobile MCP 设备调用，仅供当前会话展示手机面板。 */
   | { type: 'mobile_device_activity'; deviceId: string; toolUseId: string; runStartedAt: number; runGeneration: number }
   | { type: 'run_file_changes'; snapshot: import('./agent-run-file-changes').AgentRunFileChangesSnapshot }
@@ -665,7 +665,7 @@ export type PromaEvent =
   | { type: 'retry'; status: 'starting' | 'attempt' | 'cleared' | 'failed' | 'cancelled'; attempt?: number; maxAttempts?: number; delaySeconds?: number; reason?: string; attemptData?: RetryAttempt; runStartedAt?: number; scheduledAt?: number; totalAttempt?: number; maxTotalAttempts?: number; error?: TypedError }
   | { type: 'model_resolved'; model: string }
   | { type: 'context_window'; contextWindow: number }
-  | { type: 'permission_mode_changed'; mode: PromaPermissionMode }
+  | { type: 'permission_mode_changed'; mode: DutyDeckPermissionMode }
   | { type: 'title_updated'; title: string }
   /** userMessage/userMessageUuid 是主进程已持久化的原文与身份；旧事件可省略。 */
   | { type: 'external_run_started'; source: AgentExternalRunSource; sessionId: string; title?: string; workspaceId?: string; modelId?: string; startedAt: number; runGeneration?: number; session?: AgentSessionMeta; userMessage?: string; userMessageUuid?: string }
@@ -718,7 +718,7 @@ export interface AgentAssistantDeltaPayload {
 export type AgentStreamPayload =
   | { kind: 'sdk_message'; message: SDKMessage }
   | { kind: 'sdk_delta'; delta: AgentAssistantDeltaPayload }
-  | { kind: 'proma_event'; event: PromaEvent }
+  | { kind: 'proma_event'; event: DutyDeckEvent }
 
 // ===== Agent 会话管理 =====
 
@@ -831,7 +831,7 @@ export interface AgentSessionMeta {
   /** 最后一次流式执行是否被用户主动中断 */
   stoppedByUser?: boolean
   /** 该会话当前的权限模式（持久化到磁盘，重启后恢复）。未设置时新会话默认 auto */
-  permissionMode?: PromaPermissionMode
+  permissionMode?: DutyDeckPermissionMode
   /** 会话选择的工具运行模式；本轮启动时冻结，缺失时为 standard。 */
   toolMode?: AgentToolMode
   /** 来源定时任务 ID（该会话由定时任务自动创建/复用时标记，用于侧栏显示钟表图标 + 跳转设置） */
@@ -1352,7 +1352,7 @@ export interface AgentSendInput {
   /** 附加的外部目录（绝对路径，传递给 SDK additionalDirectories） */
   additionalDirectories?: string[]
   /** 强制覆盖权限模式（飞书等无 UI 交互场景下强制 'bypassPermissions'） */
-  permissionModeOverride?: PromaPermissionMode
+  permissionModeOverride?: DutyDeckPermissionMode
   /** 用户通过 /skill:xxx 引用的 Skill slug 列表 */
   mentionedSkills?: string[]
   /** 用户通过 #mcp:xxx 引用的 MCP 服务器名称列表 */
@@ -1887,22 +1887,20 @@ export interface ExitPlanModeResponse {
 
 // ===== 权限系统类型 =====
 
-/** 当前 Proma 支持的权限模式，值直接映射 SDK 原生 permissionMode */
-export const PROMA_PERMISSION_MODES = ['bypassPermissions', 'plan'] as const
+/** 当前 DutyDeck 支持的权限模式，值直接映射 SDK 原生 permissionMode。 */
+export const DUTYDECK_PERMISSION_MODES = ['bypassPermissions', 'plan'] as const
+export type DutyDeckPermissionMode = typeof DUTYDECK_PERMISSION_MODES[number]
+export const DUTYDECK_DEFAULT_PERMISSION_MODE: DutyDeckPermissionMode = 'bypassPermissions'
 
-export type PromaPermissionMode = typeof PROMA_PERMISSION_MODES[number]
-
-export const PROMA_DEFAULT_PERMISSION_MODE: PromaPermissionMode = 'bypassPermissions'
-
-export interface PromaPermissionModeConfig {
+export interface DutyDeckPermissionModeConfig {
   /** 对应 Claude Agent SDK 的 permissionMode */
-  sdkMode: PromaPermissionMode
+  sdkMode: DutyDeckPermissionMode
   label: string
   description: string
 }
 
-/** Proma 权限模式的单一配置来源 */
-export const PROMA_PERMISSION_MODE_CONFIG = {
+/** DutyDeck 权限模式的单一配置来源。 */
+export const DUTYDECK_PERMISSION_MODE_CONFIG = {
   bypassPermissions: {
     sdkMode: 'bypassPermissions',
     label: '完全自动',
@@ -1913,20 +1911,37 @@ export const PROMA_PERMISSION_MODE_CONFIG = {
     label: '计划模式',
     description: '仅规划不执行，查看工具使用计划',
   },
-} as const satisfies Record<PromaPermissionMode, PromaPermissionModeConfig>
+} as const satisfies Record<DutyDeckPermissionMode, DutyDeckPermissionModeConfig>
 
 /** 权限模式定义顺序（用于循环切换） */
-export const PROMA_PERMISSION_MODE_ORDER: readonly PromaPermissionMode[] = PROMA_PERMISSION_MODES
+export const DUTYDECK_PERMISSION_MODE_ORDER: readonly DutyDeckPermissionMode[] = DUTYDECK_PERMISSION_MODES
 
-export function isPromaPermissionMode(mode: string): mode is PromaPermissionMode {
-  return (PROMA_PERMISSION_MODES as readonly string[]).includes(mode)
+export function isDutyDeckPermissionMode(mode: string): mode is DutyDeckPermissionMode {
+  return (DUTYDECK_PERMISSION_MODES as readonly string[]).includes(mode)
 }
 
 /** 规范化权限模式：历史 auto 或其它非法值统一回到默认完全自动模式 */
-export function migratePermissionMode(mode: string): PromaPermissionMode {
-  if (isPromaPermissionMode(mode)) return mode
-  return PROMA_DEFAULT_PERMISSION_MODE
+export function migratePermissionMode(mode: string): DutyDeckPermissionMode {
+  if (isDutyDeckPermissionMode(mode)) return mode
+  return DUTYDECK_DEFAULT_PERMISSION_MODE
 }
+
+/** @deprecated 使用 DutyDeckPermissionMode；旧类型别名保留兼容。 */
+export type PromaPermissionMode = DutyDeckPermissionMode
+/** @deprecated 使用 DutyDeckPermissionModeConfig。 */
+export type PromaPermissionModeConfig = DutyDeckPermissionModeConfig
+/** @deprecated 使用 DUTYDECK_PERMISSION_MODES。 */
+export const PROMA_PERMISSION_MODES = DUTYDECK_PERMISSION_MODES
+/** @deprecated 使用 DUTYDECK_DEFAULT_PERMISSION_MODE。 */
+export const PROMA_DEFAULT_PERMISSION_MODE = DUTYDECK_DEFAULT_PERMISSION_MODE
+/** @deprecated 使用 DUTYDECK_PERMISSION_MODE_CONFIG。 */
+export const PROMA_PERMISSION_MODE_CONFIG = DUTYDECK_PERMISSION_MODE_CONFIG
+/** @deprecated 使用 DUTYDECK_PERMISSION_MODE_ORDER。 */
+export const PROMA_PERMISSION_MODE_ORDER = DUTYDECK_PERMISSION_MODE_ORDER
+/** @deprecated 使用 isDutyDeckPermissionMode。 */
+export const isPromaPermissionMode = isDutyDeckPermissionMode
+/** @deprecated 使用 DutyDeckEvent；旧事件类型名仅用于读取历史代码。 */
+export type PromaEvent = DutyDeckEvent
 
 /** 危险等级 */
 export type DangerLevel = 'safe' | 'normal' | 'dangerous'

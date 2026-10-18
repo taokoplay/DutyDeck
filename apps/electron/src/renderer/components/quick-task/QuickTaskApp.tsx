@@ -70,7 +70,8 @@ export function QuickTaskApp(): React.ReactElement {
         }
       } else {
         // Chat 模式读取 localStorage 中的 selectedModel
-        const raw = localStorage.getItem('proma-selected-model')
+        const raw = localStorage.getItem('dutydeck-selected-model') ?? localStorage.getItem('proma-selected-model')
+        if (!localStorage.getItem('dutydeck-selected-model') && raw) localStorage.setItem('dutydeck-selected-model', raw)
         if (raw) {
           try {
             const selected = JSON.parse(raw) as { channelId: string; modelId: string }

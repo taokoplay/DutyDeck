@@ -173,7 +173,7 @@ function handleAgentEvent(sessionId: string, payload: AgentStreamPayload): void 
     return
   }
   if (payload.kind === 'proma_event') {
-    handlePromaEvent(sessionId, payload.event)
+    handleDutyDeckEvent(sessionId, payload.event)
   } else if (payload.kind === 'sdk_message') {
     handleSdkMessage(sessionId, payload.message)
   } else {
@@ -181,7 +181,7 @@ function handleAgentEvent(sessionId: string, payload: AgentStreamPayload): void 
   }
 }
 
-function handlePromaEvent(sessionId: string, event: import('@dutydeck/shared').PromaEvent): void {
+function handleDutyDeckEvent(sessionId: string, event: import('@dutydeck/shared').DutyDeckEvent): void {
   switch (event.type) {
     case 'permission_request': {
       const session = ensureSession(sessionId)

@@ -5,6 +5,7 @@ import { LoaderCircle, Monitor, ShieldCheck } from 'lucide-react'
 import { pinAtom, bridgeHostAtom, bridgePortAtom } from '../../atoms'
 import { wsReq, WsClientError } from '../../lib/ws-client'
 import type { TrustedDeviceAuthentication } from '../../lib/pairing-startup-coordinator'
+import { STORAGE_KEYS } from '../../utils/storage'
 
 interface Props {
   /** 当前浏览器安装持久化使用的稳定设备标识。 */
@@ -41,11 +42,11 @@ export function AuthPage({
       /** PIN 配对同样注册为可撤销的长期可信设备。 */
       const r = await wsReq('auth.pair', {
         pin,
-        deviceName: 'Proma 手机端',
+        deviceName: 'DutyDeck 手机端',
         deviceId,
       }) as TrustedDeviceAuthentication
-      localStorage.setItem('proma_mobile_host', host)
-      localStorage.setItem('proma_mobile_port', port)
+      localStorage.setItem(STORAGE_KEYS.host, host)
+      localStorage.setItem(STORAGE_KEYS.port, port)
       onSuccess(r)
     } catch (err: unknown) {
       setError(err instanceof WsClientError && err.code === 'TIMEOUT' ? '连接超时，请检查地址和 PIN 码' : 'PIN 码错误或服务不可用')
@@ -64,7 +65,7 @@ export function AuthPage({
           <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-card-foreground shadow-sm">
             <Monitor aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
           </div>
-          <h1 className="text-[28px] font-semibold leading-tight">Proma</h1>
+          <h1 className="text-[28px] font-semibold leading-tight">DutyDeck</h1>
           <p className="mt-1 text-sm text-muted-foreground">连接桌面端，继续当前工作</p>
         </header>
         {pairingPending && (
@@ -109,7 +110,7 @@ export function AuthPage({
           </div>
           {error && <p className="text-xs text-destructive" role="alert">{error}</p>}
           <button
-            aria-label="连接到桌面 Proma"
+            aria-label="连接到桌面 DutyDeck"
             type="submit" disabled={loading || pairingPending}
             className="h-11 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
           >
@@ -118,7 +119,7 @@ export function AuthPage({
         </form>
         <div className="mt-6 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
           <ShieldCheck aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <p>在电脑端 Proma → 设置 → 远程连接 → 局域网 查看 PIN 码</p>
+          <p>在电脑端 DutyDeck → 设置 → 远程连接 → 局域网 查看 PIN 码</p>
         </div>
       </div>
     </main>

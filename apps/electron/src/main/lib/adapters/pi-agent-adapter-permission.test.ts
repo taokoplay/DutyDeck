@@ -6,7 +6,7 @@ import type { ExtensionToolContext, ToolDefinition } from '@earendil-works/pi-co
 import type { ServerOpsAgentFacade } from '../server-ops/server-ops-agent-facade'
 import type { ServerOpsAgentReadFacade } from '../server-ops/server-ops-agent-read-facade'
 import { AgentPermissionService, revalidateSingleApprovalResult } from '../agent-permission-service'
-import type { PermissionRequest, PromaPermissionMode } from '@dutydeck/shared'
+import type { PermissionRequest, DutyDeckPermissionMode } from '@dutydeck/shared'
 import { buildServerOpsReadWriteTools } from './pi-server-ops-read-tools'
 
 type PiAdapterModule = typeof import('./pi-agent-adapter')
@@ -112,7 +112,7 @@ test.each(['allow', 'deny', 'abort', 'plan', 'stale'] as const)(
     /** 每次底层写入的实际参数与次数。 */
     const writes: unknown[] = []
     /** 模拟确认期间切到计划模式或停止当前运行。 */
-    let mode: PromaPermissionMode = 'bypassPermissions'
+    let mode: DutyDeckPermissionMode = 'bypassPermissions'
     /** 标识当前工具调用是否已失去运行身份。 */
     let stale = false
     /** 传递给工具和审批的共同取消信号。 */
@@ -172,7 +172,7 @@ for (const operation of serverApprovalCases) {
       const service = new AgentPermissionService()
       const requests: PermissionRequest[] = []
       const effects: Array<{ toolName: string; input: unknown }> = []
-      let mode: PromaPermissionMode = 'bypassPermissions'
+      let mode: DutyDeckPermissionMode = 'bypassPermissions'
       let stale = false
       const controller = new AbortController()
       /** 所有副作用替身只记录调用；读工具仍提供完整 Facade 形状供真实 builder 注册。 */
@@ -246,7 +246,7 @@ test.each(['allow', 'deny', 'abort', 'plan', 'stale'] as const)(
     const service = new AgentPermissionService()
     const requests: PermissionRequest[] = []
     const writes: unknown[] = []
-    let mode: PromaPermissionMode = 'bypassPermissions'
+    let mode: DutyDeckPermissionMode = 'bypassPermissions'
     let stale = false
     const controller = new AbortController()
     const facade = {

@@ -6,7 +6,7 @@
   "type": "module",
   "bin": {
     "dutydeck": "./src/index.ts",
-    "proma": "./src/index.ts"
+    "proma": "./src/legacy-proma.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

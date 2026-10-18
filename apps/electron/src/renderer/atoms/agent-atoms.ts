@@ -7,10 +7,11 @@
 
 import { atom } from 'jotai'
 import type { Getter } from 'jotai'
-import { atomWithStorage, selectAtom } from 'jotai/utils'
+import { selectAtom } from 'jotai/utils'
+import { atomWithDutyDeckStorage } from '../lib/legacy-storage'
 import { atomFamily } from 'jotai-family'
-import type { AgentSessionMeta, AgentEvent, AgentEventUsage, AgentWorkspace, AgentPendingFile, RetryAttempt, PromaPermissionMode, PermissionRequest, AskUserRequest, ExitPlanModeRequest, ThinkingConfig, AgentEffort, SDKMessage, UnstagedChangesResult, CanvasNodeReference } from '@dutydeck/shared'
-import { PROMA_DEFAULT_PERMISSION_MODE } from '@dutydeck/shared'
+import type { AgentSessionMeta, AgentEvent, AgentEventUsage, AgentWorkspace, AgentPendingFile, RetryAttempt, DutyDeckPermissionMode, PermissionRequest, AskUserRequest, ExitPlanModeRequest, ThinkingConfig, AgentEffort, SDKMessage, UnstagedChangesResult, CanvasNodeReference } from '@dutydeck/shared'
+import { DUTYDECK_DEFAULT_PERMISSION_MODE } from '@dutydeck/shared'
 import { calculateDockBadgeCount, countPendingRequests } from '@/lib/dock-badge-count'
 import { setBoundedSDKMessageCache } from '@/lib/agent-message-cache-budget'
 import { agentTerminalRunMarkersAtom, isSameOrNewerRun } from '@/lib/agent-active-session-snapshot'
@@ -592,8 +593,8 @@ export const workspaceGitDiffRefreshVersionAtom = atom(0)
 // ===== 侧面板 Atoms =====
 
 /** 侧面板是否打开：按 Agent 会话持久化，未存储的会话默认打开。 */
-export const agentSidePanelOpenMapAtom = atomWithStorage<Record<string, boolean>>(
-  'proma-agent-sidepanel-open-by-session',
+export const agentSidePanelOpenMapAtom = atomWithDutyDeckStorage<Record<string, boolean>>(
+  'dutydeck-agent-sidepanel-open-by-session',
   {},
   undefined,
   { getOnInit: true },
@@ -654,8 +655,8 @@ export function pruneAgentSidePanelLayouts(
 }
 
 /** 右侧工作区布局：按 Agent Session 持久化，包含普通与宽视图的尺寸。 */
-export const agentSidePanelLayoutMapAtom = atomWithStorage<Record<string, AgentSidePanelLayout>>(
-  'proma-agent-workspace-layout-by-session',
+export const agentSidePanelLayoutMapAtom = atomWithDutyDeckStorage<Record<string, AgentSidePanelLayout>>(
+  'dutydeck-agent-workspace-layout-by-session',
   {},
   undefined,
   { getOnInit: true },
@@ -686,8 +687,8 @@ export const agentSidePanelLayoutAtomFamily = atomFamily((sessionId: string) => 
 
 /** 文件来源选择：按会话持久化，未存储的会话默认显示项目文件。 */
 export type AgentFileSourceFilter = 'session' | 'project'
-export const agentFileSourceFilterMapAtom = atomWithStorage<Record<string, AgentFileSourceFilter>>(
-  'proma-agent-file-source-filter-map',
+export const agentFileSourceFilterMapAtom = atomWithDutyDeckStorage<Record<string, AgentFileSourceFilter>>(
+  'dutydeck-agent-file-source-filter-map',
   {},
   undefined,
   { getOnInit: true },
@@ -907,8 +908,8 @@ export const currentSessionSidePanelOpenAtom = atom(
  * 项目级能力的右侧 Tab 打开状态按 Agent session 持久化。能力的数据仍归属于 workspace，
  * 但同一 workspace 的后台会话不得改变彼此的右侧 Tab，避免抢走用户焦点。
  */
-export const agentSessionComponentOpenMapAtom = atomWithStorage<Record<string, WorkspaceComponentTab[]>>(
-  'proma-agent-session-component-tabs',
+export const agentSessionComponentOpenMapAtom = atomWithDutyDeckStorage<Record<string, WorkspaceComponentTab[]>>(
+  'dutydeck-agent-session-component-tabs',
   {},
   undefined,
   { getOnInit: true },
@@ -1074,8 +1075,8 @@ export function pruneAgentCanvasWorkspaceStates(
 }
 
 /** localStorage 原始值保持 unknown，所有消费者必须通过受控 Atom 读取。 */
-const persistedAgentCanvasWorkspaceStateMapAtom = atomWithStorage<unknown>(
-  'proma-agent-canvas-workspace-by-session',
+const persistedAgentCanvasWorkspaceStateMapAtom = atomWithDutyDeckStorage<unknown>(
+  'dutydeck-agent-canvas-workspace-by-session',
   {},
   undefined,
   { getOnInit: true },
@@ -1101,8 +1102,8 @@ export const agentCanvasWorkspaceStateMapAtom = atom(
 export const agentSidePanelSplitMapAtom = atom<Map<string, RightWorkspaceSplitState>>(new Map())
 
 /** 双 Pane 分隔比例按 Session 持久化，但不持久化可能在重启后失效的动态 Tab ID。 */
-export const agentSidePanelSplitRatioMapAtom = atomWithStorage<Record<string, number>>(
-  'proma-agent-workspace-split-ratio-by-session',
+export const agentSidePanelSplitRatioMapAtom = atomWithDutyDeckStorage<Record<string, number>>(
+  'dutydeck-agent-workspace-split-ratio-by-session',
   {},
   undefined,
   { getOnInit: true },
@@ -1264,14 +1265,14 @@ export const RECENTLY_MODIFIED_TTL_MS = 60_000
 // ===== 权限系统 Atoms =====
 
 /** 新会话默认权限模式 */
-export const agentDefaultPermissionModeAtom = atom<PromaPermissionMode>(PROMA_DEFAULT_PERMISSION_MODE)
+export const agentDefaultPermissionModeAtom = atom<DutyDeckPermissionMode>(DUTYDECK_DEFAULT_PERMISSION_MODE)
 
-/** Per-session 权限模式 Map — sessionId → PromaPermissionMode */
-export const agentPermissionModeMapAtom = atom<Map<string, PromaPermissionMode>>(new Map())
+/** Per-session 权限模式 Map — sessionId → DutyDeckPermissionMode */
+export const agentPermissionModeMapAtom = atom<Map<string, DutyDeckPermissionMode>>(new Map())
 
 /**
  * 按 sessionId 派生该 session 的持久化权限模式。
- * 返回 `undefined`（session 不存在或未设置）或具体的 PromaPermissionMode 字符串，
+ * 返回 `undefined`（session 不存在或未设置）或具体的 DutyDeckPermissionMode 字符串，
  * jotai 用 === 比较，只有值真正变化时才通知下游——避免流式中无关字段更新引发 re-render。
  */
 export const sessionPersistedPermissionModeAtom = atomFamily((sessionId: string) =>

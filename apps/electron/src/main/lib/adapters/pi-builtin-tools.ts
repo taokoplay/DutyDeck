@@ -14,7 +14,7 @@ import { AGENT_IPC_CHANNELS, getTerminalProfilesForPlatform, normalizePathForCom
 import type {
   AgentWorkspace,
   CreateAutomationInput,
-  PromaPermissionMode,
+  DutyDeckPermissionMode,
   TerminalProfile,
   UpdateAutomationInput,
   ImageGenerationModelSnapshot,
@@ -129,7 +129,7 @@ export interface PiBuiltinToolsContext {
   agentCwd?: string
   /** 图片外发前必须校验在这些已授权目录内。 */
   allowedRoots?: string[]
-  permissionMode?: PromaPermissionMode
+  permissionMode?: DutyDeckPermissionMode
   triggeredBy?: 'user' | 'automation' | 'delegation' | 'external'
   /** 当前用户消息的稳定 UUID，供显式记忆操作恢复与去重。 */
   userMessageId?: string

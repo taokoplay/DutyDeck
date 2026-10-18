@@ -41,8 +41,10 @@ function getInitialWorkspaceMenuTheme(): WorkspaceMenuThemeState {
   let style: ThemeStyle = 'default'
   try {
     /** 缓存用于首帧呈现，随后仍以主进程设置和系统主题事件为准。 */
-    const cachedMode = localStorage.getItem('proma-theme-mode')
-    const cachedStyle = localStorage.getItem('proma-theme-style')
+    const cachedMode = localStorage.getItem('dutydeck-theme-mode') ?? localStorage.getItem('proma-theme-mode')
+    const cachedStyle = localStorage.getItem('dutydeck-theme-style') ?? localStorage.getItem('proma-theme-style')
+    if (!localStorage.getItem('dutydeck-theme-mode') && cachedMode) localStorage.setItem('dutydeck-theme-mode', cachedMode)
+    if (!localStorage.getItem('dutydeck-theme-style') && cachedStyle) localStorage.setItem('dutydeck-theme-style', cachedStyle)
     if (cachedMode === 'light' || cachedMode === 'dark' || cachedMode === 'system' || cachedMode === 'special') {
       mode = cachedMode
     }

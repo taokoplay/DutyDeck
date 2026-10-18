@@ -23,7 +23,7 @@ import type {
   XaiOAuthCredentials,
   AgentQueryInput,
   JsonSchemaOutputFormat,
-  PromaPermissionMode,
+  DutyDeckPermissionMode,
   ProviderType,
   SendQueuedMessageOptions,
   SDKMessage,
@@ -248,7 +248,7 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
   channelId?: string
   channelName?: string
   maxTurns?: number
-  permissionMode: PromaPermissionMode
+  permissionMode: DutyDeckPermissionMode
   canUseTool?: (
     toolName: string,
     input: Record<string, unknown>,

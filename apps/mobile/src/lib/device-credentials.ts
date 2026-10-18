@@ -1,8 +1,9 @@
 import type { TrustedDeviceAuthentication } from './pairing-startup-coordinator'
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS, readStorageWithLegacy } from '../utils/storage'
 
-const DEVICE_ID_STORAGE_KEY = 'proma_mobile_device_id'
-const ACCESS_TOKEN_STORAGE_KEY = 'proma_mobile_token'
-const DEVICE_CREDENTIAL_STORAGE_KEY = 'proma_mobile_device_credential'
+const DEVICE_ID_STORAGE_KEY = STORAGE_KEYS.deviceId
+const ACCESS_TOKEN_STORAGE_KEY = STORAGE_KEYS.token
+const DEVICE_CREDENTIAL_STORAGE_KEY = STORAGE_KEYS.deviceCredential
 
 /** 浏览器凭证存储所需的最小同步接口。 */
 export interface DeviceCredentialStorage {
@@ -47,7 +48,7 @@ export function getOrCreateDeviceId(
   generateId: () => string,
 ): string {
   /** 已在当前浏览器安装中持久化的设备标识。 */
-  const existingDeviceId = storage.getItem(DEVICE_ID_STORAGE_KEY)
+  const existingDeviceId = readStorageWithLegacy(storage, DEVICE_ID_STORAGE_KEY, LEGACY_STORAGE_KEYS.deviceId, '')
   if (existingDeviceId) return existingDeviceId
   /** 首次打开时生成的随机稳定设备标识。 */
   const generatedDeviceId = generateId()
@@ -71,9 +72,9 @@ export function readTrustedDeviceAuthentication(
   storage: DeviceCredentialStorage,
 ): StoredTrustedDeviceAuthentication {
   return {
-    token: storage.getItem(ACCESS_TOKEN_STORAGE_KEY),
-    deviceId: storage.getItem(DEVICE_ID_STORAGE_KEY),
-    deviceCredential: storage.getItem(DEVICE_CREDENTIAL_STORAGE_KEY),
+    token: readStorageWithLegacy(storage, ACCESS_TOKEN_STORAGE_KEY, LEGACY_STORAGE_KEYS.token, null),
+    deviceId: readStorageWithLegacy(storage, DEVICE_ID_STORAGE_KEY, LEGACY_STORAGE_KEYS.deviceId, null),
+    deviceCredential: readStorageWithLegacy(storage, DEVICE_CREDENTIAL_STORAGE_KEY, LEGACY_STORAGE_KEYS.deviceCredential, null),
   }
 }
 
@@ -81,4 +82,6 @@ export function readTrustedDeviceAuthentication(
 export function clearTrustedDeviceAuthentication(storage: DeviceCredentialStorage): void {
   storage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
   storage.removeItem(DEVICE_CREDENTIAL_STORAGE_KEY)
+  storage.removeItem(LEGACY_STORAGE_KEYS.token)
+  storage.removeItem(LEGACY_STORAGE_KEYS.deviceCredential)
 }

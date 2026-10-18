@@ -1,7 +1,7 @@
 {
   "name": "@dutydeck/mobile",
   "version": "0.1.1",
-  "description": "Proma mobile web frontend — served by LAN Bridge",
+  "description": "DutyDeck mobile web frontend — served by LAN Bridge",
   "private": true,
   "type": "module",
   "scripts": {

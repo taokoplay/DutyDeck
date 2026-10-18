@@ -5,7 +5,7 @@
  */
 
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithDutyDeckStorage } from '../lib/legacy-storage'
 
 /**
  * 侧边栏视图模式。
@@ -19,13 +19,13 @@ export type SidebarViewMode = 'active' | 'archived' | 'today'
 export const sidebarViewModeAtom = atom<SidebarViewMode>('active')
 
 /** 项目列表高度（px），用户可拖拽调整，持久化到 localStorage */
-export const projectListHeightAtom = atomWithStorage<number>(
-  'proma-workspace-list-height',
+export const projectListHeightAtom = atomWithDutyDeckStorage<number>(
+  'dutydeck-workspace-list-height',
   120,
 )
 
 /** 左侧边栏宽度（px），用户可拖拽调整，持久化到 localStorage */
-export const leftSidebarWidthAtom = atomWithStorage<number>(
-  'proma-left-sidebar-width',
+export const leftSidebarWidthAtom = atomWithDutyDeckStorage<number>(
+  'dutydeck-left-sidebar-width',
   240,
 )

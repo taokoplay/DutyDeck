@@ -20,7 +20,7 @@ import '../src/renderer/styles/globals.css'
 type FixtureMode = 'normal' | 'readonly' | 'empty' | 'error' | 'preview-error'
 
 /** 使用仓库内图片作为三份真实参考图，避免访问用户项目或远端服务。 */
-const imageBytes = new Uint8Array(await (await fetch(new URL('../resources/proma-logos/proma-emerald.png', import.meta.url))).arrayBuffer())
+const imageBytes = new Uint8Array(await (await fetch(new URL('../src/renderer/assets/brand/dutydeck-icon.png', import.meta.url))).arrayBuffer())
 /** 长提示词用于证明右栏独立滚动时表单内容完整保留。 */
 const longPrompt = '固定机位，角色轻微抬头并克制地点赞，桌面道具保持静止；保持参考图人物、服装、材质、灯光与镜头关系一致，不新增文字、数字、Logo、旁白或音乐。'.repeat(5)
 /** 三份参考图记录使用不同稳定身份。 */
@@ -144,7 +144,7 @@ async function createVideoBlob(): Promise<Blob> {
     context.fillRect(0, 0, canvas.width, canvas.height)
     context.fillStyle = '#ffffff'
     context.font = '600 28px sans-serif'
-    context.fillText(`Proma ${frame + 1}`, 86, 98)
+    context.fillText(`DutyDeck ${frame + 1}`, 86, 98)
     await new Promise<void>((resolve) => setTimeout(resolve, 45))
   }
   recorder.stop()

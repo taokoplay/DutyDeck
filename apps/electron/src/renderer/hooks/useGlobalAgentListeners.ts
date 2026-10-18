@@ -105,7 +105,7 @@ import {
 } from '@/atoms/preview-atoms'
 import type { NotificationSoundType } from '@/types/settings'
 import { toast } from 'sonner'
-import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, AgentStreamEvent, AgentStreamCompletePayload, AgentStreamErrorPayload, AgentEvent, AgentStreamPayload, AgentAssistantDelta, AgentAssistantDeltaPayload, CanvasChangeEvent, SDKAssistantMessage, SDKResultMessage, SDKMessage, SDKUserMessage, SDKSystemMessage, PromaEvent, AgentSessionMeta, ProviderType, SDKContentBlock, SDKUserContentBlock, AgentQueuedMessageSnapshot, AgentQueuedMessageStatus } from '@dutydeck/shared'
+import type { AgentCanvasBinding, AgentCanvasBindingChangeEvent, AgentStreamEvent, AgentStreamCompletePayload, AgentStreamErrorPayload, AgentEvent, AgentStreamPayload, AgentAssistantDelta, AgentAssistantDeltaPayload, CanvasChangeEvent, SDKAssistantMessage, SDKResultMessage, SDKMessage, SDKUserMessage, SDKSystemMessage, DutyDeckEvent, AgentSessionMeta, ProviderType, SDKContentBlock, SDKUserContentBlock, AgentQueuedMessageSnapshot, AgentQueuedMessageStatus } from '@dutydeck/shared'
 import { inferContextWindow } from '@dutydeck/shared'
 import {
   buildExternalAgentRunActivation,
@@ -1092,7 +1092,7 @@ export function useGlobalAgentListeners(): void {
       return sessions.find((s) => s.id === sessionId)?.title ?? '未命名会话'
     }
 
-    const activateExternalAgentRun = (event: Extract<PromaEvent, { type: 'external_run_started' }>): void => {
+    const activateExternalAgentRun = (event: Extract<DutyDeckEvent, { type: 'external_run_started' }>): void => {
       const applyActivation = (sessions: AgentSessionMeta[]): void => {
         const currentStreamState = store.get(agentStreamingStatesAtom).get(event.sessionId)
         if (!shouldActivateExternalAgentRun(currentStreamState, event.startedAt, event.runGeneration)) {
@@ -2104,7 +2104,7 @@ export function useGlobalAgentListeners(): void {
           } else if (event.type === 'permission_mode_changed') {
             // 权限模式变更（如 Plan 模式退出后切换到完全自动）
             console.log(`[GlobalAgentListeners] 权限模式变更: ${event.mode}`)
-            store.set(agentPermissionModeMapAtom, (prev: Map<string, import('@dutydeck/shared').PromaPermissionMode>) => {
+            store.set(agentPermissionModeMapAtom, (prev: Map<string, import('@dutydeck/shared').DutyDeckPermissionMode>) => {
               const next = new Map(prev)
               next.set(sessionId, event.mode)
               return next

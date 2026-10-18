@@ -7,7 +7,7 @@
  */
 
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithDutyDeckStorage } from '../lib/legacy-storage'
 import {
   streamingConversationIdsAtom,
 } from './chat-atoms'
@@ -88,8 +88,8 @@ export const tabMruAtom = atom<string[]>([])
 export const sessionViewStateMapAtom = atom<Map<string, SessionViewState>>(new Map())
 
 /** 侧边栏是否收起（持久化） */
-export const sidebarCollapsedAtom = atomWithStorage<boolean>(
-  'proma-sidebar-collapsed',
+export const sidebarCollapsedAtom = atomWithDutyDeckStorage<boolean>(
+  'dutydeck-sidebar-collapsed',
   false,
 )
 

@@ -11,7 +11,10 @@
  */
 
 /** 能力包的 kind 标记，用于与其它 JSON 区分。 */
-export const CAPABILITY_PACKAGE_KIND = 'proma-ai-capability-package'
+export const DUTYDECK_CAPABILITY_PACKAGE_KIND = 'proma-ai-capability-package'
+
+/** @deprecated 使用 DUTYDECK_CAPABILITY_PACKAGE_KIND；值属于兼容协议，不能修改。 */
+export const CAPABILITY_PACKAGE_KIND = DUTYDECK_CAPABILITY_PACKAGE_KIND
 
 /** 当前 spec 主版本；不匹配时拒绝加载，不做静默降级。 */
 export const CAPABILITY_PACKAGE_SPEC_VERSION = 1

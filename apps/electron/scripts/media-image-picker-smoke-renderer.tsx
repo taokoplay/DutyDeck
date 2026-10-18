@@ -6,7 +6,7 @@ import { CanvasMediaWorkflowForm, type CanvasMediaWorkflowInputDraft } from '../
 import '../src/renderer/styles/globals.css'
 
 /** 使用仓库自带的真实图片字节作为缩略图 fixture，不连接媒体服务器。 */
-const imageBytes = new Uint8Array(await (await fetch(new URL('../resources/proma-logos/proma-emerald.png', import.meta.url))).arrayBuffer())
+const imageBytes = new Uint8Array(await (await fetch(new URL('../src/renderer/assets/brand/dutydeck-icon.png', import.meta.url))).arrayBuffer())
 /** 百张目录验证只读取可视范围，重名条目仍使用不同素材身份。 */
 const assets: MediaAssetRecord[] = Array.from({ length: 100 }, (_, index) => ({
   id: `image-${index}`, revision: 1, hash: index.toString(16).padStart(64, '0'), mediaKind: 'image',

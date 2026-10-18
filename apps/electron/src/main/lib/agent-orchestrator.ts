@@ -25,11 +25,11 @@ import { accessSync, constants, existsSync, mkdirSync, realpathSync } from 'node
 import { app } from 'electron'
 import type { AgentSendInput, AgentMessage, AgentGenerateTitleInput, AgentProviderAdapter, AgentSessionMeta, AgentToolMode, AgentActiveSessionSnapshot, AgentMediaAttachment, CanvasNodeReference, CodexOAuthCredentials, XaiOAuthCredentials, TypedError, SDKMessage, SDKAssistantMessage, AgentStreamPayload, AgentAssistantDeltaPayload, RewindSessionResult, SkillActivation, ServerOpsAgentReference } from '@dutydeck/shared'
 import {
-  PROMA_DEFAULT_PERMISSION_MODE,
+  DUTYDECK_DEFAULT_PERMISSION_MODE,
   AGENT_DEFAULT_TOOL_MODE,
   isAgentToolMode,
   isOrdinaryTopLevelAgentSession,
-  PROMA_PERMISSION_MODE_CONFIG,
+  DUTYDECK_PERMISSION_MODE_CONFIG,
   THINKING_SIGNATURE_ERROR_CODE,
   THINKING_SIGNATURE_ERROR_MESSAGE,
   THINKING_SIGNATURE_ERROR_TITLE,
@@ -43,7 +43,7 @@ import {
   collectSkillActivations,
   mergeSkillActivations,
 } from '@dutydeck/shared'
-import type { PromaPermissionMode, AskUserRequest, ExitPlanModeRequest, SDKSystemMessage } from '@dutydeck/shared'
+import type { DutyDeckPermissionMode, AskUserRequest, ExitPlanModeRequest, SDKSystemMessage } from '@dutydeck/shared'
 import type { PiAgentQueryOptions } from './adapters/pi-agent-adapter'
 import { getLocalModelRuntime } from './local-model-runtime-singleton'
 import type { LocalModelLease } from './local-model-runtime'
@@ -370,7 +370,7 @@ export class AgentOrchestrator {
   private stoppedBeforeRunSessions = new Set<string>()
 
   /** 运行中会话的当前权限模式（支持运行时动态切换） */
-  private sessionPermissionModes = new Map<string, PromaPermissionMode>()
+  private sessionPermissionModes = new Map<string, DutyDeckPermissionMode>()
 
   constructor(adapter: AgentProviderAdapter, eventBus: AgentEventBus) {
     this.adapter = adapter
@@ -1387,7 +1387,7 @@ export class AgentOrchestrator {
         workspaceSlug,
         agentCwd,
         allowedRoots: browserAllowedRoots,
-        permissionMode: permissionModeOverride ?? sessionMeta?.permissionMode ?? PROMA_DEFAULT_PERMISSION_MODE,
+        permissionMode: permissionModeOverride ?? sessionMeta?.permissionMode ?? DUTYDECK_DEFAULT_PERMISSION_MODE,
         triggeredBy: input.triggeredBy,
         productivityTools,
         lastWindowsTerminalProfile: appSettings.lastWindowsTerminalProfile,
@@ -1647,8 +1647,8 @@ export class AgentOrchestrator {
 
       // 12. 读取应用设置并确定权限模式
       // 权限模式只属于当前 session；新会话默认完全自动模式。
-      const initialPermissionMode: PromaPermissionMode = permissionModeOverride
-        ?? PROMA_DEFAULT_PERMISSION_MODE
+      const initialPermissionMode: DutyDeckPermissionMode = permissionModeOverride
+        ?? DUTYDECK_DEFAULT_PERMISSION_MODE
       // 注册到 Map，支持运行中动态切换
       this.sessionPermissionModes.set(sessionId, initialPermissionMode)
       console.log(`[Agent 编排] 权限模式: ${initialPermissionMode}${permissionModeOverride ? '（外部覆盖）' : ''}`)
@@ -1667,7 +1667,7 @@ export class AgentOrchestrator {
       }
 
       /** 读取当前会话的实时权限模式（支持运行中切换） */
-      const getPermissionMode = (): PromaPermissionMode =>
+      const getPermissionMode = (): DutyDeckPermissionMode =>
         this.sessionPermissionModes.get(sessionId) ?? initialPermissionMode
 
       // ExitPlanMode 拦截器：plan 模式下走 UI 审批流程
@@ -3295,7 +3295,7 @@ export class AgentOrchestrator {
    * 同时更新 Proma 侧（canUseTool 闭包读取的 Map）和 SDK 侧（query.setPermissionMode）。
    * 典型场景：用户在 Agent 运行中通过 PermissionModeSelector 切换模式。
    */
-  async updateSessionPermissionMode(sessionId: string, mode: PromaPermissionMode): Promise<void> {
+  async updateSessionPermissionMode(sessionId: string, mode: DutyDeckPermissionMode): Promise<void> {
     if (!this.activeSessions.has(sessionId)) return
     this.sessionPermissionModes.set(sessionId, mode)
     this.eventBus.emit(sessionId, {

@@ -5,7 +5,7 @@ import type {
   AgentStreamErrorPayload,
   AgentStreamCompletePayload,
   AgentStreamSessionMeta,
-  PromaEvent,
+  DutyDeckEvent,
 } from '@dutydeck/shared'
 
 type AgentStreamCompletionPayloadDetails = Omit<
@@ -69,7 +69,7 @@ export function buildAuthoritativeAgentRunStartedEvent(
   sessionId: string,
   startedAt: number,
   getSession: (sessionId: string) => AgentSessionMeta | undefined,
-): Extract<PromaEvent, { type: 'run_started' }> {
+): Extract<DutyDeckEvent, { type: 'run_started' }> {
   return {
     type: 'run_started',
     startedAt,

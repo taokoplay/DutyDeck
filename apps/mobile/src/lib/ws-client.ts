@@ -3,6 +3,7 @@ import {
   LAN_BRIDGE_MIN_PROTOCOL_VERSION,
 } from '@dutydeck/shared'
 import type { LanBridgeConnectedPayload, LanBridgeErrorCode } from '@dutydeck/shared'
+import { removeStorage, STORAGE_KEYS } from '../utils/storage'
 
 export interface WSRequest {
   type: string
@@ -382,7 +383,7 @@ const defaultClient = createWsClient({
   clear: timeoutId => clearTimeout(timeoutId as ReturnType<typeof setTimeout>),
   random: () => Math.random(),
   authExpired: () => {
-    localStorage.removeItem('proma_mobile_token')
+    removeStorage(STORAGE_KEYS.token)
     window.dispatchEvent(new CustomEvent('proma:auth-expired'))
   },
 })

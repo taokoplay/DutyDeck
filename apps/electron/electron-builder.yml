@@ -103,11 +103,6 @@ extraResources:
     to: dutydeck-logos
     filter:
       - "**/*"
-  # 上游 Proma 品牌 Logo 素材（Dock 图标变体与机器人头像功能仍在使用，待替换）
-  - from: resources/proma-logos
-    to: proma-logos
-    filter:
-      - "**/*"
   # LAN Bridge 移动端前端（由 CI 在 electron:build 前构建）
   - from: ../../apps/mobile/dist
     to: mobile-dist

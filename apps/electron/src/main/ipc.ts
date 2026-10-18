@@ -61,7 +61,7 @@ import {
 import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createHash, randomUUID } from 'node:crypto'
-import { IPC_CHANNELS, CHANNEL_IPC_CHANNELS, CHAT_IPC_CHANNELS, AGENT_IPC_CHANNELS, AGENT_ISLAND_IPC_CHANNELS, ENVIRONMENT_IPC_CHANNELS, INSTALLER_IPC_CHANNELS, PROXY_IPC_CHANNELS, GITHUB_RELEASE_IPC_CHANNELS, SYSTEM_PROMPT_IPC_CHANNELS, CHAT_TOOL_IPC_CHANNELS, FEISHU_IPC_CHANNELS, DINGTALK_IPC_CHANNELS, SLACK_IPC_CHANNELS, WECHAT_IPC_CHANNELS, AUTOMATION_IPC_CHANNELS, PLANNING_IPC_CHANNELS, VAULT_IPC_CHANNELS, PLANNING_CONFLICT_ERROR, MAX_ATTACHMENT_SIZE, CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS, isPromaPermissionMode, isAgentToolMode, normalizePathForCompare, removeMcpServerFromConfig, TERMINAL_IPC_CHANNELS } from '@dutydeck/shared'
+import { IPC_CHANNELS, CHANNEL_IPC_CHANNELS, CHAT_IPC_CHANNELS, AGENT_IPC_CHANNELS, AGENT_ISLAND_IPC_CHANNELS, ENVIRONMENT_IPC_CHANNELS, INSTALLER_IPC_CHANNELS, PROXY_IPC_CHANNELS, GITHUB_RELEASE_IPC_CHANNELS, SYSTEM_PROMPT_IPC_CHANNELS, CHAT_TOOL_IPC_CHANNELS, FEISHU_IPC_CHANNELS, DINGTALK_IPC_CHANNELS, SLACK_IPC_CHANNELS, WECHAT_IPC_CHANNELS, AUTOMATION_IPC_CHANNELS, PLANNING_IPC_CHANNELS, VAULT_IPC_CHANNELS, PLANNING_CONFLICT_ERROR, MAX_ATTACHMENT_SIZE, CANVAS_IPC_CHANNELS, DESIGN_IPC_CHANNELS, isDutyDeckPermissionMode, isAgentToolMode, normalizePathForCompare, removeMcpServerFromConfig, TERMINAL_IPC_CHANNELS } from '@dutydeck/shared'
 import { USER_PROFILE_IPC_CHANNELS, SETTINGS_IPC_CHANNELS, SCRATCH_PAD_IPC_CHANNELS, QUICK_TASK_IPC_CHANNELS, VOICE_DICTATION_IPC_CHANNELS, APP_ICON_IPC_CHANNELS, DOCK_BADGE_IPC_CHANNELS, STORAGE_IPC_CHANNELS, WINDOWS_AGENT_ISLAND_IPC_CHANNELS, TRAY_IPC_CHANNELS } from '../types'
 import { buildCanvasGenerationModelOptions, isCanvasMediaModelAllowed } from '@dutydeck/shared'
 import type {
@@ -134,7 +134,7 @@ import type {
   GitHubRelease,
   GitHubReleaseListOptions,
   PermissionResponse,
-  PromaPermissionMode,
+  DutyDeckPermissionMode,
   AskUserResponse,
   ExitPlanModeResponse,
   SystemPromptConfig,
@@ -410,6 +410,7 @@ import {
 import { extractTextFromAttachment } from './lib/document-parser'
 import { getUserProfile, updateUserProfile } from './lib/user-profile-service'
 import { getSettings, updateSettings } from './lib/settings-service'
+import { resolveDutyDeckAppIconPath } from './lib/app-icon-path'
 import { refreshAgentIslandConfiguration, markAgentIslandSessionViewed } from './lib/agent-island-service'
 import { getAgentStatusHoverWindow } from './agent-status-hover-window'
 import { setBuiltinMcpUserEnabled } from './lib/builtin-mcp/settings'
@@ -2222,10 +2223,7 @@ function cacheNull(key: string): null {
  */
 export function resolveAppIconPath(variantId: string): string | null {
   const resourcesDir = getBundledResourcesDir()
-  if (!variantId || variantId === 'default') {
-    return join(resourcesDir, 'icon.png')
-  }
-  return join(resourcesDir, 'proma-logos', `proma-${variantId}.png`)
+  return resolveDutyDeckAppIconPath(resourcesDir, variantId)
 }
 
 function releaseDirectoryWatcherIfUnreferenced(dirPath: string): void {
@@ -5453,46 +5451,6 @@ export function registerIpcHandlers(): void {
     }
   )
 
-  // 保存应用内置资源文件到用户选择的位置（原生 Save As 对话框）
-  ipcMain.handle(
-    CHAT_IPC_CHANNELS.SAVE_RESOURCE_FILE_AS,
-    async (event, resourceRelativePath: string, defaultFilename: string): Promise<boolean> => {
-      const { dialog, BrowserWindow } = await import('electron')
-      const { writeFileSync, readFileSync, existsSync } = await import('node:fs')
-      const { join, normalize, sep, extname: pathExtname } = await import('node:path')
-
-      // 解析到应用内置 resources 目录（dev 用 __dirname/resources，prod 用 process.resourcesPath）
-      const resourcesDir = normalize(getBundledResourcesDir())
-      const fullPath = normalize(join(resourcesDir, resourceRelativePath))
-
-      // 安全校验：防止路径穿越（追加 sep 防止 resources-evil 绕过）
-      if (!fullPath.startsWith(resourcesDir + sep)) {
-        throw new Error('Path traversal not allowed')
-      }
-      if (!existsSync(fullPath)) {
-        throw new Error(`Resource not found: ${resourceRelativePath}`)
-      }
-
-      const win = BrowserWindow.fromWebContents(event.sender)
-      const ext = pathExtname(defaultFilename).replace('.', '').toLowerCase()
-      const filterMap: Record<string, string> = { jpg: 'JPEG', jpeg: 'JPEG', png: 'PNG', gif: 'GIF', webp: 'WebP' }
-      const filterName = filterMap[ext] ?? 'Image'
-
-      const result = await dialog.showSaveDialog(win ?? BrowserWindow.getFocusedWindow()!, {
-        defaultPath: defaultFilename,
-        filters: [
-          { name: `${filterName} 图片`, extensions: [ext || 'png'] },
-          { name: '所有文件', extensions: ['*'] },
-        ],
-      })
-
-      if (result.canceled || !result.filePath) return false
-
-      writeFileSync(result.filePath, readFileSync(fullPath))
-      return true
-    }
-  )
-
   // 删除附件
   ipcMain.handle(
     CHAT_IPC_CHANNELS.DELETE_ATTACHMENT,
@@ -7037,8 +6995,8 @@ export function registerIpcHandlers(): void {
   // 热切换指定会话的权限模式（运行中生效，不广播）
   ipcMain.handle(
     AGENT_IPC_CHANNELS.UPDATE_SESSION_PERMISSION_MODE,
-    async (_, sessionId: string, mode: PromaPermissionMode): Promise<void> => {
-      if (!isPromaPermissionMode(mode)) {
+    async (_, sessionId: string, mode: DutyDeckPermissionMode): Promise<void> => {
+      if (!isDutyDeckPermissionMode(mode)) {
         throw new Error(`无效的权限模式: ${mode}`)
       }
       // 会话不存在时直接抛错（避免 updateAgentSessionMeta 的通用异常被降级为 warn）

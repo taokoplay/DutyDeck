@@ -69,6 +69,6 @@ describe('移动端配对表单可访问性', () => {
     expect(markup).toContain('正在验证扫码连接')
     expect(markup).toContain('二维码已失效')
     expect(markup).toContain('id="auth-pin"')
-    expect(markup).toContain('aria-label="连接到桌面 Proma"')
+    expect(markup).toContain('aria-label="连接到桌面 DutyDeck"')
   })
 })

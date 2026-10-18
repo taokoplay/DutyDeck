@@ -30,7 +30,7 @@ DutyDeck is not about adding more features; it is about merging scattered mainte
 - **One client instead of a row of tools**: terminal, database client, API tooling, log panels, and file transfer live in the same window — one less context rebuild per tool switch.
 - **The Agent gets real context**: it can see the server, database, request, or canvas you are looking at, instead of waiting for you to copy the screen into the chat.
 - **Dangerous actions stop in front of you**: read-only by default, writes either emit a script or go through a per-item approval card, and credentials are encrypted locally so the Agent cannot take them for you.
-- **Data stays on your machine**: conversations, workspaces, settings, and Skills live as JSON / JSONL under `~/.proma/`, canvas data travels with the project directory, and there is no local database.
+- **Data stays on your machine**: new conversations, workspaces, settings, and Skills live as JSON / JSONL under `~/.DutyDeck/`, canvas data travels with the project directory, and there is no local database.
 - **Standing on Proma's shoulders**: Chat, Agent, workspaces, Skills, and MCP keep following upstream, extensions are added on top, and upstream fixes still merge in.
 
 ## Our Own Extensions
@@ -89,7 +89,9 @@ Everything else comes from upstream Proma and is maintained here:
 - **Workspaces and project instructions**: each project configures its own Skills and MCP servers, projects can declare trusted instructions via `AGENTS.md`, and legacy `CLAUDE.md` files are auto-migrated.
 - **Collaboration and tools**: collaboration sub-agents and tasks, an in-app managed browser, web search, and workspace memory with refresh prompts.
 - **Remote and desktop**: Lark / Feishu bot bridging (with DingTalk and WeChat entry points), auto-update, proxy settings, file preview, global shortcuts, quick tasks, voice input, and light / dark themes.
-- **Local-first data**: conversations, workspaces, attachments, settings, and Skills live under `~/.proma/` as JSON / JSONL files, without a local database.
+- **Local-first data**: conversations, workspaces, attachments, settings, and Skills live under `~/.DutyDeck/` as JSON / JSONL files, without a local database.
+
+When upgrading from Proma, DutyDeck detects `~/.proma/` and project-level `.proma/` read-only, then migrates them to `~/.DutyDeck/` after confirmation; the old directory is not deleted before migration. The `proma` CLI, `PROMA_*` environment variables, and historical protocol values remain as compatibility entry points.
 
 Usage is identical to Proma, so this repository does not repeat the tutorial:
 

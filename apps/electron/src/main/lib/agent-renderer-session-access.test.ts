@@ -15,7 +15,7 @@ const PURE_VALIDATION_CALLS = new Set([
   'Object.keys',
   'String',
   'Math.min',
-  'isPromaPermissionMode',
+  'isDutyDeckPermissionMode',
   'normalizeFileAccessOptions',
   'validThinkingLevels.includes',
 ])
@@ -249,7 +249,6 @@ const RENDERER_HANDLER_POLICIES: Record<FullChannelKey, RendererHandlerPolicy> =
     'READ_ATTACHMENT',
     'SAVE_ATTACHMENT',
     'SAVE_IMAGE_AS',
-    'SAVE_RESOURCE_FILE_AS',
     'SEARCH_MESSAGES',
     'SEARCH_SESSION_MESSAGES',
     'SEND_MESSAGE',
@@ -404,9 +403,14 @@ const RENDERER_HANDLER_POLICIES: Record<FullChannelKey, RendererHandlerPolicy> =
     'TEST_CONNECTION',
   ], { kind: 'exempt', reason: EXEMPT_REASONS.SLACK_IPC_CHANNELS }),
   ...defineRendererHandlerPolicies('STORAGE_IPC_CHANNELS', [
+    'SCAN_OVERVIEW',
     'CLEANUP',
     'CLEANUP_TEMP',
     'GET_STATS',
+    'PREVIEW_CLEANUP',
+    'EXECUTE_CLEANUP',
+    'OPEN_SESSION_WORKSPACE',
+    'GET_SESSION_WORKSPACE_TARGET',
   ], { kind: 'exempt', reason: EXEMPT_REASONS.STORAGE_IPC_CHANNELS }),
   ...defineRendererHandlerPolicies('SYSTEM_PROMPT_IPC_CHANNELS', [
     'CREATE',
@@ -1409,10 +1413,10 @@ describe('普通 Renderer Agent IPC 会话访问矩阵', () => {
       ['FileMentionSuggestion', readFileSync(join(electronRoot, 'renderer/components/file-browser/file-mention-suggestion.tsx'), 'utf8')],
     ])
 
-    expect(preloadSource).toMatch(/checkPathsType:\s*\(paths: string\[\], access\?: import\('@proma\/shared'\)\.FileAccessOptions\)/)
-    expect(preloadSource).toMatch(/searchWorkspaceFiles:[\s\S]*sessionPaths\?: string\[\],[\s\S]*access\?: import\('@proma\/shared'\)\.FileAccessOptions/)
-    expect(preloadSource).toMatch(/showItemInFolder:\s*\(filePath: string, access\?: import\('@proma\/shared'\)\.FileAccessOptions\)/)
-    expect(preloadSource).toMatch(/getGitRepoStatus:\s*\(dirPath: string, access\?: import\('@proma\/shared'\)\.FileAccessOptions\)/)
+    expect(preloadSource).toMatch(/checkPathsType:\s*\(paths: string\[\], access\?: import\('@dutydeck\/shared'\)\.FileAccessOptions\)/)
+    expect(preloadSource).toMatch(/searchWorkspaceFiles:[\s\S]*sessionPaths\?: string\[\],[\s\S]*access\?: import\('@dutydeck\/shared'\)\.FileAccessOptions/)
+    expect(preloadSource).toMatch(/showItemInFolder:\s*\(filePath: string, access\?: import\('@dutydeck\/shared'\)\.FileAccessOptions\)/)
+    expect(preloadSource).toMatch(/getGitRepoStatus:\s*\(dirPath: string, access\?: import\('@dutydeck\/shared'\)\.FileAccessOptions\)/)
     expect(preloadSource).toMatch(/GET_GIT_REPO_STATUS, dirPath, access/)
     expect(sourceByPath.get('AgentView')).toMatch(/checkPathsType\(paths,\s*\{\s*sessionId\s*\}\)/)
     expect(sourceByPath.get('FileDropZone')).toMatch(/const access = sessionId \? \{ sessionId, workspaceSlug \} : \{ workspaceSlug \}/)
@@ -1425,7 +1429,7 @@ describe('普通 Renderer Agent IPC 会话访问矩阵', () => {
     expect(sourceByPath.get('FilePathChip')).toMatch(/resolveAuthorizedFilePath\(filePath,\s*\{\s*sessionId,\s*[\s\S]*candidateBasePaths:/)
     expect(sourceByPath.get('FilePathChip')).not.toContain('resolveFilePath(cleanPath')
     expect(sourceByPath.get('WorkspaceMemoryTab')).toMatch(/showItemInFolder\(summary\.agentsMd\.path,\s*\{\s*workspaceSlug\s*\}\)/)
-    expect(sourceByPath.get('WorkspaceMemoryTab')).toMatch(/showItemInFolder\(autoMemoryPath\(summary, path\),\s*\{\s*workspaceSlug\s*\}\)/)
+    expect(sourceByPath.get('WorkspaceMemoryTab')).toMatch(/showItemInFolder\(autoMemoryPath\(summary, file\.relativePath\),\s*\{\s*workspaceSlug\s*\}\)/)
     expect(sourceByPath.get('AgentSkillsView')).toMatch(/openFile\(`\$\{data\.skillsDir\}\/\$\{slug\}`,\s*\{\s*workspaceSlug:\s*data\.workspaceSlug\s*\}\)/)
     expect(sourceByPath.get('GlobalAgentListeners')).toMatch(/getGitRepoStatus\(dirPath,\s*\{\s*sessionId:\s*sid\s*\}\)/)
     expect(sourceByPath.get('FileSearchBar')).toContain("toast.error('文件搜索不可用'")
@@ -1440,7 +1444,7 @@ describe('普通 Renderer Agent IPC 会话访问矩阵', () => {
     )
     /** 仅截取会话引用插入方法，避免其它插入命令干扰断言。 */
     const start = source.indexOf('    insertSessionMention(item: SessionReferenceDragItem): boolean {')
-    const end = source.indexOf('    insertAgentHistoryQuoteMention(', start)
+    const end = source.indexOf('    insertServerOpsReference(', start)
     const body = source.slice(start, end)
 
     expect(start).toBeGreaterThan(-1)

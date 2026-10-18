@@ -5,9 +5,9 @@
  * - agent: Agent 模式（原 Flow）
  */
 
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithDutyDeckStorage } from '../lib/legacy-storage'
 
 export type AppMode = 'chat' | 'agent'
 
 /** App 模式，自动持久化到 localStorage */
-export const appModeAtom = atomWithStorage<AppMode>('proma-app-mode', 'agent')
+export const appModeAtom = atomWithDutyDeckStorage<AppMode>('dutydeck-app-mode', 'agent')

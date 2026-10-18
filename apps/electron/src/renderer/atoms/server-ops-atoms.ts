@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithDutyDeckStorage } from '../lib/legacy-storage'
 import type { ServerOpsAgentAccess, ServerOpsAgentAccessTarget, ServerOpsConnectionState, ServerOpsDataSource, ServerOpsHost, ServerOpsProject } from '@dutydeck/shared'
 import type { ServerOpsProjectsStatus } from '@/components/server-ops/server-ops-project-controller'
 import type { ServerOpsDataSourcesStatus } from '@/components/server-ops/server-ops-data-source-list-controller'
@@ -49,8 +49,8 @@ export const serverOpsProjectsAtom = atom<ServerOpsProject[]>([])
 export const serverOpsProjectsErrorAtom = atom<string | null>(null)
 
 /** 用户最后选择的项目 ID；跨 Agent 会话和应用重启保留。 */
-export const selectedServerOpsProjectIdAtom = atomWithStorage<string | null>(
-  'proma-server-ops-selected-project-id',
+export const selectedServerOpsProjectIdAtom = atomWithDutyDeckStorage<string | null>(
+  'dutydeck-server-ops-selected-project-id',
   null,
   undefined,
   { getOnInit: true },
@@ -66,8 +66,8 @@ export const serverOpsDataSourcesAtom = atom<ServerOpsDataSource[]>([])
 export const serverOpsDataSourcesErrorAtom = atom<string | null>(null)
 
 /** 用户最后选择的连接 ID（`ssh:<hostId>` 或 `data:<sourceId>`）；跨会话保留。 */
-export const selectedServerOpsConnectionIdAtom = atomWithStorage<string | null>(
-  'proma-server-ops-selected-connection-id',
+export const selectedServerOpsConnectionIdAtom = atomWithDutyDeckStorage<string | null>(
+  'dutydeck-server-ops-selected-connection-id',
   null,
   undefined,
   { getOnInit: true },

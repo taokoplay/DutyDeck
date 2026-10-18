@@ -3,7 +3,7 @@
  * 静态提示词只保留 Proma 独有、且未由运行时或工具 schema 强制的行为契约。
  */
 
-import type { PromaPermissionMode, SessionWorkbenchLayout } from '@dutydeck/shared'
+import type { DutyDeckPermissionMode, SessionWorkbenchLayout } from '@dutydeck/shared'
 import { lstatSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { getUserProfile } from './user-profile-service'
@@ -32,7 +32,7 @@ interface SystemPromptContext {
   agentCwd?: string
   /** 会话私有工作台布局；缺失时按历史 `.context/` 兼容。 */
   sessionWorkbenchLayout?: SessionWorkbenchLayout
-  permissionMode: PromaPermissionMode
+  permissionMode: DutyDeckPermissionMode
   collaborationAvailable?: boolean
   /** 本轮具备运维能力时注入数据库脚本交付约束，不增加任何执行权限。 */
   serverOpsAvailable?: boolean

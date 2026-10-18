@@ -114,9 +114,6 @@ import XiaomiLogo from '@/assets/models/xiaomi.png'
 // 即梦 / Dreamina（字节官方图标）
 import JimengLogo from '@/assets/models/jimeng.png'
 
-// Proma
-import PromaLogo from '@/assets/models/proma.png'
-
 // Cohere
 import CohereLogo from '@/assets/models/cohere.png'
 import CohereDarkLogo from '@/assets/models/cohere_dark.png'
@@ -336,7 +333,7 @@ export function getJimengLogo(): string {
  * 服务（常以 /anthropic 结尾）不应被误判为 Claude（见 #659）。
  */
 const URL_LOGO_MAP: Array<[RegExp, string]> = [
-  [/proma\.cool/i, PromaLogo],
+  // 旧 Proma provider 仍可连接，但不再展示上游品牌图标。
   [/moonshot\.cn|kimi/i, KimiLogo],
   [/bigmodel\.cn|zhipuai/i, ZhipuLogo],
   [/minimax/i, MiniMaxLogo],
@@ -416,4 +413,4 @@ export function resolveModelProvider(modelId: string, channels: import('@dutydec
 }
 
 /** 默认模型图标 */
-export { DefaultLogo, PromaLogo }
+export { DefaultLogo }
