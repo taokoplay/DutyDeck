@@ -214,6 +214,10 @@ export interface RichTextInputHandle {
   insertAgentHistoryQuoteMention: (quote: QuotedSelection) => boolean
   /** 在光标处插入文件或 Vault 的选区引用 chip；可重复插入、多条并存。 */
   insertQuotedSelectionMention: (quote: QuotedSelection) => boolean
+  /** 在消息最前面切换一个模块引用 chip；返回切换后的选中状态。 */
+  toggleModuleMention: (mention: { id: string; label: string }) => boolean
+  /** 读取当前草稿中按出现顺序排列的模块引用。 */
+  getModuleMentionIds: () => string[]
 }
 
 /**
@@ -591,10 +595,10 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
                 default: null,
                 parseHTML: (el: HTMLElement) => {
                   const value = el.getAttribute('data-mention-reference-type')
-                  return value === 'todo' || value === 'calendar_event' || value === 'server_ops' || value === 'media_model' ? value : null
+                  return value === 'module' || value === 'todo' || value === 'calendar_event' || value === 'server_ops' || value === 'media_model' ? value : null
                 },
                 renderHTML: (attrs: Record<string, unknown>) => (
-                    attrs.referenceType === 'todo' || attrs.referenceType === 'calendar_event' || attrs.referenceType === 'server_ops' || attrs.referenceType === 'media_model'
+                    attrs.referenceType === 'module' || attrs.referenceType === 'todo' || attrs.referenceType === 'calendar_event' || attrs.referenceType === 'server_ops' || attrs.referenceType === 'media_model'
                     ? { 'data-mention-reference-type': attrs.referenceType }
                     : {}
                 ),
@@ -635,6 +639,8 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
             const quotePayload = node.attrs.agentHistoryQuote
             return typeof quotePayload === 'string' && quotePayload.length > 0
               ? label
+              : node.attrs.referenceType === 'module'
+                ? `/module:${node.attrs.id}`
               : `${char}${label}`
           },
           renderHTML({ node, suggestion }) {
@@ -651,6 +657,7 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
             const isNavigableHistoryQuote = quotedSelection?.sourceType === 'agent-history'
             let chipClass = isDirectory ? 'directory-mention-chip' : 'mention-chip'
             if (quotePayload) chipClass = 'agent-history-quote-chip'
+            else if (referenceType === 'module') chipClass = 'module-mention-chip'
             else if (referenceType === 'todo') chipClass = 'todo-mention-chip'
             else if (referenceType === 'calendar_event') chipClass = 'calendar-event-mention-chip'
             else if (referenceType === 'server_ops') chipClass = 'server-ops-mention-chip'
@@ -665,7 +672,7 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
                 'data-id': node.attrs.id,
                 'data-label': node.attrs.label,
                 'data-mention-suggestion-char': char,
-                ...(referenceType === 'todo' || referenceType === 'calendar_event' || referenceType === 'server_ops' || referenceType === 'media_model'
+                ...(referenceType === 'module' || referenceType === 'todo' || referenceType === 'calendar_event' || referenceType === 'server_ops' || referenceType === 'media_model'
                   ? { 'data-mention-reference-type': referenceType }
                   : {}),
                 ...(quotePayload ? { 'data-mention-quote': quotePayload } : {}),
@@ -952,6 +959,70 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
   }, [richTextEnabled])
   editorRef.current = editor
 
+  /** 读取编辑器中模块 chip 的顺序；模块引用只属于当前草稿，不写入 Session 策略。 */
+  const getModuleMentionIds = useCallback((): string[] => {
+    if (!editor || editor.isDestroyed) return []
+    const ids: string[] = []
+    editor.state.doc.descendants((node) => {
+      if (node.type.name !== 'mention' || node.attrs.referenceType !== 'module') return
+      const id = typeof node.attrs.id === 'string' ? node.attrs.id : ''
+      if (id && !ids.includes(id)) ids.push(id)
+    })
+    return ids
+  }, [editor])
+
+  /** 在第一段最前面重排模块 chip，避免模块标记混入用户正文中间。 */
+  const toggleModuleMention = useCallback((mention: { id: string; label: string }): boolean => {
+    if (!editor || editor.isDestroyed || !editor.isEditable) return false
+
+    const currentIds = getModuleMentionIds()
+    const isSelected = currentIds.includes(mention.id)
+    const nextIds = isSelected
+      ? currentIds.filter((id) => id !== mention.id)
+      : [...currentIds, mention.id]
+    const labels = new Map<string, string>()
+    editor.state.doc.descendants((node) => {
+      if (node.type.name !== 'mention' || node.attrs.referenceType !== 'module') return
+      const id = typeof node.attrs.id === 'string' ? node.attrs.id : ''
+      const label = typeof node.attrs.label === 'string' ? node.attrs.label : id
+      if (id && label) labels.set(id, label)
+    })
+    labels.set(mention.id, mention.label)
+
+    const ranges: Array<{ from: number; to: number }> = []
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name !== 'mention' || node.attrs.referenceType !== 'module') return
+      const end = pos + node.nodeSize
+      const hasTrailingSpace = editor.state.doc.textBetween(end, end + 1, '', '') === ' '
+      ranges.push({ from: pos, to: end + (hasTrailingSpace ? 1 : 0) })
+    })
+    if (ranges.length > 0) {
+      const transaction = editor.state.tr
+      for (const range of ranges.reverse()) transaction.delete(range.from, range.to)
+      editor.view.dispatch(transaction)
+    }
+
+    if (nextIds.length > 0) {
+      const content = nextIds.flatMap((id) => [
+        {
+          type: 'mention',
+          attrs: {
+            id,
+            label: labels.get(id) ?? id,
+            mentionSuggestionChar: '/',
+            referenceType: 'module',
+          },
+        },
+        { type: 'text', text: ' ' },
+      ])
+      editor.chain().focus().setTextSelection(1).insertContent(content).run()
+    } else {
+      editor.commands.focus('start')
+    }
+    flushPendingDraftSync(editor)
+    return !isSelected
+  }, [editor, flushPendingDraftSync, getModuleMentionIds])
+
   // 卸载时取消未触发的行数检查和草稿同步；同步最后一笔输入，避免快速切换会话丢草稿。
   useEffect(() => {
     return () => {
@@ -1181,7 +1252,9 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
         .run()
       return true
     },
-  }), [editor, flushPendingDraftSync])
+    toggleModuleMention,
+    getModuleMentionIds,
+  }), [editor, flushPendingDraftSync, getModuleMentionIds, toggleModuleMention])
 
   // 将预览范围映射到每次用户编辑后的文档位置，避免流式更新覆盖邻近输入。
   useEffect(() => {
@@ -1431,6 +1504,30 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
           height: 12px;
           background-color: currentColor;
           mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z'/%3E%3C/svg%3E");
+          mask-size: contain;
+          mask-repeat: no-repeat;
+          flex-shrink: 0;
+        }
+        .module-mention-chip {
+          background-color: hsl(215 75% 55% / 0.15);
+          color: hsl(215 75% 45%);
+          border-radius: 4px;
+          padding: 1px 4px 1px 2px;
+          font-size: 13px;
+          font-weight: 500;
+          white-space: nowrap;
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+          vertical-align: baseline;
+        }
+        .module-mention-chip::before {
+          content: '';
+          display: inline-block;
+          width: 12px;
+          height: 12px;
+          background-color: currentColor;
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='7' height='7' x='3' y='3' rx='1'/%3E%3Crect width='7' height='7' x='14' y='3' rx='1'/%3E%3Crect width='7' height='7' x='3' y='14' rx='1'/%3E%3Crect width='7' height='7' x='14' y='14' rx='1'/%3E%3C/svg%3E");
           mask-size: contain;
           mask-repeat: no-repeat;
           flex-shrink: 0;

@@ -2,6 +2,7 @@ import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from 'jotai'
 import { AgentModuleBar } from '../src/renderer/components/agent/AgentModuleBar'
+import { RichTextInput, type RichTextInputHandle } from '../src/renderer/components/ai-elements/rich-text-input'
 import { AgentModuleCommandReceipt } from '../src/renderer/components/agent/AgentModuleCommandReceipt'
 import { AgentRunRecoveryNotice } from '../src/renderer/components/agent/AgentRunRecoveryNotice'
 import { AgentStatusBar } from '../src/renderer/components/agent/AgentStatusBar'
@@ -16,6 +17,9 @@ function ModuleSmokeApp(): React.ReactElement {
   const [result, setResult] = React.useState('')
   const [submissions, setSubmissions] = React.useState(0)
   const [running, setRunning] = React.useState(false)
+  /** 真实富文本编辑器承接底部模块入口，验证多选 chip 与发送协议一致。 */
+  const messageInputRef = React.useRef<RichTextInputHandle>(null)
+  const [messageDraft, setMessageDraft] = React.useState('')
   /** 通过正式输入解析器和 preload 提交模块命令，不模拟 renderer API。 */
   const submit = async (): Promise<void> => {
     try {
@@ -40,6 +44,19 @@ function ModuleSmokeApp(): React.ReactElement {
     <output data-testid="session-id">{sessionId}</output>
     <output data-testid="submit-result" data-count={submissions}>{result}</output>
     <AgentModuleBar sessionId={sessionId} />
+    <div data-testid="module-message-fixture" className="mt-3 rounded-md border p-2">
+      <RichTextInput
+        ref={messageInputRef}
+        sessionId="smoke-message"
+        value={messageDraft}
+        onChange={setMessageDraft}
+        enableMentions
+        workspaceSlug="smoke"
+        placeholder="消息模块"
+      />
+      <AgentModuleBar sessionId="smoke-message" messageMode inputRef={messageInputRef} />
+      <output data-testid="message-draft">{messageDraft}</output>
+    </div>
     <AgentModuleCommandReceipt sessionId={sessionId} />
     <AgentRunRecoveryNotice sessionId={sessionId} running={running} />
     <div data-testid="idle-status-fixture"><AgentStatusBar

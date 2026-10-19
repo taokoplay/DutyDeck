@@ -89,6 +89,7 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
   const policies = new Map<string, AgentSessionModulePolicy>([
     ['smoke-a', normalizeAgentSessionModulePolicy(undefined)],
     ['smoke-b', buildNextSessionModulePolicy(undefined, { mode: 'available', enabledModuleIds: ['browser'], disabledModuleIds: ['canvas'] })],
+    ['smoke-message', normalizeAgentSessionModulePolicy(undefined)],
   ])
   const policyReads: string[] = []
   const getPolicy = (sessionId: string): AgentSessionModulePolicy => {
@@ -192,6 +193,17 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
     await clickText(window, '重试模块加载')
     await clickText(window, '重试模块目录')
     await waitFor(window, `document.querySelectorAll('article').length===6 && !document.querySelector('[aria-label="正在加载模块"]')`)
+    await click(window, '[data-testid="module-message-fixture"] [aria-label="选择模块"]')
+    await waitFor(window, `document.querySelector('[data-module-id="canvas"]')`)
+    await click(window, '[data-module-id="canvas"]')
+    await click(window, '[data-module-id="browser"]')
+    await waitFor(window, `document.querySelectorAll('[data-testid="module-message-fixture"] [data-mention-reference-type="module"]').length===2`)
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[data-testid="message-draft"]')?.textContent`), '/module:canvas /module:browser')
+    await click(window, '[data-module-id="canvas"]')
+    await waitFor(window, `document.querySelectorAll('[data-testid="module-message-fixture"] [data-mention-reference-type="module"]').length===1`)
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[data-testid="message-draft"]')?.textContent`), '/module:browser')
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
     await clickText(window, '画布')
     await waitFor(window, `document.querySelector('[data-testid="agent-module-bar"] button')?.getAttribute('aria-pressed')==='true'`)
     assert.deepEqual(getPolicy('smoke-a').enabledModuleIds, ['canvas'])

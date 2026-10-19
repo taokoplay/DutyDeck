@@ -12,6 +12,16 @@ const module: AgentModuleManifest = {
 }
 
 describe('Agent 会话模块栏', () => {
+  test('消息模式只渲染底部选择入口，不恢复输入框上方模块行', () => {
+    const store = createStore()
+    store.set(agentModulesAtom, [module])
+    const html = renderToStaticMarkup(<Provider store={store}><AgentModuleBar sessionId="message" messageMode inputRef={{ current: null }} /></Provider>)
+    expect(html).toContain('data-testid="agent-module-picker"')
+    expect(html).toContain('aria-label="选择模块"')
+    expect(html).not.toContain('data-testid="agent-module-bar"')
+    expect(html).not.toContain('>模块</span>')
+  })
+
   test('Given 少量模块或目录不可用 When 渲染 Then 仍保留更多入口且不常驻调用记录', () => {
     /** 调用记录的可达性不依赖模块数量和目录读取成功。 */
     const store = createStore()

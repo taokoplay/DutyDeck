@@ -165,17 +165,18 @@ describe('markdownToHtml rich preview blocks', () => {
 })
 
 describe('Agent mention serialization', () => {
-  test('preserves the existing file, Skill, MCP, and session reference protocols', () => {
+  test('preserves the existing file, module, Skill, MCP, and session reference protocols', () => {
     const markdown = withHtmlDocument(() => htmlToMarkdown([
       '<p>',
       '<span data-type="mention" data-id="notes/brief.md" data-mention-suggestion-char="@">brief.md</span> ',
+      '<span data-type="mention" data-id="canvas" data-label="画布" data-mention-reference-type="module" data-mention-suggestion-char="/">画布</span> ',
       '<span data-type="mention" data-id="brainstorming" data-mention-suggestion-char="/">brainstorming</span> ',
       '<span data-type="mention" data-id="playwright" data-mention-suggestion-char="#">playwright</span> ',
       '<span data-type="mention" data-id="session-123" data-mention-suggestion-char="&">Current session</span>',
       '</p>',
     ].join('')))
 
-    expect(markdown).toBe('@file:notes%2Fbrief.md /skill:brainstorming #mcp:playwright &session:session-123')
+    expect(markdown).toBe('@file:notes%2Fbrief.md /module:canvas /skill:brainstorming #mcp:playwright &session:session-123')
   })
 
   test('encodes file mention paths containing spaces so @file: regex does not truncate them', () => {

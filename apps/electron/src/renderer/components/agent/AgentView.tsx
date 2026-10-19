@@ -3164,6 +3164,15 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   const canSend = !isStopping && messagesLoaded && (streaming || !messagesRefreshing) && (hasTextInput || pendingFiles.length > 0 || !!suggestion || canvasNodeReferences.length > 0 || visualProductionReferences.length > 0) && agentChannelId !== null && hasAvailableModel && (!streaming || hasTextInput || canvasNodeReferences.length > 0 || visualProductionReferences.length > 0)
 
   const inputToolbarItems = React.useMemo<ToolbarItem[]>(() => [
+    {
+      key: 'modules',
+      node: <AgentModuleBar
+        sessionId={sessionId}
+        disabled={isComposerDisabled || isStopping}
+        messageMode
+        inputRef={richTextInputRef}
+      />,
+    },
     ...(isCodexFastModeAvailable ? [{
       key: 'codex-fast-mode',
       node: (
@@ -3252,6 +3261,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     updateReasoningLevel,
     backgroundWaiting,
     sessionId,
+    isComposerDisabled,
+    isStopping,
+    richTextInputRef,
     agentThinking,
     setAgentThinking,
     streaming,
@@ -3437,7 +3449,6 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             onDrop={handleDrop}
           >
             {(isPlanMode || isPermissionPlanMode) && !isDragOver && <PlanModeDashedBorder />}
-            <AgentModuleBar sessionId={sessionId} disabled={isComposerDisabled || isStopping} />
             {isLegacyTranscript && (
               <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
                 <span>这是已退役 Claude runtime 的只读历史会话；原对话可查看，但不能继续、分叉或回退。</span>
