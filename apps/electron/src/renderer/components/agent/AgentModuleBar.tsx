@@ -134,7 +134,7 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
             >
               <Icon className="size-3.5 shrink-0" />
               <span className="min-w-0 flex-1 truncate">{module.displayName}</span>
-              {pinned && <span className="text-[10px] text-primary">固定</span>}
+              {pinned && !messageMode && <span className="text-[10px] text-primary">固定</span>}
               {active && <Check className="size-3.5 text-primary" aria-label="已选择" />}
             </button>
           )

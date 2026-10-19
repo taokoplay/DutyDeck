@@ -139,7 +139,6 @@ import { browserController } from './browser-controller'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
 import { getAgentSessionModulePolicy } from './agent-modules/module-policy-store'
 import { resolveActiveModuleContext } from './agent-modules/module-skill-resolver'
-import type { ResolvedAgentModuleContext } from './agent-modules/module-skill-resolver'
 import { tagModuleSkillActivations, projectModuleAuditSkills } from './agent-modules/module-run-audit'
 import { createWorkspaceOperationGuard } from './workspace-operation-guard'
 import type { AgentRunExtensions } from './agent-run-extensions'
@@ -375,8 +374,6 @@ export class AgentOrchestrator {
   private adapter: AgentProviderAdapter
   private eventBus: AgentEventBus
   private activeSessions = new Map<string, number>()
-  /** 锁定运行期 Skills 准入；队列消息不能通过最新 Session 配置扩大当前运行权限。 */
-  private activeRunModuleSkills = new Map<string, { generation: number; enabled: boolean; context?: ResolvedAgentModuleContext }>()
   /** 当前代际的远端只读调用取消控制器；旧代际收尾不得清除新代际。 */
   private activeRunControllers = new Map<string, AgentRunIdentity>()
   /** 发布任务只在用户显式停止本轮时取消，正常回复后仍可在运维终端输入。 */
@@ -1027,7 +1024,6 @@ export class AgentOrchestrator {
           this.activeRunControllers.delete(sessionId)
         }
         this.activeSessions.delete(sessionId)
-        this.activeRunModuleSkills.delete(sessionId)
         this.activeSessionStartedAt.delete(sessionId)
         this.sessionPermissionModes.delete(sessionId)
         this.queuedMessageUuids.delete(sessionId)
@@ -1124,7 +1120,6 @@ export class AgentOrchestrator {
     const serverTaskController = new AbortController()
     this.activeServerTaskControllers.set(sessionId, { generation: runGeneration, controller: serverTaskController })
     this.activeSessions.set(sessionId, runGeneration)
-    this.activeRunModuleSkills.set(sessionId, { generation: runGeneration, enabled: runWorkspaceSkillsEnabled })
     this.activeSessionStartedAt.set(sessionId, streamStartedAt)
     this.latestRunGenerations.set(sessionId, runGeneration)
     markInFlightGeneration(this.inFlightRunGenerations, sessionId, runGeneration)
@@ -1478,7 +1473,6 @@ export class AgentOrchestrator {
           explicitModuleIds: input.moduleIds,
           invocationMode: input.moduleInvocationMode,
         })
-        this.activeRunModuleSkills.set(sessionId, { generation: runGeneration, enabled: runWorkspaceSkillsEnabled, context: moduleContext })
         activeModuleActivations = moduleContext.modules
         activeModuleSkillMentions = moduleContext.skillMentions
         activeModulePromptFragments = moduleContext.promptFragments
@@ -2578,7 +2572,7 @@ export class AgentOrchestrator {
       const systemPromptAppend = [baseSystemPrompt,
         visualContextPrompt,
         activeModulePromptFragments.length > 0
-          ? `<active_agent_modules>\n当前 Session 已启用以下模块。模块提示只补充任务路由，宿主权限、项目指令和会话边界优先级更高。\n${activeModulePromptFragments.map((fragment) => `- ${fragment}`).join('\n')}\n模块激活：${activeModuleActivations.map((activation) => `${activation.moduleId} (${activation.mode})`).join(', ')}\n</active_agent_modules>`
+          ? `<active_agent_modules>\n本轮消息已选择以下模块。模块提示只补充任务路由，宿主权限、项目指令和会话边界优先级更高。\n${activeModulePromptFragments.map((fragment) => `- ${fragment}`).join('\n')}\n模块激活：${activeModuleActivations.map((activation) => `${activation.moduleId} (${activation.mode})`).join(', ')}\n</active_agent_modules>`
           : undefined,
         visualProductionAccess ? `影像创作使用 visual_production_* 工具，承担漫剧、影片、宣传片和图片作品；交互稿由交互设计模块承接。一个 Agent 项目可有多个影像作品，作品下有集数、共用资产和有序镜头。新作品先与用户明确目标、受众、比例、时长和风格，提交脚本/分镜/资产规划候选，用户采用后再基于正式版本生成；不要把尚未确认的设定当作已批准资产。
 已有镜头重做按顺序执行：① list/read 确认作品，用 read_shot 读取准确 shotId、最新 revision、绑定资产和版本；shot.assetIds 仅含当前页，先沿 textPage.nextOffset 用 textOffset 续读并拼接完整长文本，再沿 referencePage.nextOffset 用 referenceOffset 续读所有引用并重置 textOffset；所有页 revision 必须一致，变更时重新读取。② read_media_configuration 和 media_catalog 读取作品启用范围及各类别默认来源，沿用用户明确指定的模型或服务；显式空 entries 禁止生成，无可用来源说明缺口。③ begin_job 绑定 shotId 与 baseRevision 并冻结制作配置，多个活动任务向媒体准备工具提供 visualJobId。④ reference_media 将目标已采用画面或绑定资产的 mediaId 转成完整 MediaAssetRef，禁止把影像内部 mediaId 或本地路径伪装成媒体引用。参考数量须遵守选中模型或工作流的真实约束；不能悄悄拼图或忽略其他资产。⑤ 使用 API 模型时按 media_prepare_generation → media_execute_generation → media_wait_generation 生成；使用 ComfyUI 服务时由 Agent 在允许的 connectionId 内通过 media_discover_workflows 按需分页筛选，核对输出、参考数量与输入角色，再用精确 descriptor/contentHash 调用 media_use_remote_workflow，随后 media_inspect_workflow 校验节点、模型和输入，按返回的 workflowId/revision 调用 media_prepare_run → media_execute_run → media_wait_run。影像任务不传 canvasId 或 targetNodeId。不得按名称默认选第一项或让用户从大量工作流里手选；服务条目不证明该服务具备所有输出能力。目录失败不能当作没有匹配，真实无匹配时说明缺口，遵循现有媒体授权策略；不擅自换到未授权服务。旧固定工作流保留精确版本及参数。按真实动作 update_job(preparing/generating/reviewing)，等待超时只代表尚未完成，不自动重发收费请求。⑥ 成功结果的全部 outputs[].asset 通过 import_media 导入独立副本；用 propose_shot 提交 jobId/shotId/mediaId/alternativeMediaIds/summary，其中 mediaId 是首选、alternativeMediaIds 是最多15个去重替选。空镜头只有一个可用输出时宿主可自动采用，返回 status=adopted 和 adoptedRevision 后必须重新读取最新作品；已有画面或多个不同输出时保留候选，由用户选择。候选提交后通过 open_context(candidateId) 绑定其当前版本，inspect_media 检查实际画面并 record_observation；若已自动采用则重新读取正式 revision 后检查。提交候选或采用本身不等于视觉验收，缺陷须如实报告。需改设定或规划时才使用完整 propose，保留未要求修改的内容及锁定资产。
@@ -3534,7 +3528,6 @@ export class AgentOrchestrator {
       this.activeRunControllers.delete(sessionId)
     }
     this.activeSessions.delete(sessionId)
-    this.activeRunModuleSkills.delete(sessionId)
     this.activeSessionStartedAt.delete(sessionId)
     this.sessionPermissionModes.delete(sessionId)
     browserController.cancelSession(sessionId)
@@ -3751,13 +3744,8 @@ export class AgentOrchestrator {
       : undefined
     /** 模块命令必须启动独立 run，不能改变当前 run 已固化的策略与审计身份。 */
     if (moduleIds?.length) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')
-    /** 普通追加消息只复用当前代际的冻结快照，不重新读取可变 Session 策略。 */
-    const moduleSkills = this.activeRunModuleSkills.get(sessionId)
-    if (!moduleSkills || moduleSkills.generation !== this.activeSessions.get(sessionId) || !moduleSkills.context) {
-      throw new Error('无活跃消息通道可注入队列消息')
-    }
-    const moduleContext = moduleSkills.context
-    const resolvedMentionedSkills = [...new Set([...(mentionedSkills ?? []), ...moduleContext.skillMentions])]
+    /** 队列消息也只使用本条消息显式引用的 Skill，不继承上一轮的模块上下文。 */
+    const resolvedMentionedSkills = [...new Set(mentionedSkills ?? [])]
 
     const userBrowserContext = browserController.getUserContext(sessionId)
     const userVaultContext = getVaultUserContext(sessionId)
@@ -3788,9 +3776,6 @@ export class AgentOrchestrator {
         toolLines.push(`- MCP 服务器: ${name}（请使用此 MCP 服务器的工具来完成任务）`)
       }
       enrichedText = `<mentioned_tools>\n${toolLines.join('\n')}\n</mentioned_tools>\n\n${enrichedText}`
-    }
-    if (moduleContext.promptFragments.length > 0) {
-      enrichedText = `<active_agent_modules>\n${moduleContext.promptFragments.map((fragment) => `- ${fragment}`).join('\n')}\n</active_agent_modules>\n\n${enrichedText}`
     }
     // Planning read tools are Pi-native. Do not direct Claude sessions to unavailable tools.
     const referencedPlanningBlock = buildReferencedPlanningPrompt(

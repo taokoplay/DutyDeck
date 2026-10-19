@@ -45,11 +45,9 @@ function unique(values: readonly string[]): string[] {
   return [...new Set(values)]
 }
 
+/** 运行时只接受当前消息显式选择的模块；Session 策略不再自动扩展模型上下文。 */
 function resolveSelectedModuleIds(input: ResolveActiveModuleContextInput): string[] {
-  if (input.explicitModuleIds && input.explicitModuleIds.length > 0) return unique(input.explicitModuleIds)
-  if (input.policy.mode === 'auto') return []
-  if (input.policy.mode === 'pinned') return unique(input.policy.pinnedModuleIds)
-  return unique(input.policy.enabledModuleIds)
+  return unique(input.explicitModuleIds ?? [])
 }
 
 function getSkillStatus(skills: readonly SkillMeta[]): Map<string, SkillMeta> {
@@ -79,7 +77,7 @@ function listRuntimeModules(): readonly AgentModuleManifest[] {
 }
 
 /**
- * 按 Session 模块策略解析 Agent 本轮可用的 Skill、提示词和工具。
+ * 按当前消息显式选择解析 Agent 本轮可用的 Skill、提示词和工具。
  * @param input 当前工作区、Session、模块策略和显式模块调用。
  * @param dependencies 可替换的注册表与 Skill 读取依赖，便于测试和未来第三方插件。
  * @returns 模块激活记录、可调用 Skill、提示摘要、工具和不可用原因。
@@ -91,7 +89,7 @@ export function resolveActiveModuleContext(
   const now = input.now ?? Date.now()
   const disabled = new Set(input.policy.disabledModuleIds)
   const selectedIds = resolveSelectedModuleIds(input)
-  // auto 且没有显式模块时维持旧行为，避免每轮读取 Skills 目录和构建模块提示。
+  // 未显式选择模块时直接返回，避免每轮读取 Skills 目录和构建模块提示。
   if (selectedIds.length === 0) {
     return { modules: [], skillMentions: [], promptFragments: [], allowedToolNames: [], unavailable: [] }
   }

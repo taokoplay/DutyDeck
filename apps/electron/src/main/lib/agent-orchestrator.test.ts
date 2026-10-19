@@ -641,7 +641,7 @@ describe('Agent sendMessage 准入顺序合同', () => {
 
 
 describe('模块队列 Skills 静态接线合同', () => {
-  test('Given 已解析模块 Skills When 调用队列适配器 Then 使用合并结果并保持运行期准入', () => {
+  test('Given 队列消息 When 调用适配器 Then 只使用本条消息显式引用的 Skill', () => {
     /** 这里只检查生产接线，不冒充实际 Pi 集成测试。 */
     const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
     const queue = source.slice(source.indexOf('  async queueMessage('))
@@ -649,7 +649,9 @@ describe('模块队列 Skills 静态接线合同', () => {
     expect(adapter).toContain('skillMentions: resolvedMentionedSkills')
     expect(adapter).not.toContain('skillMentions: mentionedSkills')
     expect(queue).toContain("if (moduleIds?.length) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')")
-    expect(queue).toContain('const moduleContext = moduleSkills.context')
+    expect(queue).toContain('const resolvedMentionedSkills = [...new Set(mentionedSkills ?? [])]')
+    expect(queue).not.toContain('activeRunModuleSkills.get(sessionId)')
+    expect(queue).not.toContain('moduleContext.promptFragments')
     expect(queue).not.toContain('resolveActiveModuleContext(')
     expect(queue).not.toContain('getAgentSessionModulePolicy(')
   })

@@ -21,9 +21,9 @@ const policy = (override: Partial<AgentSessionModulePolicy> = {}): AgentSessionM
 const skills = (slugs: string[]): SkillMeta[] => slugs.map((slug) => ({ slug, name: slug, enabled: true }))
 
 describe('Agent 模块 Skill 解析', () => {
-  test('Given pinned Canvas When 解析 Then 返回 Skill、提示摘要和工具绑定', () => {
+  test('Given 用户显式选择 Canvas When 解析 Then 返回 Skill、提示摘要和工具绑定', () => {
     const result = resolveActiveModuleContext(
-      { workspaceSlug: 'project', sessionId: 'session', policy: policy(), now: 10 },
+      { workspaceSlug: 'project', sessionId: 'session', policy: policy(), explicitModuleIds: ['canvas'], now: 10 },
       { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production']) },
     )
     expect(result.modules[0]).toMatchObject({ moduleId: 'canvas', mode: 'pinned', policyRevision: 3 })
@@ -33,9 +33,9 @@ describe('Agent 模块 Skill 解析', () => {
     expect(result.unavailable).toEqual([])
   })
 
-  test('Given auto 模式 When 没有显式模块 Then 不注入额外模块上下文', () => {
+  test('Given 任意 Session 策略 When 没有显式模块 Then 不注入额外模块上下文', () => {
     const result = resolveActiveModuleContext(
-      { workspaceSlug: 'project', sessionId: 'session', policy: policy({ mode: 'auto' }), now: 10 },
+      { workspaceSlug: 'project', sessionId: 'session', policy: policy({ mode: 'pinned' }), now: 10 },
       { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production', 'in-app-browser']) },
     )
     expect(result.modules).toEqual([])
@@ -45,7 +45,7 @@ describe('Agent 模块 Skill 解析', () => {
 
   test('Given 模块绑定 Skill 未启用 When 解析 Then 返回缺失原因且不允许降级调用', () => {
     const result = resolveActiveModuleContext(
-      { workspaceSlug: 'project', sessionId: 'session', policy: policy(), now: 10 },
+      { workspaceSlug: 'project', sessionId: 'session', policy: policy(), explicitModuleIds: ['canvas'], now: 10 },
       { listModules: listBuiltinAgentModules, getSkills: () => skills([]) },
     )
     expect(result.modules).toEqual([])
@@ -83,7 +83,7 @@ describe('宿主模块目录与权限边界', () => {
   })
 
   test('Given 未知 promptRef When 选择 Then 不根据模块名冒用提示或读取任意路径', () => {
-    const result = resolveActiveModuleContext({ workspaceSlug: 'project', sessionId: 'session', policy: policy() }, {
+    const result = resolveActiveModuleContext({ workspaceSlug: 'project', sessionId: 'session', explicitModuleIds: ['canvas'], policy: policy() }, {
       listModules: () => [{ ...listBuiltinAgentModules()[0]!, promptRefs: ['/private/secret.md'] }], getSkills: () => skills(['canvas-production']),
     })
     expect(result.unavailable).toEqual([{ moduleId: 'canvas', reason: 'AGENT_MODULE_PROMPT_UNAVAILABLE' }])
@@ -100,7 +100,7 @@ describe('宿主模块目录与权限边界', () => {
   test('Given available 或 pinned 已选 When 缺工作区或 Skills 被运行期禁用 Then 返回不可用且不访问磁盘', () => {
     for (const mode of ['available', 'pinned'] as const) {
       for (const workspaceSlug of [undefined, 'project']) {
-        const result = resolveActiveModuleContext({ workspaceSlug, skillsEnabled: false, sessionId: 'session', policy: policy({ mode, enabledModuleIds: ['canvas'] }) }, { getSkills: () => { throw new Error('不得读目录') } })
+        const result = resolveActiveModuleContext({ workspaceSlug, skillsEnabled: false, sessionId: 'session', explicitModuleIds: ['canvas'], policy: policy({ mode, enabledModuleIds: ['canvas'] }) }, { getSkills: () => { throw new Error('不得读目录') } })
         expect(result.unavailable).toEqual([{ moduleId: 'canvas', reason: workspaceSlug ? 'AGENT_MODULE_SKILLS_DISABLED' : 'AGENT_MODULE_WORKSPACE_REQUIRED' }])
       }
     }

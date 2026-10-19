@@ -51,7 +51,7 @@ describe('manifest-only 插件安装管理', () => {
     let busy = false
     const { service, source, root } = setup(() => busy)
     service.install(service.preview(source).token)
-    const input = { sessionId: 'session', workspaceSlug: 'test', policy: { revision: 1, mode: 'available' as const, enabledModuleIds: ['example-module'], pinnedModuleIds: [], disabledModuleIds: [], updatedAt: 1 } }
+    const input = { sessionId: 'session', workspaceSlug: 'test', explicitModuleIds: ['example-module'], policy: { revision: 1, mode: 'available' as const, enabledModuleIds: ['example-module'], pinnedModuleIds: [], disabledModuleIds: [], updatedAt: 1 } }
     const context = resolveActiveModuleContext(input)
     busy = true
     writeJsonFileAtomic(join(root, 'example/plugin.json'), { ...manifest(), prompts: { 'example.system': '新提示' } })
