@@ -176,6 +176,7 @@ export function AgentMessageQueue({
 const QUEUED_REFERENCE_STYLES = {
   file: { icon: FileText, className: 'bg-primary/10 text-primary' },
   skill: { icon: Sparkles, className: 'bg-[hsl(270_60%_60%/0.15)] text-[hsl(270_60%_50%)]' },
+  module: { icon: Clapperboard, className: 'bg-primary/10 text-primary' },
   mcp: { icon: Server, className: 'bg-[hsl(160_60%_45%/0.15)] text-[hsl(160_60%_35%)]' },
   session: { icon: MessageSquareText, className: 'bg-[hsl(200_80%_50%/0.14)] text-[hsl(200_80%_40%)]' },
   quote: { icon: Quote, className: 'bg-primary/10 text-primary' },

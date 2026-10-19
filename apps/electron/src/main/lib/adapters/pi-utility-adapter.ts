@@ -313,7 +313,8 @@ export class PiUtilityAdapter {
 
   private handleRuntimeEvent(event: AgentRuntimeEvent, sourceQueryToken: string): void {
     if (event.method === AGENT_RUNTIME_METHODS.EVENT_CRASHED) {
-      const error = toRuntimeError(event.payload)
+      /** 稳定中断身份供宿主保存可恢复事实；保留底层错误为 cause 便于诊断。 */
+      const error = Object.assign(new Error('Agent utility process interrupted', { cause: toRuntimeError(event.payload) }), { code: 'AGENT_RUNTIME_INTERRUPTED' })
       /** crash 只属于发出事件的 utility process，不能波及同 session 的新 generation。 */
       const failed = [this.pendingQueries.get(sourceQueryToken)]
         .filter((pending): pending is PendingQuery => pending !== undefined && !pending.ended)

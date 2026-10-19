@@ -20,6 +20,7 @@ import { automationFormAtom } from './automation-atoms'
 import { planningTabAtom } from './planning-atoms'
 import { productivityToolsAtom } from './ui-preferences'
 import type { WorkspaceComponentTab } from './agent-atoms'
+import { deriveWorkspaceToolTarget } from '@/lib/work-context-routing'
 
 /** 工作区工具入口：4 个动态工作区加上 10 个项目组件。 */
 export type WorkspaceToolId = 'browser' | 'files' | 'terminal' | 'canvas' | WorkspaceComponentTab
@@ -54,39 +55,101 @@ export const workspaceProjectAtom = atom((get) => {
   return workspaces.some((workspace) => workspace.id === selectedId) ? selectedId : null
 })
 
-interface WorkspaceToolRequest {
+/** 动态请求身份跨消费与异步完成保留，避免旧结果覆盖新导航。 */
+export interface WorkspaceToolRequest {
+  /** 本次点击的唯一身份。 */
+  requestId: string
+  /** 资源归属会话。 */
+  sessionId: string
+  /** 沿用 WorkContext 路由的工具 surface 身份。 */
+  surfaceId: 'browser' | 'terminal' | 'canvas'
+  /** 发起时的导航代次。 */
+  navigationRevision: number
+  /** 本次请求的动态工具。 */
   tool: 'browser' | 'terminal' | 'canvas'
 }
 
-/** 动态工作区请求按 Agent session 隔离，避免切会话后迟到请求污染新会话。 */
-const workspaceToolRequestsAtom = atom<Map<string, WorkspaceToolRequest>>(new Map())
+/** 每个会话只保存最近一次请求的可见结果。 */
+export interface WorkspaceToolReceipt extends WorkspaceToolRequest {
+  /** pending 包含等待就绪及已经消费的在途动作。 */
+  status: 'pending' | 'opened' | 'failed' | 'canceled'
+  /** 失败或取消的用户可见原因。 */
+  message?: string
+}
 
-/** 当前会话发起动态工作区请求，并清掉其它会话的旧请求。 */
-export const requestWorkspaceToolAtom = atom(
-  null,
-  (get, set, request: { sessionId: string; tool: WorkspaceToolRequest['tool'] }) => {
-    const next = new Map<string, WorkspaceToolRequest>()
-    next.set(request.sessionId, { tool: request.tool })
-    set(workspaceToolRequestsAtom, next)
-  },
-)
+/** 队列与回执分离：消费不代表成功。 */
+const workspaceToolRequestsAtom = atom<Map<string, WorkspaceToolRequest>>(new Map())
+/** 最多保留最近 64 个会话的各一条回执，避免无限累积。 */
+const workspaceToolReceiptsAtom = atom<Map<string, WorkspaceToolReceipt>>(new Map())
 
 /** 用户导航代次使已交付但尚未完成的资源动作失去前台焦点权限。 */
 export const workspaceToolNavigationRevisionAtom = atom(0)
 
-/** 指定会话时仅撤销该会话请求；不传会话时供全局导航清理所有请求。 */
+/** 指定会话时仅撤销该会话请求；全局导航同时撤销已消费的在途动作。 */
 export const clearWorkspaceToolRequestAtom = atom(null, (get, set, sessionId?: string) => {
   if (!sessionId || get(currentAgentSessionIdAtom) === sessionId) {
     set(workspaceToolNavigationRevisionAtom, (revision) => revision + 1)
   }
   /** 后台会话的延迟关闭不能撤销当前会话的资源请求和焦点权限。 */
-  const current = get(workspaceToolRequestsAtom)
-  if (sessionId) {
-    if (!current.has(sessionId)) return
-    const next = new Map(current)
-    next.delete(sessionId)
-    set(workspaceToolRequestsAtom, next)
-  } else if (current.size > 0) set(workspaceToolRequestsAtom, new Map())
+  const requests = new Map(get(workspaceToolRequestsAtom))
+  if (sessionId) requests.delete(sessionId)
+  else requests.clear()
+  set(workspaceToolRequestsAtom, requests)
+  /** 已消费请求也保留 pending 回执，因此导航可立即报告取消。 */
+  const receipts = new Map(get(workspaceToolReceiptsAtom))
+  for (const [id, receipt] of receipts) {
+    if ((!sessionId || sessionId === id) && receipt.status === 'pending') {
+      receipts.set(id, { ...receipt, status: 'canceled', message: '已取消打开：你已切换位置；已创建资源仍保留在原会话' })
+    }
+  }
+  set(workspaceToolReceiptsAtom, receipts)
+})
+
+/** 统一生成请求身份并立即发布 pending；新点击使旧在途动作失去焦点权限。 */
+export const requestWorkspaceToolAtom = atom(
+  null,
+  (get, set, input: { sessionId: string; tool: WorkspaceToolRequest['tool'] }) => {
+    set(clearWorkspaceToolRequestAtom)
+    /** 导航身份由 store 生成，调用方不能伪造代次。 */
+    const request: WorkspaceToolRequest = {
+      ...input, requestId: crypto.randomUUID(), surfaceId: input.tool,
+      navigationRevision: get(workspaceToolNavigationRevisionAtom),
+    }
+    set(workspaceToolRequestsAtom, new Map([[input.sessionId, request]]))
+    /** 删除后追加使 Map 顺序表达最近使用时间。 */
+    const receipts = new Map(get(workspaceToolReceiptsAtom))
+    receipts.delete(input.sessionId)
+    receipts.set(input.sessionId, { ...request, status: 'pending' })
+    while (receipts.size > 64) receipts.delete(receipts.keys().next().value!)
+    set(workspaceToolReceiptsAtom, receipts)
+  },
+)
+
+/** 回执读取不依赖队列，消费后仍能显示进行中和取消。 */
+export const workspaceToolReceiptAtom = atomFamily((sessionId: string) => atom(
+  (get) => get(workspaceToolReceiptsAtom).get(sessionId) ?? null,
+))
+
+/** 只允许相同请求与导航代次完成；返回是否接纳，供调用方抑制迟到错误提示。 */
+export const finishWorkspaceToolRequestAtom = atom(null, (get, set, result: {
+  request: WorkspaceToolRequest
+  status: 'opened' | 'failed'
+  message?: string
+}) => {
+  /** 当前回执是请求终态的唯一写入依据。 */
+  const current = get(workspaceToolReceiptsAtom).get(result.request.sessionId)
+  if (!current || current.requestId !== result.request.requestId || current.status !== 'pending') return false
+  /** 即使订阅尚未安装，也不把离开上下文的结果误报为打开成功。 */
+  const valid = get(currentAgentSessionIdAtom) === current.sessionId
+    && get(appModeAtom) === 'agent'
+    && get(activeViewAtom) === 'conversations'
+    && get(workspaceToolNavigationRevisionAtom) === current.navigationRevision
+  const receipts = new Map(get(workspaceToolReceiptsAtom))
+  receipts.set(current.sessionId, valid
+    ? { ...current, status: result.status, message: result.message }
+    : { ...current, status: 'canceled', message: '已取消打开：你已切换位置；已创建资源仍保留在原会话' })
+  set(workspaceToolReceiptsAtom, receipts)
+  return valid
 })
 
 /** 读取指定 session 尚未处理的动态请求。 */
@@ -158,6 +221,13 @@ export const openWorkspaceToolAtom = atom(
     const availability = get(workspaceToolAvailabilityAtom)[tool]
     if (!availability.visible || availability.disabledReason) return
     const sessionId = get(appModeAtom) === 'agent' ? get(currentAgentSessionIdAtom) : null
+    const target = deriveWorkspaceToolTarget({
+      sessionId,
+      activeView: get(activeViewAtom),
+      tool,
+      moduleId: ['browser', 'terminal', 'canvas'].includes(tool) ? tool : undefined,
+    })
+    if (target.kind === 'blocked') return
     set(clearWorkspaceToolRequestAtom)
     set(automationFormAtom, { open: false, draft: null })
     if (!sessionId) {
@@ -192,13 +262,14 @@ export function subscribeWorkspaceToolRequestContext(store: ReturnType<typeof cr
   const clearPending = () => store.set(clearWorkspaceToolRequestAtom)
   const unsubscribeSession = store.sub(currentAgentSessionIdAtom, clearPending)
   const unsubscribeMode = store.sub(appModeAtom, clearPending)
+  const unsubscribeProject = store.sub(workspaceProjectAtom, clearPending)
   const unsubscribeView = store.sub(activeViewAtom, () => {
     if (store.get(activeViewAtom) !== 'conversations') clearPending()
   })
   const unsubscribePanel = store.sub(currentSessionSidePanelOpenAtom, () => {
     if (!store.get(currentSessionSidePanelOpenAtom)) clearPending()
   })
-  return () => { unsubscribeSession(); unsubscribeMode(); unsubscribeView(); unsubscribePanel(); clearPending() }
+  return () => { unsubscribeSession(); unsubscribeMode(); unsubscribeProject(); unsubscribeView(); unsubscribePanel(); clearPending() }
 }
 
 /** 从当前 view、planning/skills 子页和右侧动态 Tab 派生当前入口。 */

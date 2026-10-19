@@ -26,6 +26,10 @@ export interface AgentModuleManifest {
   surfaceIds: string[]
   requiredPermissions: string[]
   minHostVersion?: string
+  /** 宿主目录投影的来源；第三方 manifest 不可通过输入清单自行伪造。 */
+  source?: 'builtin' | 'installed'
+  /** 宿主目录投影中的插件身份。 */
+  pluginId?: string
 }
 
 export interface AgentSessionModulePolicy {
@@ -68,6 +72,32 @@ export interface AgentModuleCommand {
   errorCode?: string
 }
 
+/** 更新 Session 模块策略的 IPC 输入。 */
+export interface AgentSessionModulePolicyUpdateInput {
+  sessionId: string
+  policy: Partial<AgentSessionModulePolicy>
+  expectedRevision?: number
+}
+
+/** 提交模块动作的 IPC 输入；宿主会在执行前重新校验权限和版本。 */
+export interface AgentModuleCommandInput {
+  sessionId: string
+  moduleId: string
+  capabilityId: string
+  baseRevision: number
+  invocationMode: AgentModuleInvocationMode
+  deliveryMode?: AgentModuleCommand['deliveryMode']
+  requestSummary: string
+  input: Record<string, unknown>
+  idempotencyKey: string
+}
+
+/** 模块命令查询条件；缺省时只返回当前 Session 的全部命令。 */
+export interface AgentModuleCommandQuery {
+  sessionId: string
+  status?: AgentModuleCommandStatus
+}
+
 export interface ParsedAgentModuleManifest {
   manifest: AgentModuleManifest
   warnings: string[]
@@ -108,6 +138,11 @@ export function parseAgentModuleManifest(value: unknown): ParsedAgentModuleManif
 
   const arrayFields = ['contributions', 'skillRefs', 'promptRefs', 'toolRefs', 'artifactTypes', 'surfaceIds', 'requiredPermissions'] as const
   for (const key of arrayFields) {
+    /** 引用是有限能力声明；在去重前限制数量，防止重复项放大解析和落盘开销。 */
+    const refs = record[key]
+    if (Array.isArray(refs) && (refs.length > 256 || refs.some((ref) => typeof ref === 'string' && ref.length > 256))) {
+      throw new Error(`AGENT_MODULE_MANIFEST_${key.toUpperCase()}_TOO_LARGE`)
+    }
     if (!isStringArray(record[key])) throw new Error(`AGENT_MODULE_MANIFEST_${key.toUpperCase()}_INVALID`)
   }
 

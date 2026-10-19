@@ -29,6 +29,11 @@ import { AgentMessages, type AgentHistoryQuoteNavigationRequest } from './AgentM
 import { AgentHeader } from './AgentHeader'
 import { AgentMessageQueue } from './AgentMessageQueue'
 import { AgentComposerFrame } from './AgentComposerFrame'
+import { AgentModuleBar } from './AgentModuleBar'
+import { AgentStatusBar } from './AgentStatusBar'
+import { AgentModuleCommandReceipt } from './AgentModuleCommandReceipt'
+import { AgentModuleRunAuditView } from './AgentModuleRunAuditView'
+import { AgentRunRecoveryNotice } from './AgentRunRecoveryNotice'
 import { ContextUsageBadge } from './ContextUsageBadge'
 import { PermissionBanner } from './PermissionBanner'
 import { PermissionModeSelector } from './PermissionModeSelector'
@@ -143,6 +148,7 @@ import { todoPlanningGroupsAtom } from '@/atoms/planning-atoms'
 import { useOpenSession } from '@/hooks/useOpenSession'
 import { draftSessionIdsAtom } from '@/atoms/draft-session-atoms'
 import { sendWithCmdEnterAtom } from '@/atoms/shortcut-atoms'
+import { agentSessionModulePolicyAtomFamily } from '@/atoms/agent-module-atoms'
 import { useOpenPreview } from '@/components/diff/preview-opener'
 import { resolveAgentSendToolMode } from './AgentOpsAccessControl'
 import { buildAutoPendingPromptSubmission, claimAgentPendingPrompt } from './agent-pending-prompt'
@@ -532,6 +538,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   const setStreamingStates = useSetAtom(agentStreamingStatesAtom)
   // 只订阅输入区/工具栏需要的低频流状态。
   const streamViewState = useAtomValue(agentSessionInputStreamStateAtomFamily(sessionId))
+  const modulePolicy = useAtomValue(agentSessionModulePolicyAtomFamily(sessionId))
   const streaming = streamViewState.running
   // 软空闲态：本轮主体已结束、UI 可输入，但 SDK 通道仍开着等后台任务唤醒。
   // 此时服务端 activeSessions 仍保留，新消息须走注入通道而非新建 run。
@@ -1222,6 +1229,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         dispatch: 'now',
         interrupt: streaming,
         mentionedSkills: submittedPayload.mentions.mentionedSkills,
+        ...(submittedPayload.mentions.moduleIds.length > 0
+          ? { moduleIds: submittedPayload.mentions.moduleIds, moduleInvocationMode: submittedPayload.mentions.moduleInvocationMode }
+          : {}),
         mentionedMcpServers: submittedPayload.mentions.mentionedMcpServers,
         mentionedSessionIds: submittedPayload.mentions.mentionedSessionIds,
         mentionedServerOpsReferences: submittedPayload.mentions.mentionedServerOpsReferences,
@@ -2308,12 +2318,16 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         permissionModeOverride: permissionMode,
         dispatch: 'after_current',
         mentionedSkills: payload.mentions.mentionedSkills,
+        ...(payload.mentions.moduleIds.length > 0
+          ? { moduleIds: payload.mentions.moduleIds, moduleInvocationMode: payload.mentions.moduleInvocationMode }
+          : {}),
         mentionedMcpServers: payload.mentions.mentionedMcpServers,
         mentionedSessionIds: payload.mentions.mentionedSessionIds,
         mentionedServerOpsReferences: payload.mentions.mentionedServerOpsReferences,
         mentionedTodoIds: payload.mentions.mentionedTodoIds,
         mentionedCalendarEventIds: payload.mentions.mentionedCalendarEventIds,
         mentionedMediaModelRefs: payload.mentions.mentionedMediaModelRefs,
+        ...(modulePolicy ? { modulePolicyRevision: modulePolicy.revision } : {}),
         ...(queuedMediaAttachments
           ? { mediaAttachments: queuedMediaAttachments }
           : {}),
@@ -2530,12 +2544,14 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       permissionModeOverride: permissionMode,
       ...(additionalDirectoriesForRun.size > 0 && { additionalDirectories: Array.from(additionalDirectoriesForRun) }),
       ...(mentions.mentionedSkills.length > 0 && { mentionedSkills: mentions.mentionedSkills }),
+      ...(mentions.moduleIds.length > 0 && { moduleIds: mentions.moduleIds, moduleInvocationMode: mentions.moduleInvocationMode }),
       ...(mentions.mentionedMcpServers.length > 0 && { mentionedMcpServers: mentions.mentionedMcpServers }),
       ...(mentions.mentionedSessionIds.length > 0 && { mentionedSessionIds: mentions.mentionedSessionIds }),
       ...(mentions.mentionedServerOpsReferences.length > 0 && { mentionedServerOpsReferences: mentions.mentionedServerOpsReferences }),
       ...(mentions.mentionedTodoIds.length > 0 && { mentionedTodoIds: mentions.mentionedTodoIds }),
       ...(mentions.mentionedCalendarEventIds.length > 0 && { mentionedCalendarEventIds: mentions.mentionedCalendarEventIds }),
       ...(mentions.mentionedMediaModelRefs.length > 0 && { mentionedMediaModelRefs: mentions.mentionedMediaModelRefs }),
+      ...(modulePolicy ? { modulePolicyRevision: modulePolicy.revision } : {}),
       ...(visualProductionReferencesSnapshot.length > 0 && { visualProductionReferences: visualProductionReferencesSnapshot }),
       ...(canvasNodeReferencesSnapshot.length > 0 && { canvasNodeReferences: canvasNodeReferencesSnapshot }),
       ...(mediaAttachments && { mediaAttachments }),
@@ -2793,6 +2809,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         : {}),
       ...(retryMentions.mentionedSkills.length > 0
         ? { mentionedSkills: [...retryMentions.mentionedSkills] }
+        : {}),
+      ...(retryMentions.moduleIds.length > 0
+        ? { moduleIds: [...retryMentions.moduleIds], moduleInvocationMode: retryMentions.moduleInvocationMode, modulePolicyRevision: modulePolicy?.revision }
         : {}),
       ...(retryMentions.mentionedMcpServers.length > 0
         ? { mentionedMcpServers: [...retryMentions.mentionedMcpServers] }
@@ -3378,6 +3397,24 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           historyQuoteNavigation={historyQuoteNavigation}
         />
 
+        <AgentStatusBar
+          messagesLoaded={messagesLoaded}
+          messagesRefreshing={messagesRefreshing}
+          streaming={streaming}
+          backgroundWaiting={backgroundWaiting}
+          queuedCount={queuedMessages.length}
+          waitingPermission={(allPermissionRequests.get(sessionId)?.length ?? 0) > 0}
+          waitingAnswer={(allAskUserRequests.get(sessionId)?.length ?? 0) > 0 || (allExitPlanRequests.get(sessionId)?.length ?? 0) > 0}
+          stopping={isStopping}
+          hasError={Boolean(agentError)}
+          hasChannel={Boolean(agentChannelId)}
+          hasModel={hasAvailableModel}
+          onAction={() => { if (agentError) setSettingsOpen(true) }}
+        />
+        <AgentModuleCommandReceipt sessionId={sessionId} />
+        <AgentModuleRunAuditView sessionId={sessionId} />
+        <AgentRunRecoveryNotice sessionId={sessionId} running={streaming || isStopping} />
+
         {/* 权限请求横幅 */}
         <PermissionBanner sessionId={sessionId} onStop={handleStop} />
 
@@ -3403,6 +3440,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             onDrop={handleDrop}
           >
             {(isPlanMode || isPermissionPlanMode) && !isDragOver && <PlanModeDashedBorder />}
+            <AgentModuleBar sessionId={sessionId} disabled={isComposerDisabled || isStopping} />
             {isLegacyTranscript && (
               <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
                 <span>这是已退役 Claude runtime 的只读历史会话；原对话可查看，但不能继续、分叉或回退。</span>

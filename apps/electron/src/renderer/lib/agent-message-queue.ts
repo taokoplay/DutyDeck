@@ -164,8 +164,8 @@ export function createAgentQueuedMessage(
     attachments?: AgentQueuedAttachment[]
     additionalDirectories?: string[]
     canvasNodeReferences?: CanvasNodeReference[]
-    /** 显式影像引用快照，随排队和退回草稿保留。 */
-    visualProductionReferences?: VisualProductionReference[]
+  /** 显式影像引用快照，随排队和退回草稿保留。 */
+  visualProductionReferences?: VisualProductionReference[]
   },
 ): AgentQueuedMessage {
   const message: AgentQueuedMessage = {
@@ -259,6 +259,9 @@ export function moveQueuedMessage(
 export interface ParsedQueuedMessageMentions {
   cleanedText: string
   mentionedSkills: string[]
+  /** 用户通过 /module 或 @module 显式指定的模块；发送时按 invoke 处理。 */
+  moduleIds: string[]
+  moduleInvocationMode?: 'invoke'
   mentionedMcpServers: string[]
   mentionedSessionIds: string[]
   mentionedTodoIds: string[]
@@ -299,7 +302,7 @@ export async function submitQueuedMessagePayload(
 }
 
 /** 队列预览专用片段：保留原始消息用于发送，同时把引用协议渲染为可读芯片。 */
-export type QueuedMessageReferenceType = 'file' | 'skill' | 'mcp' | 'session' | 'todo' | 'calendar_event' | 'media_model' | 'server_ops' | 'quote'
+export type QueuedMessageReferenceType = 'file' | 'skill' | 'module' | 'mcp' | 'session' | 'todo' | 'calendar_event' | 'media_model' | 'server_ops' | 'quote'
 
 export type QueuedMessageDisplayPart =
   | { type: 'text'; value: string }
@@ -366,8 +369,9 @@ export function queuedTextToParagraphHtml(text: string): string {
     .join('')
 }
 
+const MODULE_MENTION_VALUE_PATTERN = String.raw`[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*`
 const REF_PATTERN = new RegExp(
-  String.raw`/skill:(?<skill>${PLAIN_MENTION_VALUE_PATTERN})|#mcp:(?<mcp>${PLAIN_MENTION_VALUE_PATTERN})|&session:(?<session>[A-Za-z0-9-]+)(?:(?:~|::)${ENCODED_MENTION_VALUE_PATTERN})?|&todo:(?<todo>[A-Za-z0-9-]+)(?:(?:~|::)${ENCODED_MENTION_VALUE_PATTERN})?|&calendar_event:(?<calendarEvent>[A-Za-z0-9-]+)(?:(?:~|::)${ENCODED_MENTION_VALUE_PATTERN})?|(?<serverOps>&ops:${SERVER_OPS_REFERENCE_VALUE_PATTERN}(?:::(?:${SERVER_OPS_REFERENCE_VALUE_PATTERN}))?)`,
+  String.raw`(?:/module:|@module:)(?<module>${MODULE_MENTION_VALUE_PATTERN})|/skill:(?<skill>${PLAIN_MENTION_VALUE_PATTERN})|#mcp:(?<mcp>${PLAIN_MENTION_VALUE_PATTERN})|&session:(?<session>[A-Za-z0-9-]+)(?:(?:~|::)${ENCODED_MENTION_VALUE_PATTERN})?|&todo:(?<todo>[A-Za-z0-9-]+)(?:(?:~|::)${ENCODED_MENTION_VALUE_PATTERN})?|&calendar_event:(?<calendarEvent>[A-Za-z0-9-]+)(?:(?:~|::)${ENCODED_MENTION_VALUE_PATTERN})?|(?<serverOps>&ops:${SERVER_OPS_REFERENCE_VALUE_PATTERN}(?:::(?:${SERVER_OPS_REFERENCE_VALUE_PATTERN}))?)`,
   'gu',
 )
 const MEDIA_MODEL_REFERENCE_PATTERN = new RegExp(
@@ -375,7 +379,7 @@ const MEDIA_MODEL_REFERENCE_PATTERN = new RegExp(
   'gu',
 )
 const DISPLAY_REFERENCE_PATTERN = new RegExp(
-  String.raw`&quote:(?<quote>[A-Za-z0-9%_.!~*'()-]+)|@file:(?<file>${ENCODED_MENTION_VALUE_PATTERN})|/skill:(?<skill>${PLAIN_MENTION_VALUE_PATTERN})|#mcp:(?<mcp>${PLAIN_MENTION_VALUE_PATTERN})|&session:(?<session>[A-Za-z0-9-]+)(?:(?:~|::)(?<sessionLabel>${ENCODED_MENTION_VALUE_PATTERN}))?|&todo:(?<todo>[A-Za-z0-9-]+)(?:(?:~|::)(?<todoLabel>${ENCODED_MENTION_VALUE_PATTERN}))?|&calendar_event:(?<calendarEvent>[A-Za-z0-9-]+)(?:(?:~|::)(?<calendarEventLabel>${ENCODED_MENTION_VALUE_PATTERN}))?|(?<serverOps>&ops:${SERVER_OPS_REFERENCE_VALUE_PATTERN}(?:::(?:${SERVER_OPS_REFERENCE_VALUE_PATTERN}))?)|/model:(?<mediaModel>${MEDIA_MODEL_MENTION_VALUE_PATTERN})(?:::(?<mediaModelLabel>${ENCODED_MENTION_VALUE_PATTERN}))?`,
+  String.raw`&quote:(?<quote>[A-Za-z0-9%_.!~*'()-]+)|@file:(?<file>${ENCODED_MENTION_VALUE_PATTERN})|(?:/module:|@module:)(?<module>${MODULE_MENTION_VALUE_PATTERN})|/skill:(?<skill>${PLAIN_MENTION_VALUE_PATTERN})|#mcp:(?<mcp>${PLAIN_MENTION_VALUE_PATTERN})|&session:(?<session>[A-Za-z0-9-]+)(?:(?:~|::)(?<sessionLabel>${ENCODED_MENTION_VALUE_PATTERN}))?|&todo:(?<todo>[A-Za-z0-9-]+)(?:(?:~|::)(?<todoLabel>${ENCODED_MENTION_VALUE_PATTERN}))?|&calendar_event:(?<calendarEvent>[A-Za-z0-9-]+)(?:(?:~|::)(?<calendarEventLabel>${ENCODED_MENTION_VALUE_PATTERN}))?|(?<serverOps>&ops:${SERVER_OPS_REFERENCE_VALUE_PATTERN}(?:::(?:${SERVER_OPS_REFERENCE_VALUE_PATTERN}))?)|/model:(?<mediaModel>${MEDIA_MODEL_MENTION_VALUE_PATTERN})(?:::(?<mediaModelLabel>${ENCODED_MENTION_VALUE_PATTERN}))?`,
   'gu',
 )
 
@@ -429,6 +433,9 @@ export function getQueuedMessageDisplayParts(
     if (groups.file) {
       referenceType = 'file'
       id = groups.file
+    } else if (groups.module) {
+      referenceType = 'module'
+      id = groups.module
     } else if (groups.skill) {
       referenceType = 'skill'
       id = groups.skill
@@ -495,6 +502,7 @@ export function getQueuedMessageDisplayParts(
 
 export function parseQueuedMessageMentions(text: string): ParsedQueuedMessageMentions {
   const mentionedSkills: string[] = []
+  const moduleIds: string[] = []
   const mentionedMcpServers: string[] = []
   const mentionedSessionIds: string[] = []
   const mentionedTodoIds: string[] = []
@@ -503,8 +511,9 @@ export function parseQueuedMessageMentions(text: string): ParsedQueuedMessageMen
   const mentionedServerOpsReferences: ServerOpsAgentReference[] = []
 
   for (const match of text.matchAll(REF_PATTERN)) {
-    const { skill, mcp, session, todo, calendarEvent, serverOps } = match.groups ?? {}
-    if (skill) mentionedSkills.push(skill)
+    const { module, skill, mcp, session, todo, calendarEvent, serverOps } = match.groups ?? {}
+    if (module) moduleIds.push(module)
+    else if (skill) mentionedSkills.push(skill)
     else if (mcp) mentionedMcpServers.push(mcp)
     else if (session) mentionedSessionIds.push(session)
     else if (todo) mentionedTodoIds.push(todo)
@@ -544,6 +553,8 @@ export function parseQueuedMessageMentions(text: string): ParsedQueuedMessageMen
       )
       .trim(),
     mentionedSkills,
+    moduleIds: [...new Set(moduleIds)],
+    ...(moduleIds.length > 0 ? { moduleInvocationMode: 'invoke' as const } : {}),
     mentionedMcpServers,
     mentionedSessionIds,
     mentionedTodoIds,

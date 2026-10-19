@@ -1,5 +1,4 @@
 import type { Agent } from '@earendil-works/pi-agent-core'
-import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import type {
   Api,
   AssistantMessage,
@@ -84,7 +83,9 @@ async function prepareImageContext(
  * @param signal 当前请求取消信号。
  * @returns 可被主 Agent 与 compaction 正常消费的错误事件流。
  */
-function failedRequestStream(model: Model<Api>, error: unknown, signal?: AbortSignal): AssistantMessageEventStream {
+async function failedRequestStream(model: Model<Api>, error: unknown, signal?: AbortSignal): Promise<AssistantMessageEventStream> {
+  /** Pi 只提供 ESM；在错误请求分支延迟加载，避免 Electron CJS 主进程启动时同步 require。 */
+  const { createAssistantMessageEventStream } = await import('@earendil-works/pi-ai')
   /** 取消独立于图片失败，不将用户停止误报为素材损坏。 */
   const aborted = signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
   /** 同一个终态同时用于消息与事件，避免两者状态不一致。 */

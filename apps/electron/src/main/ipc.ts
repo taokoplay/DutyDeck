@@ -1,3 +1,4 @@
+import { registerAgentPluginManagementIpc } from './lib/agent-modules/plugin-management-ipc'
 import { createCanvasSessionIdleGuard } from './lib/design/canvas-session-idle-guard'
 import type { CanvasViewCommandTarget } from '@dutydeck/shared'
 import { createCanvasViewCommandService } from './lib/design/canvas-view-command-service'
@@ -223,6 +224,13 @@ import type {
   CanvasWebviewPreviewTarget,
   ExportCanvasArtifactInput,
   ImageGenerationPublicCatalog,
+  AgentModuleManifest,
+  AgentSessionModulePolicy,
+  AgentModuleCommand,
+  AgentSessionModulePolicyUpdateInput,
+  AgentModuleCommandInput,
+  AgentModuleCommandQuery,
+  AgentPluginHealth,
 } from '@dutydeck/shared'
 import type { UserProfile, AppSettings } from '../types'
 import { getRuntimeStatus, getGitRepoStatus, reinitializeRuntime } from './lib/runtime-init'
@@ -500,8 +508,19 @@ import {
   listEnabledAgentModelsForChannel,
 } from './lib/agent-model-selection'
 import { isAgentSessionUserVisible, requireUserVisibleAgentSession } from './lib/agent-session-visibility'
-import { agentEventBus, prepareAgentRun, runAgent, runPreparedAgent, runAgentHeadless, stopAgent, stopAgentAndDrain, generateAgentTitle, saveFilesToAgentSession, saveFilesToWorkspaceFiles, isAgentSessionActive, isAgentSessionBusy, listActiveAgentSessionSnapshots, listQueuedAgentMessages, reserveAgentSessionStart, listActiveCanvasAgentRuns, hasActiveAgentSessions, hasActiveAgentDataWrites, queueAgentMessage, submitOrEnqueueAgentMessage, enqueueAgentQueuedMessage, cancelAgentQueuedMessage, moveAgentQueuedMessage, clearAgentQueuedMessages, updateAgentPermissionMode, rewindAgentSession, setVisibleAgentSession } from './lib/agent-service'
+import { agentEventBus, prepareAgentRun, runAgent, runPreparedAgent, runAgentHeadless, stopAgent, stopAgentAndDrain, generateAgentTitle, saveFilesToAgentSession, saveFilesToWorkspaceFiles, isAgentSessionActive, isAgentSessionBusy, listActiveAgentSessionSnapshots, listQueuedAgentMessages, reserveAgentSessionStart, listActiveCanvasAgentRuns, hasActiveAgentSessions, hasActiveAgentDataWrites, queueAgentMessage, submitOrEnqueueAgentMessage, enqueueAgentQueuedMessage, cancelAgentQueuedMessage, moveAgentQueuedMessage, clearAgentQueuedMessages, updateAgentPermissionMode, rewindAgentSession, setVisibleAgentSession, setAgentModuleCommandLifecycle } from './lib/agent-service'
 import { registerAgentMessageIpcHandlers } from './lib/agent-message-ipc'
+import { listBuiltinAgentModules } from './lib/agent-modules/module-registry'
+import { getAgentSessionModulePolicy, updateAgentSessionModulePolicy } from './lib/agent-modules/module-policy-store'
+import { AgentModuleCommandBus } from './lib/agent-modules/module-command-bus'
+import { setAgentModuleRuntimeCatalog } from './lib/agent-modules/module-skill-resolver'
+import { AgentModuleCommandDispatcher } from './lib/agent-modules/module-command-dispatcher'
+import { AgentPluginRegistry } from './lib/agent-modules/plugin-registry'
+import { AgentPluginHost } from './lib/agent-modules/plugin-host'
+import { createBuiltinAgentPluginRegistrations } from './lib/agent-modules/builtin-plugin-adapters'
+import { AgentRunJournalStore } from './lib/agent-run-journal'
+import { registerAgentRunRecoveryIpc } from './lib/agent-run-recovery-ipc'
+import { buildAgentModuleRunAudits } from './lib/agent-modules/module-run-audit'
 import { registerPathManagementIpcHandlers } from './lib/path-management-ipc'
 import { registerServerOpsIpcHandlers } from './lib/server-ops/server-ops-ipc'
 import { MediaConfigStore } from './lib/media/media-config-store'
@@ -2276,6 +2295,29 @@ function getAgentCanvasBindingStore(): AgentCanvasBindingStore {
     sharedAgentCanvasBindingStore = new AgentCanvasBindingStore()
   }
   return sharedAgentCanvasBindingStore
+}
+
+/** 当前主进程唯一的内置 Plugin Host；第三方 manifest-only 插件不会进入生命周期。 */
+let agentPluginHost: AgentPluginHost | null = null
+let agentPluginHostStartPromise: Promise<void> | null = null
+
+/** 等待内置 Plugin Host 完成注册和启动。 */
+export async function startAgentPluginHost(): Promise<void> {
+  await agentPluginHostStartPromise
+}
+
+/** 在应用退出时释放内置插件适配器。 */
+export async function disposeAgentPluginHost(): Promise<void> {
+  await agentPluginHostStartPromise
+  if (agentPluginHost) await agentPluginHost.dispose()
+  agentPluginHostStartPromise = null
+  agentPluginHost = null
+}
+
+/** 返回可序列化的 Plugin Host 健康快照。 */
+export async function getAgentPluginHealth(): Promise<AgentPluginHealth[]> {
+  await agentPluginHostStartPromise
+  return agentPluginHost?.listHealth() ?? []
 }
 
 export function registerIpcHandlers(): void {
@@ -6916,6 +6958,147 @@ export function registerIpcHandlers(): void {
     submitOrEnqueue: submitOrEnqueueAgentMessage,
   })
 
+  /** 插件目录只在 IPC 注册阶段读取一次；用户显式刷新时再重新调用 loadInstalledPlugins。 */
+  const agentPluginRegistry = new AgentPluginRegistry()
+  agentPluginRegistry.registerBuiltinModules(listBuiltinAgentModules())
+  agentPluginRegistry.loadInstalledPlugins()
+  /** UI 与执行解析共享同一目录快照，每轮对话不重复扫描插件目录。 */
+  setAgentModuleRuntimeCatalog(agentPluginRegistry.listModules(), agentPluginRegistry.getPromptCatalog())
+  registerAgentPluginManagementIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
+  const host = new AgentPluginHost()
+  agentPluginHost = host
+  host.subscribe((event) => {
+    const mainWindow = getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(AGENT_IPC_CHANNELS.AGENT_PLUGIN_HEALTH_CHANGED, event.health)
+    }
+  })
+  agentPluginHostStartPromise = (async () => {
+    for (const registration of createBuiltinAgentPluginRegistrations(listBuiltinAgentModules())) {
+      await host.register(registration)
+    }
+    await host.start()
+  })()
+  /** 模块命令总线只负责统一校验与回执，实际 Agent 执行仍复用现有编排器。 */
+  const agentModuleCommandBus = new AgentModuleCommandBus({
+    getModule: (moduleId) => agentPluginRegistry.getModule(moduleId),
+    getPolicy: (sessionId) => getAgentSessionModulePolicy(sessionId),
+  })
+  /** Agent service 运行到真实终态后回写模块命令，避免 IPC 提交成功被误认为执行完成。 */
+  setAgentModuleCommandLifecycle({
+    markRunning: (commandId, sessionId) => { agentModuleCommandBus.markRunning(commandId, sessionId) },
+    markApplied: (commandId, sessionId) => { agentModuleCommandBus.markApplied(commandId, sessionId) },
+    markCanceled: (commandId, sessionId) => { agentModuleCommandBus.markCanceled(commandId, sessionId) },
+    markFailed: (commandId, sessionId, errorCode) => { agentModuleCommandBus.markFailed(commandId, errorCode, sessionId) },
+  })
+  /** 恢复查询复用 Journal 文件事实，不依赖 Renderer 或运行时内存。 */
+  const agentRunJournalStore = new AgentRunJournalStore()
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.GET_AGENT_MODULES,
+    async (): Promise<AgentModuleManifest[]> => agentPluginRegistry.listModules(),
+  )
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.GET_AGENT_PLUGIN_HEALTH,
+    async (): Promise<AgentPluginHealth[]> => getAgentPluginHealth(),
+  )
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.GET_SESSION_MODULE_POLICY,
+    async (_, sessionId: string): Promise<AgentSessionModulePolicy> => {
+      requireVisibleSession(sessionId)
+      return getAgentSessionModulePolicy(sessionId)
+    },
+  )
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.SET_SESSION_MODULE_POLICY,
+    async (_, input: AgentSessionModulePolicyUpdateInput): Promise<AgentSessionModulePolicy> => {
+      requireVisibleSession(input.sessionId)
+      return updateAgentSessionModulePolicy(input.sessionId, input.policy, { expectedRevision: input.expectedRevision })
+    },
+  )
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.SUBMIT_AGENT_MODULE_COMMAND,
+    async (event, input: AgentModuleCommandInput): Promise<AgentModuleCommand> => {
+      const session = requireVisibleSession(input.sessionId)
+      /** 每次处理器复用同一持久化总线，只有新创建的命令拥有派发资格。 */
+      const dispatcher = new AgentModuleCommandDispatcher({
+        bus: agentModuleCommandBus,
+        /** 重启后没有内存队列时，只在整个 Session 空闲后结束孤立 queued 回执。 */
+        cancelQueued: (sessionId, commandId) => cancelAgentQueuedMessage({ sessionId, messageId: commandId }) || !isAgentSessionBusy(sessionId),
+      })
+      return dispatcher.submit(input, async (command) => {
+        if (!session.channelId) throw new Error('AGENT_MODULE_SESSION_CHANNEL_REQUIRED')
+        if (command.deliveryMode === 'auto') {
+          /** 准备期间也占住会话，避免把尚未进入 runtime 的命令当作重启孤儿取消。 */
+          const releaseStart = reserveAgentSessionStart(session.id)
+          try {
+            await runAgent({
+              sessionId: session.id,
+              userMessage: command.requestSummary,
+              rawUserMessage: command.requestSummary,
+              channelId: session.channelId,
+              modelId: session.modelId,
+              workspaceId: session.workspaceId,
+              moduleIds: [command.moduleId],
+              moduleInvocationMode: command.invocationMode,
+              moduleCommandId: command.commandId,
+              modulePolicyRevision: command.baseRevision,
+              triggeredBy: 'user',
+            }, event.sender)
+          } finally { releaseStart() }
+        } else {
+          await submitOrEnqueueAgentMessage({
+            queueMessageId: command.commandId,
+            sessionId: session.id,
+            userMessage: command.requestSummary,
+            rawUserMessage: command.requestSummary,
+            channelId: session.channelId,
+            modelId: session.modelId,
+            workspaceId: session.workspaceId,
+            dispatch: 'after_current',
+            moduleIds: [command.moduleId],
+            moduleInvocationMode: command.invocationMode,
+            moduleCommandId: command.commandId,
+            modulePolicyRevision: command.baseRevision,
+          }, event.sender)
+        }
+      })
+    },
+  )
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.CANCEL_AGENT_MODULE_COMMAND,
+    async (_, input: { sessionId: string; commandId: string }): Promise<AgentModuleCommand> => {
+      requireVisibleSession(input.sessionId)
+      /** 不使用删除专用 stopAgentAndDrain，以免清空其他命令并永久阻断 Session。 */
+      const dispatcher = new AgentModuleCommandDispatcher({
+        bus: agentModuleCommandBus,
+        /** 重启后没有内存队列时，只在整个 Session 空闲后结束孤立 queued 回执。 */
+        cancelQueued: (sessionId, commandId) => cancelAgentQueuedMessage({ sessionId, messageId: commandId }) || !isAgentSessionBusy(sessionId),
+      })
+      return dispatcher.cancel(input)
+    },
+  )
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.GET_AGENT_MODULE_COMMANDS,
+    async (_, input: AgentModuleCommandQuery): Promise<AgentModuleCommand[]> => {
+      requireVisibleSession(input.sessionId)
+      return agentModuleCommandBus.list(input.sessionId, input.status)
+    },
+  )
+
+  registerAgentRunRecoveryIpc({ journal: agentRunJournalStore, registry: agentPluginRegistry, bus: agentModuleCommandBus, requireVisibleSession })
+
+  ipcMain.handle(AGENT_IPC_CHANNELS.GET_AGENT_MODULE_RUN_AUDITS, async (_, input: import('@dutydeck/shared').AgentModuleRunAuditQuery) => {
+    requireVisibleSession(input.sessionId)
+    return buildAgentModuleRunAudits(input.sessionId, agentRunJournalStore.read(input.sessionId), input)
+  })
+
   // renderer 的当前 Agent Tab 决定 partial 消息是前台 20fps 还是后台 4fps。
   ipcMain.handle(
     AGENT_IPC_CHANNELS.SET_VISIBLE_STREAM_SESSION,
@@ -6955,7 +7138,7 @@ export function registerIpcHandlers(): void {
     AGENT_IPC_CHANNELS.ENQUEUE_QUEUED_MESSAGE,
     async (event, input: import('@dutydeck/shared').AgentDeferredQueueMessageInput): Promise<void> => {
       requireVisibleSession(input.sessionId)
-      enqueueAgentQueuedMessage(input, event.sender)
+      enqueueAgentQueuedMessage({ ...input, moduleCommandId: undefined }, event.sender)
     },
   )
 

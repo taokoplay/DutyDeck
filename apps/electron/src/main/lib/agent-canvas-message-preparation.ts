@@ -57,7 +57,11 @@ export function createAgentQueueNowInput(candidate: AgentSubmitOrEnqueueInput): 
     mentionedTodoIds: candidate.mentionedTodoIds,
     mentionedCalendarEventIds: candidate.mentionedCalendarEventIds,
     mentionedMediaModelRefs: candidate.mentionedMediaModelRefs,
+    moduleIds: candidate.moduleIds,
     ...(Object.prototype.hasOwnProperty.call(candidate, 'visualProductionReferences') ? { visualProductionReferences: candidate.visualProductionReferences } : {}),
+    moduleInvocationMode: candidate.moduleInvocationMode,
+    moduleCommandId: candidate.moduleCommandId,
+    modulePolicyRevision: candidate.modulePolicyRevision,
     ...(Object.prototype.hasOwnProperty.call(candidate, 'mediaAttachments')
       ? { mediaAttachments: candidate.mediaAttachments }
       : {}),

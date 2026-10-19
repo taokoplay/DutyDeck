@@ -101,6 +101,7 @@ describe('Pi utility 强制关闭合同', () => {
       ...createQueryInput('session-completion'),
       // 宿主固定的根快照必须完整穿过 utility RPC，子进程不能重猜 cwd。
       dataRootPaths: { activeRoot: '/current-data', historicalRoots: ['/previous-data'] },
+      resumeContinuation: { expectedSessionFile: '/pi/session.jsonl', sessionId: 'pi-session', branchTipId: 'tip', artifactSha256: 'hash' },
       evaluateCompletion: async (signal: AbortSignal) => {
         evaluations.push(signal)
         return { action: 'complete' as const }
@@ -115,6 +116,7 @@ describe('Pi utility 强制关闭合同', () => {
     expect(startPayload.input?.evaluateCompletion).toBeUndefined()
     expect(startPayload.input?.completionEvaluationEnabled).toBe(true)
     expect(startPayload.input?.dataRootPaths).toEqual(input.dataRootPaths)
+    expect(startPayload.input?.resumeContinuation).toEqual(input.resumeContinuation)
     await expect(adapter.handleRuntimeRequest(createAgentRuntimeRequest(
       'agent.capability.evaluateCompletion',
       { queryId: 'query-completion', sessionId: 'session-completion' },
@@ -643,4 +645,17 @@ test('Given 用量回调 When utility query Then 不序列化函数并逐次返�
   runtime.stop.resolve()
   runtime.eventListener?.({ kind: 'event', method: AGENT_RUNTIME_METHODS.EVENT_QUERY_END, queryId: 'usage-query', sessionId: 'usage-session', payload: {} } as AgentRuntimeEvent)
   await expect(pending).resolves.toMatchObject({ done: true })
+})
+
+
+test('Given utility 崩溃 When 活跃 query 收到 EVENT_CRASHED Then 提供稳定可恢复错误码', async () => {
+  /** 活跃生成器保持等待，模拟真实 utility 非正常退出。 */
+  const adapter = new PiUtilityAdapter()
+  const iterator = adapter.query(createQueryInput('crashed-session'), 'crashed-query')[Symbol.asyncIterator]()
+  const pending = iterator.next()
+  const captured = pending.catch((error: unknown) => error)
+  await waitUntil(() => runtimeStates.length === 1)
+  runtimeStates[0]!.eventListener?.({ kind: 'event', method: AGENT_RUNTIME_METHODS.EVENT_CRASHED, payload: { code: 'runtime.process_exit', message: 'arbitrary platform text' } } as AgentRuntimeEvent)
+  runtimeStates[0]!.stop.resolve()
+  expect(await captured).toMatchObject({ code: 'AGENT_RUNTIME_INTERRUPTED' })
 })

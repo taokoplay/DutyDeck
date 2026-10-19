@@ -60,8 +60,8 @@ describe('工作区工具命令', () => {
     store.set(currentAgentSessionIdAtom, 'session-a')
     store.set(openWorkspaceToolAtom, 'browser' satisfies WorkspaceToolId)
 
-    expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toEqual({ tool: 'browser' })
-    expect(store.set(consumeWorkspaceToolRequestAtom, 'session-a')).toEqual({ tool: 'browser' })
+    expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toMatchObject({ tool: 'browser' })
+    expect(store.set(consumeWorkspaceToolRequestAtom, 'session-a')).toMatchObject({ tool: 'browser' })
     expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toBeNull()
   })
 
@@ -71,7 +71,7 @@ describe('工作区工具命令', () => {
     store.set(openWorkspaceToolAtom, 'terminal')
     expect(store.get(pendingWorkspaceToolRequestAtom('session-b'))).toBeNull()
     store.set(consumeWorkspaceToolRequestAtom, 'session-b')
-    expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toEqual({ tool: 'terminal' })
+    expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toMatchObject({ tool: 'terminal' })
   })
 
   test('新导航或会话切换可清掉未交付请求', () => {
@@ -128,7 +128,7 @@ describe('工作区工具命令', () => {
     store.set(openWorkspaceToolAtom, 'browser')
     expect(store.get(activeViewAtom)).toBe('conversations')
     expect(store.get(automationFormAtom).open).toBe(false)
-    expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toEqual({ tool: 'browser' })
+    expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toMatchObject({ tool: 'browser' })
     store.set(openWorkspaceToolAtom, 'files')
     expect(store.get(pendingWorkspaceToolRequestAtom('session-a'))).toBeNull()
     release()

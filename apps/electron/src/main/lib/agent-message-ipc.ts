@@ -39,7 +39,7 @@ export function registerAgentMessageIpcHandlers<TSession>(
   dependencies.ipc.handle(
     AGENT_IPC_CHANNELS.SEND_MESSAGE,
     async (event, input): Promise<AgentMessageInvokeResult<void>> => {
-      const sendInput = input as AgentSendInput
+      const sendInput = withoutModuleCommandClaim(input as AgentSendInput)
       const session = requireVisibleSession(sendInput.sessionId)
       return runAgentMessageInvoke(async () => {
         /** 在任何消息接管副作用前固化 Canvas 引用。 */
@@ -67,7 +67,7 @@ export function registerAgentMessageIpcHandlers<TSession>(
   dependencies.ipc.handle(
     AGENT_IPC_CHANNELS.QUEUE_MESSAGE,
     async (event, input): Promise<AgentMessageInvokeResult<string>> => {
-      const queueInput = input as AgentQueueMessageInput
+      const queueInput = withoutModuleCommandClaim(input as AgentQueueMessageInput)
       requireVisibleSession(queueInput.sessionId)
       return runAgentMessageInvoke(() => dependencies.queueMessage(queueInput, event.sender))
     },
@@ -76,9 +76,14 @@ export function registerAgentMessageIpcHandlers<TSession>(
   dependencies.ipc.handle(
     AGENT_IPC_CHANNELS.SUBMIT_OR_ENQUEUE_MESSAGE,
     async (event, input): Promise<AgentMessageInvokeResult<AgentSubmitOrEnqueueResult>> => {
-      const submitInput = input as AgentSubmitOrEnqueueInput
+      const submitInput = withoutModuleCommandClaim(input as AgentSubmitOrEnqueueInput)
       requireVisibleSession(submitInput.sessionId)
       return runAgentMessageInvoke(() => dependencies.submitOrEnqueue(submitInput, event.sender))
     },
   )
+}
+
+/** 普通消息不可冒充持久化模块命令；只有专用 outbox dispatcher 能附加命令身份。 */
+function withoutModuleCommandClaim<T extends object>(input: T): T {
+  return { ...input, moduleCommandId: undefined }
 }

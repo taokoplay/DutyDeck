@@ -1,3 +1,4 @@
+import { WorkspaceToolReceipt } from './WorkspaceToolReceipt'
 import { activeViewAtom } from '@/atoms/active-view'
 import { mobileMirrorDeviceRequestsAtom } from '@/atoms/mobile-mirror-atoms'
 import { appModeAtom } from '@/atoms/app-mode'
@@ -1495,19 +1496,20 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
           upsertCanvasSession(visibleCanvas)
         }
         if (canNavigate) {
-          if (await canvasRegistry.link(visibleCanvas.id, false) && canNavigate()) {
-            handleCanvasWorkspaceTabChange(getCanvasWorkspaceTab(visibleCanvas.id), pane)
-          }
+          if (!await canvasRegistry.link(visibleCanvas.id, false)) return false
+          if (!canNavigate()) return false
+          handleCanvasWorkspaceTabChange(getCanvasWorkspaceTab(visibleCanvas.id), pane)
         } else {
           await canvasRegistry.linkAndOpen(visibleCanvas.id, false, pane)
         }
       },
       failureMessage: CANVAS_WORKSPACE_FAILURE_MESSAGES.open,
       logContext: '打开画布',
-      onErrorMessage: showCanvasActionError,
+      // 菜单请求统一由回执层报告失败，避免迟到 toast 污染新会话。
+      onErrorMessage: canNavigate ? () => undefined : showCanvasActionError,
       onLogError: reportCanvasActionError,
     })
-    return result !== null
+    return result !== null && result !== false
   }, [canvasRegistry, handleCanvasWorkspaceTabChange, reportCanvasActionError, showCanvasActionError, upsertCanvasSession])
 
   /** 新建与关联作为一个用户动作收口，任一 IPC 失败都只显示固定提示。 */
@@ -2462,6 +2464,8 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
             ) : undefined}
             onClose={handleCloseSidePanel}
           />
+
+          <WorkspaceToolReceipt sessionId={sessionId} />
 
           <div ref={splitContentRef} className="relative flex min-h-0 flex-1 overflow-hidden">
             {renderSplit && split ? (

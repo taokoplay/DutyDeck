@@ -1,3 +1,4 @@
+import { isExactRecoveryEligible } from './agent-recovery-context'
 import { parseVisualProductionReferences } from '@dutydeck/shared'
 import { createProductionVisualProductionAccess } from './visual-production/integration'
 import { prepareVisualProductionReferences, VisualReferenceInvalidError } from './visual-production/reference-preparation'
@@ -55,6 +56,40 @@ export interface AgentRunTerminalObservation {
 
 /** 内部终态观察器；异常由 Agent service 副作用边界隔离。 */
 export type AgentRunTerminalObserver = (observation: AgentRunTerminalObservation) => void
+
+/** 模块命令终态回写；由 IPC 初始化时绑定到持久化命令总线。 */
+export interface AgentModuleCommandLifecycle {
+  markRunning: (commandId: string, sessionId: string) => void
+  markApplied: (commandId: string, sessionId: string) => void
+  markCanceled: (commandId: string, sessionId: string) => void
+  markFailed: (commandId: string, sessionId: string, errorCode: string) => void
+}
+
+let agentModuleCommandLifecycle: AgentModuleCommandLifecycle | null = null
+
+/** 注册模块命令回写 sink；清理时传入 null，避免测试或重载持有旧总线。 */
+export function setAgentModuleCommandLifecycle(lifecycle: AgentModuleCommandLifecycle | null): void {
+  agentModuleCommandLifecycle = lifecycle
+}
+
+/** 将 Agent 运行终态写回模块命令；终态重复回调只记录日志，不影响 Agent 主流程。 */
+function updateModuleCommandLifecycle(
+  input: AgentSendInput,
+  status: 'running' | 'applied' | 'canceled' | 'failed',
+  errorCode?: string,
+): void {
+  const commandId = input.moduleCommandId
+  if (!commandId || !agentModuleCommandLifecycle) return
+  try {
+    if (status === 'running') agentModuleCommandLifecycle.markRunning(commandId, input.sessionId)
+    else if (status === 'applied') agentModuleCommandLifecycle.markApplied(commandId, input.sessionId)
+    else if (status === 'canceled') agentModuleCommandLifecycle.markCanceled(commandId, input.sessionId)
+    else agentModuleCommandLifecycle.markFailed(commandId, input.sessionId, errorCode ?? 'AGENT_MODULE_COMMAND_FAILED')
+  } catch (error) {
+    // 命令状态回写是审计辅助，不得遮蔽 Pi 的真实运行结果。
+    console.warn('[Agent 模块] 命令终态回写失败:', error instanceof Error ? error.message : error)
+  }
+}
 import { PiAgentAdapter } from './adapters/pi-agent-adapter'
 import { PiUtilityAdapter } from './adapters/pi-utility-adapter'
 import { AgentEventBus } from './agent-event-bus'
@@ -173,7 +208,7 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
   /** 引用先完成权威解析，工具上下文只能使用解析后的快照。 */
   const prepared = prepareAgentCanvasMessageForSend(
     mediaPreparedInput,
-    extensions,
+    { ...extensions, exactRecoveryEligible: isExactRecoveryEligible('triggeredBy' in input ? input.triggeredBy : undefined, extensions) },
     referenceResolver,
   )
   /** 影像引用通过普通只读 access 校验，不能信任 renderer 标题或绕过归属。 */
@@ -528,6 +563,7 @@ export async function runPreparedAgent(
   let terminalObserved = false
   let activeStartedAt = input.startedAt
   let activeRunGeneration: number | undefined
+  let runErrored = false
   const notifyTerminal = (observation: AgentRunTerminalObservation): void => {
     if (terminalObserved || !terminalObserver) return
     terminalObserved = true
@@ -548,7 +584,9 @@ export async function runPreparedAgent(
     : (webContents.isDestroyed() ? undefined : webContents)
   try {
     await orchestrator.sendMessage(input, {
-      onError: (error) => {
+      onError: (error, opts) => {
+        runErrored = true
+        if (!opts?.recoverableInterruption) updateModuleCommandLifecycle(input, 'failed', typeof error === 'string' ? error : 'AGENT_MODULE_COMMAND_FAILED')
         runAgentServiceTerminalEffects([
           {
             name: 'internal-terminal-observer',
@@ -572,6 +610,10 @@ export async function runPreparedAgent(
         ], reportAgentServiceTerminalEffectError)
       },
       onComplete: (messages, opts) => {
+        if (opts?.recoverableInterruption) { /* 中断事实留在 running，等待精确恢复或用户放弃。 */ }
+        else if (runErrored) updateModuleCommandLifecycle(input, 'failed', 'AGENT_MODULE_COMMAND_FAILED')
+        else if (opts?.stoppedByUser) updateModuleCommandLifecycle(input, 'canceled')
+        else updateModuleCommandLifecycle(input, 'applied')
         runAgentServiceTerminalEffects([
           {
             name: 'internal-terminal-observer',
@@ -628,6 +670,7 @@ export async function runPreparedAgent(
       onRunStarted: ({ startedAt, runGeneration }) => {
         activeStartedAt = startedAt
         activeRunGeneration = runGeneration
+        if (!extensions.piResumeContinuation) updateModuleCommandLifecycle(input, 'running')
         const sessionMeta = getAgentSessionMeta(input.sessionId)
         workspaceOperationGuard.runAgentServiceEffects({
           sessionWorkspaceId: sessionMeta?.workspaceId,
@@ -678,6 +721,8 @@ export async function runPreparedAgent(
   } catch (err) {
     console.error('[Agent 服务] runAgent 未处理异常:', err)
     const errorMessage = err instanceof Error ? err.message : '未知错误'
+    runErrored = true
+    updateModuleCommandLifecycle(input, 'failed', errorMessage)
     runAgentServiceTerminalEffects([
       {
         name: 'internal-terminal-observer',
@@ -1092,6 +1137,9 @@ async function queuePreparedAgentMessage(
     resolved.input.mentionedTodoIds,
     resolved.input.mentionedCalendarEventIds,
     resolved.input.mentionedMediaModelRefs,
+    resolved.input.moduleIds,
+    resolved.input.moduleInvocationMode,
+    resolved.input.modulePolicyRevision,
     resolved.references,
     resolved.input.mediaAttachments,
     resolved.canvasWorkspacePrompt,

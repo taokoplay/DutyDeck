@@ -163,6 +163,20 @@ import type {
   ForkSessionInput,
   RewindSessionInput,
   RewindSessionResult,
+  AgentModuleManifest,
+  AgentPluginHealth,
+  AgentPluginPreview,
+  AgentPluginCatalogSnapshot,
+  AgentSessionModulePolicy,
+  AgentModuleCommand,
+  AgentSessionModulePolicyUpdateInput,
+  AgentModuleCommandInput,
+  AgentModuleCommandQuery,
+  AgentRunRecoveryPlan,
+  AgentRunRecoveryInput,
+  AgentRunRecoveryResult,
+  AgentModuleRunAudit,
+  AgentModuleRunAuditQuery,
   AgentMessageSearchResult,
   AgentSessionReferenceSearchInput,
   AgentSessionReferenceSearchResult,
@@ -832,6 +846,32 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   /** 生成 Agent 会话标题 */
   generateAgentTitle: (input: AgentGenerateTitleInput) => Promise<string | null>
 
+  /** 获取宿主注册的 Agent 模块目录。 */
+  previewAgentPlugin: () => Promise<AgentPluginPreview | null>
+  installAgentPlugin: (token: string) => Promise<AgentPluginCatalogSnapshot>
+  uninstallAgentPlugin: (pluginId: string) => Promise<AgentPluginCatalogSnapshot>
+  refreshAgentPlugins: () => Promise<AgentPluginCatalogSnapshot>
+  getAgentPluginCatalog: () => Promise<AgentPluginCatalogSnapshot>
+  getAgentModules: () => Promise<AgentModuleManifest[]>
+  /** 获取内置 Plugin Host 健康快照。 */
+  getAgentPluginHealth: () => Promise<AgentPluginHealth[]>
+  /** 获取当前 Session 的模块策略。 */
+  getSessionModulePolicy: (sessionId: string) => Promise<AgentSessionModulePolicy>
+  /** 更新当前 Session 的模块策略。 */
+  setSessionModulePolicy: (input: AgentSessionModulePolicyUpdateInput) => Promise<AgentSessionModulePolicy>
+  /** 提交一次显式模块动作。 */
+  submitAgentModuleCommand: (input: AgentModuleCommandInput) => Promise<AgentModuleCommand>
+  /** 取消尚未完成的模块动作。 */
+  cancelAgentModuleCommand: (input: { sessionId: string; commandId: string }) => Promise<AgentModuleCommand>
+  /** 获取当前 Session 的模块命令回执。 */
+  getAgentModuleCommands: (input: AgentModuleCommandQuery) => Promise<AgentModuleCommand[]>
+  /** 获取当前 Session 的未完成运行恢复计划。 */
+  getAgentRunRecoveryPlans: (sessionId: string) => Promise<AgentRunRecoveryPlan[]>
+  /** 执行宿主核验的单次恢复动作，不接受用户提供 artifact 路径。 */
+  applyAgentRunRecovery: (input: AgentRunRecoveryInput) => Promise<AgentRunRecoveryResult>
+  /** 读取当前会话有界、无敏感正文的模块运行审计。 */
+  getAgentModuleRunAudits: (input: AgentModuleRunAuditQuery) => Promise<AgentModuleRunAudit[]>
+
   /** 发送 Agent 消息 */
   sendAgentMessage: (input: AgentSendInput) => Promise<void>
 
@@ -1041,6 +1081,8 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
 
   /** 订阅 Agent 标题自动更新事件 */
   onAgentTitleUpdated: (callback: (data: { sessionId: string; title: string }) => void) => () => void
+  /** 订阅内置 Plugin Host 健康变化事件 */
+  onAgentPluginHealthChanged: (callback: (health: AgentPluginHealth) => void) => () => void
   /** 订阅 Agent 主动更新活动 Worktree 的事件 */
   onAgentActiveWorktreeUpdated: (callback: (session: AgentSessionMeta) => void) => () => void
 
@@ -2416,6 +2458,49 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GENERATE_TITLE, input)
   },
 
+  previewAgentPlugin: () => ipcRenderer.invoke(AGENT_IPC_CHANNELS.PREVIEW_AGENT_PLUGIN),
+  installAgentPlugin: (token) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.INSTALL_AGENT_PLUGIN, token),
+  uninstallAgentPlugin: (pluginId) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.UNINSTALL_AGENT_PLUGIN, pluginId),
+  refreshAgentPlugins: () => ipcRenderer.invoke(AGENT_IPC_CHANNELS.REFRESH_AGENT_PLUGINS),
+  getAgentPluginCatalog: () => ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_PLUGIN_CATALOG),
+  getAgentModules: () => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_MODULES)
+  },
+
+  getAgentPluginHealth: () => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_PLUGIN_HEALTH)
+  },
+
+  getSessionModulePolicy: (sessionId: string) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_SESSION_MODULE_POLICY, sessionId)
+  },
+
+  setSessionModulePolicy: (input: AgentSessionModulePolicyUpdateInput) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.SET_SESSION_MODULE_POLICY, input)
+  },
+
+  submitAgentModuleCommand: (input: AgentModuleCommandInput) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.SUBMIT_AGENT_MODULE_COMMAND, input)
+  },
+
+  cancelAgentModuleCommand: (input: { sessionId: string; commandId: string }) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.CANCEL_AGENT_MODULE_COMMAND, input)
+  },
+
+  getAgentModuleCommands: (input: AgentModuleCommandQuery) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_MODULE_COMMANDS, input)
+  },
+
+  getAgentRunRecoveryPlans: (sessionId: string) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_RUN_RECOVERY_PLANS, sessionId)
+  },
+  applyAgentRunRecovery: (input: AgentRunRecoveryInput) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.APPLY_AGENT_RUN_RECOVERY, input)
+  },
+  getAgentModuleRunAudits: (input: AgentModuleRunAuditQuery) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_MODULE_RUN_AUDITS, input)
+  },
+
   sendAgentMessage: (input: AgentSendInput) => {
     return invokeAgentMessage<void>(ipcRenderer, AGENT_IPC_CHANNELS.SEND_MESSAGE, input)
   },
@@ -2736,6 +2821,12 @@ const electronAPI: ElectronAPI = {
     const listener = (_: unknown, data: { sessionId: string; title: string }): void => callback(data)
     ipcRenderer.on(AGENT_IPC_CHANNELS.TITLE_UPDATED, listener)
     return () => { ipcRenderer.removeListener(AGENT_IPC_CHANNELS.TITLE_UPDATED, listener) }
+  },
+
+  onAgentPluginHealthChanged: (callback: (health: AgentPluginHealth) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, health: AgentPluginHealth): void => callback(health)
+    ipcRenderer.on(AGENT_IPC_CHANNELS.AGENT_PLUGIN_HEALTH_CHANGED, listener)
+    return () => { ipcRenderer.removeListener(AGENT_IPC_CHANNELS.AGENT_PLUGIN_HEALTH_CHANGED, listener) }
   },
   onAgentActiveWorktreeUpdated: (callback: (session: AgentSessionMeta) => void) => {
     const listener = (_: unknown, session: AgentSessionMeta): void => callback(session)

@@ -1,3 +1,4 @@
+import { createRecoveryContextDigest } from './agent-recovery-context'
 import { createTokenUsageObserver } from './token-usage-observer'
 import { agentTokenUsageContext } from './token-usage-context'
 import { createAgentRunFileChanges } from './agent-run-file-changes-service'
@@ -23,7 +24,7 @@ import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { accessSync, constants, existsSync, mkdirSync, realpathSync } from 'node:fs'
 import { app } from 'electron'
-import type { AgentSendInput, AgentMessage, AgentGenerateTitleInput, AgentProviderAdapter, AgentSessionMeta, AgentToolMode, AgentActiveSessionSnapshot, AgentMediaAttachment, CanvasNodeReference, CodexOAuthCredentials, XaiOAuthCredentials, TypedError, SDKMessage, SDKAssistantMessage, AgentStreamPayload, AgentAssistantDeltaPayload, RewindSessionResult, SkillActivation, ServerOpsAgentReference } from '@dutydeck/shared'
+import type { AgentSendInput, AgentMessage, AgentGenerateTitleInput, AgentProviderAdapter, AgentSessionMeta, AgentToolMode, AgentActiveSessionSnapshot, AgentMediaAttachment, CanvasNodeReference, CodexOAuthCredentials, XaiOAuthCredentials, TypedError, SDKMessage, SDKAssistantMessage, AgentStreamPayload, AgentAssistantDeltaPayload, RewindSessionResult, SkillActivation, ServerOpsAgentReference, AgentModuleAuditContribution } from '@dutydeck/shared'
 import {
   DUTYDECK_DEFAULT_PERMISSION_MODE,
   AGENT_DEFAULT_TOOL_MODE,
@@ -136,6 +137,10 @@ import { createFallbackTitle, sanitizeGeneratedTitle, SHORT_MESSAGE_THRESHOLD, T
 import { claimWorkspaceMemoryRefreshOpportunity } from './agent-memory-refresh-service'
 import { browserController } from './browser-controller'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
+import { getAgentSessionModulePolicy } from './agent-modules/module-policy-store'
+import { resolveActiveModuleContext } from './agent-modules/module-skill-resolver'
+import type { ResolvedAgentModuleContext } from './agent-modules/module-skill-resolver'
+import { tagModuleSkillActivations, projectModuleAuditSkills } from './agent-modules/module-run-audit'
 import { createWorkspaceOperationGuard } from './workspace-operation-guard'
 import type { AgentRunExtensions } from './agent-run-extensions'
 import type { VisualProductionReference } from '@dutydeck/shared'
@@ -169,11 +174,26 @@ const workspaceOperationGuard = createWorkspaceOperationGuard({
   getWorkspaceOperationBlockReason,
 })
 
+/** 所有 Agent run 共用的 Journal 写入器；事件事实不依赖 Renderer 生命周期。 */
+const agentRunJournal = new AgentRunJournalStore()
+
+/** 只把读取类工具标记为可自动重放；未知工具默认要求用户确认，避免崩溃后重复副作用。 */
+function isRunJournalReplaySafeTool(toolName: string): boolean {
+  return new Set([
+    'Read', 'Glob', 'Grep', 'LS', 'WebFetch', 'WebSearch',
+    'TerminalList', 'TerminalRead', 'BrowserObserve', 'browser.observe',
+    'server_list', 'server_status', 'server_docker_resources', 'server_docker_detail',
+    'server_files_list', 'server_files_read', 'proma_knowledge_status',
+  ]).has(toolName)
+}
+
 /** 将本地项目根解析为稳定的真实路径，用于并发回退冲突判断。 */
 function resolveLocalProjectRootForRewind(projectRootPath: string): string {
   return realpathSync(projectRootPath)
 }
 import { resolveRuntimeAdditionalDirectories } from './agent-orchestrator-vault-access'
+import { AgentRunJournalStore } from './agent-run-journal'
+import { readPiArtifactSnapshot } from './pi-artifact-reconciliation'
 
 // ===== 类型定义 =====
 
@@ -187,9 +207,9 @@ type AgentRunInput = AgentSendInput & { runGeneration?: number }
 
 export interface SessionCallbacks {
   /** 发送流式错误 */
-  onError: (error: string, opts?: { runGeneration?: number }) => void
+  onError: (error: string, opts?: { runGeneration?: number; recoverableInterruption?: boolean }) => void
   /** 发送流式完成（携带已持久化的消息列表） */
-  onComplete: (messages?: AgentMessage[], opts?: { stoppedByUser?: boolean; startedAt?: number; runGeneration?: number; resultSubtype?: string; terminalReason?: string; resultErrors?: string[]; backgroundTasksPending?: boolean }) => void
+  onComplete: (messages?: AgentMessage[], opts?: { stoppedByUser?: boolean; startedAt?: number; runGeneration?: number; resultSubtype?: string; terminalReason?: string; resultErrors?: string[]; backgroundTasksPending?: boolean; recoverableInterruption?: boolean }) => void
   /** 发送标题更新 */
   onTitleUpdated: (title: string) => void
   /** 用户消息已持久化，外部入口可据此通知前端切到实时会话 */
@@ -355,6 +375,8 @@ export class AgentOrchestrator {
   private adapter: AgentProviderAdapter
   private eventBus: AgentEventBus
   private activeSessions = new Map<string, number>()
+  /** 锁定运行期 Skills 准入；队列消息不能通过最新 Session 配置扩大当前运行权限。 */
+  private activeRunModuleSkills = new Map<string, { generation: number; enabled: boolean; context?: ResolvedAgentModuleContext }>()
   /** 当前代际的远端只读调用取消控制器；旧代际收尾不得清除新代际。 */
   private activeRunControllers = new Map<string, AgentRunIdentity>()
   /** 发布任务只在用户显式停止本轮时取消，正常回复后仍可在运维终端输入。 */
@@ -833,8 +855,13 @@ export class AgentOrchestrator {
     // Capture the focus once per turn. Later UI focus changes must not rewrite this reply's attribution.
     const initialVaultFocus = getVaultUserContext(sessionId)
     const streamStartedAt = input.startedAt ?? Date.now()
+    /** 只有 utility 生命周期发出的稳定错误码才能打开恢复检查，供应商文本不能冒充。 */
+    let recoverableInterruption = false
     let userMessagePersisted = false
-    let initialUserMessageUuid: string | undefined
+    /** 续接复用已核验的原始用户身份，以重建知识工具；不追加消息。 */
+    let initialUserMessageUuid: string | undefined = extensions.piResumeContinuation?.userMessageUuid
+    /** 运行中只写追加式审计；终态后补用户 Skill 注解，避免改写正在对账的消息文件。 */
+    const deferredUserSkillActivations = new Map<string, SkillActivation[]>()
     /** 知识任务能力绑定本次真实运行，不影响普通聊天终态。 */
     let knowledgeExecutionRun: KnowledgeExecutionRun | undefined
     let knowledgeRunFailed = false
@@ -846,18 +873,25 @@ export class AgentOrchestrator {
     /** 视觉上下文与生成 job 分开收尾，图片授权不跨运行恢复。 */
     let visualTaskContext: VisualTaskContextRuntime | undefined
     let visualContextDelegation: ReturnType<typeof buildVisualContextDelegationTools> | undefined
+    /** 展示 JSONL 回执写入 Journal 的桥接；运行身份建立后才会赋值。 */
+    let recordDisplayCommit: ((receipt: SDKMessageAppendReceipt) => void) | undefined
     /** 当前运行消息仍按原顺序落盘，知识维护在本回合工具内完成。 */
-    const persistRunSDKMessages = (messages: SDKMessage[], durationMs?: number): void => {
-      this.persistSDKMessages(sessionId, messages, durationMs)
+    const persistRunSDKMessages = (messages: SDKMessage[], durationMs?: number): SDKMessageAppendReceipt | undefined => {
+      const receipt = this.persistSDKMessages(sessionId, messages, durationMs)
+      if (receipt) recordDisplayCommit?.(receipt)
+      return receipt
     }
     let sessionMeta = getAgentSessionMeta(sessionId)
     /** 即使入参非法，也通过单次终态通知器隔离调用方回调异常。 */
     const terminalNotifier = createAgentRunTerminalNotifier<AgentMessage[], AgentRunCompleteOptions>({
-      onError: (error) => { knowledgeRunFailed = true; callbacks.onError(error) },
+      onError: (error) => { knowledgeRunFailed = true; callbacks.onError(error, { recoverableInterruption }) },
       onComplete: (messages, opts) => {
         knowledgeRunStopped ||= Boolean(opts?.stoppedByUser)
         knowledgeRunFailed ||= Boolean(opts?.resultErrors?.length || (opts?.resultSubtype && /^(error|failed|empty_response)/.test(opts.resultSubtype)))
-        callbacks.onComplete(messages, opts)
+        if (!recoverableInterruption) {
+          for (const [uuid, activations] of deferredUserSkillActivations) this.recordUserSkillActivations(sessionId, uuid, activations)
+        }
+        callbacks.onComplete(messages, { ...opts, recoverableInterruption })
       },
       onCallbackError: (kind, error) => {
         console.error(`[Agent 编排] terminal ${kind} callback 执行失败:`, error)
@@ -905,6 +939,80 @@ export class AgentOrchestrator {
     }
     /** 当前请求同步占用的运行代际；0 表示尚未持有运行槽。 */
     let runGeneration = 0
+    let journalRunId: string | undefined
+    let journalBranchId = 'main'
+    /** Journal 写失败不能覆盖 Agent 主流程，但必须留下可诊断日志。 */
+    const appendRunJournal = (
+      eventType: import('@dutydeck/shared').AgentRunJournalEventType,
+      payload: Record<string, unknown> = {},
+      idempotencyKey?: string,
+      parentEventId?: string,
+    ): string | undefined => {
+      if (!journalRunId) return undefined
+      try {
+        const event = agentRunJournal.append({
+          sessionId,
+          runId: journalRunId,
+          branchId: journalBranchId,
+          eventType,
+          payload,
+          ...(input.moduleCommandId ? { commandId: input.moduleCommandId } : {}),
+          ...(idempotencyKey ? { idempotencyKey } : {}),
+          ...(parentEventId ? { parentEventId } : {}),
+        })
+        return event.eventId
+      } catch (error) {
+        console.warn('[Agent Journal] 运行事件写入失败:', error instanceof Error ? error.message : String(error))
+        return undefined
+      }
+    }
+
+    /** 把展示 JSONL 的真实追加范围和每条消息摘要绑定到当前运行。 */
+    recordDisplayCommit = (receipt) => {
+      if (receipt.status !== 'written' || !receipt.messages?.length || receipt.byteOffset == null || receipt.byteLength == null) return
+      appendRunJournal(
+        'checkpoint',
+        { stage: 'display-commit', messageUuids: receipt.messages.map((message) => message.uuid) },
+        `display:${receipt.byteOffset}:${receipt.byteLength}`,
+        undefined,
+      )
+      try {
+        agentRunJournal.append({
+          sessionId,
+          runId: journalRunId!,
+          branchId: journalBranchId,
+          eventType: 'checkpoint',
+          payload: { stage: 'display-fact-binding' },
+          factBinding: {
+            display: {
+              ...(receipt.fileIdentity ? { fileIdentity: receipt.fileIdentity } : {}),
+              byteOffset: receipt.byteOffset,
+              byteLength: receipt.byteLength,
+              messages: receipt.messages.map((message) => ({ uuid: message.uuid, sha256: message.sha256 })),
+            },
+          },
+          idempotencyKey: `display-fact:${receipt.byteOffset}:${receipt.byteLength}`,
+        })
+      } catch (error) {
+        console.warn('[Agent Journal] 展示 JSONL 对账绑定写入失败:', error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    /** 记录权限卡片生命周期；请求输入只保存工具身份和摘要，不保存敏感参数。 */
+    const recordPermissionRequested = (request: { requestId: string; toolName: string; description?: string }): void => {
+      appendRunJournal('permission_requested', {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        ...(request.description ? { description: request.description } : {}),
+        replaySafe: false,
+      }, `permission:${request.requestId}:requested`)
+    }
+    /** 记录权限决策，供恢复器区分仍等待用户的运行。 */
+    const recordPermissionResolved = (requestId: string, behavior: 'allow' | 'deny'): void => {
+      appendRunJournal('permission_resolved', { requestId, behavior }, `permission:${requestId}:resolved`)
+    }
+    /** 当前运行内工具调用与 Journal 事件的绑定，供 tool_result 精确闭合。 */
+    const toolJournalEventIds = new Map<string, string>()
 
     /** 仅释放当前请求实际持有的会话运行槽。 */
     const releaseActiveRun = (): void => {
@@ -919,6 +1027,7 @@ export class AgentOrchestrator {
           this.activeRunControllers.delete(sessionId)
         }
         this.activeSessions.delete(sessionId)
+        this.activeRunModuleSkills.delete(sessionId)
         this.activeSessionStartedAt.delete(sessionId)
         this.sessionPermissionModes.delete(sessionId)
         this.queuedMessageUuids.delete(sessionId)
@@ -971,6 +1080,7 @@ export class AgentOrchestrator {
         visualProductionReferences,
       )
       initialUserMessageUuid = persisted.uuid
+      if (persisted.receipt) recordDisplayCommit?.(persisted.receipt)
       userMessagePersisted = true
     }
 
@@ -984,7 +1094,7 @@ export class AgentOrchestrator {
 
     // 0.1 并发保护
     const hasActiveRun = this.activeSessions.has(sessionId)
-    const shouldPersistUserMessage = shouldPersistInitialUserMessage({ hasActiveRun, retryOfErrorUuid })
+    const shouldPersistUserMessage = !extensions.piResumeContinuation && shouldPersistInitialUserMessage({ hasActiveRun, retryOfErrorUuid })
     if (hasActiveRun) {
       // 并发请求没有真正启动新的 Agent run，绝不能把它当作新用户输入写入 JSONL。
       // 尤其在用户点击停止后、底层 query 尚未完全退出的短暂窗口内，否则同一条
@@ -1001,6 +1111,8 @@ export class AgentOrchestrator {
       return
     }
     runGeneration = this.reserveRunGeneration(sessionId)
+    journalRunId = extensions.piResumeContinuation?.runId ?? `${sessionId}:${runGeneration}:${streamStartedAt}`
+    journalBranchId = sessionMeta?.sdkSessionId ?? 'main'
     const runIdentity = createAgentRunIdentity(sessionId, runGeneration, () => (
       this.activeSessions.get(sessionId) === runGeneration
       && !isAgentSessionDeleting(sessionId)
@@ -1012,6 +1124,7 @@ export class AgentOrchestrator {
     const serverTaskController = new AbortController()
     this.activeServerTaskControllers.set(sessionId, { generation: runGeneration, controller: serverTaskController })
     this.activeSessions.set(sessionId, runGeneration)
+    this.activeRunModuleSkills.set(sessionId, { generation: runGeneration, enabled: runWorkspaceSkillsEnabled })
     this.activeSessionStartedAt.set(sessionId, streamStartedAt)
     this.latestRunGenerations.set(sessionId, runGeneration)
     markInFlightGeneration(this.inFlightRunGenerations, sessionId, runGeneration)
@@ -1030,6 +1143,7 @@ export class AgentOrchestrator {
       isStopped: () => hasStoppedGeneration(this.stoppedBySessions, sessionId, runGeneration),
       release: releaseRun,
       onStopped: () => {
+        appendRunJournal('run_stopped', { reason: 'user_stop' }, 'terminal:stopped')
         this.consumeStoppedByUser(sessionId, runGeneration)
         // 旧 generation 只能完成自己的回调，不能消费后来 generation 的 stoppedBeforeRun 标记。
         terminalNotifier.onComplete([], { startedAt: streamStartedAt, stoppedByUser: true })
@@ -1059,6 +1173,7 @@ export class AgentOrchestrator {
     if (shouldPersistUserMessage) {
       try {
         persistInitialUserMessage()
+        appendRunJournal('user_turn', { userMessageUuid: initialUserMessageUuid, moduleIds: input.moduleIds ?? [] }, `user:${initialUserMessageUuid ?? streamStartedAt}`)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         console.error('[Agent 编排] 持久化用户消息失败:', error)
@@ -1074,6 +1189,8 @@ export class AgentOrchestrator {
         initialUserMessageUuid = userMessageUuid
       }
     }
+
+    appendRunJournal('checkpoint', { stage: 'preflight-complete', moduleIds: input.moduleIds ?? [], exactRecoveryEligible: extensions.exactRecoveryEligible === true && !knowledgeExecutionRun, runContext: { channelId, modelId: modelId ?? null, workspaceId: sessionMeta?.workspaceId ?? null, toolMode: runToolMode, permissionMode: permissionModeOverride ?? DUTYDECK_DEFAULT_PERMISSION_MODE } }, 'checkpoint:preflight')
 
     // 0.5 清除上一轮中断标记
     try { updateAgentSessionMeta(sessionId, { stoppedByUser: false }) } catch { /* 会话可能已删除 */ }
@@ -1238,6 +1355,7 @@ export class AgentOrchestrator {
       messages?: AgentMessage[],
       opts?: AgentRunCompleteOptions,
     ): void => {
+      appendRunJournal('run_completed', { resultSubtype: opts?.resultSubtype ?? 'success', moduleIds: input.moduleIds ?? [] }, 'terminal:completed')
       releaseActiveRun()
       terminalNotifier.onComplete(messages, opts)
     }
@@ -1246,6 +1364,7 @@ export class AgentOrchestrator {
       messages?: AgentMessage[],
       opts?: AgentRunCompleteOptions,
     ): void => {
+      appendRunJournal('run_failed', { error, recoverableInterruption }, `terminal:failed:${runGeneration}`)
       releaseActiveRun()
       terminalNotifier.onError(error)
       terminalNotifier.onComplete(messages, opts)
@@ -1273,8 +1392,14 @@ export class AgentOrchestrator {
       userMessageUuid: string,
     ): void => {
       if (!isLatestRunGeneration(this.latestRunGenerations, sessionId, runGeneration)) return
-      pendingSkillActivations = mergeSkillActivations(pendingSkillActivations, activations)
-      this.recordUserSkillActivations(sessionId, userMessageUuid, activations)
+      /** 将 Pi 实际加载的 Skill 绑定回本轮模块，历史展示因此能说明来源。 */
+      const taggedActivations = tagModuleSkillActivations(activations, activeModuleActivations)
+      appendRunJournal('checkpoint', {
+        stage: 'module-skill-activated',
+        skills: projectModuleAuditSkills(taggedActivations),
+      })
+      pendingSkillActivations = mergeSkillActivations(pendingSkillActivations, taggedActivations)
+      deferredUserSkillActivations.set(userMessageUuid, mergeSkillActivations(deferredUserSkillActivations.get(userMessageUuid) ?? [], taggedActivations))
     }
     // 委派子会话必须继承当前实际运行的模型；未显式传入时与 runtime 的默认值保持一致。
     const selectedModelId = modelId || DEFAULT_MODEL_ID
@@ -1287,6 +1412,10 @@ export class AgentOrchestrator {
     let agentCwd: string | undefined
     let workspaceSlug: string | undefined
     let workspace: import('@dutydeck/shared').AgentWorkspace | undefined
+    /** 本轮模块激活记录；只由主进程解析，避免 Renderer 伪造权限或 Skill。 */
+    let activeModuleActivations: AgentModuleAuditContribution[] = []
+    let activeModuleSkillMentions: string[] = []
+    let activeModulePromptFragments: string[] = []
     /** 本轮独占本地推理资源，直到 adapter 完全收尾后再交给下一任务。 */
     let localModelLease: LocalModelLease | undefined
 
@@ -1326,6 +1455,41 @@ export class AgentOrchestrator {
           console.log(`[Agent 编排] 将尝试 resume: ${existingSdkSessionId}`)
         } else {
           console.log(`[Agent 编排] 无 sdkSessionId，将作为新会话启动（回填历史上下文）`)
+        }
+      }
+
+      /** 模块策略在工作区解析后固化；迟到的 Renderer revision 直接拒绝。 */
+      const modulePolicy = getAgentSessionModulePolicy(sessionId)
+      if (input.modulePolicyRevision !== undefined && input.modulePolicyRevision !== modulePolicy.revision) {
+        appendRunJournal('checkpoint', {
+          stage: 'module-context', sessionId,
+          ...(input.moduleCommandId ? { moduleCommandId: input.moduleCommandId } : {}),
+          policyMode: modulePolicy.mode, policyRevision: modulePolicy.revision,
+          modules: [], unavailable: [{ moduleId: 'session-policy', reason: 'AGENT_MODULE_POLICY_REVISION_CONFLICT' }],
+        }, 'checkpoint:module-context')
+        throw new Error('AGENT_MODULE_POLICY_REVISION_CONFLICT')
+      }
+      {
+        const moduleContext = resolveActiveModuleContext({
+          workspaceSlug,
+          skillsEnabled: runWorkspaceSkillsEnabled,
+          sessionId,
+          policy: modulePolicy,
+          explicitModuleIds: input.moduleIds,
+          invocationMode: input.moduleInvocationMode,
+        })
+        this.activeRunModuleSkills.set(sessionId, { generation: runGeneration, enabled: runWorkspaceSkillsEnabled, context: moduleContext })
+        activeModuleActivations = moduleContext.modules
+        activeModuleSkillMentions = moduleContext.skillMentions
+        activeModulePromptFragments = moduleContext.promptFragments
+        appendRunJournal('checkpoint', {
+          stage: 'module-context', sessionId,
+          ...(input.moduleCommandId ? { moduleCommandId: input.moduleCommandId } : {}),
+          policyMode: modulePolicy.mode, policyRevision: modulePolicy.revision,
+          modules: moduleContext.modules, unavailable: moduleContext.unavailable,
+        }, 'checkpoint:module-context')
+        if (moduleContext.unavailable.length > 0) {
+          throw new Error(moduleContext.unavailable.map((item) => `${item.moduleId}:${item.reason}`).join(';'))
         }
       }
 
@@ -1435,7 +1599,7 @@ export class AgentOrchestrator {
         assertWorkspaceWritable: (id) => { if (!getAgentWorkspace(id)) throw new Error('API_AGENT_WORKSPACE_NOT_FOUND'); workspaceOperationGuard.assertWorkspaceWritable(id) },
         runWorkspaceWrite: (id, effect) => workspaceOperationGuard.runWorkspaceWrite(id, effect),
       })
-      /** 原型工具绑定当前主会话，仅生成候选；用户在工作区采纳正式版本。 */
+      /** 原型工具绑定当前主会话；候选与正式采纳都由同一运行身份执行。 */
       const interactionAccess = createInteractionDesignAgentAccess({
         sessionId, toolMode: runToolMode, triggeredBy: input.triggeredBy, automation: Boolean(automationContext),
         getSession: getAgentSessionMeta, assertRunActive: runIdentity.assertActive,
@@ -1652,9 +1816,18 @@ export class AgentOrchestrator {
         enrichedMessage = `${referencedServerOpsBlock}\n\n${enrichedMessage}`
         console.log(`[Agent 编排] 注入 referenced_server_ops: ${mentionedServerOpsReferences?.length ?? 0} resources`)
       }
-      if ((runWorkspaceSkillsEnabled && mentionedSkills?.length) || (runToolMode === 'standard' && mentionedMcpServers?.length)) {
+      const resolvedMentionedSkills = [...new Set([...(mentionedSkills ?? []), ...activeModuleSkillMentions])]
+      if ((runWorkspaceSkillsEnabled && resolvedMentionedSkills.length) || (runToolMode === 'standard' && mentionedMcpServers?.length)) {
         const toolLines: string[] = ['用户在消息中明确引用了以下工具，请在本次回复中主动调用：']
+        // 保留原有显式 Skill 引用的处理顺序，再追加模块解析出的 Skill。
         for (const slug of runWorkspaceSkillsEnabled ? mentionedSkills ?? [] : []) {
+          const qualifiedName = workspaceSlug
+            ? `proma-workspace-${workspaceSlug}:${slug}`
+            : slug
+          toolLines.push(`- Skill: ${qualifiedName}（请立即调用此 Skill）`)
+        }
+        for (const slug of runWorkspaceSkillsEnabled ? activeModuleSkillMentions : []) {
+          if ((mentionedSkills ?? []).includes(slug)) continue
           const qualifiedName = workspaceSlug
             ? `proma-workspace-${workspaceSlug}:${slug}`
             : slug
@@ -1664,7 +1837,7 @@ export class AgentOrchestrator {
           toolLines.push(`- MCP 服务器: ${name}（请使用此 MCP 服务器的工具来完成任务）`)
         }
         enrichedMessage = `<mentioned_tools>\n${toolLines.join('\n')}\n</mentioned_tools>\n\n${enrichedMessage}`
-        console.log(`[Agent 编排] 注入 mentioned_tools: ${mentionedSkills?.length ?? 0} skills, ${mentionedMcpServers?.length ?? 0} MCP`)
+        console.log(`[Agent 编排] 注入 mentioned_tools: ${resolvedMentionedSkills.length} skills, ${mentionedMcpServers?.length ?? 0} MCP`)
       }
       const referencedPlanningBlock = buildReferencedPlanningPrompt(
         productivityTools.todosEnabled ? mentionedTodoIds : undefined,
@@ -1928,7 +2101,7 @@ export class AgentOrchestrator {
                 ...(snapshot.send ? { send: snapshot.send } : {}),
                 ...(snapshot.save ? { save: snapshot.save } : {}),
               }, options, (request) => {
-                if (!denyStaleToolRun()) this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+                if (!denyStaleToolRun()) { recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } }) }
               })
             const checked = revalidateSingleApprovalResult(permission, denyStaleToolRun, getPermissionMode)
             if (checked.behavior !== 'allow' || options.signal.aborted) return checked.behavior === 'deny' ? checked : { behavior: 'deny', message: '操作已中止' }
@@ -1939,7 +2112,7 @@ export class AgentOrchestrator {
           }
         }
 
-        /** 原型仅有候选与资源写入；正式采纳没有 Agent 工具，计划模式严格只读。 */
+        /** 原型候选、资源和正式采纳都受当前运行权限与 CAS 保护，计划模式严格只读。 */
         if (INTERACTION_DESIGN_AGENT_TOOL_NAMES.some((name) => name === toolName)) {
           if (!interactionAccess) return { behavior: 'deny', message: '当前会话不具备交互设计能力' }
           try {
@@ -2012,7 +2185,7 @@ export class AgentOrchestrator {
                 ...input,
                 ...(factorySnapshot ? { approval: factorySnapshot } : {}),
               }, options, (request) => {
-                if (!denyStaleToolRun()) this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+                if (!denyStaleToolRun()) { recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } }) }
               })
             const factoryChecked = revalidateSingleApprovalResult(factoryPermission, denyStaleToolRun, getPermissionMode)
             if (factoryChecked.behavior !== 'allow' || options.signal.aborted) {
@@ -2039,7 +2212,7 @@ export class AgentOrchestrator {
             options,
             (request) => {
               if (denyStaleToolRun()) return
-              this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+              recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
             },
           )
           return revalidateSingleApprovalResult(result, denyStaleToolRun, getPermissionMode)
@@ -2074,7 +2247,7 @@ export class AgentOrchestrator {
             { ...options, title: approvalSnapshot.title, description: approvalSnapshot.description, displayName: approvalSnapshot.toolName },
             (request) => {
               if (denyStaleToolRun()) return
-              this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+              recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
             },
           )
           const checked = revalidateSingleApprovalResult(result, denyStaleToolRun, getPermissionMode)
@@ -2107,13 +2280,13 @@ export class AgentOrchestrator {
             options,
             (request) => {
               if (denyStaleToolRun()) return
-              this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+              recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
             },
             extensions.toolApprovalPolicy ? {
               policy: extensions.toolApprovalPolicy,
               onResolved: (requestId, behavior) => {
                 if (denyStaleToolRun()) return
-                this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_resolved', requestId, behavior } })
+                recordPermissionResolved(requestId, behavior); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_resolved', requestId, behavior } })
               },
             } : undefined,
           )
@@ -2218,7 +2391,7 @@ export class AgentOrchestrator {
         if (toolName === 'BrowserUpload') {
           if (currentMode === 'plan') return { behavior: 'deny' as const, message: '计划模式下不能选择网页上传文件，请在计划获批后执行。' }
           const result = await permissionService.requestSingleApproval(sessionId, toolName, input, options, (request) => {
-            this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+            recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
           })
           return revalidateSingleApprovalResult(result, denyStaleToolRun, getPermissionMode)
         }
@@ -2260,7 +2433,7 @@ export class AgentOrchestrator {
             options,
             (request) => {
               if (denyStaleToolRun()) return
-              this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+              recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
             },
           )
           return revalidateSingleApprovalResult(result, denyStaleToolRun, getPermissionMode)
@@ -2278,7 +2451,7 @@ export class AgentOrchestrator {
           }
           /** 等待 PowerShell 单次审批后的权限结果。 */
           const result = await permissionService.requestSingleApproval(sessionId, toolName, input, options, (request) => {
-            this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+            recordPermissionRequested(request); this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
           })
           return revalidateSingleApprovalResult(result, denyStaleToolRun, getPermissionMode)
         }
@@ -2404,6 +2577,9 @@ export class AgentOrchestrator {
       /** 单次可信运行场景放在通用规则之后，使专用会话覆盖普通入口分流语义。 */
       const systemPromptAppend = [baseSystemPrompt,
         visualContextPrompt,
+        activeModulePromptFragments.length > 0
+          ? `<active_agent_modules>\n当前 Session 已启用以下模块。模块提示只补充任务路由，宿主权限、项目指令和会话边界优先级更高。\n${activeModulePromptFragments.map((fragment) => `- ${fragment}`).join('\n')}\n模块激活：${activeModuleActivations.map((activation) => `${activation.moduleId} (${activation.mode})`).join(', ')}\n</active_agent_modules>`
+          : undefined,
         visualProductionAccess ? `影像创作使用 visual_production_* 工具，承担漫剧、影片、宣传片和图片作品；交互稿由交互设计模块承接。一个 Agent 项目可有多个影像作品，作品下有集数、共用资产和有序镜头。新作品先与用户明确目标、受众、比例、时长和风格，提交脚本/分镜/资产规划候选，用户采用后再基于正式版本生成；不要把尚未确认的设定当作已批准资产。
 已有镜头重做按顺序执行：① list/read 确认作品，用 read_shot 读取准确 shotId、最新 revision、绑定资产和版本；shot.assetIds 仅含当前页，先沿 textPage.nextOffset 用 textOffset 续读并拼接完整长文本，再沿 referencePage.nextOffset 用 referenceOffset 续读所有引用并重置 textOffset；所有页 revision 必须一致，变更时重新读取。② read_media_configuration 和 media_catalog 读取作品启用范围及各类别默认来源，沿用用户明确指定的模型或服务；显式空 entries 禁止生成，无可用来源说明缺口。③ begin_job 绑定 shotId 与 baseRevision 并冻结制作配置，多个活动任务向媒体准备工具提供 visualJobId。④ reference_media 将目标已采用画面或绑定资产的 mediaId 转成完整 MediaAssetRef，禁止把影像内部 mediaId 或本地路径伪装成媒体引用。参考数量须遵守选中模型或工作流的真实约束；不能悄悄拼图或忽略其他资产。⑤ 使用 API 模型时按 media_prepare_generation → media_execute_generation → media_wait_generation 生成；使用 ComfyUI 服务时由 Agent 在允许的 connectionId 内通过 media_discover_workflows 按需分页筛选，核对输出、参考数量与输入角色，再用精确 descriptor/contentHash 调用 media_use_remote_workflow，随后 media_inspect_workflow 校验节点、模型和输入，按返回的 workflowId/revision 调用 media_prepare_run → media_execute_run → media_wait_run。影像任务不传 canvasId 或 targetNodeId。不得按名称默认选第一项或让用户从大量工作流里手选；服务条目不证明该服务具备所有输出能力。目录失败不能当作没有匹配，真实无匹配时说明缺口，遵循现有媒体授权策略；不擅自换到未授权服务。旧固定工作流保留精确版本及参数。按真实动作 update_job(preparing/generating/reviewing)，等待超时只代表尚未完成，不自动重发收费请求。⑥ 成功结果的全部 outputs[].asset 通过 import_media 导入独立副本；用 propose_shot 提交 jobId/shotId/mediaId/alternativeMediaIds/summary，其中 mediaId 是首选、alternativeMediaIds 是最多15个去重替选。空镜头只有一个可用输出时宿主可自动采用，返回 status=adopted 和 adoptedRevision 后必须重新读取最新作品；已有画面或多个不同输出时保留候选，由用户选择。候选提交后通过 open_context(candidateId) 绑定其当前版本，inspect_media 检查实际画面并 record_observation；若已自动采用则重新读取正式 revision 后检查。提交候选或采用本身不等于视觉验收，缺陷须如实报告。需改设定或规划时才使用完整 propose，保留未要求修改的内容及锁定资产。
 失败调用 fail_job 并说明原因；用户重试时重读最新版本并 begin_job 新任务，不复活旧任务。取消需分别处理已启动的媒体任务和影像任务；只取消影像任务会拒绝候选回流，不代表外部生成已停止。阶段是制作步骤，不是供应商百分比或质量验收证明。设定变更导致任务过期、取消或任务不属于本轮时不得继续提交；仅其他镜头画面采用导致的版本推进可由宿主验证兼容，不能借此修改旧设定。规划、资产和时间线候选仍由用户在面板手工采用。
@@ -2449,6 +2625,15 @@ export class AgentOrchestrator {
         // recovery 新建 artifact 后，旧 entry bindings 属于另一棵 Pi tree，必须原子替换而非合并。
         const artifactReplaced = !!piSessionFile && latestSessionMeta?.piSessionFile !== piSessionFile
         capturedSdkSessionId = sdkSessionId
+        /** Journal branch 以当前 Pi session 身份为准；恢复切换 artifact 时留下可审计边界。 */
+        if (journalBranchId !== sdkSessionId) {
+          journalBranchId = sdkSessionId
+          appendRunJournal('checkpoint', {
+            stage: 'pi-session-bound',
+            piSessionId: sdkSessionId,
+            ...(piSessionFile ? { piSessionFile } : {}),
+          }, `pi-session:${sdkSessionId}`)
+        }
         if (isNewSessionId || artifactReplaced) {
           try {
             // 用户可在本轮运行中改选下一轮内核；不能让旧 runtime 回填不兼容的 session artifact。
@@ -2544,6 +2729,7 @@ export class AgentOrchestrator {
           },
         }),
         resumeSessionId: existingSdkSessionId,
+        ...(extensions.piResumeContinuation ? { resumeContinuation: extensions.piResumeContinuation } : {}),
         initialUserMessageUuid,
         piAgentDir: getSdkConfigDir(),
         piSessionDir: join(getSdkConfigDir(), 'sessions'),
@@ -2558,7 +2744,7 @@ export class AgentOrchestrator {
           additionalSkillPaths: [getWorkspaceSkillsDir(workspaceSlug)],
           skillWorkspaceSlug: workspaceSlug,
         } : {}),
-        ...(runWorkspaceSkillsEnabled && mentionedSkills?.length ? { skillMentions: mentionedSkills } : {}),
+        ...(runWorkspaceSkillsEnabled && resolvedMentionedSkills.length ? { skillMentions: resolvedMentionedSkills } : {}),
         ...(runWorkspaceSkillsEnabled ? { onSkillActivated: recordSkillActivation } : {}),
         ...(isCompactCommand ? { compactRequest: true } : {}),
         ...(sessionMeta?.codexFastMode && channel.provider === 'openai-codex' ? { codexFastMode: true } : {}),
@@ -2608,6 +2794,40 @@ export class AgentOrchestrator {
           updateAgentSessionMeta(sessionId, {
             piEntryBindings: { ...(latest?.piEntryBindings ?? {}), ...bindings },
           })
+          const current = getAgentSessionMeta(sessionId)
+          const piSessionId = current?.sdkSessionId ?? capturedSdkSessionId
+          const piSessionFile = current?.piSessionFile
+          let artifactSnapshot: ReturnType<typeof readPiArtifactSnapshot> | undefined
+          if (piSessionFile) {
+            try { artifactSnapshot = readPiArtifactSnapshot(piSessionFile) }
+            catch (error) { console.warn('[Agent Journal] Pi artifact 快照读取失败:', error instanceof Error ? error.message : String(error)) }
+          }
+          appendRunJournal('checkpoint', {
+            stage: 'pi-fact-binding',
+            ...(piSessionId ? { piSessionId } : {}),
+            bindingCount: Object.keys(bindings).length,
+          }, `pi-bindings:${Object.keys(bindings).sort().join(',')}`)
+          try {
+            agentRunJournal.append({
+              sessionId,
+              runId: journalRunId!,
+              branchId: journalBranchId,
+              eventType: 'checkpoint',
+              payload: { stage: 'pi-fact-binding' },
+              factBinding: {
+                pi: {
+                  ...(piSessionId ? { sessionId: piSessionId } : {}),
+                  ...(piSessionFile ? { sessionFile: piSessionFile } : {}),
+                  branchTipId: artifactSnapshot?.branchTipId ?? Object.values(bindings).at(-1),
+                  ...(artifactSnapshot?.artifactSha256 ? { artifactSha256: artifactSnapshot.artifactSha256 } : {}),
+                  entryBindings: { ...bindings },
+                },
+              },
+              idempotencyKey: `pi-fact:${Object.entries(bindings).sort(([a], [b]) => a.localeCompare(b)).map(([uuid, entryId]) => `${uuid}:${entryId}`).join('|')}`,
+            })
+          } catch (error) {
+            console.warn('[Agent Journal] Pi artifact 对账绑定写入失败:', error instanceof Error ? error.message : String(error))
+          }
         },
         onModelResolved: handleModelResolved,
         onContextWindow: handleContextWindow,
@@ -2619,14 +2839,22 @@ export class AgentOrchestrator {
         },
       }
 
+      /** 在调用模型前核对实际运行合同，拒绝同 ID 下被替换的渠道、目录、指令或工具。 */
+      const recoveryContextDigest = createRecoveryContextDigest({ query: queryOptions, hostVersion: pkg.version,
+        modulePrompts: activeModulePromptFragments, extensions })
+      if (extensions.piResumeContinuation && extensions.piResumeContinuation.contextDigest !== recoveryContextDigest) {
+        throw new Error('AGENT_RUN_RECOVERY_CONTEXT_CHANGED')
+      }
+      if (!extensions.piResumeContinuation) appendRunJournal('checkpoint', { stage: 'runtime-context', digest: recoveryContextDigest }, 'checkpoint:runtime-context')
+
       // 首条用户消息已持久化且运行参数已就绪，立刻启动自动命名。
       // 不依赖 Pi onSessionId：部分第三方渠道在该回调延迟或缺失时仍必须完成重命名。
-      startAutoTitleGeneration()
+      if (!extensions.piResumeContinuation) startAutoTitleGeneration()
 
       console.log(`[Agent 编排] 开始通过 Adapter 遍历事件流...`)
 
       // 14. 遍历 Adapter 事件流。Pi adapter 自行处理传输层重试；此处仅允许一次 resume artifact 回退。
-      const MAX_QUERY_ATTEMPTS = 2
+      const MAX_QUERY_ATTEMPTS = extensions.piResumeContinuation ? 1 : 2
       const queryStartedAt = Date.now()
 
       for (let attempt = 1; attempt <= MAX_QUERY_ATTEMPTS; attempt++) {
@@ -2645,7 +2873,7 @@ export class AgentOrchestrator {
         // A recovery query starts a fresh turn; activations from a failed attempt must not leak.
         pendingSkillActivations = []
         // 回退会清除 queryOptions.resumeSessionId；新建 Pi artifact 不应再触发 prompt replay。
-        const wasResuming = !!queryOptions.resumeSessionId
+        const wasResuming = !!queryOptions.resumeSessionId && !extensions.piResumeContinuation
         let shouldRetryFromError = false
 
         // 停止 sentinel 必须在 query 业务 catch 外抛出，仅由 runAgentLifecycle 消费。
@@ -2738,14 +2966,15 @@ export class AgentOrchestrator {
             if (msg.type === 'result') {
               const skillActivations = mergeSkillActivations(
                 pendingSkillActivations,
-                collectSkillActivations(
+                tagModuleSkillActivations(collectSkillActivations(
                   [...accumulatedMessages, msg],
                   workspaceSlug
                     ? { workspaceSlug, workspaceSkillsRoot: getWorkspaceSkillsDir(workspaceSlug) }
                     : undefined,
-                ),
+                ), activeModuleActivations),
               )
               if (skillActivations.length > 0) {
+                appendRunJournal('checkpoint', { stage: 'module-skill-activated', skills: projectModuleAuditSkills(skillActivations) })
                 msg = {
                   ...(msg as Record<string, unknown>),
                   skill_activations: skillActivations,
@@ -2765,9 +2994,32 @@ export class AgentOrchestrator {
             if (msg.type === 'assistant') {
               const assistantMsg = msg as SDKAssistantMessage
               if (!assistantMsg.isReplay) {
+                /** 先记录 Pi 已交付的 assistant 边界，再等待展示 JSONL 批量提交。 */
+                const assistantIdentity = assistantMsg as SDKAssistantMessage & { _piSourceUuid?: string }
+                appendRunJournal(
+                  'assistant_turn',
+                  {
+                    messageUuid: assistantMsg.uuid,
+                    ...(assistantIdentity._piSourceUuid ? { piSourceUuid: assistantIdentity._piSourceUuid } : {}),
+                    containsToolUse: assistantMsg.message.content.some((block) => block.type === 'tool_use'),
+                  },
+                  `assistant:${assistantMsg.uuid}:seen`,
+                )
                 for (const block of assistantMsg.message.content) {
                   if (block.type === 'tool_use' && 'name' in block && typeof block.name === 'string') {
                     syncPlanModeFromToolUse(block.name)
+                    if (!assistantMsg.isReplay && 'id' in block && typeof block.id === 'string') {
+                      const toolEventId = appendRunJournal(
+                        'tool_started',
+                        {
+                          toolUseId: block.id,
+                          toolName: block.name,
+                          replaySafe: isRunJournalReplaySafeTool(block.name),
+                        },
+                        `tool:${block.id}:started`,
+                      )
+                      if (toolEventId) toolJournalEventIds.set(block.id, toolEventId)
+                    }
                   }
                 }
               }
@@ -2895,6 +3147,22 @@ export class AgentOrchestrator {
                   const content = (msg as { message?: { content?: Array<{ type: string }> } }).message?.content
                   const hasToolResult = Array.isArray(content) && content.some((b) => b.type === 'tool_result')
                   if (hasToolResult) {
+                    for (const block of content ?? []) {
+                      if (block.type !== 'tool_result') continue
+                      const toolUseId = 'tool_use_id' in block && typeof block.tool_use_id === 'string' ? block.tool_use_id : undefined
+                      if (!toolUseId) continue
+                      appendRunJournal(
+                        'tool_result',
+                        {
+                          toolUseId,
+                          isError: 'is_error' in block && block.is_error === true,
+                          replaySafe: true,
+                        },
+                        `tool:${toolUseId}:result`,
+                        toolJournalEventIds.get(toolUseId),
+                      )
+                      toolJournalEventIds.delete(toolUseId)
+                    }
                     accumulatedMessages.push(msg)
                   }
                 } else {
@@ -3061,6 +3329,7 @@ export class AgentOrchestrator {
           }
 
           const rawErrorMessage = errorMessageOf(error)
+          recoverableInterruption = error instanceof Error && 'code' in error && error.code === 'AGENT_RUNTIME_INTERRUPTED'
           const catchLooksPromptTooLong = isPromptTooLongError(rawErrorMessage)
 
           // Session 不存在错误：清除 sdkSessionId，切换到上下文回填模式重试
@@ -3265,6 +3534,7 @@ export class AgentOrchestrator {
       this.activeRunControllers.delete(sessionId)
     }
     this.activeSessions.delete(sessionId)
+    this.activeRunModuleSkills.delete(sessionId)
     this.activeSessionStartedAt.delete(sessionId)
     this.sessionPermissionModes.delete(sessionId)
     browserController.cancelSession(sessionId)
@@ -3455,6 +3725,9 @@ export class AgentOrchestrator {
     mentionedTodoIds?: string[],
     mentionedCalendarEventIds?: string[],
     mentionedMediaModelRefs?: string[],
+    moduleIds?: string[],
+    moduleInvocationMode?: import('@dutydeck/shared').AgentModuleInvocationMode,
+    modulePolicyRevision?: number,
     canvasNodeReferences?: CanvasNodeReference[],
     mediaAttachments?: AgentMediaAttachment[],
     canvasWorkspacePrompt?: string,
@@ -3476,6 +3749,15 @@ export class AgentOrchestrator {
     const workspaceSlug = meta?.workspaceId
       ? getAgentWorkspace(meta.workspaceId)?.slug
       : undefined
+    /** 模块命令必须启动独立 run，不能改变当前 run 已固化的策略与审计身份。 */
+    if (moduleIds?.length) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')
+    /** 普通追加消息只复用当前代际的冻结快照，不重新读取可变 Session 策略。 */
+    const moduleSkills = this.activeRunModuleSkills.get(sessionId)
+    if (!moduleSkills || moduleSkills.generation !== this.activeSessions.get(sessionId) || !moduleSkills.context) {
+      throw new Error('无活跃消息通道可注入队列消息')
+    }
+    const moduleContext = moduleSkills.context
+    const resolvedMentionedSkills = [...new Set([...(mentionedSkills ?? []), ...moduleContext.skillMentions])]
 
     const userBrowserContext = browserController.getUserContext(sessionId)
     const userVaultContext = getVaultUserContext(sessionId)
@@ -3494,9 +3776,9 @@ export class AgentOrchestrator {
     }
     const referencedServerOpsBlock = buildReferencedServerOpsPrompt(mentionedServerOpsReferences)
     if (referencedServerOpsBlock) enrichedText = `${referencedServerOpsBlock}\n\n${enrichedText}`
-    if (mentionedSkills?.length || mentionedMcpServers?.length) {
+    if (resolvedMentionedSkills.length || mentionedMcpServers?.length) {
       const toolLines: string[] = ['用户在消息中明确引用了以下工具，请在本次回复中主动调用：']
-      for (const slug of mentionedSkills ?? []) {
+      for (const slug of resolvedMentionedSkills) {
         const qualifiedName = workspaceSlug
           ? `proma-workspace-${workspaceSlug}:${slug}`
           : slug
@@ -3506,6 +3788,9 @@ export class AgentOrchestrator {
         toolLines.push(`- MCP 服务器: ${name}（请使用此 MCP 服务器的工具来完成任务）`)
       }
       enrichedText = `<mentioned_tools>\n${toolLines.join('\n')}\n</mentioned_tools>\n\n${enrichedText}`
+    }
+    if (moduleContext.promptFragments.length > 0) {
+      enrichedText = `<active_agent_modules>\n${moduleContext.promptFragments.map((fragment) => `- ${fragment}`).join('\n')}\n</active_agent_modules>\n\n${enrichedText}`
     }
     // Planning read tools are Pi-native. Do not direct Claude sessions to unavailable tools.
     const referencedPlanningBlock = buildReferencedPlanningPrompt(
@@ -3540,7 +3825,7 @@ export class AgentOrchestrator {
     try {
       await this.adapter.sendQueuedMessage(sessionId, sdkMessage, {
         ...(opts?.interrupt ? { interrupt: true } : {}),
-        ...(mentionedSkills?.length ? { skillMentions: mentionedSkills } : {}),
+        ...(resolvedMentionedSkills.length ? { skillMentions: resolvedMentionedSkills } : {}),
       })
       console.log(`[Agent 编排] 追加消息已注入: sessionId=${sessionId}, uuid=${uuid}, interrupt=${!!opts?.interrupt}`)
 

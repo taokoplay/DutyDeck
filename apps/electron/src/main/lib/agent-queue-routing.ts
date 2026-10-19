@@ -16,6 +16,7 @@ export function isStaleActiveQueueError(error: unknown): boolean {
       : String(error)
 
   return code === 'agent.query.not_active' ||
+    message.includes('AGENT_MODULE_REQUIRES_NEW_RUN') ||
     message.includes('会话未运行，无法追加消息') ||
     message.includes('无活跃消息通道可注入队列消息') ||
     message.includes('当前会话没有正在运行的 Agent') ||
@@ -36,8 +37,8 @@ export async function routeAgentSubmitOrEnqueue<TPrepared>(
   input: AgentSubmitOrEnqueueInput,
   dependencies: AgentSubmitRouteDependencies<TPrepared>,
 ): Promise<AgentSubmitOrEnqueueResult> {
-  // 带影像目标的消息必须使用独立新运行，避免继承旧运行图片范围。
-  if (input.dispatch === 'now' && !input.visualProductionReferences?.length && dependencies.isActive(input.sessionId)) {
+  // 显式模块和影像目标使用独立新运行，冻结各自策略与上下文归属。
+  if (input.dispatch === 'now' && !input.moduleIds?.length && !input.visualProductionReferences?.length && dependencies.isActive(input.sessionId)) {
     const prepared = await dependencies.prepareNow(input)
     if (!dependencies.isActive(input.sessionId)) {
       dependencies.enqueue(input)

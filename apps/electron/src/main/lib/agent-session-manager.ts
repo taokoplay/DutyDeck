@@ -66,6 +66,7 @@ import { projectSDKMessageForDisplay } from './agent-message-display'
 import { projectSessionAttachmentPaths } from './session-attachment-path-compat'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
 import { resolvePiHistoryTarget } from './pi-history-target'
+import { assertPiBranchBinding, readPiArtifactSnapshot } from './pi-artifact-reconciliation'
 
 /**
  * 会话索引文件格式
@@ -1336,7 +1337,7 @@ export async function getAgentSessionSDKMessagesForDisplay(id: string): Promise<
  */
 export function updateAgentSessionMeta(
   id: string,
-  updates: Partial<Pick<AgentSessionMeta, 'title' | 'channelId' | 'modelId' | 'sdkSessionId' | 'piSessionFile' | 'piEntryBindings' | 'codexFastMode' | 'reasoningLevel' | 'openAIThinkingLevel' | 'workspaceId' | 'activeWorktree' | 'pinned' | 'starred' | 'archived' | 'attachedDirectories' | 'attachedFiles' | 'forkSourceDir' | 'explorationParentSessionId' | 'explorationSourceMessageId' | 'explorationSourceLabel' | 'explorationTitleInitializedAt' | 'stoppedByUser' | 'permissionMode' | 'toolMode' | 'completedButUnconfirmed' | 'sourceAutomationId' | 'sourceDesignProjectId' | 'sourceDesignJobId' | 'automationGraduated' | 'parentSessionId' | 'rootSessionId' | 'sourceDelegationId' | 'sourceVisualReviewRunId' | 'delegationRole' | 'delegationStatus' | 'delegationDepth' | 'delegationGoal'>>,
+  updates: Partial<Pick<AgentSessionMeta, 'title' | 'channelId' | 'modelId' | 'sdkSessionId' | 'piSessionFile' | 'piEntryBindings' | 'codexFastMode' | 'reasoningLevel' | 'openAIThinkingLevel' | 'workspaceId' | 'activeWorktree' | 'pinned' | 'starred' | 'archived' | 'attachedDirectories' | 'attachedFiles' | 'forkSourceDir' | 'explorationParentSessionId' | 'explorationSourceMessageId' | 'explorationSourceLabel' | 'explorationTitleInitializedAt' | 'stoppedByUser' | 'permissionMode' | 'toolMode' | 'modulePolicy' | 'completedButUnconfirmed' | 'sourceAutomationId' | 'sourceDesignProjectId' | 'sourceDesignJobId' | 'automationGraduated' | 'parentSessionId' | 'rootSessionId' | 'sourceDelegationId' | 'sourceVisualReviewRunId' | 'delegationRole' | 'delegationStatus' | 'delegationDepth' | 'delegationGoal'>>,
 ): AgentSessionMeta {
   if ('toolMode' in updates && !isAgentToolMode(updates.toolMode)) {
     throw new Error('Agent 工具运行模式非法')
@@ -1676,8 +1677,19 @@ async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessi
   const sdk = await import('@earendil-works/pi-coding-agent')
   const sessionDir = join(getSdkConfigDir(), 'sessions')
   const sourceManager = sdk.SessionManager.open(sourceMeta.piSessionFile, sessionDir, sourceDir)
+  const sourceBranch = sourceManager.getBranch()
+  const sourceArtifact = readPiArtifactSnapshot(sourceMeta.piSessionFile)
+  if (sourceArtifact.sessionId !== sourceManager.getSessionId() || sourceArtifact.branchTipId !== sourceBranch.at(-1)?.id) {
+    throw new Error('Pi artifact 与当前 branch 不一致，无法安全分叉')
+  }
+  assertPiBranchBinding({
+    expectedSessionId: sourceMeta.sdkSessionId,
+    actualSessionId: sourceManager.getSessionId(),
+    branch: sourceBranch,
+    entryBindings: sourceMeta.piEntryBindings ?? {},
+  })
   /** 旧提示恢复只在内存定位，不能为一次分叉改写源会话。 */
-  const entryId = resolvePiHistoryTarget({ messages: sourceMessages, bindings: sourceMeta.piEntryBindings ?? {}, branch: sourceManager.getBranch(), targetUuid })
+  const entryId = resolvePiHistoryTarget({ messages: sourceMessages, bindings: sourceMeta.piEntryBindings ?? {}, branch: sourceBranch, targetUuid })
   const newMeta = createAgentSession(
     `${sourceMeta.title} (fork)`,
     sourceMeta.channelId,
@@ -1697,11 +1709,23 @@ async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessi
     const forkedManager = sdk.SessionManager.forkFrom(branchFile, destDir ?? sourceDir ?? process.cwd(), sessionDir)
     const piSessionFile = forkedManager.getSessionFile()
     if (!piSessionFile || !existsSync(piSessionFile)) throw new Error('Pi 分叉 artifact 校验失败')
+    const forkedBranch = forkedManager.getBranch()
+    const forkedArtifact = readPiArtifactSnapshot(piSessionFile)
+    if (forkedArtifact.sessionId !== forkedManager.getSessionId() || forkedArtifact.branchTipId !== forkedBranch.at(-1)?.id) {
+      throw new Error('Pi 分叉 artifact 与 branch 不一致')
+    }
     // 新 branch 只包含分叉点之前的 entry；不能把源树后续 turn 的映射带入 metadata。
     const branchBindings = Object.fromEntries(
       Object.entries({ ...sourceMeta.piEntryBindings, [targetUuid]: entryId })
-        .filter(([, mappedEntryId]) => Boolean(forkedManager.getEntry(mappedEntryId))),
+        .filter(([, mappedEntryId]) => forkedBranch.some((entry) => entry.id === mappedEntryId)),
     )
+    assertPiBranchBinding({
+      expectedSessionId: forkedManager.getSessionId(),
+      actualSessionId: forkedArtifact.sessionId,
+      branch: forkedBranch,
+      entryBindings: branchBindings,
+      expectedBranchTipId: forkedArtifact.branchTipId,
+    })
 
     const explorationMeta = input.explorationSourceLabel ? {
       explorationParentSessionId: sourceMeta.id,
@@ -1765,11 +1789,27 @@ export async function rewindPiAgentSession(sessionId: string, assistantMessageUu
   const cwd = resolveAgentCwd(workspace, meta.id, meta.agentCwdMode, meta.activeWorktree) ?? process.cwd()
   const sdk = await import('@earendil-works/pi-coding-agent')
   const manager = sdk.SessionManager.open(meta.piSessionFile, join(getSdkConfigDir(), 'sessions'), cwd)
+  const sourceBranch = manager.getBranch()
+  const sourceArtifact = readPiArtifactSnapshot(meta.piSessionFile)
+  if (sourceArtifact.sessionId !== manager.getSessionId() || sourceArtifact.branchTipId !== sourceBranch.at(-1)?.id) {
+    throw new Error('Pi artifact 与当前 branch 不一致，无法安全回退')
+  }
+  assertPiBranchBinding({
+    expectedSessionId: meta.sdkSessionId,
+    actualSessionId: manager.getSessionId(),
+    branch: sourceBranch,
+    entryBindings: meta.piEntryBindings ?? {},
+  })
   /** 新提示使用明确来源，旧提示通过同一分支的回合证据恢复，失败时尚未修改文件。 */
-  const entryId = resolvePiHistoryTarget({ messages: originalMessages, bindings: meta.piEntryBindings ?? {}, branch: manager.getBranch(), targetUuid: assistantMessageUuid })
+  const entryId = resolvePiHistoryTarget({ messages: originalMessages, bindings: meta.piEntryBindings ?? {}, branch: sourceBranch, targetUuid: assistantMessageUuid })
   const branchFile = manager.createBranchedSession(entryId)
   if (!branchFile || !existsSync(branchFile)) throw new Error('Pi 未能生成回退 session artifact')
   const rewindManager = sdk.SessionManager.open(branchFile, join(getSdkConfigDir(), 'sessions'), cwd)
+  const rewindBranch = rewindManager.getBranch()
+  const rewindArtifact = readPiArtifactSnapshot(branchFile)
+  if (rewindArtifact.sessionId !== rewindManager.getSessionId() || rewindArtifact.branchTipId !== rewindBranch.at(-1)?.id) {
+    throw new Error('Pi 回退 artifact 与 branch 不一致')
+  }
   const retainedAssistantUuids = new Set(
     kept.flatMap((message) => {
       const candidate = message as { uuid?: unknown; type?: unknown; _piSourceUuid?: unknown }
@@ -1787,10 +1827,19 @@ export async function rewindPiAgentSession(sessionId: string, assistantMessageUu
       /** 先以实际保留的 artifact 限定映射，再保留展示身份或旧错误的隐藏来源身份。 */
       const mappedEntry = rewindManager.getEntry(mappedEntryId)
       if (!mappedEntry) return false
-      return retainedAssistantUuids.has(messageUuid) || (!originalDisplayUuids.has(messageUuid)
+      return rewindBranch.some((entry) => entry.id === mappedEntryId)
+        && (retainedAssistantUuids.has(messageUuid) || (!originalDisplayUuids.has(messageUuid)
         && mappedEntry.type === 'message' && mappedEntry.message.role === 'assistant' && mappedEntry.message.stopReason === 'error')
+      )
     }),
   )
+  assertPiBranchBinding({
+    expectedSessionId: rewindManager.getSessionId(),
+    actualSessionId: rewindArtifact.sessionId,
+    branch: rewindBranch,
+    entryBindings: retainedBindings,
+    expectedBranchTipId: rewindArtifact.branchTipId,
+  })
 
   rewriteSDKTranscript(filePath, truncatedContent)
   try {

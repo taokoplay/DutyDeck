@@ -197,6 +197,19 @@ describe('Canvas 节点引用队列合同', () => {
 })
 
 describe('queued message @file mention path decoding (Agent 侧真实路径)', () => {
+  test('解析 /module 与 @module 显式模块调用并从 Agent 正文移除协议标记', () => {
+    const result = parseQueuedMessageMentions('/module:canvas @module:browser 请检查页面并同步画布')
+    expect(result.moduleIds).toEqual(['canvas', 'browser'])
+    expect(result.moduleInvocationMode).toBe('invoke')
+    expect(result.cleanedText).toBe('请检查页面并同步画布')
+    expect(getQueuedMessageDisplayParts('/module:canvas @module:browser 请检查页面')).toEqual([
+      { type: 'reference', referenceType: 'module', id: 'canvas', label: 'canvas' },
+      { type: 'text', value: ' ' },
+      { type: 'reference', referenceType: 'module', id: 'browser', label: 'browser' },
+      { type: 'text', value: ' 请检查页面' },
+    ])
+  })
+
   test('decodes percent-encoded @file path back to the real path with spaces', () => {
     const text = '请查看 @file:%2FUsers%2Fme%2FMy%20report.pdf 这份报告'
     const result = parseQueuedMessageMentions(text)

@@ -7,6 +7,13 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall, isContextOverflow, no
 import type { ImageContent, SimpleStreamOptions, TranscriptContext } from '@earendil-works/pi-ai'
 import { streamSimple } from '@earendil-works/pi-ai/api/openai-completions'
 import { installPiImageRequestPolicy } from './pi-image-request-policy'
+import { build } from 'esbuild'
+
+test('Given Electron CJS 主进程 When 编译图片策略 Then 不同步 require ESM-only Pi 包', async () => {
+  const result = await build({ entryPoints: [import.meta.dir + '/pi-image-request-policy.ts'], bundle: true,
+    platform: 'node', format: 'cjs', write: false, external: ['@earendil-works/pi-ai', 'sharp'] })
+  expect(result.outputFiles[0]!.text).not.toMatch(/require\(["']@earendil-works\/pi-ai["']\)/)
+})
 import { installCanvasMediaSampleLifecycle } from './pi-canvas-media-samples'
 
 /** 生成真实 PNG 夹具，避免伪 Base64 绕过生产解码与 MIME 校验。 */

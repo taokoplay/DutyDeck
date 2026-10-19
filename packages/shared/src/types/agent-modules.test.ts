@@ -59,4 +59,12 @@ describe('Agent 模块合同', () => {
     expect(isIdempotentReplay(new Set(['run:1:tool:1']), 'run:1:tool:1')).toBe(true)
     expect(isIdempotentReplay(new Set(['run:1:tool:1']), 'run:1:tool:2')).toBe(false)
   })
+  test('Given 引用数组数量或单项长度超过预算 When 解析 Then 所有声明字段均拒绝而不截断', () => {
+    for (const field of ['contributions', 'skillRefs', 'promptRefs', 'toolRefs', 'artifactTypes', 'surfaceIds', 'requiredPermissions']) {
+      expect(() => parseAgentModuleManifest({ ...validManifest, [field]: Array.from({ length: 257 }, () => 'short') })).toThrow(`AGENT_MODULE_MANIFEST_${field.toUpperCase()}_TOO_LARGE`)
+      expect(() => parseAgentModuleManifest({ ...validManifest, [field]: ['x'.repeat(257)] })).toThrow(`AGENT_MODULE_MANIFEST_${field.toUpperCase()}_TOO_LARGE`)
+    }
+    expect(parseAgentModuleManifest({ ...validManifest, toolRefs: Array.from({ length: 256 }, (_, index) => `tool${index}`) }).manifest.toolRefs).toHaveLength(256)
+  })
+
 })

@@ -55,6 +55,9 @@ function normalizeActivation(value: unknown): SkillActivation | null {
     ...(filePath ? { filePath } : {}),
     ...(workspaceSlug && workspaceSkillPath ? { workspaceSlug, workspaceSkillPath } : {}),
     sources: normalizedSources.length > 0 ? [...normalizedSources] : ['read'],
+    ...(typeof value.moduleId === 'string' && typeof value.moduleVersion === 'string'
+      && (value.activationMode === 'available' || value.activationMode === 'pinned' || value.activationMode === 'invoke')
+      ? { moduleId: value.moduleId, moduleVersion: value.moduleVersion, activationMode: value.activationMode } : {}),
   }
 }
 
@@ -95,9 +98,11 @@ export function mergeSkillActivations(
       const activation = normalizeActivation(rawActivation)
       if (!activation) continue
 
-      const existing = merged.get(activation.slug)
+      /** 相同 Skill 的多个模块来源分别保留，避免首个模块覆盖其他贡献者。 */
+      const key = JSON.stringify([activation.slug, activation.moduleId, activation.moduleVersion, activation.activationMode])
+      const existing = merged.get(key)
       if (!existing) {
-        merged.set(activation.slug, {
+        merged.set(key, {
           slug: activation.slug,
           name: activation.name,
           ...(activation.filePath ? { filePath: activation.filePath } : {}),
@@ -105,6 +110,8 @@ export function mergeSkillActivations(
             ? { workspaceSlug: activation.workspaceSlug, workspaceSkillPath: activation.workspaceSkillPath }
             : {}),
           sources: [...activation.sources],
+          ...(activation.moduleId && activation.moduleVersion && activation.activationMode
+            ? { moduleId: activation.moduleId, moduleVersion: activation.moduleVersion, activationMode: activation.activationMode } : {}),
         })
         continue
       }

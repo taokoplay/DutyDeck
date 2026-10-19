@@ -27,6 +27,7 @@ export * from './token-usage'
 // Agent 相关类型
 export * from './agent'
 export * from './agent-modules'
+export * from './agent-plugin'
 export * from './agent-run-journal'
 export * from './agent-session-eligibility'
 export * from './browser'
@@ -150,3 +151,5 @@ export * from './visual-production-validation'
 
 export * from './visual-production-media'
 export * from './visual-editing'
+
+export * from './agent-module-audit'

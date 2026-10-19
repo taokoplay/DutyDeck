@@ -89,3 +89,31 @@ describe('Agent queue-now Canvas 引用路由', () => {
     expect(enqueued).toBe(1)
   })
 })
+
+/** 模块变更必须冻结在新运行中，不影响当前运行已解析的能力。 */
+test('Given 显式模块 queue-now When 当前运行活跃 Then 零注入并转入下一轮', async () => {
+  let enqueued = 0
+  const result = await routeAgentSubmitOrEnqueue({ ...createInput(), moduleIds: ['canvas'] }, {
+    isActive: () => true,
+    prepareNow: () => { throw new Error('不应准备当前运行') },
+    injectPrepared: async () => { throw new Error('不应注入当前运行') },
+    enqueue: (input) => { expect(input.moduleIds).toEqual(['canvas']); enqueued += 1 },
+    onStaleActive: () => undefined,
+  })
+  expect(result.disposition).toBe('queued')
+  expect(enqueued).toBe(1)
+})
+
+/** 解析正文后才识别模块时，运行时拒绝会交回队列而非丢弃正文。 */
+test('Given 注入阶段识别模块变更 When 返回新运行错误 Then 正文仍被排队一次', async () => {
+  let enqueued = 0
+  const input = { ...createInput(), userMessage: '/module:canvas 创建节点' }
+  const result = await routeAgentSubmitOrEnqueue(input, {
+    isActive: () => true, prepareNow: () => input,
+    injectPrepared: async () => { throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN') },
+    enqueue: (candidate) => { expect(candidate.userMessage).toBe(input.userMessage); enqueued += 1 },
+    onStaleActive: () => undefined,
+  })
+  expect(result.disposition).toBe('queued')
+  expect(enqueued).toBe(1)
+})

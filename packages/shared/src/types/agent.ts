@@ -3,6 +3,7 @@ import { isGpt6AstraFamily, isGpt6LunaFamily, isGpt6SolFamily, isGpt61SolFamily 
 import type { ProviderType } from './channel'
 import type { CanvasNodeReference } from './canvas'
 import type { ServerOpsAgentReference } from './server-ops-agent-reference'
+import type { AgentSessionModulePolicy } from './agent-modules'
 
 /**
  * Agent 相关类型定义
@@ -298,6 +299,12 @@ export interface SkillActivation {
   workspaceSkillPath?: string
   /** Ways this turn loaded the Skill. */
   sources: SkillActivationSource[]
+  /** 触发该 Skill 的模块 ID；旧消息缺失时视为普通 Skill。 */
+  moduleId?: string
+  /** 触发该 Skill 的模块清单版本，用于回溯真实来源。 */
+  moduleVersion?: string
+  /** 本次模块激活的来源模式。 */
+  activationMode?: 'available' | 'pinned' | 'invoke'
 }
 
 /** SDK result 消息（查询结束时返回） */
@@ -839,6 +846,8 @@ export interface AgentSessionMeta {
   permissionMode?: DutyDeckPermissionMode
   /** 会话选择的工具运行模式；本轮启动时冻结，缺失时为 standard。 */
   toolMode?: AgentToolMode
+  /** 当前会话允许 Agent 使用的模块策略；缺失时兼容旧会话并按 auto 处理。 */
+  modulePolicy?: AgentSessionModulePolicy
   /** 来源定时任务 ID（该会话由定时任务自动创建/复用时标记，用于侧栏显示钟表图标 + 跳转设置） */
   sourceAutomationId?: string
   /** 来源设计项目 ID；仅 Design Job 可见会话设置。 */
@@ -1362,6 +1371,14 @@ export interface AgentSendInput {
   permissionModeOverride?: DutyDeckPermissionMode
   /** 用户通过 /skill:xxx 引用的 Skill slug 列表 */
   mentionedSkills?: string[]
+  /** 用户或 Session 明确选择的模块 ID；模块 Skill 由主进程按策略解析。 */
+  moduleIds?: string[]
+  /** 单次模块调用模式；只有显式动作才使用 invoke。 */
+  moduleInvocationMode?: import('./agent-modules').AgentModuleInvocationMode
+  /** 关联的模块命令 ID，用于回执和幂等审计。 */
+  moduleCommandId?: string
+  /** 发送时使用的模块策略 revision，主进程用于拒绝迟到快照。 */
+  modulePolicyRevision?: number
   /** 用户通过 #mcp:xxx 引用的 MCP 服务器名称列表 */
   mentionedMcpServers?: string[]
   /** 用户通过会话引用 mention 指定的 Agent 会话 ID 列表 */
@@ -1511,6 +1528,14 @@ export interface AgentQueueMessageInput {
   mentionedCalendarEventIds?: string[]
   /** 用户通过 `/model` 选择的稳定媒体模型引用列表 */
   mentionedMediaModelRefs?: string[]
+  /** 队列消息的模块选择快照，由主进程按 Session revision 复核。 */
+  moduleIds?: string[]
+  /** 队列消息的单次模块调用模式。 */
+  moduleInvocationMode?: import('./agent-modules').AgentModuleInvocationMode
+  /** 队列消息关联的模块命令 ID。 */
+  moduleCommandId?: string
+  /** 队列消息创建时的模块策略 revision。 */
+  modulePolicyRevision?: number
   /** 本次队列消息显式携带的 Canvas 节点引用快照。 */
   canvasNodeReferences?: CanvasNodeReference[]
   /** 显式影像对象引用；仅携带身份，不授权生成。 */
@@ -2299,6 +2324,33 @@ export const AGENT_IPC_CHANNELS = {
   GET_PI_REASONING_CAPABILITY: 'agent:get-pi-reasoning-capability',
   /** 更新指定会话的推理深度（下一轮 Pi 请求生效） */
   UPDATE_SESSION_REASONING_LEVEL: 'agent:update-session-reasoning-level',
+  /** 获取宿主注册的 Agent 模块目录。 */
+  PREVIEW_AGENT_PLUGIN: 'agent:preview-plugin',
+  INSTALL_AGENT_PLUGIN: 'agent:install-plugin',
+  UNINSTALL_AGENT_PLUGIN: 'agent:uninstall-plugin',
+  REFRESH_AGENT_PLUGINS: 'agent:refresh-plugins',
+  GET_AGENT_PLUGIN_CATALOG: 'agent:get-plugin-catalog',
+  GET_AGENT_MODULES: 'agent:get-agent-modules',
+  /** 获取指定 Session 的模块策略。 */
+  GET_SESSION_MODULE_POLICY: 'agent:get-session-module-policy',
+  /** 更新指定 Session 的模块策略。 */
+  SET_SESSION_MODULE_POLICY: 'agent:set-session-module-policy',
+  /** 提交一次显式模块动作。 */
+  SUBMIT_AGENT_MODULE_COMMAND: 'agent:submit-agent-module-command',
+  /** 取消尚未完成的模块动作。 */
+  CANCEL_AGENT_MODULE_COMMAND: 'agent:cancel-agent-module-command',
+  /** 获取当前 Session 的模块命令回执。 */
+  GET_AGENT_MODULE_COMMANDS: 'agent:get-agent-module-commands',
+  /** 获取当前 Session 未完成 Agent run 的恢复计划。 */
+  GET_AGENT_RUN_RECOVERY_PLANS: 'agent:get-run-recovery-plans',
+  /** 按运行、分支和日志版本执行精确恢复动作。 */
+  APPLY_AGENT_RUN_RECOVERY: 'agent:apply-run-recovery',
+  /** 按真实 runId 查询模块、Skill 与工具调用审计。 */
+  GET_AGENT_MODULE_RUN_AUDITS: 'agent:get-module-run-audits',
+  /** 获取内置 Agent Plugin Host 的健康快照。 */
+  GET_AGENT_PLUGIN_HEALTH: 'agent:get-plugin-health',
+  /** Plugin Host 健康状态变化（主进程 → 渲染进程）。 */
+  AGENT_PLUGIN_HEALTH_CHANGED: 'agent:plugin-health-changed',
 
   // AskUserQuestion 交互式问答
   /** AskUser 响应（渲染进程 → 主进程） */

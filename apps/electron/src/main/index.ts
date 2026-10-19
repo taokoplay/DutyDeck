@@ -112,7 +112,7 @@ for (const key of Object.keys(process.env)) {
 }
 
 import { createApplicationMenu } from './menu'
-import { registerIpcHandlers } from './ipc'
+import { disposeAgentPluginHost, registerIpcHandlers, startAgentPluginHost } from './ipc'
 import { shutdownLocalModelRuntime } from './lib/local-model-runtime-singleton'
 import { startProjectKnowledgeObservation } from './lib/project-knowledge-observer'
 import { getDefaultDesignJobManager } from './lib/design/design-job-manager'
@@ -1099,6 +1099,7 @@ async function bootstrap(): Promise<void> {
 
   // Register IPC handlers
   registerIpcHandlers()
+  await safeAwait('startAgentPluginHost', startAgentPluginHost)
   /** 已建库项目的离线增量发现与队列恢复，不扫描未授权项目。 */
   const stopKnowledgeObservation = startProjectKnowledgeObservation()
   app.once('before-quit', stopKnowledgeObservation)
@@ -1322,6 +1323,7 @@ if (!isSafeStorageMigrationHelper) {
       { name: '退出状态', run: setQuitting },
       { name: 'Design Job 中断', run: () => { getDefaultDesignJobManager()?.markRunningInterrupted() } },
       { name: 'Agent 进程', run: stopAllAgents },
+      { name: 'Agent 插件宿主', run: () => { void disposeAgentPluginHost() } },
       { name: 'DutyDeck 本地模型', run: () => { void shutdownLocalModelRuntime() } },
       { name: '终端进程', run: () => { void stopAllTerminals() } },
       { name: '浏览器控制器', run: () => { browserController.dispose() } },

@@ -7,6 +7,7 @@ import { normalizePiTokenUsage, type TokenUsageObserver } from '../token-usage-o
  */
 
 import { randomUUID } from 'node:crypto'
+import { assertPiExactContinuation, assertPiContinuationMessages, type PiResumeContinuation } from './pi-exact-continuation'
 import { installCanvasMediaSampleLifecycle } from './pi-canvas-media-samples'
 import { installPiAttachmentPathProjection } from './pi-attachment-path-projection'
 import { installPiImageRequestPolicy } from './pi-image-request-policy'
@@ -59,7 +60,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import type { Transport as PiAgentTransport } from '@earendil-works/pi-ai'
 import type { AssistantMessageEvent } from '@earendil-works/pi-ai'
-import type { AgentToolResult, AgentToolUpdateCallback } from '@earendil-works/pi-agent-core'
+import type { AgentMessage, AgentToolResult, AgentToolUpdateCallback } from '@earendil-works/pi-agent-core'
 import type { Api, AssistantMessage } from '@earendil-works/pi-ai/compat'
 import { Type, type TSchema } from 'typebox'
 import {
@@ -268,6 +269,8 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
     initialSources: ProjectInstructionSource[]
   }
   resumeSessionId?: string
+  /** 可信宿主签发的精确续接快照；禁止追加用户 prompt。 */
+  resumeContinuation?: PiResumeContinuation
   piAgentDir: string
   piSessionDir: string
   /** 宿主解析的业务数据根，仅用于历史附件请求投影。 */
@@ -1620,6 +1623,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export class PiAgentAdapter implements AgentProviderAdapter {
+  /** 进程内 provider 依赖注入；不属于可序列化 query，离线验证可替换收费模型。 */
+  constructor(private readonly dependencies: { streamFunction?: AgentSession['agent']['streamFunction'] } = {}) {}
+
   /** 每个会话当前可接受用户操作的 query。 */
   private activeSessions = new Map<string, ActivePiSession>()
   /** 每个不可复用 token 对应的 query，用于旧 generation 精确收尾。 */
@@ -1637,6 +1643,8 @@ export class PiAgentAdapter implements AgentProviderAdapter {
     active.skillWorkspaceSlug = input.skillWorkspaceSlug
     active.onSkillActivated = input.onSkillActivated
     let unsubscribe: (() => void) | undefined
+    /** SDK 内置落盘 listener 之后的回执监听器。 */
+    let unsubscribePersisted: (() => void) | undefined
     let requestProxyDispatcher: Dispatcher | undefined
     /** 音视频抽样只保留到下一次模型读取，结束或取消时主动释放。 */
     let releaseMediaSamples: (() => void) | undefined
@@ -1647,6 +1655,8 @@ export class PiAgentAdapter implements AgentProviderAdapter {
       try {
         unsubscribe?.()
         unsubscribe = undefined
+        unsubscribePersisted?.()
+        unsubscribePersisted = undefined
         releaseMediaSamples?.()
         releaseMediaSamples = undefined
         releaseVisualTaskContext?.()
@@ -1688,6 +1698,9 @@ export class PiAgentAdapter implements AgentProviderAdapter {
 
       if (!existsSync(input.piSessionDir)) mkdirSync(input.piSessionDir, { recursive: true })
       const cwd = input.cwd ?? process.cwd()
+      if (input.resumeContinuation && (input.resumeSessionId !== input.resumeContinuation.sessionId || input.compactRequest)) {
+        throw new Error('PI_CONTINUATION_INPUT_MISMATCH')
+      }
       const sessionFile = input.resumeSessionId ? findSessionFile(input.piSessionDir, input.resumeSessionId) : undefined
       if (input.resumeSessionId && !sessionFile) {
         throw new Error(`No conversation found with session ID ${input.resumeSessionId}`)
@@ -1695,6 +1708,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
       const sessionManager = sessionFile
         ? sdk.SessionManager.open(sessionFile, input.piSessionDir, cwd)
         : sdk.SessionManager.create(cwd, input.piSessionDir)
+      if (input.resumeContinuation) assertPiExactContinuation(sessionManager, input.resumeContinuation)
       const { modelRuntime, model } = await buildModel(sdk, input)
       const autoCompactionReserveTokens = calculatePiAutoCompactionReserveTokens(
         model.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
@@ -1852,6 +1866,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
           }))
         }
       }
+      if (this.dependencies.streamFunction) session.agent.streamFunction = this.dependencies.streamFunction
       // 代理作用域必须只覆盖模型 provider stream：在整个 session.prompt() 链上设
       // AsyncLocalStorage 会把 MCP/产品工具等同一 Agent loop 中的 fetch 也错误地送进 Codex 代理。
       const providerStreamFn = session.agent.streamFunction
@@ -1898,17 +1913,21 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         assistantUuid: string
       }>()
       let pendingNativeOverflowRecovery = false
-      // message_end 发生在 Pi 落盘前；保留对象身份，待 prompt 完成后从
-      // SessionManager entries 精确取得 Pi entry ID，绝不按文本猜测。
-      const finalAssistantUuids = new Map<AssistantMessage, string>()
+      // 公开 message_end 发生在 Pi 落盘前；保留真实消息对象与展示 UUID，
+      // 在 SDK 持久化 listener 后读取 entry，并在最终收尾时补齐延期错误绑定。
+      const displayMessageUuids = new Map<AgentMessage, string>()
+      /** 已核验对象身份的累计绑定，回调不会删除之前的条目。 */
+      const persistedMessageBindings: Record<string, string> = {}
+      /** 当前显式 prompt 的用户身份，只消费紧接着的真实 user start，不比较文字。 */
+      let nextPromptUserUuid: string | undefined
       /** 只按实际响应对象去重；重试复用展示 UUID 仍必须独立计量。 */
       const observedUsageMessages = new WeakSet<AssistantMessage>()
 
       const persistPiEntryBindings = (): void => {
         const bindings: Record<string, string> = {}
         for (const entry of sessionManager.getEntries()) {
-          if (entry.type !== 'message' || entry.message.role !== 'assistant') continue
-          const uuid = finalAssistantUuids.get(entry.message as AssistantMessage)
+          if (entry.type !== 'message') continue
+          const uuid = displayMessageUuids.get(entry.message as AssistantMessage)
           if (uuid) bindings[uuid] = entry.id
         }
         if (Object.keys(bindings).length > 0) input.onPiEntryBindings?.(bindings)
@@ -1924,7 +1943,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         sdkMessage: SDKMessage
         assistantUuid: string
       }): void => {
-        finalAssistantUuids.set(terminalRetryError.assistantMessage, terminalRetryError.assistantUuid)
+        displayMessageUuids.set(terminalRetryError.assistantMessage, terminalRetryError.assistantUuid)
         runtimeGuard.recordMessage(terminalRetryError.assistantMessage)
         queue.push(terminalRetryError.sdkMessage)
         resetAssistantStream()
@@ -1934,12 +1953,18 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         try {
           switch (event.type) {
             case 'message_start': {
+              if (event.message.role === 'user' && nextPromptUserUuid) {
+                displayMessageUuids.set(event.message, nextPromptUserUuid)
+                nextPromptUserUuid = undefined
+              }
               const prompt = getPiUserMessageText(event.message)
               if (!prompt) break
               // 首条用户消息开始持久化后补写真实 session 文件路径。
               input.onSessionId?.(session.sessionId, getPersistedPiSessionFile(session.sessionFile))
               const pending = active.pendingSkillActivations.consume(prompt)
-              if (pending) active.onSkillActivated?.(pending.activations, pending.userMessageUuid)
+              if (pending) {
+                active.onSkillActivated?.(pending.activations, pending.userMessageUuid)
+              }
               break
             }
             case 'message_update': {
@@ -1997,9 +2022,14 @@ export class PiAgentAdapter implements AgentProviderAdapter {
                 })
               } else {
                 runtimeGuard.recordMessage(event.message)
-                if (converted && (converted.type !== 'user' || hasToolResult(converted))) queue.push(converted)
+                if (converted && (converted.type !== 'user' || hasToolResult(converted))) {
+                  queue.push(converted)
+                  if (event.message.role === 'toolResult' && 'uuid' in converted && typeof converted.uuid === 'string') {
+                    displayMessageUuids.set(event.message, converted.uuid)
+                  }
+                }
                 if (isAssistant && assistantUuid) {
-                  finalAssistantUuids.set(event.message as AssistantMessage, assistantUuid)
+                  displayMessageUuids.set(event.message as AssistantMessage, assistantUuid)
                   resetAssistantStream()
                 }
               }
@@ -2132,6 +2162,20 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         }
       })
 
+      // Agent 按注册顺序 await listener；SDK 首个 listener 返回时 appendMessage 已完成。
+      // 使用 leaf.message 对象身份，不通过正文或时间猜绑定；文件尚未 flush 时不发布事实。
+      unsubscribePersisted = session.agent.subscribe((event) => {
+        if (event.type !== 'message_end') return
+        const leaf = sessionManager.getLeafEntry()
+        const uuid = displayMessageUuids.get(event.message)
+        if (leaf?.type !== 'message' || leaf.message !== event.message || !uuid) return
+        persistedMessageBindings[uuid] = leaf.id
+        const persistedFile = getPersistedPiSessionFile(session.sessionFile)
+        if (!persistedFile) return
+        input.onSessionId?.(session.sessionId, persistedFile)
+        input.onPiEntryBindings?.({ ...persistedMessageBindings })
+      })
+
       if (input.compactRequest) {
         // 手动压缩：走 pi 原生 session.compact()，而非把 /compact 当普通 prompt 发给模型。
         // compaction_start/end 事件已在上面的 subscribe 中转成 compacting/compact_boundary system 消息；
@@ -2181,6 +2225,8 @@ export class PiAgentAdapter implements AgentProviderAdapter {
             skillMentions: input.skillMentions,
             userMessageUuid: input.initialUserMessageUuid,
           }
+          /** 首轮精确续接不扩展 Skill、不追加 prompt，后续中断消息仍走原链路。 */
+          let exactContinuationPending = Boolean(input.resumeContinuation)
           let nextInterrupt: PendingInterruptPrompt | undefined
           /** 完成一次模型 turn 后处理压缩、Host 验收和必要的同 transcript 续行。 */
           const finalizeCompletedTurn = async (): Promise<void> => {
@@ -2254,7 +2300,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
             const promptInput = nextPrompt
             let preparedPrompt: PreparedPromptWithSkills
             try {
-              preparedPrompt = promptInput.skipSkillExpansion
+              preparedPrompt = exactContinuationPending || promptInput.skipSkillExpansion
                 ? { content: promptInput.content, activations: [] }
                 : await preparePromptWithPromaSkills(
                   resourceLoader,
@@ -2282,7 +2328,19 @@ export class PiAgentAdapter implements AgentProviderAdapter {
                 return
               }
               currentInterrupt?.resolveAccepted()
-              await session.prompt(prompt, { source: 'rpc' })
+              if (exactContinuationPending) {
+                exactContinuationPending = false
+                // 初始化包含异步资源加载；发起模型前再次核验授权时的原始 artifact。
+                assertPiExactContinuation(sessionManager, input.resumeContinuation!)
+                assertPiContinuationMessages(session.agent.state.messages)
+                if (session.agent.state.pendingToolCalls.size > 0 || session.agent.hasQueuedMessages()) {
+                  throw new Error('PI_CONTINUATION_PENDING_RUNTIME')
+                }
+                await session.agent.continue()
+              } else {
+                nextPromptUserUuid = promptInput.userMessageUuid
+                await session.prompt(prompt, { source: 'rpc' })
+              }
               await finalizeCompletedTurn()
             } finally {
               if (active.interrupting) {

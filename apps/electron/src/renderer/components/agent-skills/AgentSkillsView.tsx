@@ -42,6 +42,7 @@ import { getSkillGroupDisplayTitle, groupSkills } from './skillGrouping'
 import { EMBEDDED_CATALOG_TWO_COLUMN_MIN_WIDTH, IntegrationCatalog } from './IntegrationCatalog'
 import { CredentialDialog } from './CredentialDialog'
 import { OAuthClientSecretDialog } from './OAuthClientSecretDialog'
+import { ModuleCatalog } from './ModuleCatalog'
 import { buildCatalogMcpGuidePrompt, MCP_INTEGRATION_CATALOG, getCatalogServerNames, isCatalogIntegrationVisible, matchesCatalogSearch, type CatalogCliIntegration, type CatalogCliProbeState, type CatalogCredentialIntegration, type CatalogGuidedIntegration, type CatalogMcpIntegration } from './integration-catalog'
 
 const embeddedMcpSectionContainerQuery = `
@@ -792,18 +793,21 @@ export function AgentSkillsView({
           {data.loading ? (
             <div className="py-20 text-center text-sm text-muted-foreground">加载中...</div>
           ) : tab === 'skills' ? (
-            <SkillsTab
-              customSkills={customSkills}
-              builtinSkills={builtinSkills}
-              embedded={embedded}
-              total={data.skills.length}
-              updateCount={updateCount}
-              updatingSkill={data.updatingSkill}
-              isBuiltin={(slug) => data.defaultSkillSlugs.has(slug)}
-              onOpen={selectSkill}
-              onToggle={data.toggleSkill}
-              onUpdate={data.updateSkill}
-            />
+            <>
+              {!embedded && <ModuleCatalog workspaceSlug={data.workspaceSlug} loadedWorkspaceSlug={data.loadedWorkspaceSlug} skills={data.skills} />}
+              <SkillsTab
+                customSkills={customSkills}
+                builtinSkills={builtinSkills}
+                embedded={embedded}
+                total={data.skills.length}
+                updateCount={updateCount}
+                updatingSkill={data.updatingSkill}
+                isBuiltin={(slug) => data.defaultSkillSlugs.has(slug)}
+                onOpen={selectSkill}
+                onToggle={data.toggleSkill}
+                onUpdate={data.updateSkill}
+              />
+            </>
           ) : tab === 'mcp' ? (
             <McpTab
               userEntries={userMcpEntries}

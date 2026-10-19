@@ -1,5 +1,5 @@
 import type { createStore } from 'jotai'
-import { consumeWorkspaceToolRequestAtom, pendingWorkspaceToolRequestAtom, workspaceToolNavigationRevisionAtom, workspaceProjectAtom } from '@/atoms/workspace-tools'
+import { finishWorkspaceToolRequestAtom, consumeWorkspaceToolRequestAtom, pendingWorkspaceToolRequestAtom, workspaceToolNavigationRevisionAtom, workspaceProjectAtom } from '@/atoms/workspace-tools'
 
 import { currentAgentSessionIdAtom, currentSessionSidePanelOpenAtom, agentDiffPanelTabAtom } from '@/atoms/agent-atoms'
 import { appModeAtom } from '@/atoms/app-mode'
@@ -10,7 +10,7 @@ export interface WorkspaceToolRequestActions {
   canvasReady: boolean
   canvasError: string | null
   openBrowser: () => void | Promise<unknown>
-  openTerminal: () => void
+  openTerminal: () => void | Promise<unknown>
   openCanvas: () => void | Promise<unknown>
   reportError: (message: string) => void
 }
@@ -31,16 +31,22 @@ export async function runPendingWorkspaceToolRequest(
   /** 消费函数重新校验当前会话，返回值是本次独占执行凭据。 */
   const request = store.set(consumeWorkspaceToolRequestAtom, sessionId)
   if (!request) return
+  /** 失败提示与回执共享身份检查，迟到失败不能污染其他会话。 */
+  const fail = (message: string): void => {
+    if (store.set(finishWorkspaceToolRequestAtom, { request, status: 'failed', message })) actions.reportError(message)
+  }
   if (request.tool === 'canvas' && actions.canvasError) {
-    actions.reportError(actions.canvasError)
+    fail(actions.canvasError)
     return
   }
   try {
-    if (request.tool === 'browser') await actions.openBrowser()
-    else if (request.tool === 'terminal') actions.openTerminal()
-    else await actions.openCanvas()
+    /** false 是既有 Canvas 动作的明确失败结果，不能标记成功。 */
+    const result = request.tool === 'browser' ? await actions.openBrowser()
+      : request.tool === 'terminal' ? await actions.openTerminal() : await actions.openCanvas()
+    if (result === false) throw new Error('资源未能打开')
+    store.set(finishWorkspaceToolRequestAtom, { request, status: 'opened' })
   } catch {
-    actions.reportError(request.tool === 'browser' ? '打开浏览器失败，请重试' : request.tool === 'terminal' ? '打开终端失败，请重试' : '打开画布失败，请重试')
+    fail(request.tool === 'browser' ? '打开浏览器失败，请重试' : request.tool === 'terminal' ? '打开终端失败，请重试' : '打开画布失败，请重试')
   }
 }
 

@@ -88,3 +88,26 @@ describe('Agent 消息真实 IPC handler', () => {
     expect(submitResult).toEqual({ ok: true, value: { disposition: 'queued' } })
   })
 })
+
+/** 普通消息只能声明模块意图，持久化 commandId 由主进程 outbox 独占签发。 */
+test('Given renderer 伪造 moduleCommandId When 通过三种消息 IPC Then 运行与队列均不接收命令身份', async () => {
+  const ipc = createIpcCapture()
+  const received: unknown[] = []
+  registerAgentMessageIpcHandlers({
+    ipc, requireVisibleSession: () => ({ id: 'session-1' }),
+    prepareRun: (input) => { received.push(input.moduleCommandId); return { input, extensions: {}, references: undefined } },
+    reserveStart: () => () => undefined,
+    startSessionMirrorRun: async () => undefined,
+    runPrepared: async () => undefined,
+    queueMessage: async (input) => { received.push((input as AgentQueueMessageInput & { moduleCommandId?: string }).moduleCommandId); return 'q1' },
+    submitOrEnqueue: async (input) => { received.push(input.moduleCommandId); return { disposition: 'queued' } },
+  })
+  for (const channel of [AGENT_IPC_CHANNELS.SEND_MESSAGE, AGENT_IPC_CHANNELS.QUEUE_MESSAGE, AGENT_IPC_CHANNELS.SUBMIT_OR_ENQUEUE_MESSAGE]) {
+    const result = await ipc.handlers.get(channel)!({ sender: {} } as IpcMainInvokeEvent, {
+      sessionId: 'session-1', userMessage: '继续', channelId: 'channel-1', moduleCommandId: 'forged',
+      queueMessageId: 'message-1', dispatch: 'now', moduleIds: ['canvas'],
+    } as never) as AgentMessageInvokeResult<unknown>
+    expect(result.ok).toBe(true)
+  }
+  expect(received).toEqual([undefined, undefined, undefined])
+})
