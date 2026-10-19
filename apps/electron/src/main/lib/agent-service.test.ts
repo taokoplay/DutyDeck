@@ -55,13 +55,14 @@ describe('Headless Agent 可信运行来源', () => {
 })
 
 describe('Agent service 迁移准入', () => {
-  test('Given 普通消息未选专业模块 When 准备扩展 Then 保留既有扩展且不创建画布或媒体运行', () => {
+  test('Given 普通消息未选专业模块或合法媒体模型 When 准备扩展 Then 不创建画布或媒体运行', () => {
     /** 服务接线检查确保门禁发生在唯一 runtime 工厂调用之前。 */
     const source = readFileSync(join(import.meta.dir, 'agent-service.ts'), 'utf8')
     expect(source).toContain("const canvasSelected = input.moduleIds?.includes('canvas') === true")
     expect(source).toContain("const visualSelected = input.moduleIds?.includes('visual-production') === true")
-    expect(source).toContain('|| (!canvasSelected && !visualSelected)) return prepared')
-    expect(source.indexOf('|| (!canvasSelected && !visualSelected)) return prepared'))
+    expect(source).toContain('const mediaModelSelected = getReferencedMediaModelRefs(input.mentionedMediaModelRefs).length > 0')
+    expect(source).toContain('|| (!canvasSelected && !visualSelected && !mediaModelSelected)) return prepared')
+    expect(source.indexOf('|| (!canvasSelected && !visualSelected && !mediaModelSelected)) return prepared'))
       .toBeLessThan(source.indexOf('const canvasRun = runtime.createRun('))
     expect(source).toContain('mediaOnly: !canvasSelected')
   })

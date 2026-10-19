@@ -1,4 +1,5 @@
 import type { AgentSubmitOrEnqueueInput, AgentSubmitOrEnqueueResult } from '@dutydeck/shared'
+import { getReferencedMediaModelRefs } from './agent-media-model-selection'
 
 /**
  * Pi runtime 完成 query 与 renderer 收到终态事件之间，可能拒绝对旧通道的消息注入。
@@ -37,8 +38,9 @@ export async function routeAgentSubmitOrEnqueue<TPrepared>(
   input: AgentSubmitOrEnqueueInput,
   dependencies: AgentSubmitRouteDependencies<TPrepared>,
 ): Promise<AgentSubmitOrEnqueueResult> {
-  // 显式模块和影像目标使用独立新运行，冻结各自策略与上下文归属。
-  if (input.dispatch === 'now' && !input.moduleIds?.length && !input.visualProductionReferences?.length && dependencies.isActive(input.sessionId)) {
+  // 显式模块、媒体模型和影像目标使用独立新运行，冻结各自工具与上下文归属。
+  if (input.dispatch === 'now' && !input.moduleIds?.length && !input.visualProductionReferences?.length
+    && getReferencedMediaModelRefs(input.mentionedMediaModelRefs).length === 0 && dependencies.isActive(input.sessionId)) {
     const prepared = await dependencies.prepareNow(input)
     if (!dependencies.isActive(input.sessionId)) {
       dependencies.enqueue(input)

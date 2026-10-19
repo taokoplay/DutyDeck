@@ -117,3 +117,41 @@ test('Given 注入阶段识别模块变更 When 返回新运行错误 Then 正�
   expect(result.disposition).toBe('queued')
   expect(enqueued).toBe(1)
 })
+
+test.each(['image', 'audio', 'video'] as const)(
+  'Given 直接选择 %s 模型且旧运行活跃 When 立即发送 Then 保留模型引用并排队新运行',
+  async (kind) => {
+    /** 模型选择没有附带专业模块，复现直接选择模型的发送路径。 */
+    const input = { ...createInput(), mentionedMediaModelRefs: [`media:${kind}:http:profile:model-1`] }
+    /** 记录真实路由选择，避免把工具尚未装配的旧通道当作成功。 */
+    const calls: string[] = []
+    const result = await routeAgentSubmitOrEnqueue(input, {
+      isActive: () => true,
+      prepareNow: (candidate) => { calls.push('prepare'); return candidate },
+      injectPrepared: async () => { calls.push('inject') },
+      enqueue: (candidate) => { expect(candidate).toBe(input); calls.push('enqueue') },
+      onStaleActive: () => { calls.push('stale') },
+    })
+    expect(result.disposition).toBe('queued')
+    expect(calls).toEqual(['enqueue'])
+  },
+)
+
+test.each([{ refs: undefined }, { refs: [] }, { refs: ['gpt-image-2'] }, { refs: ['media:image:broken'] }, { refs: [' '] }])(
+  'Given 没有合法媒体模型引用 %j When 立即发送 Then 保留普通消息注入行为',
+  async ({ refs: mentionedMediaModelRefs }) => {
+    /** 无效引用不能触发新媒体能力，也不阻断普通追问。 */
+    const input = { ...createInput(), mentionedMediaModelRefs: mentionedMediaModelRefs ? [...mentionedMediaModelRefs] : undefined }
+    /** 统计实际注入次数，排除静默丢弃。 */
+    let injected = 0
+    const result = await routeAgentSubmitOrEnqueue(input, {
+      isActive: () => true,
+      prepareNow: (candidate) => candidate,
+      injectPrepared: async () => { injected += 1 },
+      enqueue: () => { throw new Error('普通消息不应强制新运行') },
+      onStaleActive: () => undefined,
+    })
+    expect(result.disposition).toBe('injected')
+    expect(injected).toBe(1)
+  },
+)

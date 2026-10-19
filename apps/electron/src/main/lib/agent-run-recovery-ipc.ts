@@ -1,4 +1,5 @@
 import { getRecoverySessionContext, requireRecoveryContextDigest, requireRecoveryUserMessageUuid } from './agent-recovery-context'
+import { getReferencedMediaModelRefs } from './agent-media-model-selection'
 import { ipcMain } from 'electron'
 import { AGENT_IPC_CHANNELS, DUTYDECK_DEFAULT_PERMISSION_MODE } from '@dutydeck/shared'
 import type { AgentRunRecoveryInput, AgentSessionMeta } from '@dutydeck/shared'
@@ -77,6 +78,8 @@ export function registerAgentRunRecoveryIpc(input: {
           modelId: session.modelId, workspaceId: session.workspaceId, triggeredBy: 'user',
           permissionModeOverride: session.permissionMode ?? DUTYDECK_DEFAULT_PERMISSION_MODE,
           moduleIds, moduleInvocationMode: moduleIds.length ? 'invoke' : undefined,
+          /** 还原原运行显式选择，确保精确恢复装配同一媒体工具集合；旧记录不推断授权。 */
+          mentionedMediaModelRefs: getReferencedMediaModelRefs(preflight?.payload.mentionedMediaModelRefs),
           modulePolicyRevision: audit?.policyRevision,
           ...(audit?.moduleCommandId ? { moduleCommandId: audit.moduleCommandId } : {}),
         }, event.sender, { exactRecoveryEligible: true, piResumeContinuation: { runId: context.runId, contextDigest: requireRecoveryContextDigest(context.events), userMessageUuid: requireRecoveryUserMessageUuid(context.events, input.journal.getPiBinding(session.id, context.runId)?.entryBindings ?? {}), expectedSessionFile: context.expectedSessionFile, sessionId: context.sessionId, branchTipId: context.branchTipId, artifactSha256: context.artifactSha256 } })

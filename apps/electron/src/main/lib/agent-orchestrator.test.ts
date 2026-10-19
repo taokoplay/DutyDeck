@@ -649,6 +649,7 @@ describe('模块队列 Skills 静态接线合同', () => {
     expect(adapter).toContain('skillMentions: resolvedMentionedSkills')
     expect(adapter).not.toContain('skillMentions: mentionedSkills')
     expect(queue).toContain("if (moduleIds?.length) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')")
+    expect(queue).toContain("if (getReferencedMediaModelRefs(mentionedMediaModelRefs).length > 0) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')")
     expect(queue).toContain('this.moduleRunGenerations.get(sessionId) === this.activeSessions.get(sessionId)')
     expect(queue).toContain('const resolvedMentionedSkills = [...new Set(mentionedSkills ?? [])]')
     expect(queue).not.toContain('activeRunModuleSkills.get(sessionId)')
@@ -656,6 +657,15 @@ describe('模块队列 Skills 静态接线合同', () => {
     expect(queue).not.toContain('resolveActiveModuleContext(')
     expect(queue).not.toContain('getAgentSessionModulePolicy(')
   })
+})
+
+test('Given 直接选择媒体模型 When 固化与恢复运行 Then 保留同一引用并阻止后续消息继承工具', () => {
+  /** 生产接线断言；引用解析、工具装配和恢复服务另有行为测试。 */
+  const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
+  const recoverySource = readFileSync(join(import.meta.dir, 'agent-run-recovery-ipc.ts'), 'utf8')
+  expect(source).toContain('|| getReferencedMediaModelRefs(mentionedMediaModelRefs).length > 0) this.moduleRunGenerations.set(sessionId, runGeneration)')
+  expect(source).toContain('mentionedMediaModelRefs: getReferencedMediaModelRefs(mentionedMediaModelRefs)')
+  expect(recoverySource).toContain('mentionedMediaModelRefs: getReferencedMediaModelRefs(preflight?.payload.mentionedMediaModelRefs)')
 })
 
 

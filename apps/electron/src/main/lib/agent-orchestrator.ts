@@ -41,7 +41,6 @@ import {
   inferContextWindow,
   inferReasoningTransport,
   resolveReasoningProfile,
-  parseMediaModelRef,
   collectSkillActivations,
   mergeSkillActivations,
 } from '@dutydeck/shared'
@@ -141,6 +140,7 @@ import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
 import { getAgentSessionModulePolicy } from './agent-modules/module-policy-store'
 import { getInactiveModuleSkillSlugs, resolveActiveModuleContext } from './agent-modules/module-skill-resolver'
 import { createAgentModuleToolPolicy } from './agent-modules/module-tool-policy'
+import { getReferencedMediaModelRefs } from './agent-media-model-selection'
 import { tagModuleSkillActivations, projectModuleAuditSkills } from './agent-modules/module-run-audit'
 import { createWorkspaceOperationGuard } from './workspace-operation-guard'
 import type { AgentRunExtensions } from './agent-run-extensions'
@@ -258,18 +258,7 @@ function isMissingActiveQueueChannelError(error: unknown): boolean {
 
 /** 把用户在 `/model` 中选择的稳定引用转换为受限提示块；最终执行仍由媒体工具重新校验。 */
 function buildReferencedMediaModelsPrompt(modelRefs?: string[]): string | undefined {
-  const refs = [...new Set((modelRefs ?? []).filter((ref): ref is string => {
-    if (typeof ref !== 'string') return false
-    return ref.trim().length > 0
-  }))]
-    .filter((ref) => {
-      try {
-        parseMediaModelRef(ref)
-        return true
-      } catch {
-        return false
-      }
-    })
+  const refs = getReferencedMediaModelRefs(modelRefs)
   if (refs.length === 0) return undefined
   return [
     '<mentioned_media_models>',
@@ -1124,7 +1113,9 @@ export class AgentOrchestrator {
     /** 独立于工具闭包失效信号，避免正常对话结束误杀等待 sudo 的任务。 */
     const serverTaskController = new AbortController()
     this.activeServerTaskControllers.set(sessionId, { generation: runGeneration, controller: serverTaskController })
-    if (input.moduleIds?.some((moduleId) => !isAutomaticAgentModuleId(moduleId))) this.moduleRunGenerations.set(sessionId, runGeneration)
+    /** 媒体模型选择也固化本轮工具，后续消息不能插队继承这些能力。 */
+    if (input.moduleIds?.some((moduleId) => !isAutomaticAgentModuleId(moduleId))
+      || getReferencedMediaModelRefs(mentionedMediaModelRefs).length > 0) this.moduleRunGenerations.set(sessionId, runGeneration)
     this.activeSessions.set(sessionId, runGeneration)
     this.activeSessionStartedAt.set(sessionId, streamStartedAt)
     this.latestRunGenerations.set(sessionId, runGeneration)
@@ -1191,7 +1182,7 @@ export class AgentOrchestrator {
       }
     }
 
-    appendRunJournal('checkpoint', { stage: 'preflight-complete', moduleIds: input.moduleIds ?? [], exactRecoveryEligible: extensions.exactRecoveryEligible === true && !knowledgeExecutionRun, runContext: { channelId, modelId: modelId ?? null, workspaceId: sessionMeta?.workspaceId ?? null, toolMode: runToolMode, permissionMode: permissionModeOverride ?? DUTYDECK_DEFAULT_PERMISSION_MODE } }, 'checkpoint:preflight')
+    appendRunJournal('checkpoint', { stage: 'preflight-complete', moduleIds: input.moduleIds ?? [], mentionedMediaModelRefs: getReferencedMediaModelRefs(mentionedMediaModelRefs), exactRecoveryEligible: extensions.exactRecoveryEligible === true && !knowledgeExecutionRun, runContext: { channelId, modelId: modelId ?? null, workspaceId: sessionMeta?.workspaceId ?? null, toolMode: runToolMode, permissionMode: permissionModeOverride ?? DUTYDECK_DEFAULT_PERMISSION_MODE } }, 'checkpoint:preflight')
 
     // 0.5 清除上一轮中断标记
     try { updateAgentSessionMeta(sessionId, { stoppedByUser: false }) } catch { /* 会话可能已删除 */ }
@@ -3768,6 +3759,7 @@ export class AgentOrchestrator {
       : undefined
     /** 模块命令必须启动独立 run，不能改变当前 run 已固化的策略与审计身份。 */
     if (moduleIds?.length) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')
+    if (getReferencedMediaModelRefs(mentionedMediaModelRefs).length > 0) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')
     if (this.moduleRunGenerations.get(sessionId) === this.activeSessions.get(sessionId)) {
       throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')
     }
