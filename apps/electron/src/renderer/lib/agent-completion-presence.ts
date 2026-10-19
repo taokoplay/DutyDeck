@@ -79,11 +79,10 @@ interface DelegatedCompletionAttentionInput extends AgentCompletionNotificationI
   windowHasFocus: boolean
 }
 
-/** Resolve delegated completion to one attention transition; null means no state change. */
+/** 根据子会话终态和可见性返回已查看/未查看；成功与失败均可提醒，null 表示不变更。 */
 export function getDelegatedCompletionAttention({
   completion,
   session,
-  hasStreamError,
   activeSessionId,
   selectedDelegationSessionId,
   activeSidePanelTab,
@@ -101,7 +100,8 @@ export function getDelegatedCompletionAttention({
     && isDelegationObservationVisible(sidePanelOpen, activeSidePanelTab, split)
   if (visible) return 'viewed'
 
-  return !completion.backgroundTasksPending && isSuccessfulAgentCompletion(completion, hasStreamError)
+  // 失败也需要进入可清除的未查看集合；主动停止和后台等待仍不产生结束提醒。
+  return !completion.backgroundTasksPending && !completion.stoppedByUser
     ? 'unviewed'
     : null
 }

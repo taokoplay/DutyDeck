@@ -1428,10 +1428,10 @@ export const agentRunningSessionIdsAtom = atom<Set<string>>((get) => {
 /** 侧边栏会话指示点状态 */
 export type SessionIndicatorStatus = 'idle' | 'running' | 'blocked' | 'failed' | 'completed'
 
-/** 已完成但用户尚未查看的顶层会话 ID 集合。参与 Dock/Launcher 角标。 */
+/** 已结束但用户尚未查看的顶层会话 ID 集合，含成功与失败。参与 Dock/Launcher 角标。 */
 export const unviewedCompletedSessionIdsAtom = atom<Set<string>>(new Set<string>())
 
-/** 刚完成但用户尚未查看的协作子会话 ID 集合。仅驱动父子会话状态颜色。 */
+/** 已结束但用户尚未查看的协作子会话 ID 集合，含成功与失败。仅驱动父子会话状态颜色。 */
 export const unviewedCompletedDelegatedSessionIdsAtom = atom<Set<string>>(new Set<string>())
 
 let lastIndicatorSignature = ''
@@ -1480,7 +1480,7 @@ export const agentSessionIndicatorMapAtom = atom<Map<string, SessionIndicatorSta
   const pendingExitPlan = get(allPendingExitPlanRequestsAtom)
   const unviewedCompleted = get(unviewedCompletedSessionIdsAtom)
   const unviewedDelegatedCompleted = get(unviewedCompletedDelegatedSessionIdsAtom)
-  /** 终态独立于已读与消息缓存；失败不会被“未查看完成”误判为成功。 */
+  /** 终态保留失败事实；红条与绿色完成提醒共用未查看集合，查看后一起消除。 */
   const failedTerminalRuns = get(failedAgentTerminalRunsAtom)
 
   const map = new Map<string, SessionIndicatorStatus>()
@@ -1507,6 +1507,7 @@ export const agentSessionIndicatorMapAtom = atom<Map<string, SessionIndicatorSta
 
   for (const [id, terminal] of failedTerminalRuns) {
     if (map.has(id)) continue
+    if (!unviewedCompleted.has(id) && !unviewedDelegatedCompleted.has(id)) continue
     /** 新一轮等待后台任务时，不能重新显示上一轮失败。 */
     const current = streamStates.get(id)
     if (current?.backgroundWaiting || (current && isSameOrNewerRun(current, terminal)

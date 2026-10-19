@@ -3,6 +3,12 @@ import { Provider, createStore } from 'jotai'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { activeViewAtom } from '@/atoms/active-view'
 import {
+  agentSessionIndicatorMapAtom,
+  agentStreamErrorsAtom,
+  unviewedCompletedSessionIdsAtom,
+} from '@/atoms/agent-atoms'
+import { agentTerminalRunMarkersAtom, recordAgentTerminalRun } from '@/lib/agent-active-session-snapshot'
+import {
   channelFormDirtyAtom,
   settingsOpenAtom,
   settingsPendingSessionNavigationAtom,
@@ -28,6 +34,48 @@ function captureOpenSession(
 }
 
 describe('统一会话打开', () => {
+  test('Given 未查看的失败会话 When 点击打开后离开 Then 红条消失且错误详情与终态保留', () => {
+    /** 独立状态容器保存失败提醒及会话内可见的错误。 */
+    const store = createStore()
+    store.set(unviewedCompletedSessionIdsAtom, new Set(['failed-session', 'other-session']))
+    store.set(agentStreamErrorsAtom, new Map([['failed-session', '连接失败']]))
+    recordAgentTerminalRun(store, 'failed-session', { startedAt: 100, runGeneration: 1, failed: true })
+    expect(store.get(agentSessionIndicatorMapAtom).get('failed-session')).toBe('failed')
+    /** 调用侧栏共用的真实导航入口，覆盖点击已打开会话的重复清除。 */
+    const openSession = captureOpenSession(store)
+
+    openSession('agent', 'failed-session', '失败任务')
+    openSession('agent', 'failed-session', '失败任务')
+    openSession('chat', 'chat-1', '其它对话')
+
+    expect(store.get(agentSessionIndicatorMapAtom).has('failed-session')).toBe(false)
+    expect(store.get(agentSessionIndicatorMapAtom).get('other-session')).toBe('completed')
+    expect(store.get(agentStreamErrorsAtom).get('failed-session')).toBe('连接失败')
+    expect(store.get(agentTerminalRunMarkersAtom).get('failed-session')).toEqual({
+      startedAt: 100, runGeneration: 1, failed: true,
+    })
+
+    recordAgentTerminalRun(store, 'failed-session', { startedAt: 200, runGeneration: 2, failed: true })
+    store.set(unviewedCompletedSessionIdsAtom, new Set(['failed-session', 'other-session']))
+    expect(store.get(agentSessionIndicatorMapAtom).get('failed-session')).toBe('failed')
+  })
+
+  test('Given 未查看失败且设置页有未保存配置 When 打开被拦截 Then 保留红色提醒', () => {
+    /** 导航尚未发生时，不能提前把失败标为已查看。 */
+    const store = createStore()
+    store.set(unviewedCompletedSessionIdsAtom, new Set(['failed-session']))
+    recordAgentTerminalRun(store, 'failed-session', { startedAt: 100, failed: true })
+    store.set(settingsOpenAtom, true)
+    store.set(channelFormDirtyAtom, true)
+    /** 捕获受设置守卫保护的真实导航回调。 */
+    const openSession = captureOpenSession(store)
+
+    openSession('agent', 'failed-session', '失败任务')
+
+    expect(store.get(agentSessionIndicatorMapAtom).get('failed-session')).toBe('failed')
+    expect(store.get(unviewedCompletedSessionIdsAtom).has('failed-session')).toBe(true)
+  })
+
   test('Given 当前显示其它顶层能力 When 打开普通会话 Then 只依赖普通会话状态并切回会话视图', () => {
     const store = createStore()
     store.set(activeViewAtom, 'planning')

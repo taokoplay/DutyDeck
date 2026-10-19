@@ -5,8 +5,36 @@ import {
   isAgentSessionActiveForCompletion,
   notifyAgentCompletionWarning,
   shouldNotifyAgentCompletion,
+  type DelegatedCompletionAttention,
 } from './agent-completion-presence'
 import type { TabItem } from '@/atoms/tab-atoms'
+import type { AgentStreamCompletePayload } from '@dutydeck/shared'
+
+describe('协作子会话失败提醒', () => {
+  test.each([
+    { completion: { resultSubtype: 'error_during_execution' }, hasStreamError: false, visible: false, expected: 'unviewed' },
+    { completion: {}, hasStreamError: true, visible: false, expected: 'unviewed' },
+    { completion: { resultSubtype: 'error_during_execution' }, hasStreamError: false, visible: true, expected: 'viewed' },
+    { completion: { resultSubtype: 'success' }, hasStreamError: false, visible: false, expected: 'unviewed' },
+    { completion: { resultSubtype: 'error_during_execution', stoppedByUser: true }, hasStreamError: true, visible: false, expected: null },
+    { completion: { resultSubtype: 'error_during_execution', backgroundTasksPending: true }, hasStreamError: true, visible: false, expected: null },
+  ] satisfies Array<{ completion: Partial<AgentStreamCompletePayload>; hasStreamError: boolean; visible: boolean; expected: DelegatedCompletionAttention }>)(
+    'Given 子会话完成 $completion 且可见=$visible When 判定提醒 Then 为 $expected',
+    ({ completion, hasStreamError, visible, expected }) => {
+      expect(getDelegatedCompletionAttention({
+        completion: { sessionId: 'child', triggeredBy: 'delegation', ...completion },
+        session: { sourceDelegationId: 'delegation', parentSessionId: 'parent' },
+        hasStreamError,
+        activeSessionId: 'parent',
+        selectedDelegationSessionId: 'child',
+        activeSidePanelTab: 'delegation',
+        split: null,
+        sidePanelOpen: visible,
+        windowHasFocus: true,
+      })).toBe(expected)
+    },
+  )
+})
 
 describe('Agent 完成归属判断', () => {
   test('Given 当前激活的是同一个 Agent Tab When Agent 完成 Then 视为用户仍在查看', () => {

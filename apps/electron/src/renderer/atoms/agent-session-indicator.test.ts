@@ -6,9 +6,12 @@ import {
   agentSessionStreamingStateAtomFamily,
   agentStreamErrorsAtom,
   unviewedCompletedSessionIdsAtom,
+  unviewedCompletedDelegatedSessionIdsAtom,
+  dockBadgeCountAtom,
   type SessionIndicatorStatus,
 } from './agent-atoms'
-import { recordAgentTerminalRun } from '@/lib/agent-active-session-snapshot'
+import { agentTerminalRunMarkersAtom, recordAgentTerminalRun } from '@/lib/agent-active-session-snapshot'
+import { markSessionCompletionViewed } from '@/lib/agent-completion-presence'
 import { getAgentSessionTreeIndicatorStatus } from '@/lib/agent-session-list'
 import { getCollapsedAgentRailTreeStatus } from '@/lib/collapsed-agent-rail'
 import { applyAgentQueuedMessageStatus, recordAgentCompletionOutcome } from '@/hooks/useGlobalAgentListeners'
@@ -17,7 +20,7 @@ describe('会话失败状态条', () => {
   test.each([
     { completion: { resultSubtype: 'error_during_execution' }, expected: 'failed' },
     { completion: { resultSubtype: 'empty_response' }, expected: 'failed' },
-    { completion: { resultSubtype: 'success' }, expected: undefined },
+    { completion: { resultSubtype: 'success' }, expected: 'completed' },
     { completion: { resultSubtype: 'error_during_execution', stoppedByUser: true }, expected: undefined },
     { completion: { resultSubtype: 'error_during_execution', backgroundTasksPending: true }, expected: undefined },
   ] satisfies Array<{ completion: Partial<AgentStreamCompletePayload>; expected: SessionIndicatorStatus | undefined }>)(
@@ -25,7 +28,12 @@ describe('会话失败状态条', () => {
     ({ completion, expected }) => {
       /** 直接驱动监听器使用的完成处理，覆盖只有 completion 携带错误的真实链路。 */
       const store = createStore()
-      recordAgentCompletionOutcome(store, 'agent', { sessionId: 'session', startedAt: 100, ...completion })
+      /** 本轮完成载荷；后台终态登记未查看，主动停止和等待不产生失败提醒。 */
+      const payload: AgentStreamCompletePayload = { sessionId: 'session', startedAt: 100, ...completion }
+      recordAgentCompletionOutcome(store, 'agent', payload)
+      if (!payload.stoppedByUser && !payload.backgroundTasksPending) {
+        store.set(unviewedCompletedSessionIdsAtom, new Set(['session']))
+      }
       expect(store.get(agentSessionIndicatorMapAtom).get('session')).toBe(expected)
     },
   )
@@ -35,6 +43,7 @@ describe('会话失败状态条', () => {
     const store = createStore()
     store.set(agentStreamErrorsAtom, new Map([['session', '连接失败']]))
     recordAgentCompletionOutcome(store, 'agent', { sessionId: 'session', startedAt: 100 })
+    store.set(unviewedCompletedSessionIdsAtom, new Set(['session']))
     expect(store.get(agentSessionIndicatorMapAtom).get('session')).toBe('failed')
   })
 
@@ -92,18 +101,20 @@ describe('会话失败状态条', () => {
     expect(store.get(agentSessionIndicatorMapAtom).get('success')).toBe('completed')
   })
 
-  test('Given 前台会话失败 When 消息展示状态被回收 Then 仍保留失败状态', () => {
+  test('Given 前台会话失败 When 消息展示状态被回收 Then 保留失败事实但不显示未读红条', () => {
     /** 模拟前台会话没有未读标记且 stream state 已被消息交接清理。 */
     const store = createStore()
     recordAgentTerminalRun(store, 'session', { startedAt: 100, failed: true })
 
-    expect(store.get(agentSessionIndicatorMapAtom).get('session')).toBe('failed')
+    expect(store.get(agentSessionIndicatorMapAtom).has('session')).toBe(false)
+    expect(store.get(agentTerminalRunMarkersAtom).get('session')?.failed).toBe(true)
   })
 
   test('Given 上轮失败 When 新一轮运行并成功 Then 先显示运行态再恢复绿色完成态', () => {
     /** 同一会话跨轮复用容器，验证失败不会污染新一轮。 */
     const store = createStore()
     recordAgentTerminalRun(store, 'session', { startedAt: 100, runGeneration: 1, failed: true })
+    store.set(unviewedCompletedSessionIdsAtom, new Set(['session']))
     store.set(agentSessionStreamingStateAtomFamily('session'), {
       running: true, startedAt: 200, runGeneration: 2,
     })
@@ -143,6 +154,7 @@ describe('会话失败状态条', () => {
     const parent = { id: 'parent', title: '父会话', createdAt: 0, updatedAt: 0 }
     const child = { ...parent, id: 'child', parentSessionId: 'parent', sourceDelegationId: 'delegation' }
     store.set(unviewedCompletedSessionIdsAtom, new Set(['parent']))
+    store.set(unviewedCompletedDelegatedSessionIdsAtom, new Set(['child']))
     recordAgentTerminalRun(store, 'child', { startedAt: 100, failed: true })
     /** 共享派生状态同时供展开与折叠侧栏消费。 */
     const indicators = store.get(agentSessionIndicatorMapAtom)
@@ -151,5 +163,15 @@ describe('会话失败状态条', () => {
 
     store.set(agentSessionStreamingStateAtomFamily('parent'), { running: true, startedAt: 200 })
     expect(getAgentSessionTreeIndicatorStatus(parent, [child], store.get(agentSessionIndicatorMapAtom))).toBe('running')
+
+    // 查看失败子会话后，展开与折叠入口都回到父会话本身的完成提醒。
+    store.set(agentSessionStreamingStateAtomFamily('parent'), undefined)
+    store.set(unviewedCompletedDelegatedSessionIdsAtom, (previous) => markSessionCompletionViewed(previous, 'child'))
+    expect(store.get(agentSessionIndicatorMapAtom).has('child')).toBe(false)
+    expect(getAgentSessionTreeIndicatorStatus(parent, [child], store.get(agentSessionIndicatorMapAtom))).toBe('completed')
+    expect(getCollapsedAgentRailTreeStatus(
+      { session: parent, childSessions: [child] }, store.get(agentSessionIndicatorMapAtom), new Set(),
+    )).toBe('completed')
+    expect(store.get(dockBadgeCountAtom)).toBe(1)
   })
 })
