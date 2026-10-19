@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { ChevronDown, ChevronRight, ClipboardCheck, Download, Expand, Folder, FolderPlus, History, ListTree, Monitor, MoreHorizontal, MousePointer2, PanelLeftClose, Play, Plus, RefreshCw, Route, Search, Smartphone, Workflow, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, ClipboardCheck, Download, Expand, Folder, FolderPlus, Globe2, History, ListTree, Laptop, MoreHorizontal, MousePointer2, PanelLeftClose, Play, Plus, RefreshCw, Route, Search, Smartphone, Tablet, Workflow, X } from 'lucide-react'
 import type { PrototypeCandidate, PrototypeDraft, PrototypeFlow, PrototypePageComparison, PrototypeSnapshot, PrototypeSummary } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,7 @@ import { buildPrototypeGroupTree, buildPrototypeHandoffPrompt, buildPrototypePro
 import { InteractionDesignPreviewCache } from './InteractionDesignPreviewCache'
 import { InteractionDesignHistory } from './InteractionDesignHistory'
 import { collectPendingPrototypePages, type PrototypeHistoryEntry } from './interaction-design-history'
+import { getPrototypeDevice, isPrototypeDevice, PROTOTYPE_DEVICES } from './interaction-design-devices'
 import './interaction-design.css'
 
 /** 正式工作区只依赖经过 shell 验证的项目/会话身份。 */
@@ -37,6 +38,8 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   /** 项目视图偏好与持久化正文分离。 */
   const [views, setViews] = useAtom(interactionDesignViewsAtom)
   const view = views[projectId] ?? { prototypeId: null, pageId: null, device: 'mobile' as const, collapsedGroups: [] }
+  /** 具体机型优先，未选择时兼容原来的手机/桌面偏好。 */
+  const previewDevice = getPrototypeDevice(view.previewDevice, view.device)
   const setPrompt = useSetAtom(agentPendingPromptAtom)
   const [summaries, setSummaries] = React.useState<PrototypeSummary[]>([])
   const [snapshot, setSnapshot] = React.useState<PrototypeSnapshot | null>(null)
@@ -114,6 +117,12 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   const previewRevision = candidate?.baseRevision ?? document?.revision ?? 0
   const pageId = draft?.pages.some(page => page.id === view.pageId) ? view.pageId! : draft?.entryPageId ?? ''
   const page = draft?.pages.find(item => item.id === pageId)
+  /** 顶部说明合并沙箱、运行状态和状态平铺提示，避免辅助文字独占预览底部。 */
+  const stageDescription = mode === 'select'
+    ? '仅支持声明过身份的受控元素 · 点击带稳定身份的内容，再引用到主会话'
+    : page?.states?.length
+      ? '独立沙箱 · 不访问真实业务接口 · 同一页面的不同状态并排展示，点击可体验；向下滚动查看更多'
+      : '独立沙箱 · 不访问真实业务接口 · 预览已运行，直接点击试试看'
   /** 当前草稿的分组树；候选预览也使用同一目录关系。 */
   const groupTree = React.useMemo(() => draft ? buildPrototypeGroupTree(draft) : [], [draft])
   const groupById = React.useMemo(() => new Map((document?.groups ?? []).map(group => [group.id, group])), [document])
@@ -454,16 +463,23 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
     {changed && <div className="id-feedback" role="status">外部设计已更新。当前编辑保留，重新加载后再提交。<Button size="sm" variant="ghost" onClick={() => { setForm(null); setFlowDraft(null); void load() }}>放弃编辑并加载</Button></div>}
     {!document ? <div className="id-empty"><MousePointer2 size={32} /><h2>{loading ? '正在加载交互模块' : '让想法变成可点击的页面'}</h2><p>打开“页面”列表创建页面；每个项目只有一个交互模块，页面可用多级分组组织。</p></div> : <>
       <div className="id-toolbar"><div className="id-mode"><button aria-pressed={mode === 'play'} onClick={() => { setMode('play'); setSelectedElement(null) }}><Play size={13} />体验</button><button aria-pressed={mode === 'select'} onClick={() => setMode('select')}><MousePointer2 size={13} />选择修改</button></div><span className="id-spacer" /><button className="id-version-button" aria-label="查看版本与候选" disabled={!document} onClick={() => setPanel('history')}><History size={14} /><span>v{document?.revision ?? 0}</span>{hasPending && <i className="id-pending-dot" role="img" aria-label="有未采纳候选" title="有未采纳候选" />}</button>
-        <button aria-label="手机预览" aria-pressed={view.device === 'mobile'} onClick={() => updateView({ device: 'mobile' })}><Smartphone size={16} /></button><button aria-label="桌面预览" aria-pressed={view.device === 'desktop'} onClick={() => updateView({ device: 'desktop' })}><Monitor size={16} /></button><span className="id-rule" />
+        <DropdownMenu><DropdownMenuTrigger asChild><button className="id-device-selector" aria-label="选择预览设备" title={`预览设备：${previewDevice.id}`}>
+          {!previewDevice.frame ? <Globe2 size={16} /> : previewDevice.group === '电脑' ? <Laptop size={16} /> : previewDevice.group === '平板' ? <Tablet size={16} /> : <Smartphone size={16} />}<span>{previewDevice.id}</span><ChevronDown size={12} />
+        </button></DropdownMenuTrigger><DropdownMenuContent className="id-directory-menu id-device-menu" align="end">
+          <DropdownMenuRadioGroup value={previewDevice.id} onValueChange={value => { if (isPrototypeDevice(value)) updateView({ previewDevice: value, device: getPrototypeDevice(value).platform, zoom: undefined }) }}>
+            {(['手机', '平板', '电脑'] as const).map(group => <React.Fragment key={group}><DropdownMenuLabel>{group}</DropdownMenuLabel>
+              {PROTOTYPE_DEVICES.filter(device => device.group === group).map(device => <DropdownMenuRadioItem key={device.id} value={device.id} textValue={device.id} data-preview-device={device.id}><span>{device.id}</span><small>{device.width} × {device.height}</small></DropdownMenuRadioItem>)}
+            </React.Fragment>)}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent></DropdownMenu><span className="id-rule" />
         <button aria-label="重新体验" onClick={() => { updateView({ pageId }); setReset(value => value + 1); setVisited([]); setSelectedElement(null) }}><RefreshCw size={15} /></button><button aria-label={focus ? '退出专注' : '专注预览'} aria-pressed={focus} onClick={() => setFocus(value => !value)}>{focus ? <X size={16} /> : <Expand size={16} />}</button>
         <DropdownMenu><DropdownMenuTrigger asChild><button aria-label="更多原型操作"><MoreHorizontal size={16} /></button></DropdownMenuTrigger><DropdownMenuContent className="id-directory-menu" align="end"><DropdownMenuItem onSelect={() => openForm('reference', '引用到主会话', '请根据需求完善当前原型的页面与交互。')}>描述需求并引用到会话</DropdownMenuItem><DropdownMenuItem onSelect={() => openForm('import', '导入项目 HTML')}>导入项目 HTML</DropdownMenuItem><DropdownMenuItem onSelect={() => openForm('asset', '导入项目图片')}>导入项目图片</DropdownMenuItem>{page && <DropdownMenuItem disabled={!!candidate} onSelect={() => openForm('html', '编辑页面 HTML', page.html, page.id)}>{page.states?.length ? '编辑默认状态 HTML' : '编辑当前页面 HTML'}</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>
       </div>
-      <div className="id-stage"><div className="id-stage-top"><span>{page?.name ?? '暂无页面'}{page?.states?.length ? ` · ${page.states.length + 1} 个状态` : ''}</span><span>{mode === 'select' ? '仅支持声明过身份的受控元素' : '独立沙箱 · 不访问真实业务接口'}</span></div>
-        {page && draft ? <InteractionDesignPreviewCache key={`${context}:${document.revision}:${candidate?.id ?? 'head'}`} sessionId={sessionId} prototypeId={document.id} assetMetadata={snapshot.assets} active={paneActive} refresh={reset} onAssetError={setAssetError} draft={draft} pageId={page.id} revision={previewRevision} identity={`${context}:${document.revision}:${candidate?.id ?? 'head'}`} mode={mode} device={view.device} zoom={view.zoom} onZoomChange={zoom => updateView({ zoom })} onSelect={(elementId, stateId) => setSelectedElement({ elementId, stateId })} onNavigate={navigate} /> : <div className="id-empty"><p>还没有页面，先创建页面或引用需求到主会话。</p><Button onClick={() => openForm('page', '新建页面', '', document.groups[0]?.id)}>新建页面</Button></div>}
+      <div className="id-stage"><div className="id-stage-top"><span>{page?.name ?? '暂无页面'}{page?.states?.length ? ` · ${page.states.length + 1} 个状态` : ''}</span><span>{stageDescription}</span></div>
+        {page && draft ? <InteractionDesignPreviewCache key={`${context}:${document.revision}:${candidate?.id ?? 'head'}`} sessionId={sessionId} prototypeId={document.id} assetMetadata={snapshot.assets} active={paneActive} refresh={reset} onAssetError={setAssetError} draft={draft} pageId={page.id} revision={previewRevision} identity={`${context}:${document.revision}:${candidate?.id ?? 'head'}`} mode={mode} device={previewDevice.id} zoom={view.zoom} onZoomChange={zoom => updateView({ zoom })} onSelect={(elementId, stateId) => setSelectedElement({ elementId, stateId })} onNavigate={navigate} /> : <div className="id-empty"><p>还没有页面，先创建页面或引用需求到主会话。</p><Button onClick={() => openForm('page', '新建页面', '', document.groups[0]?.id)}>新建页面</Button></div>}
         {selectedElement && <aside className="id-selection"><div><strong>已选中元素</strong><button aria-label="清除元素选择" onClick={() => setSelectedElement(null)}><X size={14} /></button></div><p>{page?.name} / {selectedElement.stateId ? page?.states?.find(state => state.id === selectedElement.stateId)?.name : page?.defaultStateName ?? '默认状态'} / {selectedElement.elementId}</p><p>带着页面、元素与版本引用继续修改。</p>{selectedText !== null && <Button size="sm" variant="outline" className="mb-2 mr-2" onClick={() => openForm('element', '修改选中文字', selectedText, pageId)}>编辑文字</Button>}<Button size="sm" disabled={!!candidate} onClick={() => openForm('reference', '引用到主会话', '请只修改选中的元素，保留其他页面与交互不变。')}>引用到会话</Button>{candidate && <small>先返回当前版本或采纳候选后修改</small>}</aside>}
-        <div className="id-stage-hint"><span className="id-live-dot" />{mode === 'play' ? page?.states?.length ? '同一页面的不同状态并排展示，点击可体验；向下滚动查看更多' : '预览已运行，直接点击试试看' : '点击带稳定身份的内容，再引用到主会话'}</div>
       </div>
-      <footer className="id-footer"><span>本次体验 · {visited.length ? `${visited.length} 次页面访问` : '尚未记录跳转'}</span><span>{view.device === 'mobile' ? 'iPhone · 390 × 844' : '1280 × 800'}</span></footer>
+      <footer className="id-footer"><span>本次体验 · {visited.length ? `${visited.length} 次页面访问` : '尚未记录跳转'}</span><span aria-label="当前预览设备" title="内容视口尺寸，单位为 CSS 像素">{previewDevice.id} · {previewDevice.width} × {previewDevice.height}</span></footer>
     </>}
     {directory && <><button className="id-directory-backdrop" aria-label="关闭页面列表" onClick={() => setDirectory(false)} /><aside className="id-directory" aria-label="项目页面">
       <header><strong>页面 {draft && <small>{draft.pages.length}</small>}</strong><div className="id-directory-header-actions"><button aria-label="新建页面" title="新建页面" disabled={busy || !!candidate} onClick={() => openForm('page', '新建页面', '', rootGroupId)}><Plus size={16} /></button>{document && <button aria-label="新建分组" title="新建分组" disabled={busy || !!candidate} onClick={() => openForm('group', '新建分组')}><FolderPlus size={16} /></button>}<button aria-label="收起页面列表" title="收起页面列表" onClick={() => setDirectory(false)}><PanelLeftClose size={16} /></button></div></header>

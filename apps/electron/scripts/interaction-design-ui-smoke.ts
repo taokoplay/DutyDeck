@@ -5,6 +5,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { BrowserWindow } from 'electron'
+import { PROTOTYPE_DEVICES } from '../src/renderer/components/interaction-design/interaction-design-devices'
 
 /** 从系统申请空闲端口，避免和用户正在运行的 dev 实例冲突。 */
 async function availablePort(): Promise<number> {
@@ -243,6 +244,7 @@ async function verifyGeometryInteraction(window: BrowserWindow): Promise<void> {
     assert.equal(await frame.executeJavaScript(`document.querySelector('#result').textContent`), '1', `${stateId} 本地 onsubmit 未执行或发生导航`)
     await click(window, '选择修改')
     await waitFor(window, `document.querySelector('.id-mode button:last-child')?.getAttribute('aria-pressed')==='true'`, '三维回归未进入选择模式')
+    assert.equal(await window.webContents.executeJavaScript(`(() => { const top=document.querySelector('.id-stage-top')?.textContent ?? ''; return !document.querySelector('.id-stage-hint') && top.includes('仅支持声明过身份的受控元素') && top.includes('引用到主会话') })()`), true, '选择模式说明未合并到顶部')
     await manipulateGeometry(window, stateId, 'drag')
     assert.equal(await geometryMatrix(window, stateId), original, `${stateId} 选择模式触发了页面拖动`)
     await clickStateElement(window, stateId, 'button[type="submit"]')
@@ -365,6 +367,78 @@ async function verifyInFlightPageCache(window: BrowserWindow): Promise<void> {
   console.log('[Interaction Design UI smoke] 快速切页在途资源复用与四路并发上限通过')
 }
 
+/** 通过真实 Radix 菜单选择机型，并等待尺寸完成更新。 */
+async function selectPreviewDevice(window: BrowserWindow, device: string): Promise<void> {
+  await clickSelector(window, '[aria-label="选择预览设备"]')
+  await clickSelector(window, `[data-preview-device="${device}"]`)
+  await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] .id-preview-model')?.dataset.device === ${JSON.stringify(device)} && !document.querySelector('[role="menu"]')`, '机型选择没有生效')
+  await settleUi(window)
+}
+
+/** Given 全部设备 When 连续切换 Then 视口/媒体查询生效、保留脚本与表单现场，并完整显示外壳。 */
+async function verifyDeviceMenu(window: BrowserWindow): Promise<void> {
+  await window.webContents.executeJavaScript(`window.__deviceFrame=document.querySelector('.id-cached-page[data-active="true"] iframe');window.__deviceSource=window.__deviceFrame.srcdoc`)
+  /** 保存浏览上下文内的输入与脚本标记，防止仅验证 DOM 身份而漏掉 iframe 导航。 */
+  const frame = (await activeFrame(window))!
+  await frame.executeJavaScript(`(() => {
+    window.__deviceBoot='original';
+    const input=document.createElement('input');input.id='device-state-input';input.value='保留设备切换现场';document.body.append(input);
+    const style=document.createElement('style');style.textContent='body{--device-wide:no}@media(min-width:600px){body{--device-wide:yes}}';document.head.append(style);
+  })()`)
+  await clickSelector(window, '[aria-label="选择预览设备"]')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('[data-preview-device]').length`), 13, '设备菜单没有覆盖全部库模型与浏览器 Web')
+  await settleUi(window)
+  await writeFile('/private/tmp/interaction-design-device-menu.png', (await window.webContents.capturePage()).toPNG())
+  await escape(window)
+  for (const device of PROTOTYPE_DEVICES) {
+    await selectPreviewDevice(window, device.id)
+    await verifyPreviewFrameBounds(window, true)
+    assert.equal(await window.webContents.executeJavaScript(`window.__deviceFrame===document.querySelector('.id-cached-page[data-active="true"] iframe') && window.__deviceSource===window.__deviceFrame.srcdoc && document.querySelectorAll('.id-cached-page[data-active="true"] iframe').length===1`), true, `${device.id} 重建或复制了正文`)
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[aria-label="当前预览设备"]').textContent`), `${device.id} · ${device.width} × ${device.height}`, '设备页脚与视口不一致')
+    /** 在真实子 frame 内取宽高与媒体查询结果，确保内容并非只有外观缩放。 */
+    const state = await frame.executeJavaScript(`({width:innerWidth,height:innerHeight,wide:getComputedStyle(document.body).getPropertyValue('--device-wide').trim(),boot:window.__deviceBoot,input:document.querySelector('#device-state-input')?.value})`)
+    assert.deepEqual(state, { width: device.width, height: device.height, wide: device.width >= 600 ? 'yes' : 'no', boot: 'original', input: '保留设备切换现场' }, `${device.id} 视口或交互状态不正确`)
+    if (device.id === '浏览器 Web') {
+      assert.equal(await window.webContents.executeJavaScript(`(() => {
+        const model=document.querySelector('.id-cached-page[data-active="true"] .id-preview-model');
+        const toolbar=model.querySelector('.id-browser-toolbar')?.getBoundingClientRect();
+        const screen=model.querySelector('.id-preview-screen').getBoundingClientRect();
+        return !model.querySelector('.mockframe') && toolbar && Math.abs(toolbar.bottom-screen.top)<1 && toolbar.width>=screen.width-1;
+      })()`), true, '浏览器顶栏挤占网页视口或仍显示硬件外壳')
+      await clickSelector(window, '[aria-label="原始尺寸预览"]')
+      await verifyPreviewFrameBounds(window)
+      assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width`), 1280, '浏览器 100% 缩放没有保持完整网页视口')
+      await clickSelector(window, '[aria-label="适应预览区域"]')
+      await settleUi(window)
+      await writeFile('/private/tmp/interaction-design-browser-web.png', (await window.webContents.capturePage()).toPNG())
+    }
+    if (['iPhone Duo', 'MacBook Pro', 'iPad Pro'].includes(device.id)) await writeFile(`/private/tmp/interaction-design-device-${device.id.replaceAll(' ', '-').toLowerCase()}.png`, (await window.webContents.capturePage()).toPNG())
+  }
+  window.setSize(390, 850)
+  await settleUi(window)
+  await verifyPreviewFrameBounds(window, true)
+  await clickSelector(window, '[aria-label="选择预览设备"]')
+  assert.equal(await window.webContents.executeJavaScript(`(() => {const menu=document.querySelector('[role="menu"]');const rect=menu.getBoundingClientRect();return rect.left>=0 && rect.right<=innerWidth && rect.bottom<=innerHeight})()`), true, '窄屏设备菜单超出窗口')
+  await escape(window)
+  await selectPreviewDevice(window, 'iPhone 17')
+  await verifyPreviewFrameBounds(window, true)
+  window.setSize(1180, 850)
+  await settleUi(window)
+  await clickSelector(window, '[aria-label="选择预览设备"]')
+  /** Chromium 协议明确指定 DOM 键值，避免 Electron 把 ArrowDown 当作无效加速键。 */
+  window.webContents.debugger.attach('1.3')
+  try {
+    for (const [key, code] of [['Home', 36], ['ArrowDown', 40], ['Enter', 13]] as const) {
+      await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: code })
+      await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code })
+      await settleUi(window)
+    }
+  } finally { window.webContents.debugger.detach() }
+  await waitFor(window, `document.querySelector('[aria-label="当前预览设备"]')?.textContent.includes('iPhone 18 Pro') && !document.querySelector('[role="menu"]')`, '键盘选择设备未生效')
+  await selectPreviewDevice(window, 'iPhone 17')
+  console.log('[Interaction Design UI smoke] 全部 12 种模型与浏览器 Web、视口媒体查询、脚本与表单现场、外壳几何及窄屏菜单通过')
+}
+
 /** Given 宿主分隔线与慢资源 When 专注、缩放与独立加载 Then 画面可操作且不重复初始化。 */
 async function verifyPreviewUsability(window: BrowserWindow): Promise<void> {
   await window.webContents.executeJavaScript(`window.__stableFrame=document.querySelector('.id-cached-page[data-active="true"] iframe');window.__stableSource=window.__stableFrame.srcdoc`)
@@ -381,28 +455,34 @@ async function verifyPreviewUsability(window: BrowserWindow): Promise<void> {
   await waitFor(window, `document.querySelector('[role="dialog"]')`, '专注预览菜单被宿主层级遮挡')
   await click(window, '取消')
   await waitFor(window, `!document.querySelector('[role="dialog"]')`, '专注预览表单没有关闭')
-  await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] [aria-label="放大预览"]')`, '缺少右下角缩放入口')
+  await waitFor(window, `(() => { const button = document.querySelector('.id-cached-page[data-active="true"] [aria-label="放大预览"]'); const controls = button?.closest('.id-zoom-controls'); const viewport = button?.closest('.id-cached-page')?.querySelector('.id-preview-viewport'); return Boolean(button && controls && viewport && controls.getBoundingClientRect().top >= viewport.getBoundingClientRect().bottom - 1) })()`, '缺少预览区下方缩放入口')
   /** 固定设计视口下的实际几何尺寸，缩放不修改 srcDoc。 */
   const before = await window.webContents.executeJavaScript(`document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width`)
   await clickSelector(window, '[aria-label="放大预览"]')
   await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width > ${before}`, '放大按钮未改变画面尺寸')
-  assert.equal(await window.webContents.executeJavaScript(`window.__stableFrame===document.querySelector('.id-cached-page[data-active="true"] iframe') && window.__stableSource===window.__stableFrame.srcdoc && window.__stableFrame.style.width==='390px'`), true, '缩放重载正文或修改了设计视口')
+  assert.equal(await window.webContents.executeJavaScript(`window.__stableFrame===document.querySelector('.id-cached-page[data-active="true"] iframe') && window.__stableSource===window.__stableFrame.srcdoc && window.__stableFrame.style.width==='402px'`), true, '缩放重载正文或修改了设计视口')
   await clickSelector(window, '[aria-label="缩小预览"]')
   await clickSelector(window, '[aria-label="适应预览区域"]')
   await clickSelector(window, '[aria-label="原始尺寸预览"]')
-  await waitFor(window, `Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-390)<1`, '原始尺寸不是 100%')
+  await waitFor(window, `Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-402)<1`, '原始尺寸不是 100%')
   /** 上下限通过真实组件的点击事件验证，放大后仍保留原始设计宽度。 */
   await window.webContents.executeJavaScript(`(async()=>{for(let i=0;i<25;i++){document.querySelector('.id-cached-page[data-active="true"] [aria-label="放大预览"]').click();await new Promise(requestAnimationFrame)}})()`)
-  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-cached-page[data-active="true"] [aria-label="放大预览"]').disabled && Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-1170)<1`), true, '最大缩放未限制在300%或尺寸不正确')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-cached-page[data-active="true"] [aria-label="放大预览"]').disabled && Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-1206)<1`), true, '最大缩放未限制在300%或尺寸不正确')
+  await verifyPreviewFrameBounds(window)
   await window.webContents.executeJavaScript(`(async()=>{for(let i=0;i<35;i++){document.querySelector('.id-cached-page[data-active="true"] [aria-label="缩小预览"]').click();await new Promise(requestAnimationFrame)}})()`)
-  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-cached-page[data-active="true"] [aria-label="缩小预览"]').disabled && Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-39)<1`), true, '最小缩放未限制在10%或尺寸不正确')
-  await clickSelector(window, '[aria-label="桌面预览"]')
-  assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-iphone-shell').length`), 0, '桌面预览错误保留 iPhone 机身')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-cached-page[data-active="true"] [aria-label="缩小预览"]').disabled && Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-40.2)<1`), true, '最小缩放未限制在10%或尺寸不正确')
+  await verifyPreviewFrameBounds(window)
+  await selectPreviewDevice(window, 'MacBook Pro')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .mockframe.iphone17').length`), 0, '桌面预览错误保留移动端 iPhone 机身')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .mockframe.macbook-pro').length`), 1, '桌面预览缺少稳定外壳容器')
   assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-device-frame').length`), 1, '桌面预览缺少普通画板')
+  await verifyPreviewFrameBounds(window)
+  assert.equal(await window.webContents.executeJavaScript(`(() => { const frame=document.querySelector('.id-cached-page[data-active="true"] .id-preview-mockframe');return frame.classList.contains('macbook-pro') && !frame.querySelector('.dynamic-island') })()`), true, '桌面画板残留手机听筒或动态岛')
   await clickSelector(window, '[aria-label="原始尺寸预览"]')
-  await waitFor(window, `Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-1280)<1 && document.querySelector('.id-cached-page[data-active="true"] .id-preview-space').scrollWidth > document.querySelector('.id-cached-page[data-active="true"] .id-preview-space').clientWidth`, '放大的桌面预览无法横向滚动')
-  await clickSelector(window, '[aria-label="手机预览"]')
+  await waitFor(window, `Math.abs(document.querySelector('.id-cached-page[data-active="true"] iframe').getBoundingClientRect().width-960)<1 && document.querySelector('.id-cached-page[data-active="true"] .id-preview-space').scrollWidth > document.querySelector('.id-cached-page[data-active="true"] .id-preview-space').clientWidth`, '放大的桌面预览无法横向滚动')
+  await selectPreviewDevice(window, 'iPhone 17')
   await clickSelector(window, '[aria-label="适应预览区域"]')
+  await verifyPreviewFrameBounds(window, true)
   await writeFile('/private/tmp/interaction-design-focus-zoom.png', (await window.webContents.capturePage()).toPNG())
   await clickSelector(window, '[aria-label="退出专注"]')
   assert.equal(await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.agent-right-panel-host')).zIndex`), '60', '退出专注后宿主层级没有恢复')
@@ -434,9 +514,9 @@ async function verifyPreviewUsability(window: BrowserWindow): Promise<void> {
     smoke.state.snapshot.document.revision+=1;smoke.change('workspace-a','proto-a');
   })()`)
   await waitFor(window, `document.querySelectorAll('.id-cached-page[data-active="true"] .id-device-frame [role="status"]').length===2`, '每个手机画面未显示独立转圈加载')
-  await clickSelector(window, '[aria-label="桌面预览"]')
+  await selectPreviewDevice(window, 'MacBook Pro')
   assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-device-frame [role="status"]').length`), 2, '桌面画板没有保留加载态')
-  await clickSelector(window, '[aria-label="手机预览"]')
+  await selectPreviewDevice(window, 'iPhone 17')
   await writeFile('/private/tmp/interaction-design-loading.png', (await window.webContents.capturePage()).toPNG())
   await window.webContents.executeJavaScript(`window.__interactionSmoke.releaseAsset('slow-default')`)
   await waitForPreviewText(window, '独立加载')
@@ -592,6 +672,40 @@ async function escape(window: BrowserWindow): Promise<void> {
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
   window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
 }
+/** 校验缩放后机身与占位框对齐，防止宽高正确但从中心缩放造成半台手机被裁掉。 */
+async function verifyPreviewFrameBounds(window: BrowserWindow, fitsViewport = false): Promise<void> {
+  /** 收集真实布局几何；屏幕负责唯一裁剪，iframe 不应再自行缩放。 */
+  const geometry = await window.webContents.executeJavaScript(`(() => {
+    const frame=document.querySelector('.id-cached-page[data-active="true"] .id-preview-model');
+    const slot=frame.parentElement;
+    const screen=frame.querySelector('.id-preview-screen');
+    const libraryScreen=frame.querySelector('.mockframe .screen') ?? screen;
+    const libraryRect=libraryScreen.getBoundingClientRect();
+    const iframe=screen.querySelector('iframe');
+    const rect=frame.getBoundingClientRect(), bounds=slot.getBoundingClientRect(), display=screen.getBoundingClientRect(), content=iframe.getBoundingClientRect();
+    const viewport=frame.closest('.id-preview-viewport').getBoundingClientRect();
+    const clipMargin=parseFloat(getComputedStyle(slot).overflowClipMargin) || 0;
+    return {
+      origin:getComputedStyle(frame).transformOrigin,
+      libraryDelta:Math.max(Math.abs(libraryRect.left-display.left),Math.abs(libraryRect.top-display.top),Math.abs(libraryRect.width-display.width),Math.abs(libraryRect.height-display.height)),
+      radiusMatches:getComputedStyle(screen).borderRadius===getComputedStyle(libraryScreen).borderRadius,
+      offsetX:rect.left-bounds.left, offsetY:rect.top-bounds.top,
+      overflowX:rect.right-bounds.right, overflowY:rect.bottom-bounds.bottom,
+      contentWidthDelta:Math.abs(display.width-content.width), contentHeightDelta:Math.abs(display.height-content.height),
+      screenOverflow:getComputedStyle(screen).overflow, contentTransform:getComputedStyle(iframe).transform,
+      contentRadius:getComputedStyle(iframe.parentElement).borderRadius,
+      fitsViewport:rect.left>=viewport.left-1 && rect.right<=viewport.right+1 && rect.top>=viewport.top-1 && rect.bottom<=viewport.bottom+1,
+      visibleSideButtons:[...frame.querySelectorAll('.action,.volume,.sleep')].filter(node=>getComputedStyle(node).display!=='none').every(node=>{const button=node.getBoundingClientRect();return button.left>=bounds.left-clipMargin-1 && button.right<=bounds.right+clipMargin+1}),
+    };
+  })()`)
+  assert.ok(Math.abs(geometry.offsetX)<1 && Math.abs(geometry.offsetY)<1 && geometry.overflowX<=1 && geometry.overflowY<=1, `手机机身偏离占位框或被裁切：${JSON.stringify(geometry)}`)
+  assert.ok(geometry.contentWidthDelta<1 && geometry.contentHeightDelta<1 && geometry.screenOverflow==='hidden' && geometry.contentTransform==='none', `屏幕与正文尺寸不一致或重复缩放：${JSON.stringify(geometry)}`)
+  assert.ok(geometry.libraryDelta<1 && geometry.radiusMatches, `内容与库的屏幕裁剪不一致：${JSON.stringify(geometry)}`)
+  assert.equal(geometry.contentRadius, '0px', '正文容器额外添加了圆角，覆盖手机屏幕裁剪')
+  assert.equal(geometry.visibleSideButtons, true, '手机侧键被占位框裁切')
+  if (fitsViewport) assert.equal(geometry.fitsViewport, true, `自动适应没有完整显示手机：${JSON.stringify(geometry)}`)
+}
+
 /** 隔离 userData，业务 API 全为内存 fixture。 */
 async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: typeof import('electron').BrowserWindow): Promise<void> {
   const url = process.env.PROMA_INTERACTION_DESIGN_FIXTURE_URL
@@ -605,10 +719,12 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
     console.log('[Interaction Design UI smoke] 初始页面载入')
     await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] iframe') && document.body.textContent.includes('已保存 v1')`, '工作区未就绪')
     await waitForPreviewText(window, '拾光')
-    await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] .id-iphone-shell[data-device="iphone"]')`, '移动预览缺少 iPhone 机身')
-    assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-dynamic-island').length`), 1, 'iPhone 缺少 Dynamic Island')
-    assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .id-home-indicator').length`), 1, 'iPhone 缺少 Home Indicator')
-    assert.equal(await window.webContents.executeJavaScript(`(() => { const shell=document.querySelector('.id-cached-page[data-active="true"] .id-iphone-shell'); const frame=shell?.querySelector('.id-device-frame'); return Boolean(shell && frame && shell.getBoundingClientRect().width > frame.getBoundingClientRect().width && shell.getBoundingClientRect().height > frame.getBoundingClientRect().height) })()`), true, 'iPhone 机身没有包住 390×844 设计视口')
+    assert.equal(await window.webContents.executeJavaScript(`(() => { const top=document.querySelector('.id-stage-top')?.textContent ?? ''; return !document.querySelector('.id-stage-hint') && top.includes('独立沙箱') && top.includes('预览已运行') })()`), true, '预览辅助说明未合并到顶部')
+    await waitFor(window, `document.querySelector('.id-cached-page[data-active="true"] .mockframe.iphone17')`, '移动预览缺少 iPhone 17 机身')
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .mockframe.iphone17 .dynamic-island').length`), 1, 'iPhone 缺少 Dynamic Island')
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.id-cached-page[data-active="true"] .mockframe.iphone17 .screen').length`), 1, 'iPhone 缺少屏幕裁剪层')
+    assert.equal(await window.webContents.executeJavaScript(`(() => { const shell=document.querySelector('.id-cached-page[data-active="true"] .mockframe.iphone17'); const frame=shell?.parentElement.querySelector('.id-device-frame'); return Boolean(shell && frame && shell.getBoundingClientRect().width > frame.getBoundingClientRect().width && shell.getBoundingClientRect().height > frame.getBoundingClientRect().height) })()`), true, 'iPhone 机身没有包住设备内容视口')
+    await verifyPreviewFrameBounds(window, true)
     console.log('[Interaction Design UI smoke] 初始 iframe 就绪')
     window.show(); window.focus()
     /** 每个子进程只运行一个有界场景，避免跨项目 OOPIF 重载等待污染后续验证。 */
@@ -619,6 +735,8 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
       assert.deepEqual(errors, [])
       return
     }
+    await verifyDeviceMenu(window)
+    if (scenario === 'devices') { assert.deepEqual(errors, []); return }
     await verifyHistoryRecords(window)
     await window.loadURL(url)
     await waitForPreviewText(window, '拾光')
@@ -655,7 +773,7 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
       assert.equal(await window.webContents.executeJavaScript(`(() => { const tree = document.querySelector('.id-directory-content[role="tree"]'); const root = tree?.querySelector('.id-group[role="treeitem"][aria-level="1"]'); const nested = tree?.querySelector('.id-group-children .id-group[role="treeitem"][aria-level="2"]'); const page = tree?.querySelector('.id-page[role="treeitem"][aria-level="2"]'); return Boolean(tree && root && nested && page && page.querySelector('.id-page-meta')) })()`), true, '页面目录未呈现分组、页面和多级树形语义')
       assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.id-title strong')?.textContent === '交互设计'`), true, '交互模块标题未使用默认名称')
       assert.equal(await window.webContents.executeJavaScript(`Boolean(document.querySelector('.id-directory-header-actions [aria-label="新建页面"]')?.getBoundingClientRect().width) && Boolean(document.querySelector('.id-directory-header-actions [aria-label="新建分组"]')?.getBoundingClientRect().width) && !document.querySelector('.id-directory-create')`), true, '新增入口未放入目录标题右侧')
-      assert.equal(await window.webContents.executeJavaScript(`(() => { const version = document.querySelector('.id-toolbar [aria-label="查看版本与候选"]'); const phone = document.querySelector('.id-toolbar [aria-label="手机预览"]'); const mode = document.querySelector('.id-mode'); return !document.querySelector('.id-actions [aria-label="查看版本与候选"]') && version instanceof HTMLElement && phone instanceof HTMLElement && mode instanceof HTMLElement && version.getBoundingClientRect().left > mode.getBoundingClientRect().right && version.getBoundingClientRect().right < phone.getBoundingClientRect().left })()`), true, `${width}px 版本按钮未移到第二排工具栏空位`)
+      assert.equal(await window.webContents.executeJavaScript(`(() => { const version = document.querySelector('.id-toolbar [aria-label="查看版本与候选"]'); const phone = document.querySelector('.id-toolbar [aria-label="选择预览设备"]'); const mode = document.querySelector('.id-mode'); return !document.querySelector('.id-actions [aria-label="查看版本与候选"]') && version instanceof HTMLElement && phone instanceof HTMLElement && mode instanceof HTMLElement && version.getBoundingClientRect().left > mode.getBoundingClientRect().right && version.getBoundingClientRect().right < phone.getBoundingClientRect().left })()`), true, `${width}px 版本按钮未移到第二排工具栏空位`)
       await clickSelector(window, '[aria-label="今日习惯页面操作"]'); await waitFor(window, `document.querySelector('[role="menu"]')`, '页面菜单未显示')
       const menu = await window.webContents.executeJavaScript(`document.querySelector('[role="menu"]').textContent`)
       for (const label of ['复制', '重命名', '设为入口', '删除']) assert.ok(menu.includes(label), `缺少菜单 ${label}`)
@@ -707,9 +825,9 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
     window.setSize(1180, 850)
     await click(window, '选择修改'); await click(window, '体验')
     assert.equal(await window.webContents.executeJavaScript(`window.__frame===document.querySelector('.id-cached-page[data-active="true"] iframe') && window.__src===window.__frame.srcdoc`), true, '切换选择模式重建正文')
-    await clickSelector(window, '[aria-label="桌面预览"]')
+    await selectPreviewDevice(window, 'MacBook Pro')
     assert.equal(await window.webContents.executeJavaScript(`window.__frame===document.querySelector('.id-cached-page[data-active="true"] iframe') && window.__src===window.__frame.srcdoc`), true, '设备切换重建正文')
-    await clickSelector(window, '[aria-label="手机预览"]')
+    await selectPreviewDevice(window, 'iPhone 17')
     const lightBackground = await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.interaction-design')).backgroundColor`)
     await window.webContents.executeJavaScript(`document.documentElement.classList.add('dark');new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`)
     const darkBackground = await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.interaction-design')).backgroundColor`)
@@ -881,7 +999,7 @@ async function orchestrate(): Promise<void> {
       /** 默认依序运行三段；显式场景只运行该段，便于定位且不复用跨项目的渲染进程。 */
       const scenarios = process.env.PROMA_INTERACTION_DESIGN_SMOKE_SCENARIO ? [process.env.PROMA_INTERACTION_DESIGN_SMOKE_SCENARIO] : ['cache', 'inflight', 'regression']
       for (const scenario of scenarios) {
-        if (!['cache', 'inflight', 'regression'].includes(scenario)) throw new Error(`未知 smoke 场景：${scenario}`)
+        if (!['cache', 'inflight', 'regression', 'devices'].includes(scenario)) throw new Error(`未知 smoke 场景：${scenario}`)
         /** 每段隔离 userData，子进程完全退出后统一清理，避免退出写入与删除竞争。 */
         const userDataPath = await mkdtemp(join(buildDir, `user-data-${scenario}-`))
         console.log(`[Interaction Design UI smoke] 开始独立场景：${scenario}`)

@@ -1,5 +1,9 @@
 import * as React from 'react'
-import { LoaderCircle, Minus, Plus, Scan } from 'lucide-react'
+import { Globe2, LoaderCircle, Minus, Plus, Scan } from 'lucide-react'
+import { MockFrame } from 'react-mockframe'
+import 'react-mockframe/styles/mockframe.css'
+import { getPrototypeDevice } from './interaction-design-devices'
+import type { PrototypeDeviceId } from './interaction-design-devices'
 import type { PrototypeDraft } from '@dutydeck/shared'
 import { buildPrototypePreview, parsePrototypePreviewMessage } from '@dutydeck/shared'
 
@@ -12,7 +16,7 @@ export interface InteractionDesignPreviewProps {
   revision: number
   identity: string
   mode: 'play' | 'select'
-  device: 'mobile' | 'desktop'
+  device: PrototypeDeviceId
   /** 用户选择的绝对比例；缺省自动适应。 */
   zoom?: number
   /** 更新当前项目的预览比例，undefined 恢复自动适应。 */
@@ -22,6 +26,38 @@ export interface InteractionDesignPreviewProps {
   pendingAssets: string[]
   onSelect: (elementId: string, stateId?: string) => void
   onNavigate: (pageId: string) => void
+}
+
+/** 预览画板的尺寸输入；只描述布局，不触碰 iframe 或业务数据。 */
+export interface PrototypePreviewScaleInput {
+  /** 当前预览设备类型。 */
+  device: 'mobile' | 'desktop'
+  /** 是否同时展示同一页面的多个状态。 */
+  multiple: boolean
+  /** 当前页面包含的附加状态数量。 */
+  stateCount: number
+  /** 预览区可用宽度。 */
+  availableWidth: number
+  /** 预览区可用高度。 */
+  availableHeight: number
+  /** 机身或桌面画板的宽度。 */
+  shellWidth: number
+  /** 机身或桌面画板的高度。 */
+  shellHeight: number
+}
+
+/** 计算默认预览比例；单台手机优先可读尺寸，只保留很小的上下留白。 */
+export function calculatePrototypePreviewScale(input: PrototypePreviewScaleInput): number {
+  const availableWidth = Math.max(1, input.availableWidth)
+  const availableHeight = Math.max(1, input.availableHeight)
+  const columns = input.multiple
+    ? Math.min(input.stateCount + 1, Math.max(1, Math.floor((availableWidth + 24) / (input.device === 'mobile' ? 284 : 504))))
+    : 1
+  const readableScale = (input.device === 'mobile' ? 260 : 480) / input.shellWidth
+  const preferredMobileScale = Math.min(0.9, availableWidth / input.shellWidth, Math.max(0.1, (availableHeight - 8) / input.shellHeight))
+  if (!input.multiple && input.device === 'mobile') return Math.max(0.1, preferredMobileScale)
+  if (input.multiple) return Math.max(0.05, Math.min(1, (availableWidth - (columns - 1) * 24) / columns / input.shellWidth, Math.max(readableScale, (availableHeight - 28) / input.shellHeight)))
+  return Math.max(0.05, Math.min(1, availableWidth / input.shellWidth, (availableHeight - 24) / input.shellHeight))
 }
 
 /** 单个状态的沙箱参数；缩放只影响外框，不修改设计视口。 */
@@ -103,43 +139,29 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
     return () => window.removeEventListener('message', receive)
   }, [token, props.pageId, props.revision, props.stateId])
 
-  /** 缩放只改变外框几何，保留 iframe DOM 与表单临时状态。 */
-  const width = props.device === 'mobile' ? 390 : 1280
-  const height = props.device === 'mobile' ? 844 : 800
-  /** iPhone 机身额外占用安全区边距，iframe 仍保持 390×844 设计视口。 */
-  const shellWidth = props.device === 'mobile' ? width + 36 : width
-  const shellHeight = props.device === 'mobile' ? height + 56 : height
-  /** 机身尺寸随画板比例同步缩放，避免窄窗口下内边距挤压 iframe。 */
-  const iphoneStyle = props.device === 'mobile' ? {
-    width: shellWidth * props.scale,
-    height: shellHeight * props.scale,
-    '--id-iphone-pad-x': `${16 * props.scale}px`,
-    '--id-iphone-pad-top': `${24 * props.scale}px`,
-    '--id-iphone-pad-bottom': `${28 * props.scale}px`,
-    '--id-iphone-border': `${2 * props.scale}px`,
-    '--id-iphone-radius': `${48 * props.scale}px`,
-    '--id-iphone-screen-radius': `${32 * props.scale}px`,
-    '--id-iphone-island-top': `${9 * props.scale}px`,
-    '--id-iphone-island-width': `${112 * props.scale}px`,
-    '--id-iphone-island-height': `${27 * props.scale}px`,
-    '--id-iphone-home-bottom': `${9 * props.scale}px`,
-    '--id-iphone-home-width': `${92 * props.scale}px`,
-    '--id-iphone-home-height': `${4 * props.scale}px`,
-  } as React.CSSProperties : { width: width * props.scale, height: height * props.scale }
-  /** 移动/桌面只切换外壳样式，保持 iframe 在同一 DOM 层级以保留表单与交互现场。 */
-  const shellClass = props.device === 'mobile' ? 'id-iphone-shell' : 'id-desktop-shell'
-  const screenClass = props.device === 'mobile' ? 'id-iphone-screen' : 'id-desktop-screen'
-  const chromeClass = props.device === 'mobile' ? 'id-dynamic-island' : 'id-desktop-island'
-  const safeTopClass = props.device === 'mobile' ? 'id-iphone-safe-top' : 'id-desktop-safe-top'
-  const safeBottomClass = props.device === 'mobile' ? 'id-iphone-safe-bottom' : 'id-desktop-safe-bottom'
-  const homeIndicatorClass = props.device === 'mobile' ? 'id-home-indicator' : 'id-desktop-home-indicator'
-  const frame = <div className="id-device-frame" aria-busy={loaded && !ready && !failed} style={{ width: width * props.scale, height: height * props.scale }}>
-    {html !== undefined && <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.pageId}:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts allow-forms" srcDoc={html} onLoad={() => { syncMode(); syncVisibility(); setReady(true) }} onError={() => setFailed(true)} style={{ width, height, transform: `scale(${props.scale})`, transformOrigin: 'top left' }} />}
+  /** 视口随设备改变，iframe 始终留在稳定的屏幕容器中，不随外壳内部结构卸载。 */
+  const device = getPrototypeDevice(props.device)
+  const { width, height, shellWidth, shellHeight } = device
+  const frame = <div className="id-device-frame" aria-busy={loaded && !ready && !failed} style={{ width, height }}>
+    {html !== undefined && <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.pageId}:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts allow-forms" srcDoc={html} onLoad={() => { syncMode(); syncVisibility(); setReady(true) }} onError={() => setFailed(true)} style={{ width, height }} />}
     {!loaded ? <div className="id-state-placeholder">{props.stateName} · 滚动到此处加载</div> : failed ? <div className="id-preview-loading" role="alert">页面加载失败，请点击工具栏重新体验</div> : !ready && <div className="id-preview-loading" role="status" aria-label={`${props.stateName}加载中`}><LoaderCircle className="id-preview-spinner" size={22} aria-hidden="true" /><span>{waitingForAssets ? '正在加载图片…' : '正在加载页面…'}</span></div>}
   </div>
-  return <div ref={boardRef} className={props.multiple ? 'id-state-board' : 'id-single-board'} data-state-id={props.stateId ?? ''} style={{ width: shellWidth * props.scale }}>
+  /** 多状态平铺，单状态在可用区域内居中。 */
+  const boardClass = props.multiple ? 'id-state-board' : 'id-single-board'
+  /** 外壳仅绘制硬件；统一父级缩放使外壳、屏幕和底座使用相同坐标系。 */
+  const deviceFrame = <div className="id-preview-frame-slot" style={{ width: shellWidth * props.scale, height: shellHeight * props.scale }}>
+    <div className="id-preview-model" data-device={device.id} style={{ width: shellWidth, height: shellHeight, transform: `scale(${props.scale})` }}>
+      {device.frame ? <MockFrame {...device.frame} width={width} height={height} className="id-preview-mockframe" aria-hidden="true" style={{ left: device.outsetX }} /> : <div className="id-browser-frame" aria-hidden="true">
+        <div className="id-browser-toolbar"><span className="id-browser-window-dots"><i /><i /><i /></span><span className="id-browser-address"><Globe2 size={14} /><span>原型预览</span></span></div>
+      </div>}
+      <div className={`id-preview-screen${device.homeIndicator ? ' id-preview-home-indicator' : ''}`} style={{ left: device.screenLeft, top: device.screenTop, width, height, borderRadius: device.radius }}>
+        {frame}
+      </div>
+    </div>
+  </div>
+  return <div ref={boardRef} className={boardClass} data-state-id={props.stateId ?? ''} style={{ width: shellWidth * props.scale }}>
     {props.multiple && <div className="id-state-label">{props.stateName}</div>}
-    <div className={shellClass} data-device={props.device === 'mobile' ? 'iphone' : 'desktop'} style={iphoneStyle}><div className={chromeClass} aria-hidden="true" /><div className={screenClass}><div className={safeTopClass} aria-hidden="true" />{frame}<div className={safeBottomClass} aria-hidden="true" /></div><div className={homeIndicatorClass} aria-hidden="true" /></div>
+    {deviceFrame}
   </div>
 }
 
@@ -154,19 +176,13 @@ export function InteractionDesignPreview(props: InteractionDesignPreviewProps): 
   /** 默认正文和附加状态共同构成当前页画板，不把状态变成目录页面。 */
   const page = props.draft.pages.find(item => item.id === props.pageId)
   const multiple = Boolean(page?.states?.length)
-  const width = props.device === 'mobile' ? 390 : 1280
-  const height = props.device === 'mobile' ? 844 : 800
-  /** 适配布局使用机身外框尺寸，避免多台 iPhone 预览互相遮挡。 */
-  const shellWidth = props.device === 'mobile' ? width + 36 : width
-  const shellHeight = props.device === 'mobile' ? height + 56 : height
+  /** 预览完整机身及笔记本底座，内容宽高从所选设备统一派生。 */
+  const device = getPrototypeDevice(props.device)
+  const { shellWidth, shellHeight } = device
   /** 多状态保证可读尺寸，超出空间后滚动；不把十几个画板缩成缩略图。 */
   const availableWidth = Math.max(1, bounds.width - 32)
-  const columns = multiple ? Math.min((page?.states?.length ?? 0) + 1, Math.max(1, Math.floor((availableWidth + 24) / (props.device === 'mobile' ? 284 : 504)))) : 1
-  /** 状态画板优先保证可读宽度；高度不足时滚动，避免窄屏把两台手机压成缩略图。 */
-  const readableScale = (props.device === 'mobile' ? 260 : 480) / shellWidth
-  const fitScale = multiple
-    ? Math.max(0.05, Math.min(1, (availableWidth - (columns - 1) * 24) / columns / shellWidth, Math.max(readableScale, (bounds.height - 28) / shellHeight)))
-    : Math.max(0.05, Math.min(1, availableWidth / shellWidth, (bounds.height - 24) / shellHeight))
+  /** 单台手机优先保持接近真实尺寸，只为完整机身保留很小的上下留白。 */
+  const fitScale = calculatePrototypePreviewScale({ device: device.group === '手机' ? 'mobile' : 'desktop', multiple, stateCount: page?.states?.length ?? 0, availableWidth, availableHeight: bounds.height, shellWidth, shellHeight })
   /** 手动缩放有界；设备宽高仍保持原设计尺寸。 */
   const scale = props.zoom === undefined ? fitScale : Math.max(0.1, Math.min(3, props.zoom))
   React.useEffect(() => {
@@ -178,15 +194,15 @@ export function InteractionDesignPreview(props: InteractionDesignPreviewProps): 
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
-  React.useEffect(() => { spaceRef.current?.scrollTo(0, 0) }, [props.identity, props.pageId])
-  return <div className="id-preview-viewport"><div className={`id-preview-space${multiple ? ' id-state-space' : ''}`} ref={spaceRef} aria-label={multiple ? '当前页面的状态画板' : '当前页面预览'}>
+  React.useEffect(() => { spaceRef.current?.scrollTo(0, 0) }, [props.identity, props.pageId, props.device])
+  return <><div className="id-preview-viewport"><div className={`id-preview-space${multiple ? ' id-state-space' : ''}`} ref={spaceRef} aria-label={multiple ? '当前页面的状态画板' : '当前页面预览'}>
     <StatePreview {...props} key={`${props.identity}:${props.pageId}:default`} stateName={page?.defaultStateName ?? '默认状态'} scale={scale} multiple={multiple} />
     {page?.states?.map(state => <StatePreview {...props} key={`${props.identity}:${props.pageId}:state:${state.id}`} stateId={state.id} stateName={state.name} scale={scale} multiple={multiple} />)}
-  </div><div className="id-zoom-controls" role="group" aria-label="预览缩放">
+  </div></div><div className="id-zoom-controls" role="group" aria-label="预览缩放">
     <button aria-label="缩小预览" title="缩小预览" disabled={scale <= 0.1} onClick={() => props.onZoomChange(Math.max(0.1, (Math.round(scale * 10) - 1) / 10))}><Minus size={14} /></button>
     <button className="id-zoom-value" aria-label="原始尺寸预览" title="恢复 100% 原始尺寸" onClick={() => props.onZoomChange(1)}>{Math.round(scale * 100)}%</button>
     <button aria-label="放大预览" title="放大预览" disabled={scale >= 3} onClick={() => props.onZoomChange(Math.min(3, (Math.round(scale * 10) + 1) / 10))}><Plus size={14} /></button>
     <span className="id-rule" />
     <button className="id-zoom-fit" aria-label="适应预览区域" title="适应预览区域" aria-pressed={props.zoom === undefined} onClick={() => props.onZoomChange(undefined)}><Scan size={14} /><span>适应</span></button>
-  </div></div>
+  </div></>
 }

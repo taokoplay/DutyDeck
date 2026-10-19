@@ -1,4 +1,5 @@
 import { atom } from 'jotai'
+import type { PrototypeDeviceId } from '../components/interaction-design/interaction-design-devices'
 
 /** 视图偏好只驻留 renderer，正式设计版本由主进程保存。 */
 export interface InteractionDesignView {
@@ -7,6 +8,8 @@ export interface InteractionDesignView {
   pageId: string | null
   /** 设备与目录折叠不会改写设计版本。 */
   device: 'mobile' | 'desktop'
+  /** 当前预览机型，仅驻留项目视图，不改写原型平台。 */
+  previewDevice?: PrototypeDeviceId
   /** 手动预览比例；缺省自动适应可用区域，不改变设计视口。 */
   zoom?: number
   collapsedGroups: string[]
