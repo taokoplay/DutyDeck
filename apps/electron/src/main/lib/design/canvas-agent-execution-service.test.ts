@@ -121,6 +121,7 @@ function createFixture(options: {
     },
     runRenderer: async (input, _sender, extensions, observer) => {
       calls.push(`renderer:${input.channelId}/${input.modelId}:${input.mentionedSkills?.join(',')}`)
+      expect(extensions.explicitSkillSlugs).toEqual(input.mentionedSkills)
       expect(extensions.allowedToolNames).toContain('canvas_run_nodes')
       if (options.stopped) stopListener?.()
       observer({
@@ -130,6 +131,7 @@ function createFixture(options: {
       })
     },
     runHeadless: async (input, callbacks, extensions) => {
+      expect(extensions?.explicitSkillSlugs).toEqual(input.mentionedSkills)
       calls.push(`headless:${callbacks.source}:${callbacks.originSessionId}:${input.triggeredBy}`)
       if (options.headlessThrow) throw options.headlessThrow
       options.inspectRunOutsidePrepare?.(prepareHeld)

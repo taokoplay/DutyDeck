@@ -53,6 +53,8 @@ export function createRecoveryContextDigest(input: {
     instructions: query.projectInstructionFiles?.map((file) => ({ path: resolveRecoveryPath(file.path), content: file.content })),
     projectRoot: resolveRecoveryPath(query.projectInstructionScope?.projectRoot),
     skillPaths: query.additionalSkillPaths?.map(resolveRecoveryPath).sort(),
+    excludedSkillSlugs: query.excludedSkillSlugs ? [...query.excludedSkillSlugs].sort() : [],
+    explicitSkillSlugs: extensions.explicitSkillSlugs ? [...extensions.explicitSkillSlugs].sort() : [],
     modulePrompts: input.modulePrompts, extensionPrompt: extensions.systemPromptAppend,
     singleApprovalToolNames: extensions.singleApprovalToolNames ? [...extensions.singleApprovalToolNames].sort() : [],
     readOnlyToolNames: extensions.readOnlyToolNames ? [...extensions.readOnlyToolNames].sort() : [],

@@ -5,6 +5,15 @@
  * 是模块向 Agent 暴露的具体贡献。该文件只放可序列化类型和纯校验，避免依赖 Electron。
  */
 
+/**
+ * 判断模块是否属于宿主固定的常用自动能力；第三方清单不能自行申请自动接入。
+ * @param moduleId 稳定模块 ID。
+ * @returns 仅浏览器和终端返回 true，专业模块与未来插件均须显式选择。
+ */
+export function isAutomaticAgentModuleId(moduleId: string): boolean {
+  return moduleId === 'browser' || moduleId === 'terminal'
+}
+
 export type AgentModuleMode = 'auto' | 'available' | 'pinned'
 export type AgentModuleInvocationMode = 'available' | 'pinned' | 'invoke'
 export type AgentModuleScope = 'session' | 'project' | 'global'

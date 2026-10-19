@@ -548,6 +548,8 @@ export type CanvasToolPermissionCeiling = 'plan' | 'execute'
 
 /** 引用完成权威解析后构造的单轮可信上下文。 */
 export interface CanvasToolRunContext {
+  /** Host 根据本条消息模块选择签发；影像运行仅装配共享媒体能力，不读取画布。 */
+  mediaOnly?: boolean
   projectId: string
   sessionId: string
   runStartedAt: number
@@ -945,6 +947,15 @@ export function createCanvasToolRun(
   dependencies: CanvasToolProviderDependencies,
   context: CanvasToolRunContext,
 ): CanvasToolRun {
+  if (context.mediaOnly) {
+    return dependencies.mediaTools?.(context) ?? {
+      systemPromptAppend: '',
+      piCustomTools: [],
+      allowedToolNames: [],
+      singleApprovalToolNames: [],
+      allowedToolNamesMode: 'extend',
+    }
+  }
   /** 本轮访问上下文始终 fresh-read binding，不缓存扩大后的权限。 */
   const getContext = (): AgentCanvasBinding | null => dependencies.access.getBinding(context)
   /** 上层可在授权后固定活动目标；独立调用缺省时仍于首次读取懒初始化。 */

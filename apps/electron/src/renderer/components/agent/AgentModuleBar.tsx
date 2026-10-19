@@ -1,6 +1,7 @@
+import { isAutomaticAgentModuleId } from '@dutydeck/shared'
 import * as React from 'react'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
-import { Blocks, LayoutDashboard, Clapperboard, MousePointer2, Globe2, SquareTerminal, MoreHorizontal, Loader2, Check, History } from 'lucide-react'
+import { Blocks, LayoutDashboard, Clapperboard, MousePointer2, ServerCog, Braces, Factory, MoreHorizontal, Loader2, Check, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -21,8 +22,9 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   canvas: LayoutDashboard,
   'visual-production': Clapperboard,
   'interaction-design': MousePointer2,
-  browser: Globe2,
-  terminal: SquareTerminal,
+  'server-ops': ServerCog,
+  'api-workbench': Braces,
+  'capability-factory': Factory,
 }
 
 interface AgentModuleBarProps {
@@ -105,7 +107,9 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
     void toggleAgentModule(store, window.electronAPI, sessionId, module.id)
   }
 
-  const visibleModules = modules.slice(0, 4)
+  /** 常用能力由 Agent 按需调用；消息选择和旧策略入口都只展示专业模块。 */
+  const selectableModules = modules.filter((module) => !isAutomaticAgentModuleId(module.id))
+  const visibleModules = selectableModules.slice(0, 4)
   const failedCount = health.filter((entry) => entry.state === 'failed').length
   const renderModuleMenu = (): React.ReactElement => (
     <>
@@ -117,8 +121,8 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
         </div>
       )}
       <div className="space-y-1">
-        {modules.map((module) => {
-          const Icon = MODULE_ICONS[module.id] ?? SquareTerminal
+        {selectableModules.map((module) => {
+          const Icon = MODULE_ICONS[module.id] ?? Blocks
           const policyActive = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
           const active = messageMode ? selectedModuleIds.has(module.id) : policyActive
           const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
@@ -139,7 +143,7 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
             </button>
           )
         })}
-        {!loading && modules.length === 0 && <p className="px-2 py-2 text-xs text-muted-foreground">暂无可用模块</p>}
+        {!loading && selectableModules.length === 0 && <p className="px-2 py-2 text-xs text-muted-foreground">暂无可用模块</p>}
       </div>
       <div className="mt-2 border-t border-border/50 pt-1">
         <Button type="button" variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs" aria-haspopup="dialog" onClick={() => {
@@ -183,7 +187,7 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
           </>}
           {failedCount > 0 && <span className="order-last basis-full text-[11px] text-amber-600 dark:text-amber-300" role="status" title="部分内置模块未能启动">{failedCount} 个模块需要处理</span>}
           {visibleModules.map((module) => {
-            const Icon = MODULE_ICONS[module.id] ?? SquareTerminal
+            const Icon = MODULE_ICONS[module.id] ?? Blocks
             const active = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
             const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
             return (
@@ -217,8 +221,8 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
             }}>
               <div className="mb-1 px-2 text-xs font-medium text-foreground">全部模块</div>
               <div className="space-y-1">
-                {modules.map((module) => {
-                  const Icon = MODULE_ICONS[module.id] ?? SquareTerminal
+                {selectableModules.map((module) => {
+                  const Icon = MODULE_ICONS[module.id] ?? Blocks
                   const active = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
                   const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
                   return (

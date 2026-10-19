@@ -54,6 +54,18 @@ describe('模块运行审计', () => {
     expect(buildAgentModuleRunAudits('session', [context({ modules: [null, { moduleId: 'forged' }] })])[0]?.modules).toEqual([])
   })
 
+  test('Given 模块名称快照 When 投影新旧 Journal Then 保留历史名称且不传播无效字段', () => {
+    /** 名称只允许有界文本，其他 manifest 字段不穿过审计 IPC。 */
+    const namedModule = { ...module, displayName: '画布工作台', localPath: '/SECRET/path' }
+    const namedAudit = buildAgentModuleRunAudits('session', [context({ modules: [namedModule] })])[0]!
+    expect(namedAudit.modules[0]?.displayName).toBe('画布工作台')
+    expect(JSON.stringify(namedAudit)).not.toContain('SECRET')
+    expect(buildAgentModuleRunAudits('session', [context()])[0]?.modules[0]?.displayName).toBeUndefined()
+    for (const displayName of [null, 42, '', 'x'.repeat(257)]) {
+      expect(buildAgentModuleRunAudits('session', [context({ modules: [{ ...module, displayName }] })])[0]?.modules[0]?.displayName).toBeUndefined()
+    }
+  })
+
   test('Given 超量历史与工具 When 读取 Then 返回固定预算并标记截断', () => {
     const contexts = Array.from({ length: 30 }, (_, index) => context({}, `run-${index}`))
     expect(buildAgentModuleRunAudits('session', contexts)).toHaveLength(20)

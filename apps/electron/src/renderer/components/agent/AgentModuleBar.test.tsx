@@ -12,6 +12,23 @@ const module: AgentModuleManifest = {
 }
 
 describe('Agent 会话模块栏', () => {
+  test('Given 常用能力和专业模块混合目录 When 渲染旧模式 Then 排除自动项且保留已安装模块', () => {
+    /** 将常用能力放在前面，验证先过滤后截取可见模块，避免挤占专业入口。 */
+    const store = createStore()
+    store.set(agentModulesAtom, [
+      { ...module, id: 'browser', displayName: '浏览器' },
+      { ...module, id: 'terminal', displayName: '终端' },
+      { ...module, id: 'server-ops', displayName: '服务器运维' },
+      { ...module, id: 'api-workbench', displayName: '接口工作台' },
+      { ...module, id: 'capability-factory', displayName: '编排工厂' },
+      { ...module, id: 'vendor.custom', displayName: '已安装专业插件', source: 'installed' },
+    ])
+    const html = renderToStaticMarkup(<Provider store={store}><AgentModuleBar sessionId="manual" /></Provider>)
+    expect(html).not.toContain('浏览器')
+    expect(html).not.toContain('终端')
+    for (const label of ['服务器运维', '接口工作台', '编排工厂', '已安装专业插件']) expect(html).toContain(label)
+  })
+
   test('消息模式只渲染底部选择入口，不恢复输入框上方模块行', () => {
     const store = createStore()
     store.set(agentModulesAtom, [module])

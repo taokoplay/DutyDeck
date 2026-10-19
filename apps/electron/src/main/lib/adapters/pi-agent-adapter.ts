@@ -298,6 +298,8 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
   /** Proma 聚合的附加目录；Pi 内置工具 factory 不接收多 root 参数，编排层会把它们注入 systemPrompt。 */
   additionalDirectories?: string[]
   additionalSkillPaths?: string[]
+  /** 本轮未授权专业模块所属的 Skill slug；发现与显式展开共用此排除边界。 */
+  excludedSkillSlugs?: string[]
   /** 当前用户输入显式引用的 Skill name（兼容历史 slug 已在编排层归一化） */
   skillMentions?: string[]
   /** Persisted user-message UUID for turn-scoped Skill attribution. */
@@ -657,11 +659,15 @@ function isPromaSkillPath(path: string | undefined, allowedRoots: string[]): boo
   return allowedRoots.some((root) => isPathWithinRoot(guardedPath, root))
 }
 
-function createPromaSkillsOverride(additionalSkillPaths: string[] | undefined): (base: SkillLoadResult) => SkillLoadResult {
+/** 按受管根与本轮专业模块授权过滤 Skill，返回供 Pi 发现和显式引用共用的资源投影。 */
+export function createPromaSkillsOverride(additionalSkillPaths: string[] | undefined, excludedSkillSlugs?: string[]): (base: SkillLoadResult) => SkillLoadResult {
   const allowedRoots = buildAllowedSkillRoots(additionalSkillPaths)
+  /** 同时匹配目录 slug 和 frontmatter name，避免别名绕过模块授权。 */
+  const excludedNames = new Set(excludedSkillSlugs ?? [])
   return (base) => ({
     skills: base.skills.filter((skill) =>
-      isPromaSkillPath(skill.filePath, allowedRoots) || isPromaSkillPath(skill.baseDir, allowedRoots)),
+      (isPromaSkillPath(skill.filePath, allowedRoots) || isPromaSkillPath(skill.baseDir, allowedRoots))
+      && !skillCommandAliases(skill).some((alias) => excludedNames.has(alias))),
     diagnostics: base.diagnostics.filter((diagnostic) => isPromaSkillPath(diagnostic.path, allowedRoots)),
   })
 }
@@ -722,7 +728,8 @@ interface PreparedPromptWithSkills {
   activations: SkillActivation[]
 }
 
-async function preparePromptWithPromaSkills(
+/** 从过滤后的资源目录展开本轮显式 Skill；不可见 Skill 不注入 prompt 或激活记录。 */
+export async function preparePromptWithPromaSkills(
   resourceLoader: ResourceLoader,
   prompt: string,
   explicitSkillNames?: string[],
@@ -1797,7 +1804,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         ...createPromaManagedResourceLoaderOptions(),
         agentsFilesOverride: createPromaProjectInstructionFilesOverride(input.projectInstructionFiles ?? []),
         additionalSkillPaths: input.additionalSkillPaths ?? [],
-        skillsOverride: createPromaSkillsOverride(input.additionalSkillPaths),
+        skillsOverride: createPromaSkillsOverride(input.additionalSkillPaths, input.excludedSkillSlugs),
         ...(extensionFactories.length > 0 && { extensionFactories }),
         systemPromptOverride: () => appendWindowsBaseModeInstruction(input.systemPrompt, input.runtimeEnv),
       })

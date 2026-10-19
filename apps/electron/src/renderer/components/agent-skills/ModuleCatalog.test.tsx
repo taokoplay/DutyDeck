@@ -10,6 +10,21 @@ const module: AgentModuleManifest = {
 }
 
 describe('Agent 模块目录', () => {
+  test('Given 常用能力和专业模块 When 查看管理目录 Then 均保留且明确自动与消息选择边界', () => {
+    /** 管理目录保留兼容信息；它不承担消息模块选择。 */
+    const html = renderToStaticMarkup(<ModuleCatalog initialModules={[
+      { ...module, id: 'browser', displayName: '浏览器' },
+      { ...module, id: 'terminal', displayName: '终端' },
+      { ...module, id: 'vendor.custom', displayName: '第三方模块', source: 'installed', pluginId: 'vendor.custom' },
+    ]} initialHealth={[]} />)
+    expect(html).toContain('浏览器')
+    expect(html).toContain('终端')
+    expect(html.match(/>自动按需调用</g)).toHaveLength(2)
+    expect(html.match(/>消息选择启用</g)).toHaveLength(1)
+    expect(html).toContain('卸载插件')
+    expect(html).toContain('专业模块和已安装插件须在当前消息中选择后接入')
+  })
+
   test('显示模块合同、版本、来源和宿主健康状态', () => {
     const health: AgentPluginHealth[] = [{ pluginId: 'builtin.canvas', state: 'failed', updatedAt: 1, errorCode: 'AGENT_PLUGIN_HOST_LIFECYCLE_FAILED' }]
     const html = renderToStaticMarkup(<ModuleCatalog initialModules={[module]} initialHealth={health} />)

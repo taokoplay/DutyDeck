@@ -2,6 +2,8 @@ import type { AgentModuleActivation, AgentModuleMode } from './agent-modules'
 
 /** 主进程解析的模块贡献快照；声明能力并不代表工具授权或执行事实。 */
 export interface AgentModuleAuditContribution extends AgentModuleActivation {
+  /** 模块清单中的用户可读名称；旧 Journal 缺失时由界面回退到 moduleId。 */
+  displayName?: string
   declaredCapabilities: string[]
 }
 

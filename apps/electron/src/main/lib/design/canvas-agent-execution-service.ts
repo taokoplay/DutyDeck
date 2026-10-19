@@ -372,7 +372,11 @@ export function createCanvasAgentExecutionService(
           goal,
           inputReferences,
         })
-        const extensions = buildRunExtensions(request.mode, prompt, canvasRun)
+        const extensions: AgentRunExtensions = {
+          ...buildRunExtensions(request.mode, prompt, canvasRun),
+          /** 节点配置已通过工作区启用状态与真实 slug 解析，不从聊天文字推断授权。 */
+          explicitSkillSlugs: skillSlugs,
+        }
         const input: AgentSendInput = {
           sessionId: currentOwner.session.id,
           userMessage: goal,

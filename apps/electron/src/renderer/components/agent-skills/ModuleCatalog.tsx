@@ -1,8 +1,9 @@
+import { isAutomaticAgentModuleId } from '@dutydeck/shared'
 import * as React from 'react'
 import { useSetAtom } from 'jotai'
 import { agentModulesAtom, agentModulesLoadedAtom } from '@/atoms/agent-module-atoms'
 import { PluginInstallDialog } from './PluginInstallDialog'
-import { LayoutDashboard, Clapperboard, MousePointer2, Globe2, SquareTerminal } from 'lucide-react'
+import { LayoutDashboard, Clapperboard, MousePointer2, Globe2, SquareTerminal, ServerCog, Braces, Factory, Blocks } from 'lucide-react'
 import type { AgentModuleManifest, AgentPluginHealth, AgentPluginPreview, AgentPluginCatalogSnapshot, SkillMeta } from '@dutydeck/shared'
 import { cn } from '@/lib/utils'
 
@@ -12,6 +13,9 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'interaction-design': MousePointer2,
   browser: Globe2,
   terminal: SquareTerminal,
+  'server-ops': ServerCog,
+  'api-workbench': Braces,
+  'capability-factory': Factory,
 }
 
 interface ModuleCatalogProps {
@@ -29,7 +33,7 @@ interface ModuleCatalogProps {
   initialHealth?: AgentPluginHealth[]
 }
 
-/** Skills 页面中的模块目录；它展示模块合同，具体启用仍在当前会话模块栏完成。 */
+/** Skills 页面中的模块目录；它展示模块合同，专业模块在当前消息中显式选择，常用能力由 Agent 按需调用。 */
 export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, workspaceSlug, loadedWorkspaceSlug, skills = [] }: ModuleCatalogProps = {}): React.ReactElement {
   /** 安装预览与目录诊断只由显式管理操作更新。 */
   const [preview, setPreview] = React.useState<AgentPluginPreview | null>(null)
@@ -96,7 +100,7 @@ export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, w
       <div className="flex items-center justify-between">
         <div>
           <h2 id="agent-module-catalog-title" className="text-sm font-semibold">Agent 模块</h2>
-          <p className="text-xs text-muted-foreground">模块是 Skills、提示词、工具和工作区入口的组合；在聊天模块栏中启用。</p>
+          <p className="text-xs text-muted-foreground">浏览器、终端等常用能力由 Agent 自动按需调用；专业模块和已安装插件须在当前消息中选择后接入。</p>
         </div>
       </div>
       <div className="flex flex-wrap gap-3 text-xs">
@@ -114,7 +118,7 @@ export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, w
       {modules.length === 0 && <p className="text-xs text-muted-foreground">暂无可用模块</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((module) => {
-          const Icon = ICONS[module.id] ?? SquareTerminal
+          const Icon = ICONS[module.id] ?? Blocks
           return (
             <article key={module.id} className={cn('rounded-xl border border-border/60 bg-card p-3', 'transition-colors hover:border-primary/40')}>
               <div className="flex items-start gap-3">
@@ -126,6 +130,7 @@ export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, w
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                 <span className="rounded bg-muted px-1.5 py-0.5" title={module.pluginId}>{module.source === 'installed' ? '已安装' : '内置'} · v{module.version}</span>
+                <span className="rounded bg-muted px-1.5 py-0.5">{isAutomaticAgentModuleId(module.id) ? '自动按需调用' : '消息选择启用'}</span>
                 <span className="rounded bg-muted px-1.5 py-0.5">Skills {module.skillRefs.length}</span>
                 <span className="rounded bg-muted px-1.5 py-0.5">工具 {module.toolRefs.length}</span>
                 <span className="rounded bg-muted px-1.5 py-0.5">权限 {module.requiredPermissions.length}</span>

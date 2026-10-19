@@ -195,6 +195,25 @@ function fixture(options: { largeResources?: boolean; withSources?: boolean; wit
 }
 
 describe('媒体 Agent 工具提供器', () => {
+  test('Given 仅影像模块 When 创建真实媒体运行 Then 提示与工具描述不指向未选画布能力', () => {
+    /** 直接验证生产媒体 Provider，防止 Canvas 外层过滤掩盖内部提示泄漏。 */
+    const f = fixture()
+    /** 仅影像运行保留媒体发现、授权、准备与执行规则。 */
+    const mediaRun = createMediaToolRun(f.dependencies, { ...context, mediaOnly: true })
+    expect(mediaRun.systemPromptAppend).not.toMatch(/canvas_/)
+    expect(mediaRun.piCustomTools.map((tool) => tool.description).join('\n')).not.toMatch(/canvas_/)
+    expect(mediaRun.systemPromptAppend).toContain('media_discover_workflows')
+    expect(mediaRun.systemPromptAppend).toContain('media_prepare_run')
+    expect(mediaRun.systemPromptAppend).toContain('media_prepare_generation')
+    expect(mediaRun.systemPromptAppend).toContain('ask 为每次确认')
+    expect(mediaRun.systemPromptAppend).toContain('用户停止要求')
+    /** 原画布路径仍有明确卡片准备和执行约束。 */
+    const canvasRun = createMediaToolRun(f.dependencies, context)
+    expect(canvasRun.systemPromptAppend).toContain('canvas_get_context')
+    expect(canvasRun.systemPromptAppend).toContain('canvas_update_media_config')
+    expect(canvasRun.systemPromptAppend).toContain('canvas_run_nodes')
+  })
+
   test('Given Host 注入统一媒体 Facade When Agent 会话调用 Then 暴露目录与准备执行等待取消工具', async () => {
     const f = fixture()
     let current: MediaGenerationSnapshot = { id: 'generation-1', projectId: 'project-1', revision: 0, phase: 'prepared', modelRef: 'media:audio:minimax:audio:speech', mediaKind: 'audio', createdAt: 1, updatedAt: 1, outputs: [], error: null }

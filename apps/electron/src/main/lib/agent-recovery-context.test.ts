@@ -24,6 +24,7 @@ describe('精确恢复运行上下文', () => {
       { baseUrl: 'https://changed.invalid/v1' }, { provider: 'anthropic' }, { permissionMode: 'bypassPermissions' },
       { cwd: '/private/tmp/other' }, { additionalDirectories: ['/private/tmp/b'] }, { activeToolNames: ['read'] },
       { projectInstructionFiles: [{ path: '/private/tmp/AGENTS.md', content: '项目约束 B' }] },
+      { excludedSkillSlugs: ['interaction-design'] },
     ]
     for (const change of changes) expect(digest({ ...original, ...change })).not.toBe(expected)
     expect(digest(original, ['模块提示 B'])).not.toBe(expected)

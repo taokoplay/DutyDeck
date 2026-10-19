@@ -6,6 +6,7 @@ import type {
   SkillMeta,
 } from '@dutydeck/shared'
 import { getWorkspaceSkills } from '../agent-workspace-manager'
+import { isAutomaticAgentModuleId } from '@dutydeck/shared'
 import { listBuiltinAgentModules } from './module-registry'
 
 export interface ResolvedAgentModuleContext {
@@ -39,6 +40,9 @@ const MODULE_PROMPTS: Readonly<Record<string, string>> = {
   'interaction-design.system.v1': '当前模块是交互设计。先读取已有原型模块和目标页面边界，再按项目身份提交候选，不把整套页面藏在单个 HTML 中。',
   'browser.system.v1': '当前模块是浏览器。匹配的专用 API/MCP 优先；只有当前任务需要网页界面或没有更结构化能力时才使用受管浏览器。',
   'terminal.system.v1': '当前模块是终端。命令必须限制在当前项目和已授权目录内；涉及写入、外部服务或高风险命令时先获取权限。',
+  'server-ops.system.v1': '当前模块是服务器运维。先读取已授权资源与真实连接状态，服务器、数据库和远程文件操作遵守现有作用域及逐次审批，不因选择模块而扩大权限。',
+  'api-workbench.system.v1': '当前模块是接口工作台。先读取项目内已有请求与场景；出网调用及保存变更依据精确请求快照和用户授权，避免重复发送产生副作用。',
+  'capability-factory.system.v1': '当前模块是编排工厂。先读取已有场景，复用明确的场景身份；验证草案、运行及采纳遵守现有审批与版本检查，不用模型文字冒充真实执行结果。',
 }
 
 function unique(values: readonly string[]): string[] {
@@ -47,7 +51,7 @@ function unique(values: readonly string[]): string[] {
 
 /** 运行时只接受当前消息显式选择的模块；Session 策略不再自动扩展模型上下文。 */
 function resolveSelectedModuleIds(input: ResolveActiveModuleContextInput): string[] {
-  return unique(input.explicitModuleIds ?? [])
+  return unique(input.explicitModuleIds ?? []).filter((moduleId) => !isAutomaticAgentModuleId(moduleId))
 }
 
 function getSkillStatus(skills: readonly SkillMeta[]): Map<string, SkillMeta> {
@@ -74,6 +78,26 @@ function resolveModulePrompt(ref: string): string | undefined {
 /** 返回宿主已加载快照；没有宿主初始化时使用内置模块。 */
 function listRuntimeModules(): readonly AgentModuleManifest[] {
   return runtimeCatalog ?? listBuiltinAgentModules()
+}
+
+/**
+ * 返回本轮不得自动发现的专业 Skill；共享 Skill 只要由已选模块提供即可保留。
+ * @param activeModuleIds 本轮解析成功的模块集合。
+ * @param catalog 宿主目录快照，测试可注入；不扫描插件磁盘。
+ * @param explicitSkillSlugs 内部任务由宿主核验的显式 Skill 配置，不能从普通消息转交。
+ * @returns 应从 Pi 资源目录及显式 Skill 展开中排除的 slug。
+ */
+export function getInactiveModuleSkillSlugs(
+  activeModuleIds: readonly string[],
+  catalog: readonly AgentModuleManifest[] = listRuntimeModules(),
+  explicitSkillSlugs: readonly string[] = [],
+): string[] {
+  /** 基础能力及本轮已选模块共享的 Skill 不受专业模块门禁影响。 */
+  const activeIds = new Set(activeModuleIds)
+  const allowedSkills = new Set([...explicitSkillSlugs, ...catalog.filter((module) => isAutomaticAgentModuleId(module.id) || activeIds.has(module.id))
+    .flatMap((module) => module.skillRefs)])
+  return unique(catalog.filter((module) => !isAutomaticAgentModuleId(module.id) && !activeIds.has(module.id))
+    .flatMap((module) => module.skillRefs)).filter((slug) => !allowedSkills.has(slug))
 }
 
 /**
@@ -108,13 +132,18 @@ export function resolveActiveModuleContext(
       unavailable.push({ moduleId, reason: 'AGENT_MODULE_DISABLED' })
       continue
     }
-    if (!input.workspaceSlug || input.skillsEnabled === false) {
-      unavailable.push({ moduleId, reason: !input.workspaceSlug ? 'AGENT_MODULE_WORKSPACE_REQUIRED' : 'AGENT_MODULE_SKILLS_DISABLED' })
-      continue
-    }
     const module = moduleMap.get(moduleId)
     if (!module) {
       unavailable.push({ moduleId, reason: 'AGENT_MODULE_NOT_FOUND' })
+      continue
+    }
+    /** 只校验该模块的真实依赖；无 Skill 的会话运维不依赖项目 Skills 开关。 */
+    if (!input.workspaceSlug && (module.scope === 'project' || module.skillRefs.length > 0)) {
+      unavailable.push({ moduleId, reason: 'AGENT_MODULE_WORKSPACE_REQUIRED' })
+      continue
+    }
+    if (input.skillsEnabled === false && module.skillRefs.length > 0) {
+      unavailable.push({ moduleId, reason: 'AGENT_MODULE_SKILLS_DISABLED' })
       continue
     }
     const missingPrompts = module.promptRefs.filter((ref) => resolveModulePrompt(ref) === undefined)
@@ -131,6 +160,7 @@ export function resolveActiveModuleContext(
     modules.push({
       moduleId: module.id,
       moduleVersion: module.version,
+      displayName: module.displayName,
       declaredCapabilities: [...module.toolRefs],
       mode,
       ...(input.invocationMode ? { invocationMode: input.invocationMode } : {}),

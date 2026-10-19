@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   isIdempotentReplay,
+  isAutomaticAgentModuleId,
   normalizeAgentSessionModulePolicy,
   parseAgentModuleManifest,
 } from './agent-modules'
@@ -23,6 +24,21 @@ const validManifest = {
 }
 
 describe('Agent 模块合同', () => {
+  test('Given 常用能力与专业插件 When 判断接入方式 Then 仅浏览器和终端自动可用', () => {
+    expect(['browser', 'terminal'].every(isAutomaticAgentModuleId)).toBe(true)
+    for (const id of ['canvas', 'visual-production', 'interaction-design', 'server-ops', 'api-workbench', 'capability-factory', 'vendor.browser', 'new-plugin', '']) {
+      expect(isAutomaticAgentModuleId(id)).toBe(false)
+    }
+  })
+
+  test('Given 第三方声明自动模式 When 解析清单 Then 不能自行取得自动接入资格', () => {
+    /** 未信任插件输入的额外字段不会改变宿主的固定分类。 */
+    const result = parseAgentModuleManifest({ ...validManifest, mode: 'auto', automatic: true })
+    expect(isAutomaticAgentModuleId(result.manifest.id)).toBe(false)
+    expect(result.manifest).not.toHaveProperty('automatic')
+    expect(result.manifest).not.toHaveProperty('mode')
+  })
+
   test('Given 有效 manifest When 解析 Then 规范化列表并返回非阻断警告', () => {
     const result = parseAgentModuleManifest(validManifest)
     expect(result.manifest.id).toBe('dutydeck.canvas')

@@ -1739,7 +1739,8 @@ export function registerCanvasDocumentIpcHandlers(
           configurationCatalog: options.configurationCatalog,
           viewCommands: options.viewCommands,
           ...(options.orchestration ? { orchestration: options.orchestration } : {}),
-        }, captureCanvasToolInitialContext(toolAccess, context)),
+        // 影像运行无需画布快照，避免读取或授权无关的画布绑定。
+        }, context.mediaOnly ? context : captureCanvasToolInitialContext(toolAccess, context)),
         documents: options.store,
         agentConfigs: options.agent.configs,
         agentExecution: options.agent.execution,

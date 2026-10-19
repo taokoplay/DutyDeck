@@ -649,10 +649,23 @@ describe('模块队列 Skills 静态接线合同', () => {
     expect(adapter).toContain('skillMentions: resolvedMentionedSkills')
     expect(adapter).not.toContain('skillMentions: mentionedSkills')
     expect(queue).toContain("if (moduleIds?.length) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')")
+    expect(queue).toContain('this.moduleRunGenerations.get(sessionId) === this.activeSessions.get(sessionId)')
     expect(queue).toContain('const resolvedMentionedSkills = [...new Set(mentionedSkills ?? [])]')
     expect(queue).not.toContain('activeRunModuleSkills.get(sessionId)')
     expect(queue).not.toContain('moduleContext.promptFragments')
     expect(queue).not.toContain('resolveActiveModuleContext(')
     expect(queue).not.toContain('getAgentSessionModulePolicy(')
   })
+})
+
+
+test('Given 专业模块未选 When 组装与执行工具 Then facade与最终分派均使用同一门禁', () => {
+  /** 行为由 module-tool-policy 测试覆盖，此处只验证生产调用没有遗漏。 */
+  const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
+  for (const moduleId of ['server-ops', 'api-workbench', 'interaction-design', 'visual-production', 'capability-factory']) {
+    expect(source).toContain(`moduleToolPolicy.hasModule('${moduleId}')`)
+  }
+  expect(source).toContain('const moduleDenial = moduleToolPolicy.denyTool(toolName)')
+  expect(source).toContain('excludedSkillSlugs,')
+  expect(source).toContain('activeModuleIds: activeModuleActivations.map((module) => module.moduleId)')
 })

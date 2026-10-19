@@ -174,6 +174,7 @@ test('Given 自定义数据根 When 构建系统提示词 Then 工作区 AGENTS 
 test('Given 用户提出画布视觉需求 When 构建系统提示词 Then Agent 必须在当前会话直接使用画布能力', () => {
   const prompt = buildSystemPrompt({
     sessionId: 'session-design-intent',
+    canvasAvailable: true,
     permissionMode: 'bypassPermissions',
     dependencies: {
       resolveWorkspaceContext: () => ({
@@ -199,10 +200,11 @@ test('Given 普通 HTML 原型实现请求 When 构建系统提示词 Then 不�
   const prompt = buildSystemPrompt({ sessionId: 'session-html', permissionMode: 'bypassPermissions',
     dependencies: { resolveWorkspaceContext: () => ({ workspaceRoot: '/tmp/workspace', projectRoot: '/tmp/project', isLocalProject: true }),
       getUserName: () => '测试用户' } })
-  expect(prompt).toContain('普通 HTML/React/代码实现或一次性原型')
-  expect(prompt).toContain('不自动创建、同步或打开画布')
-  expect(prompt).toContain('历史关联、默认画布、旧任务')
-  expect(prompt).toContain('明确要求使用画布')
+  expect(prompt).toContain('浏览器、终端和文件工具按任务需要自动使用')
+  expect(prompt).toContain('缺少专业模块时说明需要在消息中选择')
+  expect(prompt).not.toContain('canvas-production')
+  expect(prompt).not.toContain('server_task_start')
+  expect(prompt).not.toContain('factory_list_scenes')
 })
 
 test('Given 用户已给出具体目标后追问能否执行 When 构建系统提示词 Then Agent 立即进入工具读取阶段', () => {

@@ -237,11 +237,17 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
   const isInteractiveUserRun = !('triggeredBy' in input)
     || input.triggeredBy === undefined
     || input.triggeredBy === 'user'
+  /** 专业能力仅由本条消息选择接入；引用和历史会话状态不隐式开启模块。 */
+  const canvasSelected = input.moduleIds?.includes('canvas') === true
+  /** 影像模块复用媒体能力，但不获得画布管理能力。 */
+  const visualSelected = input.moduleIds?.includes('visual-production') === true
   if (!runtime
     || !sessionMeta?.workspaceId
     || !isEligibleProjectAgent(sessionMeta, sessionMeta.workspaceId)
-    || !isInteractiveUserRun) return prepared
+    || !isInteractiveUserRun
+    || (!canvasSelected && !visualSelected)) return prepared
   const canvasRun = runtime.createRun({
+    mediaOnly: !canvasSelected,
     projectId: sessionMeta.workspaceId,
     sessionId: input.sessionId,
     runStartedAt: 'startedAt' in input && input.startedAt != null ? input.startedAt : Date.now(),

@@ -101,6 +101,8 @@ describe('Pi utility 强制关闭合同', () => {
       ...createQueryInput('session-completion'),
       // 宿主固定的根快照必须完整穿过 utility RPC，子进程不能重猜 cwd。
       dataRootPaths: { activeRoot: '/current-data', historicalRoots: ['/previous-data'] },
+      // 专业模块 Skill 排除清单必须穿过 utility RPC，不能在子进程恢复自动发现。
+      excludedSkillSlugs: ['canvas-production', 'visual-production'],
       resumeContinuation: { expectedSessionFile: '/pi/session.jsonl', sessionId: 'pi-session', branchTipId: 'tip', artifactSha256: 'hash' },
       evaluateCompletion: async (signal: AbortSignal) => {
         evaluations.push(signal)
@@ -116,6 +118,7 @@ describe('Pi utility 强制关闭合同', () => {
     expect(startPayload.input?.evaluateCompletion).toBeUndefined()
     expect(startPayload.input?.completionEvaluationEnabled).toBe(true)
     expect(startPayload.input?.dataRootPaths).toEqual(input.dataRootPaths)
+    expect(startPayload.input?.excludedSkillSlugs).toEqual(input.excludedSkillSlugs)
     expect(startPayload.input?.resumeContinuation).toEqual(input.resumeContinuation)
     await expect(adapter.handleRuntimeRequest(createAgentRuntimeRequest(
       'agent.capability.evaluateCompletion',

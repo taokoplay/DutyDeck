@@ -36,6 +36,8 @@ interface SystemPromptContext {
   collaborationAvailable?: boolean
   /** 本轮具备运维能力时注入数据库脚本交付约束，不增加任何执行权限。 */
   serverOpsAvailable?: boolean
+  /** 只有当前消息选择或受限内部任务签发画布能力时注入画布流程。 */
+  canvasAvailable?: boolean
   /** 本轮可使用已保存运维连接时，说明服务器与数据库受控工具边界。 */
   serverOpsWriteAvailable?: boolean
   /** 本轮具备编排工厂能力时注入"场景该怎么设计"的方法论，不增加任何执行权限。 */
@@ -227,7 +229,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     `## Pi 运行时
 使用 DutyDeck 提供的工具；Write 必须同时传入完整 \`path\` 与 \`content\`。附加目录可用其绝对路径访问。${modelRule}`,
     `## 可见终端
-- 运维模块已连接的服务器应使用当前可用的 \`server_task_start\` 创建交互任务终端，\`server_task_read\` 读取进展。此时不要用 \`TerminalExecute\` 或 Bash 再建 SSH 连接；本地项目任务仍按以下规则选择工具。
+${ctx.serverOpsWriteAvailable ? '- 运维模块已连接的服务器应使用当前可用的 `server_task_start` 创建交互任务终端，`server_task_read` 读取进展。此时不要用 `TerminalExecute` 或 Bash 再建 SSH 连接。\n' : ''}
 - \`TerminalExecute\` 会打开并自动展示给用户的终端 Tab；**是否耗时不是使用它的理由**。只在用户明确要求观看，或命令运行期间确实需要用户观察日志、输入、确认、调试或随时中断时使用。通常仅限开发服务、交互式安装/迁移/部署，或用户明确要求观看的构建和测试。其余命令优先用 Bash 或匹配的专用工具在 Agent 内部执行。
 - 文档与文件处理默认在后台：PDF、Word/DOCX、Excel/CSV、PPT/PPTX、图片/音视频转码、OCR、格式转换、压缩/解压、批量导入导出、数据清洗/生成、文件校验和索引等，即使预计耗时较长也**不得**为此使用 TerminalExecute；只向用户汇报阶段和结果。除非用户明确要求看过程，或工具实际需要其交互输入。
 - 同样不要为了展示普通的读取/搜索、脚本运行、依赖探测、单元测试、类型检查、格式化、构建日志、Git 常规操作、网络下载或 CLI 输出而打开终端；需要可视化结果时交付文件、摘要、进度任务或专用预览，不要把技术日志当作进度。
@@ -245,10 +247,12 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     ctx.collaborationAvailable
       ? '## 协作\n独立并行探索或对抗审查才使用 \`collaboration\`；先建可见进度项，委派说明保持自包含，收敛结果后更新父任务。子会话不得继续委派。'
       : undefined,
-    `## 视觉设计、画布与代码实现
+    `## 专业模块
+浏览器、终端和文件工具按任务需要自动使用。专业模块仅以本轮提供的工具与 Skill 为准；历史使用、打开面板或会话固定策略不代表本轮已选择。缺少专业模块时说明需要在消息中选择，不自行加载其专用 Skill 或通过通用工具改写模块内部数据。`,
+    ctx.canvasAvailable ? `## 视觉设计、画布与代码实现
 ${CANVAS_INTENT_GUIDANCE}
 - 不得要求用户切换到另一个 Design/Canvas，也不得把任务转交给不存在的独立 Design 面板；当前会话负责与右侧画布工作区协同。
-- 画布中的生成、审批、候选采用和版本更新继续遵守对应工具与 Skill 的权限边界。`,
+- 画布中的生成、审批、候选采用和版本更新继续遵守对应工具与 Skill 的权限边界。` : undefined,
     ctx.capabilityFactoryAvailable
       ? `## 提示词编排工厂（场景该怎么设计）
 用途：把"交给模型做"的一个环节做成可训练、可交付的场景（步骤 + 提示词 + 输入输出契约 + 评审判据）。右侧「工厂」面板是它的工作台；**你可以按用户授权代为操作场景、草案、测试、采纳、版本、数据集和本地交付**。

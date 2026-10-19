@@ -15,6 +15,7 @@ import {
   filterCanvasAgentToolsForMode,
   type CanvasToolProviderDependencies,
   type CanvasToolRunContext,
+  type CanvasToolRun,
 } from './canvas-tool-provider'
 import type { CanvasOperationToolHandlers } from './canvas-operation-tools'
 import { createCanvasAgentReviewTracker, resolveCanvasAgentReviewContext } from './canvas-agent-review'
@@ -30,6 +31,57 @@ import { describeCanvasTaskEvidence } from './canvas-task-contract'
 
 const target = { projectId: 'project-1', canvasId: 'canvas-1' }
 const reference: CanvasNodeReference = { ...target, nodeId: 'doc-1', nodeType: 'document', nodeRevision: 3, title: '需求' }
+
+test('Given 仅选择影像模块 When 创建工具 Then 只返回媒体扩展且不访问画布绑定或安装完成守卫', () => {
+  /** 真实 Provider 依赖夹具，画布入口设为失败以防隐式初始化。 */
+  const fixture = createFixture()
+  fixture.dependencies.access.getBinding = () => { throw new Error('不应读取画布绑定') }
+  fixture.dependencies.access.authorizeRead = () => { throw new Error('不应请求画布授权') }
+  /** 媒体授权和单次审批策略必须随原扩展保留。 */
+  const mediaRun: CanvasToolRun = {
+    systemPromptAppend: '共享媒体提示', piCustomTools: [], allowedToolNames: ['media_generate'],
+    singleApprovalToolNames: ['media_generate'], allowedToolNamesMode: 'extend',
+    toolApprovalPolicy: { getMode: () => 'ask', subscribe: () => () => {} },
+  }
+  fixture.dependencies.mediaTools = (context) => {
+    expect(context.mediaOnly).toBe(true)
+    return mediaRun
+  }
+  /** 影像模式只透传媒体扩展，不构造画布工具。 */
+  const run = createCanvasToolRun(fixture.dependencies, { ...fixture.context, mediaOnly: true })
+  expect(run).toBe(mediaRun)
+  expect(run.evaluateCompletion).toBeUndefined()
+  expect(run.allowedToolNames.some((name) => name.startsWith('canvas_'))).toBe(false)
+})
+
+test('Given 仅影像但媒体服务不可用 When 创建工具 Then 空扩展不会回退开启画布', () => {
+  /** 模拟尚未注册媒体服务，仍使用真实画布 Provider。 */
+  const fixture = createFixture()
+  fixture.dependencies.mediaTools = undefined
+  /** 缺少媒体实现时必须保持关闭。 */
+  const run = createCanvasToolRun(fixture.dependencies, { ...fixture.context, mediaOnly: true })
+  expect(run.piCustomTools).toEqual([])
+  expect(run.allowedToolNames).toEqual([])
+  expect(run.systemPromptAppend).toBe('')
+  expect(run.evaluateCompletion).toBeUndefined()
+})
+
+test('Given 选择画布或画布与影像 When 创建完整运行 Then 仍保留画布及共享媒体能力', () => {
+  /** 选中画布时 Host 保持完整 Provider 模式。 */
+  const fixture = createFixture()
+  /** 媒体工具复用真实画布工具的可执行定义，改名仅用于核验合并。 */
+  const mediaTool = { ...createCanvasToolRun(fixture.dependencies, fixture.context).piCustomTools[0]!, name: 'media_test' }
+  fixture.dependencies.mediaTools = () => ({
+    systemPromptAppend: '共享媒体提示', piCustomTools: [mediaTool], allowedToolNames: ['media_test'],
+    singleApprovalToolNames: ['media_test'], allowedToolNamesMode: 'extend',
+  })
+  /** mediaOnly=false 与内部 Canvas 运行默认模式一致。 */
+  const run = createCanvasToolRun(fixture.dependencies, { ...fixture.context, mediaOnly: false })
+  expect(run.allowedToolNames).toContain('canvas_read')
+  expect(run.allowedToolNames).toContain('media_test')
+  expect(run.singleApprovalToolNames).toContain('media_test')
+  expect(run.systemPromptAppend).toContain('共享媒体提示')
+})
 
 test('Given 宿主装配设置和视图服务 When 普通Agent调用 Then 使用可信身份并保留专业子Agent边界', async () => {
   /** 通过真实Provider注册与模式过滤检查新增入口，不绕过外层守卫。 */

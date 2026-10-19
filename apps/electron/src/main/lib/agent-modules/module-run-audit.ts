@@ -91,6 +91,7 @@ export function buildAgentModuleRunAudits(
       if (!moduleId || !moduleVersion || !policyMode || item.sessionId !== sessionId) return []
       return [{
         moduleId, moduleVersion, mode: policyMode,
+        ...(identifier(item.displayName) ? { displayName: identifier(item.displayName) } : {}),
         ...(item.invocationMode === 'invoke' || item.invocationMode === 'pinned' || item.invocationMode === 'available' ? { invocationMode: item.invocationMode } : {}),
         skillRefs: refs(item.skillRefs), promptRefs: refs(item.promptRefs), declaredCapabilities: refs(item.declaredCapabilities),
         activatedAt: context.createdAt, sessionId, policyRevision: Number.isSafeInteger(payload.policyRevision) ? payload.policyRevision as number : 0,

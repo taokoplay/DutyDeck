@@ -29,6 +29,7 @@ import {
   DUTYDECK_DEFAULT_PERMISSION_MODE,
   AGENT_DEFAULT_TOOL_MODE,
   isAgentToolMode,
+  isAutomaticAgentModuleId,
   isOrdinaryTopLevelAgentSession,
   DUTYDECK_PERMISSION_MODE_CONFIG,
   THINKING_SIGNATURE_ERROR_CODE,
@@ -138,7 +139,8 @@ import { claimWorkspaceMemoryRefreshOpportunity } from './agent-memory-refresh-s
 import { browserController } from './browser-controller'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
 import { getAgentSessionModulePolicy } from './agent-modules/module-policy-store'
-import { resolveActiveModuleContext } from './agent-modules/module-skill-resolver'
+import { getInactiveModuleSkillSlugs, resolveActiveModuleContext } from './agent-modules/module-skill-resolver'
+import { createAgentModuleToolPolicy } from './agent-modules/module-tool-policy'
 import { tagModuleSkillActivations, projectModuleAuditSkills } from './agent-modules/module-run-audit'
 import { createWorkspaceOperationGuard } from './workspace-operation-guard'
 import type { AgentRunExtensions } from './agent-run-extensions'
@@ -374,6 +376,8 @@ export class AgentOrchestrator {
   private adapter: AgentProviderAdapter
   private eventBus: AgentEventBus
   private activeSessions = new Map<string, number>()
+  /** 专业模块运行不能接受无模块消息插队，避免沿用已固化的专业工具和提示。 */
+  private moduleRunGenerations = new Map<string, number>()
   /** 当前代际的远端只读调用取消控制器；旧代际收尾不得清除新代际。 */
   private activeRunControllers = new Map<string, AgentRunIdentity>()
   /** 发布任务只在用户显式停止本轮时取消，正常回复后仍可在运维终端输入。 */
@@ -1024,6 +1028,7 @@ export class AgentOrchestrator {
           this.activeRunControllers.delete(sessionId)
         }
         this.activeSessions.delete(sessionId)
+        this.moduleRunGenerations.delete(sessionId)
         this.activeSessionStartedAt.delete(sessionId)
         this.sessionPermissionModes.delete(sessionId)
         this.queuedMessageUuids.delete(sessionId)
@@ -1119,6 +1124,7 @@ export class AgentOrchestrator {
     /** 独立于工具闭包失效信号，避免正常对话结束误杀等待 sudo 的任务。 */
     const serverTaskController = new AbortController()
     this.activeServerTaskControllers.set(sessionId, { generation: runGeneration, controller: serverTaskController })
+    if (input.moduleIds?.some((moduleId) => !isAutomaticAgentModuleId(moduleId))) this.moduleRunGenerations.set(sessionId, runGeneration)
     this.activeSessions.set(sessionId, runGeneration)
     this.activeSessionStartedAt.set(sessionId, streamStartedAt)
     this.latestRunGenerations.set(sessionId, runGeneration)
@@ -1487,6 +1493,16 @@ export class AgentOrchestrator {
         }
       }
 
+      /** 本轮已解析选择决定专业能力；内部扩展只保留宿主实际提供的精确工具。 */
+      const moduleToolPolicy = createAgentModuleToolPolicy({
+        activeModuleIds: activeModuleActivations.map((module) => module.moduleId),
+        toolMode: runToolMode,
+        trustedToolNames: extensions.piCustomTools?.map((tool) => tool.name),
+      })
+      /** 未选专业 Skill 不进入自动发现目录；普通浏览器及共享 Skill 保持可用。 */
+      const excludedSkillSlugs = getInactiveModuleSkillSlugs(activeModuleActivations.map((module) => module.moduleId), undefined,
+        extensions.explicitSkillSlugs)
+
       // 9.4.1 Fork session JSONL 迁移已在 forkAgentSession 中完成；fork 的 cwd 语义
       // 从源会话继承并持久化，避免历史相对路径在恢复时切换到另一文件根。
 
@@ -1537,7 +1553,7 @@ export class AgentOrchestrator {
       const piSdk = await import('@earendil-works/pi-coding-agent')
       checkpoint()
       /** 仅已初始化 Server Ops 上下文与普通交互来源会得到非空会话级 Facade。 */
-      const serverOpsFacade = runToolMode === 'standard' || runToolMode === 'server-ops-write' ? createServerOpsAgentFacade({
+      const serverOpsFacade = moduleToolPolicy.hasModule('server-ops') && (runToolMode === 'standard' || runToolMode === 'server-ops-write') ? createServerOpsAgentFacade({
         sessionId,
         triggeredBy: input.triggeredBy,
         getSession: getAgentSessionMeta,
@@ -1545,16 +1561,16 @@ export class AgentOrchestrator {
         taskSignal: serverTaskController.signal,
       }) : undefined
       /** 数据库能力复用真实运行身份；普通会话写入另走单次审批，内部来源不继承权限。 */
-      const serverOpsReadFacade = createServerOpsAgentReadFacade({
+      const serverOpsReadFacade = moduleToolPolicy.hasModule('server-ops') ? createServerOpsAgentReadFacade({
         sessionId, triggeredBy: input.triggeredBy, getSession: getAgentSessionMeta,
         runSignal: runIdentity.signal, assertRunActive: runIdentity.assertActive,
         allowDatabaseWrite: runToolMode === 'standard' || runToolMode === 'server-ops-write',
-      })
+      }) : undefined
       /** 连接建议独立于已有主机授权，只在当前普通用户运行中生成待审阅草稿。 */
-      const serverOpsConnectionDrafts = createServerOpsConnectionDraftAgent({
+      const serverOpsConnectionDrafts = moduleToolPolicy.hasModule('server-ops') ? createServerOpsConnectionDraftAgent({
         sessionId, toolMode: runToolMode, triggeredBy: input.triggeredBy, getSession: getAgentSessionMeta,
         runSignal: runIdentity.signal, assertRunActive: runIdentity.assertActive,
-      })
+      }) : undefined
       const builtinMcpResult = await buildPiBuiltinTools(piSdk, {
         // MCP 配置只在权威工作区可写时执行；验证期间不长期持有迁移锁。
         runWorkspaceSlugWrite: (slug, effect) => workspaceOperationGuard.runWorkspaceSlugWrite(slug, effect),
@@ -1585,28 +1601,28 @@ export class AgentOrchestrator {
       })
       checkpoint()
       /** API 能力固定在本次普通会话运行，访问服务时才初始化 Utility。 */
-      const apiFacade = createApiAgentFacade({
+      const apiFacade = moduleToolPolicy.hasModule('api-workbench') ? createApiAgentFacade({
         sessionId, toolMode: runToolMode, triggeredBy: input.triggeredBy,
         getSession: getAgentSessionMeta, runSignal: runIdentity.signal, assertRunActive: runIdentity.assertActive,
         get service() { return getApiWorkbenchService() },
         canMutate: () => getPermissionMode() !== 'plan',
         assertWorkspaceWritable: (id) => { if (!getAgentWorkspace(id)) throw new Error('API_AGENT_WORKSPACE_NOT_FOUND'); workspaceOperationGuard.assertWorkspaceWritable(id) },
         runWorkspaceWrite: (id, effect) => workspaceOperationGuard.runWorkspaceWrite(id, effect),
-      })
+      }) : undefined
       /** 原型工具绑定当前主会话；候选与正式采纳都由同一运行身份执行。 */
-      const interactionAccess = createInteractionDesignAgentAccess({
+      const interactionAccess = moduleToolPolicy.hasModule('interaction-design') ? createInteractionDesignAgentAccess({
         sessionId, toolMode: runToolMode, triggeredBy: input.triggeredBy, automation: Boolean(automationContext),
         getSession: getAgentSessionMeta, assertRunActive: runIdentity.assertActive,
         canWrite: () => getPermissionMode() !== 'plan', createAccess: createProductionInteractionDesignAccess,
-      })
+      }) : undefined
       if (interactionAccess) interactionRun = createInteractionDesignRun(sessionId, interactionAccess,
         createProductionInteractionDesignAccess(sessionId, { canWrite: () => getPermissionMode() !== 'plan' }))
       /** 影片、漫剧和图片制作使用独立作品域，与原型设计职责分离。 */
-      const visualProductionAccess = createVisualProductionAgentAccess({
+      const visualProductionAccess = moduleToolPolicy.hasModule('visual-production') ? createVisualProductionAgentAccess({
         sessionId, toolMode: runToolMode, triggeredBy: input.triggeredBy, automation: Boolean(automationContext),
         getSession: getAgentSessionMeta, assertRunActive: runIdentity.assertActive,
         canWrite: () => getPermissionMode() !== 'plan', createAccess: createProductionVisualProductionAccess,
-      })
+      }) : undefined
       if (visualProductionAccess) visualProductionRun = createVisualProductionRun(sessionId, visualProductionAccess,
         createProductionVisualProductionAccess(sessionId, { canWrite: () => getPermissionMode() !== 'plan' }))
       /** 主会话建立域范围；受限子任务只接收宿主签发的独立策略。 */
@@ -1642,7 +1658,7 @@ export class AgentOrchestrator {
        * 没有工作区（例如临时会话）时不注册工具 —— 工厂是工作区级的模块。
        */
       /** 完整工厂操作只开放给当前普通前台会话，后台和受限来源不随之扩权。 */
-      const factoryAccess = createCapabilityFactoryAgentAccess({
+      const factoryAccess = moduleToolPolicy.hasModule('capability-factory') ? createCapabilityFactoryAgentAccess({
         sessionId, toolMode: runToolMode, triggeredBy: input.triggeredBy, automation: Boolean(automationContext),
         getSession: getAgentSessionMeta,
         getRootDir: (id) => {
@@ -1650,7 +1666,7 @@ export class AgentOrchestrator {
           return project ? join(getAgentWorkspacePath(project.slug), 'capability-factory') : null
         },
         assertWritable: (id) => workspaceOperationGuard.assertWorkspaceWritable(id),
-      })
+      }) : undefined
       const factoryRuntime = factoryAccess ? createCapabilityFactorySessionRuntime({
         rootDir: factoryAccess.rootDir, sessionId, scopeId: `${sessionId}:${runGeneration}`,
         service: getCapabilityFactoryService(factoryAccess.rootDir), signal: runIdentity.signal,
@@ -2025,6 +2041,9 @@ export class AgentOrchestrator {
           ? undefined
           : denyToolOutsideRunAllowlist(toolName, extensions.allowedToolNames)
         if (runPolicyDenial) return runPolicyDenial
+        /** 模块隐藏与真实执行独立校验，旧历史中的专业调用也不能绕过本轮选择。 */
+        const moduleDenial = moduleToolPolicy.denyTool(toolName)
+        if (moduleDenial) return moduleDenial
         const currentMode = getPermissionMode()
 
         // ── 参数校验守卫（所有模式、所有工具，优先于权限检查） ──
@@ -2554,6 +2573,7 @@ export class AgentOrchestrator {
         sessionWorkbenchLayout: getSessionWorkbenchLayout(sessionMeta),
         permissionMode: initialPermissionMode,
         collaborationAvailable,
+        canvasAvailable: moduleToolPolicy.hasModule('canvas') || Boolean(extensions.piCustomTools?.some((tool) => tool.name.startsWith('canvas_'))),
         serverOpsAvailable: Boolean(serverOpsReadFacade || serverOpsFacade || serverOpsConnectionDrafts),
         serverOpsWriteAvailable: Boolean(serverOpsFacade),
         /** 工厂是工作区级能力：能建 facade 就说明这个会话能用它，注入场景设计方法论。 */
@@ -2667,9 +2687,10 @@ export class AgentOrchestrator {
           event: { type: 'context_window', contextWindow },
         })
       }
-      const assembledPiCustomTools = runToolMode === 'server-ops-read' || runToolMode === 'server-ops-write'
+      const assembledPiCustomTools = (runToolMode === 'server-ops-read' || runToolMode === 'server-ops-write'
         ? piBuiltinTools
-        : [...piBuiltinTools, ...piMcpTools, ...(extensions.piCustomTools ?? [])]
+        : [...piBuiltinTools, ...piMcpTools, ...(extensions.piCustomTools ?? [])])
+        .filter((tool) => !moduleToolPolicy.denyTool((tool as { name: string }).name))
       /** 媒体工具来自扩展集合，必须在最终汇总后绑定作品范围与执行上下文。 */
       const piCustomTools = visualProductionAccess && visualProductionRun
         ? bindVisualProductionMediaTools(assembledPiCustomTools as Parameters<typeof bindVisualProductionMediaTools>[0], { sessionId, access: visualProductionAccess, jobs: () => visualProductionRun!.mediaJobs() })
@@ -2736,6 +2757,7 @@ export class AgentOrchestrator {
         ...(allAdditionalDirectories.length > 0 && { additionalDirectories: allAdditionalDirectories }),
         ...(workspaceSlug && runWorkspaceSkillsEnabled ? {
           additionalSkillPaths: [getWorkspaceSkillsDir(workspaceSlug)],
+          excludedSkillSlugs,
           skillWorkspaceSlug: workspaceSlug,
         } : {}),
         ...(runWorkspaceSkillsEnabled && resolvedMentionedSkills.length ? { skillMentions: resolvedMentionedSkills } : {}),
@@ -3528,6 +3550,7 @@ export class AgentOrchestrator {
       this.activeRunControllers.delete(sessionId)
     }
     this.activeSessions.delete(sessionId)
+    this.moduleRunGenerations.delete(sessionId)
     this.activeSessionStartedAt.delete(sessionId)
     this.sessionPermissionModes.delete(sessionId)
     browserController.cancelSession(sessionId)
@@ -3683,6 +3706,7 @@ export class AgentOrchestrator {
     // 即便 activeSessions 为空，也要调 dispose 清理可能残留的 pidMap / 子进程
     this.adapter.dispose()
     this.activeSessions.clear()
+    this.moduleRunGenerations.clear()
     this.activeSessionStartedAt.clear()
     this.sessionPermissionModes.clear()
     this.stoppedBySessions.clear()
@@ -3744,6 +3768,9 @@ export class AgentOrchestrator {
       : undefined
     /** 模块命令必须启动独立 run，不能改变当前 run 已固化的策略与审计身份。 */
     if (moduleIds?.length) throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')
+    if (this.moduleRunGenerations.get(sessionId) === this.activeSessions.get(sessionId)) {
+      throw new Error('AGENT_MODULE_REQUIRES_NEW_RUN')
+    }
     /** 队列消息也只使用本条消息显式引用的 Skill，不继承上一轮的模块上下文。 */
     const resolvedMentionedSkills = [...new Set(mentionedSkills ?? [])]
 
@@ -3842,6 +3869,7 @@ export class AgentOrchestrator {
       if (isMissingActiveQueueChannelError(error)) {
         console.warn(`[Agent 编排] 队列注入失败且消息通道已失效，释放陈旧运行状态: sessionId=${sessionId}`)
         this.activeSessions.delete(sessionId)
+        this.moduleRunGenerations.delete(sessionId)
         this.activeSessionStartedAt.delete(sessionId)
         this.sessionPermissionModes.delete(sessionId)
         this.queuedMessageUuids.delete(sessionId)
