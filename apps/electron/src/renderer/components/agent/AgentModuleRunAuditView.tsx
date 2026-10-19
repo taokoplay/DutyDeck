@@ -1,25 +1,45 @@
 import * as React from 'react'
 import type { AgentModuleRunAudit } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 
-/** 审计仅按用户展开/刷新读取，不订阅 token 或高频轮询。 */
-export function AgentModuleRunAuditView({ sessionId }: { sessionId: string }): React.ReactElement {
-  return <SessionModuleRunAuditView key={sessionId} sessionId={sessionId} />
+/** 调用记录弹窗归属与关闭后焦点恢复，由模块栏持有。 */
+interface AgentModuleRunAuditViewProps {
+  sessionId: string
+  onClose: () => void
+  onReturnFocus: () => void
+}
+
+/** 仅在用户打开时挂载；读取当前会话记录，不订阅 token 或高频轮询。 */
+export function AgentModuleRunAuditView({ sessionId, onClose, onReturnFocus }: AgentModuleRunAuditViewProps): React.ReactElement {
+  return <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+    <DialogContent className="w-[calc(100%-2rem)] max-w-2xl" onCloseAutoFocus={(event) => {
+      event.preventDefault()
+      onReturnFocus()
+    }}>
+      <DialogHeader>
+        <DialogTitle>调用记录</DialogTitle>
+        <DialogDescription>查看当前会话最近 20 轮使用的模块、加载的 Skills 和实际调用的工具。</DialogDescription>
+      </DialogHeader>
+      <SessionModuleRunAuditView key={sessionId} sessionId={sessionId} />
+    </DialogContent>
+  </Dialog>
 }
 
 /** 会话 key 隔离异步结果，避免导航后显示上一会话的运行来源。 */
 function SessionModuleRunAuditView({ sessionId }: { sessionId: string }): React.ReactElement {
-  /** 有界运行快照、展开状态与请求反馈。 */
+  /** 有界运行快照与请求反馈；每次打开重新读取，不复用其他会话的记录。 */
   const [audits, setAudits] = React.useState<AgentModuleRunAudit[]>([])
-  const [open, setOpen] = React.useState(false)
-  const [loading, setLoading] = React.useState(false)
+  const [loading, setLoading] = React.useState(true)
   const [failed, setFailed] = React.useState(false)
-  const mounted = React.useRef(true)
-  React.useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  /** 关闭或切会话后忽略迟到响应，并同步阻止同一次挂载的重复读取。 */
+  const mounted = React.useRef(false)
+  const reading = React.useRef(false)
 
   /** 只读取主进程投影；错误不展示可能包含路径的原始异常。 */
-  const refresh = async (): Promise<void> => {
-    if (loading) return
+  const refresh = React.useCallback(async (): Promise<void> => {
+    if (reading.current) return
+    reading.current = true
     setLoading(true)
     setFailed(false)
     try {
@@ -28,24 +48,25 @@ function SessionModuleRunAuditView({ sessionId }: { sessionId: string }): React.
     } catch {
       if (mounted.current) setFailed(true)
     } finally {
+      reading.current = false
       if (mounted.current) setLoading(false)
     }
-  }
+  }, [sessionId])
 
-  return <div className="mx-3 mb-2 text-[11px]" data-testid="agent-module-run-audit">
-    <Button type="button" variant="ghost" size="sm" aria-expanded={open} onClick={() => {
-      setOpen(!open)
-      if (!open) void refresh()
-    }}>模块与工具审计</Button>
-    {open && <div className="max-h-72 space-y-3 overflow-y-auto rounded-md border p-3">
+  React.useEffect(() => {
+    mounted.current = true
+    void refresh()
+    return () => { mounted.current = false }
+  }, [refresh])
+
+  return <div className="min-h-0 max-h-[60vh] space-y-3 overflow-y-auto text-xs" data-testid="agent-module-run-audit" aria-busy={loading}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">最近 20 轮；模块声明不等于工具权限，实际工具按运行记录。</span>
+        <span className="text-muted-foreground">模块提供的能力与实际调用分别记录。</span>
         <Button type="button" variant="ghost" size="sm" disabled={loading} onClick={() => void refresh()}>{loading ? '读取中…' : '刷新'}</Button>
       </div>
-      {failed && <p role="alert" className="text-destructive">审计读取失败，请重试。</p>}
-      {!failed && !loading && audits.length === 0 && <p className="text-muted-foreground">暂无模块运行审计；旧运行不推测补全。</p>}
+      {failed && <p role="alert" className="text-destructive">调用记录读取失败，请刷新重试。</p>}
+      {!failed && !loading && audits.length === 0 && <p className="text-muted-foreground">暂无调用记录，早期会话可能未记录这些信息。</p>}
       {audits.map(audit => <AgentModuleRunAuditDetails key={audit.runId} audit={audit} />)}
-    </div>}
   </div>
 }
 

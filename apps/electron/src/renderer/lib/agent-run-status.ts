@@ -1,4 +1,4 @@
-export type AgentRunStatus = 'recovering' | 'queued' | 'running' | 'waiting_permission' | 'waiting_answer' | 'background_waiting' | 'completed' | 'failed' | 'stopping'
+export type AgentRunStatus = 'recovering' | 'queued' | 'running' | 'waiting_permission' | 'waiting_answer' | 'background_waiting' | 'idle' | 'failed' | 'stopping'
 
 export interface AgentRunStatusInput {
   messagesLoaded: boolean
@@ -24,5 +24,6 @@ export function deriveAgentRunStatus(input: AgentRunStatusInput): AgentRunStatus
   if (input.queuedCount > 0) return 'queued'
   if (input.backgroundWaiting) return 'background_waiting'
   if (input.hasError || !input.hasChannel || !input.hasModel) return 'failed'
-  return 'completed'
+  // 没有在途状态只能说明会话空闲，不能据此宣称用户任务已完成。
+  return 'idle'
 }

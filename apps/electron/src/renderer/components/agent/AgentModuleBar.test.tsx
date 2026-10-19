@@ -12,6 +12,18 @@ const module: AgentModuleManifest = {
 }
 
 describe('Agent 会话模块栏', () => {
+  test('Given 少量模块或目录不可用 When 渲染 Then 仍保留更多入口且不常驻调用记录', () => {
+    /** 调用记录的可达性不依赖模块数量和目录读取成功。 */
+    const store = createStore()
+    for (const modules of [[], [module]]) {
+      store.set(agentModulesAtom, modules)
+      const html = renderToStaticMarkup(<Provider store={store}><AgentModuleBar sessionId="compact" /></Provider>)
+      expect(html).toContain('aria-label="更多模块"')
+      expect(html).not.toContain('模块与工具审计')
+      expect(html).not.toContain('data-testid="agent-module-run-audit"')
+    }
+  })
+
   test('显示已启用模块，并以健康状态提示宿主失败', () => {
     const store = createStore()
     store.set(agentModulesAtom, [module])

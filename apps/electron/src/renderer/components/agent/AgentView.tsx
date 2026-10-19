@@ -32,7 +32,6 @@ import { AgentComposerFrame } from './AgentComposerFrame'
 import { AgentModuleBar } from './AgentModuleBar'
 import { AgentStatusBar } from './AgentStatusBar'
 import { AgentModuleCommandReceipt } from './AgentModuleCommandReceipt'
-import { AgentModuleRunAuditView } from './AgentModuleRunAuditView'
 import { AgentRunRecoveryNotice } from './AgentRunRecoveryNotice'
 import { ContextUsageBadge } from './ContextUsageBadge'
 import { PermissionBanner } from './PermissionBanner'
@@ -3409,10 +3408,8 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           hasError={Boolean(agentError)}
           hasChannel={Boolean(agentChannelId)}
           hasModel={hasAvailableModel}
-          onAction={() => { if (agentError) setSettingsOpen(true) }}
         />
         <AgentModuleCommandReceipt sessionId={sessionId} />
-        <AgentModuleRunAuditView sessionId={sessionId} />
         <AgentRunRecoveryNotice sessionId={sessionId} running={streaming || isStopping} />
 
         {/* 权限请求横幅 */}

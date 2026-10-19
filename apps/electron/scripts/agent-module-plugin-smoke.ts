@@ -17,7 +17,7 @@ import { buildNextSessionModulePolicy } from '../src/main/lib/agent-modules/modu
 import { AgentPluginManagementService } from '../src/main/lib/agent-modules/plugin-management-service'
 import { AgentRunRecoveryService } from '../src/main/lib/agent-run-recovery'
 import { buildAgentModuleRunAudits } from '../src/main/lib/agent-modules/module-run-audit'
-import type { AgentRunRecoveryInput, AgentRunRecoveryPlan, AgentModuleRunAuditQuery } from '@dutydeck/shared'
+import type { AgentRunRecoveryInput, AgentRunRecoveryPlan, AgentModuleRunAuditQuery, AgentModuleRunAudit } from '@dutydeck/shared'
 import { AgentRunJournalStore } from '../src/main/lib/agent-run-journal'
 import { writeJsonFileAtomic } from '../src/main/lib/safe-file'
 
@@ -131,7 +131,20 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
   ipcMain.handle(AGENT_IPC_CHANNELS.INSTALL_AGENT_PLUGIN, (_event, token: string) => management.install(token))
   ipcMain.handle(AGENT_IPC_CHANNELS.REFRESH_AGENT_PLUGINS, () => management.refresh())
   ipcMain.handle(AGENT_IPC_CHANNELS.UNINSTALL_AGENT_PLUGIN, (_event, pluginId: string) => management.uninstall(pluginId))
-  ipcMain.handle(AGENT_IPC_CHANNELS.GET_AGENT_MODULE_RUN_AUDITS, (_event, query: AgentModuleRunAuditQuery) => buildAgentModuleRunAudits(query.sessionId, journal.read(query.sessionId), query))
+  /** 审计读取计数、可控失败和延迟响应验证按需加载及会话隔离。 */
+  const auditReads: string[] = []
+  let failAudit = true
+  let delayAuditRead = false
+  let releaseAuditRead: (() => void) | undefined
+  ipcMain.handle(AGENT_IPC_CHANNELS.GET_AGENT_MODULE_RUN_AUDITS, (_event, query: AgentModuleRunAuditQuery) => {
+    auditReads.push(query.sessionId)
+    if (failAudit) throw new Error('SMOKE_AUDIT_UNAVAILABLE')
+    const audits = buildAgentModuleRunAudits(query.sessionId, journal.read(query.sessionId), query)
+    if (delayAuditRead && query.sessionId === 'smoke-a') return new Promise<AgentModuleRunAudit[]>((resolve) => {
+      releaseAuditRead = () => resolve(audits)
+    })
+    return audits
+  })
   ipcMain.handle(AGENT_IPC_CHANNELS.APPLY_AGENT_RUN_RECOVERY, (_event, input: AgentRunRecoveryInput) => {
     recoveryApplies += 1
     if (failApply) throw new Error('SMOKE_APPLY_UNAVAILABLE')
@@ -166,6 +179,15 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
   try {
     await window.loadFile(join(buildDir, 'ui', htmlName))
     await waitFor(window, `document.body.textContent.includes('重试模块加载') && document.body.textContent.includes('重试模块目录')`)
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[data-testid="idle-status-fixture"]').childElementCount`), 0, '空闲状态不应占位')
+    assert.equal(auditReads.length, 0, '未打开调用记录不能读取审计')
+    await click(window, '[aria-label="更多模块"]')
+    await clickText(window, '调用记录')
+    await waitFor(window, `document.querySelector('[data-testid="agent-module-run-audit"] [role="alert"]')`)
+    assert.equal(auditReads.length, 1, '目录失败时仍可打开调用记录')
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    await waitFor(window, `!document.querySelector('[role="dialog"]') && document.activeElement?.getAttribute('aria-label')==='更多模块'`)
     failCatalog = false
     await clickText(window, '重试模块加载')
     await clickText(window, '重试模块目录')
@@ -183,7 +205,7 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
     assert.ok(!getPolicy('smoke-b').disabledModuleIds.includes('canvas'))
     assert.deepEqual(getPolicy('smoke-a').enabledModuleIds, ['canvas'])
     assert.deepEqual(JSON.parse(readFileSync(join(sessionRoot, 'smoke-b.policy.json'), 'utf8')).enabledModuleIds, ['browser', 'canvas'])
-    await click(window, '[aria-label="显示全部模块"]')
+    await click(window, '[aria-label="更多模块"]')
     await waitFor(window, `document.querySelector('[role="dialog"]')?.textContent.includes('示例模块')`)
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
@@ -243,9 +265,31 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
     await waitFor(window, `!document.querySelector('[data-testid="agent-run-recovery-notice"]')`)
     assert.equal(recoveryApplies, 2)
     assert.equal(journal.scanRecovery('smoke-a').length, 0)
-    await clickText(window, '模块与工具审计')
+    assert.equal(auditReads.length, 1, '关闭记录后运行事件和切换会话不能隐式读取审计')
+    await click(window, '[aria-label="更多模块"]')
+    await clickText(window, '调用记录')
+    await waitFor(window, `document.querySelector('[data-testid="agent-module-run-audit"] [role="alert"]')`)
+    failAudit = false
+    await click(window, '[data-testid="agent-module-run-audit"] button')
     await waitFor(window, `document.querySelector('[aria-label="运行 audit-run"]')?.textContent.includes('canvas @1.2.3')`)
-    await clickText(window, '模块与工具审计')
+    assert.equal(auditReads.length, 3, '失败后刷新只发起一次读取')
+    // 对话框打开时用程序触发导航，模拟侧栏/快捷键切会话。
+    delayAuditRead = true
+    await click(window, '[data-testid="agent-module-run-audit"] button')
+    await waitFor(window, `document.querySelector('[data-testid="agent-module-run-audit"] button')?.disabled`)
+    assert.ok(releaseAuditRead)
+    await window.webContents.executeJavaScript(`document.querySelector('[data-testid="switch-session"]').click()`)
+    await waitFor(window, `document.querySelector('[data-testid="session-id"]').textContent==='smoke-b' && !document.querySelector('[role="dialog"]')`)
+    await click(window, '[aria-label="更多模块"]')
+    await clickText(window, '调用记录')
+    await waitFor(window, `document.querySelector('[data-testid="agent-module-run-audit"] button')?.disabled===false`)
+    releaseAuditRead()
+    delayAuditRead = false
+    await window.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`)
+    assert.equal(await window.webContents.executeJavaScript(`Boolean(document.querySelector('[aria-label="运行 audit-run"]'))`), false, '旧会话迟到审计不能污染当前会话')
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    await waitFor(window, `!document.querySelector('[role="dialog"]') && document.activeElement?.getAttribute('aria-label')==='更多模块'`)
     await clickText(window, '安装本地插件')
     await waitFor(window, `document.querySelector('[role="dialog"]')?.textContent.includes('Skill 文件不会随清单安装')`)
     assert.equal(registry.getModule('smoke-installed'), undefined)
@@ -264,14 +308,26 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
     window.webContents.send(AGENT_IPC_CHANNELS.AGENT_PLUGIN_HEALTH_CHANGED, { ...host.listHealth()[0], state: 'failed' })
     await waitFor(window, `document.body.textContent.includes('启动失败') && document.body.textContent.includes('1 个模块需要处理')`)
     window.setSize(420, 820)
-    await window.webContents.executeJavaScript(`document.documentElement.classList.add('dark')`)
-    await click(window, '[aria-label="显示全部模块"]')
+    // 浅色和深色都验证窄窗记录弹层与关闭后的焦点恢复。
+    for (const dark of [false, true]) {
+      await window.webContents.executeJavaScript(`document.documentElement.classList.toggle('dark', ${dark})`)
+      await click(window, '[aria-label="更多模块"]')
+      await clickText(window, '调用记录')
+      await waitFor(window, `document.querySelector('[data-testid="agent-module-run-audit"] button')?.disabled===false`)
+      await window.webContents.executeJavaScript(`Promise.all(document.getAnimations().filter(animation=>Number.isFinite(animation.effect?.getComputedTiming().endTime)).map(animation=>animation.finished.catch(()=>undefined)))`)
+      assert.equal(await window.webContents.executeJavaScript(`(()=>{const rect=document.querySelector('[role="dialog"]').getBoundingClientRect();return rect.left>=0 && rect.right<=innerWidth && rect.top>=0 && rect.bottom<=innerHeight})()`), true, '窄窗口调用记录不能溢出视口')
+      writeFileSync(join(dataRoot, dark ? 'audit-ui-dark.png' : 'audit-ui-light.png'), (await window.webContents.capturePage()).toPNG())
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+      await waitFor(window, `!document.querySelector('[role="dialog"]') && document.activeElement?.getAttribute('aria-label')==='更多模块'`)
+    }
+    await click(window, '[aria-label="更多模块"]')
     await waitFor(window, `document.querySelector('[role="dialog"]')?.textContent.includes('终端')`)
     await window.webContents.executeJavaScript(`Promise.all(document.getAnimations().filter(animation=>Number.isFinite(animation.effect?.getComputedTiming().endTime)).map(animation=>animation.finished.catch(()=>undefined))).then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))`)
     assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[data-testid="agent-module-bar"]').scrollWidth <= document.querySelector('[data-testid="agent-module-bar"]').clientWidth`), true, '窄窗口模块栏溢出')
     writeFileSync(join(dataRoot, 'module-ui-dark.png'), (await window.webContents.capturePage()).toPNG())
     assert.deepEqual(rendererErrors, [])
-    console.log('[Agent module UI smoke] PASS: 生产组件/preload、目录重试、会话策略、输入解析、幂等派发、队列夹具取消、回执刷新、真实安装/刷新/卸载、依赖诊断、Journal 审计、恢复失败重试及二次确认弃置、健康事件与 Popover；文件选择器和队列为夹具，未调用 Pi/模型')
+    console.log('[Agent module UI smoke] PASS: 生产组件/preload、目录重试、会话策略、输入解析、幂等派发、队列夹具取消、回执刷新、真实安装/刷新/卸载、依赖诊断、按需调用记录/失败刷新/跨会话迟到隔离/Escape 焦点/浅深色窄窗、空闲零占位、恢复失败重试及二次确认弃置、健康事件与 Popover；文件选择器和队列为夹具，未调用 Pi/模型')
   } finally {
     window.destroy()
     await host.dispose()

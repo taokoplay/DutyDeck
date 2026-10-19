@@ -4,7 +4,7 @@ import { Provider } from 'jotai'
 import { AgentModuleBar } from '../src/renderer/components/agent/AgentModuleBar'
 import { AgentModuleCommandReceipt } from '../src/renderer/components/agent/AgentModuleCommandReceipt'
 import { AgentRunRecoveryNotice } from '../src/renderer/components/agent/AgentRunRecoveryNotice'
-import { AgentModuleRunAuditView } from '../src/renderer/components/agent/AgentModuleRunAuditView'
+import { AgentStatusBar } from '../src/renderer/components/agent/AgentStatusBar'
 import { ModuleCatalog } from '../src/renderer/components/agent-skills/ModuleCatalog'
 import { parseQueuedMessageMentions } from '../src/renderer/lib/agent-message-queue'
 import '../src/renderer/styles/globals.css'
@@ -42,7 +42,11 @@ function ModuleSmokeApp(): React.ReactElement {
     <AgentModuleBar sessionId={sessionId} />
     <AgentModuleCommandReceipt sessionId={sessionId} />
     <AgentRunRecoveryNotice sessionId={sessionId} running={running} />
-    <AgentModuleRunAuditView sessionId={sessionId} />
+    <div data-testid="idle-status-fixture"><AgentStatusBar
+      messagesLoaded messagesRefreshing={false} streaming={false} backgroundWaiting={false}
+      queuedCount={0} waitingPermission={false} waitingAnswer={false} stopping={false}
+      hasError={false} hasChannel hasModel
+    /></div>
     <ModuleCatalog workspaceSlug="smoke" loadedWorkspaceSlug="smoke" skills={[{slug: "canvas-production", name: "画布", enabled: true}, {slug: "disabled-skill", name: "停用", enabled: false}]} />
   </main></Provider>
 }

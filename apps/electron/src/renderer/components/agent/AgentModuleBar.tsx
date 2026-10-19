@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
-import { LayoutDashboard, Clapperboard, MousePointer2, Globe2, SquareTerminal, MoreHorizontal, Loader2, Check } from 'lucide-react'
+import { LayoutDashboard, Clapperboard, MousePointer2, Globe2, SquareTerminal, MoreHorizontal, Loader2, Check, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ import {
   agentModulePolicyErrorAtomFamily,
 } from '@/atoms/agent-module-atoms'
 import { loadAgentModuleCatalog, loadAgentModulePolicy, toggleAgentModule } from './agent-module-loader'
+import { AgentModuleRunAuditView } from './AgentModuleRunAuditView'
 
 const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   canvas: LayoutDashboard,
@@ -45,6 +46,10 @@ export function AgentModuleBar({ sessionId, disabled = false }: AgentModuleBarPr
   const policyError = useAtomValue(agentModulePolicyErrorAtomFamily(sessionId))
   const setHealth = useSetAtom(agentPluginHealthAtom)
   const [open, setOpen] = React.useState(false)
+  /** 记录弹窗绑定打开时的会话，导航后立即卸载以隔离迟到结果。 */
+  const [auditSessionId, setAuditSessionId] = React.useState<string | null>(null)
+  /** 从弹窗返回时恢复到稳定入口，不依赖已经卸载的 Popover 菜单项。 */
+  const moreButtonRef = React.useRef<HTMLButtonElement>(null)
 
   React.useEffect(() => {
     void loadAgentModuleCatalog(store, window.electronAPI)
@@ -52,6 +57,7 @@ export function AgentModuleBar({ sessionId, disabled = false }: AgentModuleBarPr
 
   React.useEffect(() => {
     setOpen(false)
+    setAuditSessionId(null)
     void loadAgentModulePolicy(store, window.electronAPI, sessionId)
   }, [store, sessionId])
 
@@ -104,40 +110,58 @@ export function AgentModuleBar({ sessionId, disabled = false }: AgentModuleBarPr
           </Button>
         )
       })}
-      {modules.length > visibleModules.length && (
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button type="button" size="sm" variant="ghost" className="h-7 px-2" aria-expanded={open} aria-label="显示全部模块">
-              <MoreHorizontal className="size-3.5" />
-              <span className="sr-only">更多模块</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button ref={moreButtonRef} data-session-id={sessionId} type="button" size="sm" variant="ghost" className="h-7 px-2" aria-expanded={open} aria-label="更多模块">
+            <MoreHorizontal className="size-3.5" />
+            <span className="sr-only">更多模块</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-72 p-2" onCloseAutoFocus={(event) => {
+          // 打开记录时由 Dialog 接管焦点，防止 Popover 关闭后抢回输入。
+          if (auditSessionId === sessionId) event.preventDefault()
+        }}>
+          <div className="mb-1 px-2 text-xs font-medium text-foreground">全部模块</div>
+          <div className="space-y-1">
+            {modules.map((module) => {
+              const Icon = MODULE_ICONS[module.id] ?? SquareTerminal
+              const active = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
+              const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
+              return (
+                <button
+                  key={module.id}
+                  type="button"
+                  disabled={disabled || !policy || policyBusy}
+                  className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50', active && 'bg-muted/70')}
+                  onClick={() => void toggleAgentModule(store, window.electronAPI, sessionId, module.id)}
+                >
+                  <Icon className="size-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{module.displayName}</span>
+                  {pinned && <span className="text-[10px] text-primary">固定</span>}
+                  {active && <Check className="size-3.5 text-primary" aria-label="已启用" />}
+                </button>
+              )
+            })}
+          </div>
+          <div className="mt-2 border-t border-border/50 pt-1">
+            <Button type="button" variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs" aria-haspopup="dialog" onClick={() => {
+              setOpen(false)
+              setAuditSessionId(sessionId)
+            }}>
+              <History className="size-3.5" />
+              调用记录
             </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-72 p-2">
-            <div className="mb-1 px-2 text-xs font-medium text-foreground">全部模块</div>
-            <div className="space-y-1">
-              {modules.map((module) => {
-                const Icon = MODULE_ICONS[module.id] ?? SquareTerminal
-                const active = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
-                const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
-                return (
-                  <button
-                    key={module.id}
-                    type="button"
-                    disabled={disabled || !policy || policyBusy}
-                    className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50', active && 'bg-muted/70')}
-                    onClick={() => void toggleAgentModule(store, window.electronAPI, sessionId, module.id)}
-                  >
-                    <Icon className="size-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{module.displayName}</span>
-                    {pinned && <span className="text-[10px] text-primary">固定</span>}
-                    {active && <Check className="size-3.5 text-primary" aria-label="已启用" />}
-                  </button>
-                )
-              })}
-            </div>
-          </PopoverContent>
-        </Popover>
-      )}
+          </div>
+        </PopoverContent>
+      </Popover>
+      {auditSessionId === sessionId && <AgentModuleRunAuditView
+        sessionId={sessionId}
+        onClose={() => setAuditSessionId(null)}
+        onReturnFocus={() => {
+          // 导航导致关闭时不把焦点从新会话或侧栏抢回。
+          if (moreButtonRef.current?.dataset.sessionId === sessionId) moreButtonRef.current.focus()
+        }}
+      />}
     </div>
   )
 }
