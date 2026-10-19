@@ -1,4 +1,5 @@
 import { registerAgentPluginManagementIpc } from './lib/agent-modules/plugin-management-ipc'
+import { registerContentPluginIpc } from './lib/agent-plugins/content-plugin-ipc'
 import { createCanvasSessionIdleGuard } from './lib/design/canvas-session-idle-guard'
 import type { CanvasViewCommandTarget } from '@dutydeck/shared'
 import { createCanvasViewCommandService } from './lib/design/canvas-view-command-service'
@@ -6965,6 +6966,7 @@ export function registerIpcHandlers(): void {
   /** UI 与执行解析共享同一目录快照，每轮对话不重复扫描插件目录。 */
   setAgentModuleRuntimeCatalog(agentPluginRegistry.listModules(), agentPluginRegistry.getPromptCatalog())
   registerAgentPluginManagementIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
+  registerContentPluginIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
   const host = new AgentPluginHost()
   agentPluginHost = host
   host.subscribe((event) => {

@@ -12,6 +12,7 @@ import { detectIsWindows } from "@/lib/platform";
 import { getWindowTitlebarDragInsetStyle } from "@/lib/window-titlebar-layout";
 import {
   Settings,
+  Puzzle,
   Radio,
   Eye,
   Palette,
@@ -70,6 +71,7 @@ import { PathManagementSettings } from "./PathManagementSettings";
 import { StorageSettings } from "./StorageSettings";
 import { OnboardingSettings } from "./OnboardingSettings";
 import { TokenUsageSettings } from "./TokenUsageSettings";
+import { PluginCenter } from "./PluginCenter";
 import { MediaSettings } from "./MediaSettings";
 import { useOpenSession } from '@/hooks/useOpenSession'
 
@@ -88,6 +90,7 @@ const BASE_TABS: TabItem[] = [
   { id: "media", label: "媒体生成", icon: <Images size={16} /> },
   { id: "vision-relay", label: "视觉助手", icon: <Eye size={16} /> },
   { id: "prompts", label: "提示词管理", icon: <BookOpen size={16} /> },
+  { id: "plugins", label: "插件管理", icon: <Puzzle size={16} /> },
   { id: "proxy", label: "代理设置", icon: <Globe size={16} /> },
 ];
 
@@ -128,6 +131,8 @@ const TAIL_TABS: TabItem[] = [
 /** 根据标签页 id 渲染对应内容 */
 function renderTabContent(tab: SettingsTab): React.ReactElement {
   switch (tab) {
+    case "plugins":
+      return <PluginCenter />;
     case "general":
       return <GeneralSettings />;
     case "channels":
@@ -336,7 +341,7 @@ export function SettingsPanel({
           </div>
         </div>
 
-        {/* 右侧内容区域 */}
+        {/* 右侧内容区域；插件中心沿用设置页的单一滚动流。 */}
         <ScrollArea className="min-w-0 flex-1 bg-content-area">
           <div className="mx-auto w-full max-w-[1080px] px-5 py-8 pb-12 sm:px-8">
             {renderTabContent(activeTab)}

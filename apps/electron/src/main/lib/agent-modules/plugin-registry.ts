@@ -9,6 +9,26 @@ export class AgentPluginRegistry {
   private readonly builtinModules = new Map<string, AgentModuleManifest>()
   private readonly plugins = new Map<string, AgentPluginManifest>()
   private readonly diagnostics: AgentPluginDiagnostic[] = []
+  /** V2 内容包只发布元数据，正文由选中模块时的专用解析器加载。 */
+  private contentModules: AgentModuleManifest[] = []
+  /** 已关闭的包仍占有身份，不能被旧清单趁停用覆盖。 */
+  private reservedContentModules: AgentModuleManifest[] = []
+
+  /** 校验与替换 V2 投影，既有内置/V1 身份不能被内容包覆盖。 */
+  setContentModules(modules: readonly AgentModuleManifest[], reservedModules: readonly AgentModuleManifest[] = modules): void {
+    const occupied = new Set([...this.builtinModules.keys(), ...[...this.plugins.values()].flatMap(plugin => plugin.modules.map(module => module.id))])
+    for (const module of reservedModules) {
+      if (occupied.has(module.id)) throw new Error('AGENT_PLUGIN_MODULE_ID_CONFLICT')
+      occupied.add(module.id)
+    }
+    this.contentModules = modules.map(cloneModule)
+    this.reservedContentModules = reservedModules.map(cloneModule)
+  }
+
+  /** V1 兼容入口也遵守 V2 已安装身份，包括当前关闭的模块。 */
+  conflictsWithContentPlugin(pluginId: string, moduleIds: readonly string[]): boolean {
+    return this.reservedContentModules.some(module => module.pluginId === pluginId || moduleIds.includes(module.id))
+  }
 
   /** 注册内置模块，调用顺序固定且可重复。 */
   registerBuiltinModules(modules: readonly AgentModuleManifest[]): void {
@@ -31,11 +51,11 @@ export class AgentPluginRegistry {
         this.diagnostics.push({ pluginId: plugin.id, path: 'plugin.json', status: 'rejected', warnings: [], errorCode: 'AGENT_PLUGIN_CATALOG_LIMIT_EXCEEDED' })
         continue
       }
-      if (plugin.id.startsWith('builtin.') || this.plugins.has(plugin.id)) {
+      if (plugin.id.startsWith('builtin.') || this.plugins.has(plugin.id) || this.conflictsWithContentPlugin(plugin.id, [])) {
         this.diagnostics.push({ pluginId: plugin.id, path: 'plugin.json', status: 'rejected', warnings: [], errorCode: 'AGENT_PLUGIN_ID_DUPLICATE' })
         continue
       }
-      const conflictingModule = plugin.modules.find((module) => this.builtinModules.has(module.id) || [...this.plugins.values()].some((registered) => registered.modules.some((candidate) => candidate.id === module.id)))
+      const conflictingModule = plugin.modules.find((module) => this.builtinModules.has(module.id) || this.conflictsWithContentPlugin(plugin.id, [module.id]) || [...this.plugins.values()].some((registered) => registered.modules.some((candidate) => candidate.id === module.id)))
       if (conflictingModule) {
         this.diagnostics.push({ pluginId: plugin.id, path: 'plugin.json', status: 'rejected', warnings: [], errorCode: `AGENT_PLUGIN_MODULE_ID_CONFLICT:${conflictingModule.id}` })
         continue
@@ -60,7 +80,7 @@ export class AgentPluginRegistry {
     for (const plugin of [...this.plugins.values()].sort((left, right) => left.id.localeCompare(right.id))) {
       modules.push(...plugin.modules.map((module) => ({ ...cloneModule(module), source: 'installed' as const, pluginId: plugin.id })))
     }
-    return modules
+    return [...modules, ...this.contentModules.map(cloneModule)]
   }
 
   /** 根据模块 ID查找宿主已注册模块，供命令总线复用。 */

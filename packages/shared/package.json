@@ -19,6 +19,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@dutydeck/capability-runner": "workspace:*"
+    "@dutydeck/capability-runner": "workspace:*",
+    "@dutydeck/plugin-sdk": "0.1.0"
   }
 }

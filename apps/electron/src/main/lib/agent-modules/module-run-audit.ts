@@ -92,6 +92,18 @@ export function buildAgentModuleRunAudits(
       return [{
         moduleId, moduleVersion, mode: policyMode,
         ...(identifier(item.displayName) ? { displayName: identifier(item.displayName) } : {}),
+        ...(identifier(item.pluginId) && typeof item.packageHash === 'string' && /^[a-f0-9]{64}$/.test(item.packageHash) ? {
+          pluginId: identifier(item.pluginId), packageHash: item.packageHash,
+          packageResources: (Array.isArray(item.packageResources) ? item.packageResources : []).slice(0, MAX_ITEMS).flatMap(value => {
+            const resource = record(value)
+            const id = identifier(resource.id)
+            const version = identifier(resource.version)
+            if (!id || !version || !refs([...refs(item.skillRefs), ...refs(item.promptRefs)]).includes(id)
+              || (resource.kind !== 'skill' && resource.kind !== 'prompt' && resource.kind !== 'style')
+              || !Number.isSafeInteger(resource.byteLength) || Number(resource.byteLength) < 0 || Number(resource.byteLength) > 65536) return []
+            return [{ id, version, kind: resource.kind as 'skill' | 'prompt' | 'style', byteLength: Number(resource.byteLength) }]
+          }),
+        } : {}),
         ...(item.invocationMode === 'invoke' || item.invocationMode === 'pinned' || item.invocationMode === 'available' ? { invocationMode: item.invocationMode } : {}),
         skillRefs: refs(item.skillRefs), promptRefs: refs(item.promptRefs), declaredCapabilities: refs(item.declaredCapabilities),
         activatedAt: context.createdAt, sessionId, policyRevision: Number.isSafeInteger(payload.policyRevision) ? payload.policyRevision as number : 0,
@@ -114,7 +126,7 @@ export function buildAgentModuleRunAudits(
         || (Array.isArray(payload.unavailable) && payload.unavailable.length > MAX_ITEMS)
         || rawModules.slice(0, MAX_ITEMS).some(value => {
           const item = record(value)
-          return [item.skillRefs, item.promptRefs, item.declaredCapabilities].some(list => Array.isArray(list) && list.length > MAX_ITEMS)
+          return [item.skillRefs, item.promptRefs, item.declaredCapabilities, item.packageResources].some(list => Array.isArray(list) && list.length > MAX_ITEMS)
         }),
     }
     /** 真实 start 事件 ID 和调用 ID 双重匹配，不能用同名工具或最近消息配对。 */

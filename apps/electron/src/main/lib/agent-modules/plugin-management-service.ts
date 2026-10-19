@@ -109,6 +109,7 @@ export class AgentPluginManagementService {
 
   /** 候选整体预算和 ID 冲突在写入之前拒绝。 */
   private validateCandidate(manifest: AgentPluginManifest): void {
+    if (this.registry.conflictsWithContentPlugin(manifest.id, manifest.modules.map(module => module.id))) throw new Error('AGENT_PLUGIN_ID_CONFLICT')
     // 与 safe-file 的实际 UTF-8 pretty JSON 编码一致，预览和提交均在创建目录前校验。
     if (Buffer.byteLength(JSON.stringify(manifest, null, 2), 'utf8') > AGENT_PLUGIN_MANIFEST_MAX_BYTES) {
       throw new Error('AGENT_PLUGIN_SERIALIZED_MANIFEST_TOO_LARGE')

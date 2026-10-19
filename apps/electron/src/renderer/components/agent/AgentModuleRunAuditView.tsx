@@ -193,14 +193,22 @@ function ModuleAuditCard({ module, audit, name }: { module: AgentModuleAuditCont
       <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{invocation}</span>
     </div>
     <p className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-      <span>Skills 已加载 {loadedSkills.length}/{module.skillRefs.length}</span><span>声明提示词 {module.promptRefs.length} 条</span>
+      {module.packageResources ? <span>Pi Skill 加载记录 {loadedSkills.length} 条</span> : <span>Skills 已加载 {loadedSkills.length}/{module.skillRefs.length}</span>}<span>声明提示词 {module.promptRefs.length} 条</span>
     </p>
     {loadedSkills.length > 0 ? <div className="flex flex-wrap gap-1">{loadedSkills.map(skill => <span key={skill.slug} className="max-w-full break-all rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">{skill.slug}</span>)}</div>
-      : <p className="text-[11px] text-muted-foreground">{module.skillRefs.length > 0 ? '尚无 Skill 成功加载记录' : '此模块无需加载 Skill'}</p>}
+      : <p className="text-[11px] text-muted-foreground">{module.packageResources ? '包内资源通过模块上下文接入，未计作 Pi Skill 加载事件。' : module.skillRefs.length > 0 ? '尚无 Skill 成功加载记录' : '此模块无需加载 Skill'}</p>}
+    {module.packageResources && <section aria-label="包内上下文资源" className="space-y-1 text-[11px]">
+      <h5 className="font-medium">包内上下文资源（{module.packageResources.length}）</h5>
+      <ul className="space-y-1 break-all text-muted-foreground">{module.packageResources.map(resource => <li key={resource.id}>
+        {resource.kind === 'skill' ? 'Skill' : resource.kind === 'prompt' ? '提示词' : '设计约束'} · {resource.id} @{resource.version} · {resource.byteLength} 字节
+      </li>)}</ul>
+    </section>}
     <details className="text-[11px] text-muted-foreground">
       <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">模块来源与能力</summary>
       <div className="mt-2 space-y-1 break-all">
         <p>{module.moduleId} @{module.moduleVersion}</p>
+        {module.pluginId && <p>插件：{module.pluginId}</p>}
+        {module.packageHash && <p>包 SHA-256：{module.packageHash}</p>}
         <p>提供 Skills：{module.skillRefs.join('、') || '无'}</p>
         <p>提示引用：{module.promptRefs.join('、') || '无'}</p>
         <p>声明能力：{module.declaredCapabilities.join('、') || '无'}（不代表实际执行）</p>

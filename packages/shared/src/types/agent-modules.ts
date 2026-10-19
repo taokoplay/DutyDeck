@@ -39,6 +39,10 @@ export interface AgentModuleManifest {
   source?: 'builtin' | 'installed'
   /** 宿主目录投影中的插件身份。 */
   pluginId?: string
+  /** 包资源由插件宿主验证，不使用工作区 Skill 文件的管理语义。 */
+  resourceSource?: 'package'
+  /** 不可变包身份，用于运行前核验及恢复上下文绑定。 */
+  packageHash?: string
 }
 
 export interface AgentSessionModulePolicy {

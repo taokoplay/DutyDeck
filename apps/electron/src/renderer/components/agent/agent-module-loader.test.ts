@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
 import type { AgentSessionModulePolicy, AgentSessionModulePolicyUpdateInput } from '@dutydeck/shared'
 import {
-  agentModulesLoadedAtom, agentModulesLoadingAtom, agentModulesErrorAtom,
+  agentModulesAtom, agentModulesLoadedAtom, agentModulesLoadingAtom, agentModulesErrorAtom,
   agentSessionModulePolicyAtomFamily, agentModulePolicyBusyAtomFamily, agentModulePolicyErrorAtomFamily,
 } from '@/atoms/agent-module-atoms'
 import { loadAgentModuleCatalog, loadAgentModulePolicy, toggleAgentModule, type AgentModuleLoaderAPI } from './agent-module-loader'
@@ -30,6 +30,18 @@ function api(overrides: Partial<AgentModuleLoaderAPI> = {}): AgentModuleLoaderAP
 }
 
 describe('模块栏实际使用的加载与保存控制器', () => {
+  test('Given 旧目录请求未完成，When 插件变更强制刷新，Then 旧返回不能覆盖新快照', async () => {
+    const store = createStore()
+    const pending = deferred<Awaited<ReturnType<AgentModuleLoaderAPI['getAgentModules']>>>()
+    const first = loadAgentModuleCatalog(store, api({ getAgentModules: () => pending.promise }))
+    await loadAgentModuleCatalog(store, api(), true)
+    pending.resolve([{ id: 'stale' } as Awaited<ReturnType<AgentModuleLoaderAPI['getAgentModules']>>[number]])
+    await first
+    expect(store.get(agentModulesAtom)).toEqual([])
+    expect(store.get(agentModulesLoadingAtom)).toBe(false)
+    expect(store.get(agentModulesLoadedAtom)).toBe(true)
+  })
+
   test('Given 首次加载及重复 Effect，When 目录返回，Then 结束 loading 并缓存空目录', async () => {
     const store = createStore()
     const pending = deferred<[]>()

@@ -1,0 +1,28 @@
+{
+  "name": "@dutydeck/plugin-sdk",
+  "version": "0.1.0",
+  "description": "DutyDeck 插件 V2 纯 TypeScript 合同与校验器",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema": "./plugin-manifest.schema.json"
+  },
+  "files": [
+    "dist",
+    "plugin-manifest.schema.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && bun scripts/generate-schema.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test tests"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

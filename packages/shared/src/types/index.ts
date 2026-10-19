@@ -28,6 +28,7 @@ export * from './token-usage'
 export * from './agent'
 export * from './agent-modules'
 export * from './agent-plugin'
+export * from './agent-module-prompts'
 export * from './agent-run-journal'
 export * from './agent-session-eligibility'
 export * from './browser'
@@ -153,3 +154,5 @@ export * from './visual-production-media'
 export * from './visual-editing'
 
 export * from './agent-module-audit'
+
+export * from './content-plugin'

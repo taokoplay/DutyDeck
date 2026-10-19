@@ -17,6 +17,14 @@ function digest(query: PiAgentQueryOptions, prompts: string[] = ['模块提示 A
 }
 
 describe('精确恢复运行上下文', () => {
+  test('Given 空资源插件或相同正文 When 包版本或摘要变化 Then 恢复合同必须变化', () => {
+    const input = { query: queryFixture(), hostVersion: '0.20.6', modulePrompts: [], extensions: {} }
+    const identity = { moduleId: 'acme.empty.main', pluginId: 'acme.empty', moduleVersion: '1.0.0', packageHash: '1'.repeat(64) }
+    const original = createRecoveryContextDigest({ ...input, contentPackages: [identity] })
+    expect(createRecoveryContextDigest({ ...input, contentPackages: [{ ...identity, packageHash: '2'.repeat(64) }] })).not.toBe(original)
+    expect(createRecoveryContextDigest({ ...input, contentPackages: [{ ...identity, moduleVersion: '2.0.0' }] })).not.toBe(original)
+    expect(createRecoveryContextDigest({ ...input, contentPackages: [] })).toBe(createRecoveryContextDigest(input))
+  })
   test('Given 相同 ID When 渠道地址、权限、目录、工具或项目指令变化 Then 摘要变化并可在发模型前阻断', () => {
     const original = queryFixture()
     const expected = digest(original)

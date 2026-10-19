@@ -15,12 +15,14 @@
     "electron:build": "bun run --filter='@dutydeck/electron' build",
     "electron:start": "bun run --filter='@dutydeck/electron' start",
     "dist:mac": "bun run --filter='@dutydeck/electron' dist:mac",
-  "dist:win": "bun run --filter='@dutydeck/electron' dist:win",
-  "dist:linux": "bun run --filter='@dutydeck/electron' dist:linux",
-    "build": "bun run --filter='*' build",
-    "typecheck": "bun run --filter='*' typecheck",
-    "test": "bun test",
-    "check:deproma": "bun scripts/check-deproma-residue.ts"
+    "dist:win": "bun run --filter='@dutydeck/electron' dist:win",
+    "dist:linux": "bun run --filter='@dutydeck/electron' dist:linux",
+    "build": "bun run build:plugins && bun run --filter='*' build",
+    "typecheck": "bun run build:plugins && bun run --filter='*' typecheck",
+    "test": "bun run build:plugins && bun test",
+    "check:deproma": "bun scripts/check-deproma-residue.ts",
+    "build:plugins": "bun run --cwd packages/plugin-sdk build && bun run --cwd packages/plugin-kit build",
+    "plugin:author-smoke": "bun run build:plugins && bun run scripts/plugin-author-smoke.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

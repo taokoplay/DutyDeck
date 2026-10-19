@@ -10,6 +10,14 @@ const module: AgentModuleManifest = {
 }
 
 describe('Agent 模块目录', () => {
+  test('Given 内容包模块，When 工作区无同名Skill，Then 使用包归属且不暴露旧版卸载', () => {
+    const html = renderToStaticMarkup(<ModuleCatalog initialModules={[{ ...module, source: 'installed', resourceSource: 'package', pluginId: 'vendor.package' }]} initialHealth={[]} workspaceSlug="project" loadedWorkspaceSlug="project" skills={[]} />)
+    expect(html).toContain('前往设置管理插件')
+    expect(html).toContain('已校验插件包')
+    expect(html).not.toContain('缺失（调用将被阻断）')
+    expect(html).not.toContain('>卸载插件<')
+  })
+
   test('Given 常用能力和专业模块 When 查看管理目录 Then 均保留且明确自动与消息选择边界', () => {
     /** 管理目录保留兼容信息；它不承担消息模块选择。 */
     const html = renderToStaticMarkup(<ModuleCatalog initialModules={[

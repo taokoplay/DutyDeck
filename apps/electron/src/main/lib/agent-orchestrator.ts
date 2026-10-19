@@ -2848,7 +2848,10 @@ export class AgentOrchestrator {
 
       /** 在调用模型前核对实际运行合同，拒绝同 ID 下被替换的渠道、目录、指令或工具。 */
       const recoveryContextDigest = createRecoveryContextDigest({ query: queryOptions, hostVersion: pkg.version,
-        modulePrompts: activeModulePromptFragments, extensions })
+        modulePrompts: activeModulePromptFragments,
+        contentPackages: activeModuleActivations.flatMap(module => module.pluginId && module.packageHash
+          ? [{ moduleId: module.moduleId, pluginId: module.pluginId, moduleVersion: module.moduleVersion, packageHash: module.packageHash }] : []),
+        extensions })
       if (extensions.piResumeContinuation && extensions.piResumeContinuation.contextDigest !== recoveryContextDigest) {
         throw new Error('AGENT_RUN_RECOVERY_CONTEXT_CHANGED')
       }

@@ -1,7 +1,7 @@
 import { isAutomaticAgentModuleId } from '@dutydeck/shared'
 import * as React from 'react'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
-import { Blocks, LayoutDashboard, Clapperboard, MousePointer2, ServerCog, Braces, Factory, MoreHorizontal, Loader2, Check, History } from 'lucide-react'
+import { Blocks, MoreHorizontal, Loader2, Check, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -15,17 +15,9 @@ import {
   agentModulePolicyErrorAtomFamily,
 } from '@/atoms/agent-module-atoms'
 import { loadAgentModuleCatalog, loadAgentModulePolicy, toggleAgentModule } from './agent-module-loader'
+import { getAgentModuleIcon } from './module-icons'
 import { AgentModuleRunAuditView } from './AgentModuleRunAuditView'
 import type { RichTextInputHandle } from '@/components/ai-elements/rich-text-input'
-
-const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  canvas: LayoutDashboard,
-  'visual-production': Clapperboard,
-  'interaction-design': MousePointer2,
-  'server-ops': ServerCog,
-  'api-workbench': Braces,
-  'capability-factory': Factory,
-}
 
 interface AgentModuleBarProps {
   sessionId: string
@@ -60,7 +52,10 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
   const moreButtonRef = React.useRef<HTMLButtonElement>(null)
 
   React.useEffect(() => {
-    void loadAgentModuleCatalog(store, window.electronAPI)
+    void loadAgentModuleCatalog(store, window.electronAPI, true)
+    return window.electronAPI.onContentPluginsChanged?.(() => {
+      void loadAgentModuleCatalog(store, window.electronAPI, true)
+    })
   }, [store])
 
   React.useEffect(() => {
@@ -122,7 +117,7 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
       )}
       <div className="space-y-1">
         {selectableModules.map((module) => {
-          const Icon = MODULE_ICONS[module.id] ?? Blocks
+          const Icon = getAgentModuleIcon(module.id)
           const policyActive = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
           const active = messageMode ? selectedModuleIds.has(module.id) : policyActive
           const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
@@ -187,7 +182,7 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
           </>}
           {failedCount > 0 && <span className="order-last basis-full text-[11px] text-amber-600 dark:text-amber-300" role="status" title="部分内置模块未能启动">{failedCount} 个模块需要处理</span>}
           {visibleModules.map((module) => {
-            const Icon = MODULE_ICONS[module.id] ?? Blocks
+            const Icon = getAgentModuleIcon(module.id)
             const active = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
             const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
             return (
@@ -222,7 +217,7 @@ export function AgentModuleBar({ sessionId, disabled = false, messageMode = fals
               <div className="mb-1 px-2 text-xs font-medium text-foreground">全部模块</div>
               <div className="space-y-1">
                 {selectableModules.map((module) => {
-                  const Icon = MODULE_ICONS[module.id] ?? Blocks
+                  const Icon = getAgentModuleIcon(module.id)
                   const active = (policy?.enabledModuleIds.includes(module.id) ?? false) && !policy?.disabledModuleIds.includes(module.id)
                   const pinned = policy?.pinnedModuleIds.includes(module.id) ?? false
                   return (

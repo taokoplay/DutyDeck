@@ -39,7 +39,7 @@
     },
     "apps/electron": {
       "name": "@dutydeck/electron",
-      "version": "0.20.6",
+      "version": "0.20.7",
       "dependencies": {
         "@codemirror/autocomplete": "6.20.3",
         "@codemirror/commands": "6.11.0",
@@ -47,6 +47,8 @@
         "@codemirror/language": "^6.12.4",
         "@codemirror/state": "^6.7.1",
         "@codemirror/view": "^6.43.9",
+        "@dutydeck/plugin-kit": "0.1.0",
+        "@dutydeck/plugin-sdk": "0.1.0",
         "@earendil-works/pi-agent-core": "0.99.1",
         "@earendil-works/pi-ai": "0.99.1",
         "@earendil-works/pi-coding-agent": "0.99.1",
@@ -228,6 +230,27 @@
         "@modelcontextprotocol/sdk": ">=1.0.0",
       },
     },
+    "packages/plugin-kit": {
+      "name": "@dutydeck/plugin-kit",
+      "version": "0.1.0",
+      "bin": {
+        "dutydeck-plugin": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@dutydeck/plugin-sdk": "0.1.0",
+      },
+      "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "^5.0.0",
+      },
+    },
+    "packages/plugin-sdk": {
+      "name": "@dutydeck/plugin-sdk",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "^5.0.0",
+      },
+    },
     "packages/session-core": {
       "name": "@dutydeck/session-core",
       "version": "0.1.1",
@@ -243,6 +266,7 @@
       "version": "0.1.69",
       "dependencies": {
         "@dutydeck/capability-runner": "workspace:*",
+        "@dutydeck/plugin-sdk": "0.1.0",
       },
       "devDependencies": {
         "typescript": "^5.0.0",
@@ -441,6 +465,10 @@
     "@dutydeck/electron": ["@dutydeck/electron@workspace:apps/electron"],
 
     "@dutydeck/mobile": ["@dutydeck/mobile@workspace:apps/mobile"],
+
+    "@dutydeck/plugin-kit": ["@dutydeck/plugin-kit@workspace:packages/plugin-kit"],
+
+    "@dutydeck/plugin-sdk": ["@dutydeck/plugin-sdk@workspace:packages/plugin-sdk"],
 
     "@dutydeck/session-core": ["@dutydeck/session-core@workspace:packages/session-core"],
 

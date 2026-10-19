@@ -14,21 +14,29 @@ export interface AgentModuleLoaderAPI {
   setSessionModulePolicy(input: AgentSessionModulePolicyUpdateInput): Promise<AgentSessionModulePolicy>
 }
 
+/** 每个 Store 的目录请求代次，插件变更后丢弃旧请求。 */
+const catalogGenerations = new WeakMap<ReturnType<typeof createStore>, number>()
+
 /** Store 生命周期持有请求结果，不因 React Effect 重跑而丢弃全局目录；失败可显式重试。 */
-export async function loadAgentModuleCatalog(store: ReturnType<typeof createStore>, api: AgentModuleLoaderAPI): Promise<void> {
-  if (store.get(agentModulesLoadedAtom) || store.get(agentModulesLoadingAtom)) return
+export async function loadAgentModuleCatalog(store: ReturnType<typeof createStore>, api: AgentModuleLoaderAPI, force = false): Promise<void> {
+  if (!force && (store.get(agentModulesLoadedAtom) || store.get(agentModulesLoadingAtom))) return
+  /** 强制刷新独立递增代次，旧请求不得覆盖新目录。 */
+  const generation = (catalogGenerations.get(store) ?? 0) + 1
+  catalogGenerations.set(store, generation)
   store.set(agentModulesLoadingAtom, true)
   store.set(agentModulesErrorAtom, null)
   try {
     /** 两份宿主快照一起发布，防止目录与健康显示半次加载。 */
     const [modules, health] = await Promise.all([api.getAgentModules(), api.getAgentPluginHealth()])
+    if (catalogGenerations.get(store) !== generation) return
     store.set(agentModulesAtom, modules)
     store.set(agentPluginHealthAtom, health)
     store.set(agentModulesLoadedAtom, true)
   } catch (cause) {
+    if (catalogGenerations.get(store) !== generation) return
     store.set(agentModulesErrorAtom, cause instanceof Error ? cause.message : String(cause))
   } finally {
-    store.set(agentModulesLoadingAtom, false)
+    if (catalogGenerations.get(store) === generation) store.set(agentModulesLoadingAtom, false)
   }
 }
 

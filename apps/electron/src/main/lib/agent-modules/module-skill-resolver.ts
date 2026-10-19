@@ -6,8 +6,10 @@ import type {
   SkillMeta,
 } from '@dutydeck/shared'
 import { getWorkspaceSkills } from '../agent-workspace-manager'
-import { isAutomaticAgentModuleId } from '@dutydeck/shared'
+import { BUILTIN_AGENT_MODULE_PROMPTS, isAutomaticAgentModuleId } from '@dutydeck/shared'
 import { listBuiltinAgentModules } from './module-registry'
+import { RESOURCE_LIMITS } from '@dutydeck/plugin-sdk'
+import type { ResolvedContentModule } from '../agent-plugins/content-plugin-service'
 
 export interface ResolvedAgentModuleContext {
   modules: AgentModuleAuditContribution[]
@@ -32,17 +34,8 @@ export interface ResolveActiveModuleContextInput {
 export interface ResolveActiveModuleContextDependencies {
   listModules: () => readonly AgentModuleManifest[]
   getSkills: (workspaceSlug: string) => readonly SkillMeta[]
-}
-
-const MODULE_PROMPTS: Readonly<Record<string, string>> = {
-  'canvas.system.v1': '当前模块是画布。只有用户明确需要持续复用的画布产物、节点关系或画布编排时才使用画布工具；普通文本和一次性代码任务不要强行转入画布。',
-  'visual-production.system.v1': '当前模块是影像。执行媒体任务前先发现真实可用模型和配置，固定任务归属与来源，不使用过期模型名或猜测服务能力。',
-  'interaction-design.system.v1': '当前模块是交互设计。先读取已有原型模块和目标页面边界，再按项目身份提交候选，不把整套页面藏在单个 HTML 中。',
-  'browser.system.v1': '当前模块是浏览器。匹配的专用 API/MCP 优先；只有当前任务需要网页界面或没有更结构化能力时才使用受管浏览器。',
-  'terminal.system.v1': '当前模块是终端。命令必须限制在当前项目和已授权目录内；涉及写入、外部服务或高风险命令时先获取权限。',
-  'server-ops.system.v1': '当前模块是服务器运维。先读取已授权资源与真实连接状态，服务器、数据库和远程文件操作遵守现有作用域及逐次审批，不因选择模块而扩大权限。',
-  'api-workbench.system.v1': '当前模块是接口工作台。先读取项目内已有请求与场景；出网调用及保存变更依据精确请求快照和用户授权，避免重复发送产生副作用。',
-  'capability-factory.system.v1': '当前模块是编排工厂。先读取已有场景，复用明确的场景身份；验证草案、运行及采纳遵守现有审批与版本检查，不用模型文字冒充真实执行结果。',
+  /** 仅已选包模块进入此有界解析，不经过工作区 Skill 目录。 */
+  resolvePackageModules: (moduleIds: readonly string[]) => readonly ResolvedContentModule[]
 }
 
 function unique(values: readonly string[]): string[] {
@@ -62,6 +55,13 @@ function getSkillStatus(skills: readonly SkillMeta[]): Map<string, SkillMeta> {
 let runtimeCatalog: readonly AgentModuleManifest[] | undefined
 /** 只有已接纳插件的有界纯文本可进入提示快照。 */
 let runtimePrompts: Readonly<Record<string, string>> = {}
+/** 宿主注入的包读取入口，测试可明确移除。 */
+let packageModuleResolver: ResolveActiveModuleContextDependencies['resolvePackageModules'] | undefined
+
+/** 注入生产安装服务的读取能力，不向模型暴露文件系统根或管理权限。 */
+export function setPackageModuleResolver(resolver: ResolveActiveModuleContextDependencies['resolvePackageModules'] | undefined): void {
+  packageModuleResolver = resolver
+}
 
 /** 安装目录加载后注入副本；null 恢复内置目录，便于独立测试隔离。 */
 export function setAgentModuleRuntimeCatalog(modules: readonly AgentModuleManifest[] | null, prompts: Readonly<Record<string, string>> = {}): void {
@@ -71,7 +71,7 @@ export function setAgentModuleRuntimeCatalog(modules: readonly AgentModuleManife
 
 /** 内置提示优先，插件内容不能覆盖宿主提示；未知 ID 不作为文件路径读取。 */
 function resolveModulePrompt(ref: string): string | undefined {
-  if (Object.hasOwn(MODULE_PROMPTS, ref)) return MODULE_PROMPTS[ref]
+  if (Object.hasOwn(BUILTIN_AGENT_MODULE_PROMPTS, ref)) return BUILTIN_AGENT_MODULE_PROMPTS[ref]
   return Object.hasOwn(runtimePrompts, ref) ? runtimePrompts[ref] : undefined
 }
 
@@ -119,13 +119,23 @@ export function resolveActiveModuleContext(
   }
   const moduleMap = new Map((dependencies.listModules ?? listRuntimeModules)().map((module) => [module.id, module]))
   /** 仅真正需要 Skills 且运行允许时读取受管目录。 */
-  const needsSkills = selectedIds.some((id) => !disabled.has(id) && (moduleMap.get(id)?.skillRefs.length ?? 0) > 0)
+  const needsSkills = selectedIds.some((id) => !disabled.has(id) && moduleMap.get(id)?.resourceSource !== 'package' && (moduleMap.get(id)?.skillRefs.length ?? 0) > 0)
   const skills = getSkillStatus(input.workspaceSlug && input.skillsEnabled !== false && needsSkills
     ? (dependencies.getSkills ?? getWorkspaceSkills)(input.workspaceSlug) : [])
   const modules: AgentModuleAuditContribution[] = []
   const skillMentions: string[] = []
   const promptFragments: string[] = []
   const unavailable: Array<{ moduleId: string; reason: string }> = []
+  /** 同一轮一次批量解析，宿主按不可变包身份去重读取。 */
+  const packageIds = selectedIds.filter(id => !disabled.has(id) && input.skillsEnabled !== false && moduleMap.get(id)?.resourceSource === 'package')
+  let packageModules: readonly ResolvedContentModule[] = []
+  if (packageIds.length) {
+    try { packageModules = (dependencies.resolvePackageModules ?? packageModuleResolver)?.(packageIds) ?? [] }
+    catch { /* 下方按明确选中项产生审计失败，不能转为普通聊天静默执行。 */ }
+  }
+  const includedResources = new Set<string>()
+  let packageSkillBytes = 0
+  let packagePromptBytes = 0
 
   for (const moduleId of selectedIds) {
     if (disabled.has(moduleId)) {
@@ -135,6 +145,43 @@ export function resolveActiveModuleContext(
     const module = moduleMap.get(moduleId)
     if (!module) {
       unavailable.push({ moduleId, reason: 'AGENT_MODULE_NOT_FOUND' })
+      continue
+    }
+    if (module.resourceSource === 'package') {
+      if (input.skillsEnabled === false) {
+        unavailable.push({ moduleId, reason: 'AGENT_MODULE_SKILLS_DISABLED' })
+        continue
+      }
+      const resolved = packageModules.find(entry => entry.moduleId === moduleId)
+      if (!resolved || resolved.pluginId !== module.pluginId || resolved.version !== module.version || resolved.packageHash !== module.packageHash) {
+        unavailable.push({ moduleId, reason: 'AGENT_MODULE_PACKAGE_UNAVAILABLE' })
+        continue
+      }
+      /** 宿主身份和声明逐项匹配，包正文不能冒充另一模块的资源。 */
+      const expectedIds = new Set([...module.skillRefs, ...module.promptRefs])
+      const ids = new Set(resolved.resources.map(resource => resource.id))
+      if (ids.size !== resolved.resources.length || ids.size !== expectedIds.size || resolved.resources.some(resource => !expectedIds.has(resource.id) || !resource.ownerModuleIds.includes(moduleId))) {
+        unavailable.push({ moduleId, reason: 'AGENT_MODULE_PACKAGE_UNAVAILABLE' })
+        continue
+      }
+      const fragments = resolved.resources.filter(resource => !includedResources.has(resource.id)).map(resource => ({ resource,
+        text: `[插件 ${resolved.pluginId} v${resolved.version} · 模块 ${module.displayName} · ${resource.kind} ${resource.id} v${resource.version}]\n${resource.content}`,
+      }))
+      const skillBytes = fragments.filter(entry => entry.resource.kind === 'skill').reduce((sum, entry) => sum + Buffer.byteLength(entry.text), 0)
+      const promptBytes = fragments.filter(entry => entry.resource.kind !== 'skill').reduce((sum, entry) => sum + Buffer.byteLength(entry.text), 0)
+      if (packageSkillBytes + skillBytes > RESOURCE_LIMITS.turnSkillBytes || packagePromptBytes + promptBytes > RESOURCE_LIMITS.turnPromptBytes) {
+        unavailable.push({ moduleId, reason: 'AGENT_MODULE_PACKAGE_CONTEXT_LIMIT' })
+        continue
+      }
+      packageSkillBytes += skillBytes
+      packagePromptBytes += promptBytes
+      for (const entry of fragments) { includedResources.add(entry.resource.id); promptFragments.push(entry.text) }
+      modules.push({ moduleId, moduleVersion: module.version, displayName: module.displayName, declaredCapabilities: [],
+        pluginId: resolved.pluginId, packageHash: resolved.packageHash,
+        packageResources: resolved.resources.map(({ id, version, kind, byteLength }) => ({ id, version, kind, byteLength })),
+        mode: 'available', invocationMode: input.invocationMode ?? 'invoke', skillRefs: [...module.skillRefs], promptRefs: [...module.promptRefs],
+        activatedAt: now, sessionId: input.sessionId, policyRevision: input.policy.revision,
+      })
       continue
     }
     /** 只校验该模块的真实依赖；无 Skill 的会话运维不依赖项目 Skills 开关。 */

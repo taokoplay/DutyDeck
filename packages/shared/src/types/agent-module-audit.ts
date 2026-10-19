@@ -5,6 +5,11 @@ export interface AgentModuleAuditContribution extends AgentModuleActivation {
   /** 模块清单中的用户可读名称；旧 Journal 缺失时由界面回退到 moduleId。 */
   displayName?: string
   declaredCapabilities: string[]
+  /** 内容插件的确切来源；不含本地路径和正文。 */
+  pluginId?: string
+  packageHash?: string
+  /** 已解析并加入本轮上下文的包资源，区别于 Pi 工作区 Skill 加载事件。 */
+  packageResources?: Array<{ id: string; version: string; kind: 'skill' | 'prompt' | 'style'; byteLength: number }>
 }
 
 /** 仅包含成功加载的 Skill 来源，不携带本地路径或正文。 */

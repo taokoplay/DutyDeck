@@ -1,22 +1,12 @@
+import { settingsTabAtom, settingsOpenAtom } from '@/atoms/settings-tab'
 import { isAutomaticAgentModuleId } from '@dutydeck/shared'
 import * as React from 'react'
 import { useSetAtom } from 'jotai'
 import { agentModulesAtom, agentModulesLoadedAtom } from '@/atoms/agent-module-atoms'
 import { PluginInstallDialog } from './PluginInstallDialog'
-import { LayoutDashboard, Clapperboard, MousePointer2, Globe2, SquareTerminal, ServerCog, Braces, Factory, Blocks } from 'lucide-react'
+import { getAgentModuleIcon } from '@/components/agent/module-icons'
 import type { AgentModuleManifest, AgentPluginHealth, AgentPluginPreview, AgentPluginCatalogSnapshot, SkillMeta } from '@dutydeck/shared'
 import { cn } from '@/lib/utils'
-
-const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  canvas: LayoutDashboard,
-  'visual-production': Clapperboard,
-  'interaction-design': MousePointer2,
-  browser: Globe2,
-  terminal: SquareTerminal,
-  'server-ops': ServerCog,
-  'api-workbench': Braces,
-  'capability-factory': Factory,
-}
 
 interface ModuleCatalogProps {
   /** Skills 页当前真实工作区；未选择时不猜测默认项目。 */
@@ -41,6 +31,9 @@ export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, w
   const [managementError, setManagementError] = React.useState<string | null>(null)
   const [managementBusy, setManagementBusy] = React.useState(false)
   const [uninstallId, setUninstallId] = React.useState<string | null>(null)
+  /** 内容包生命周期统一进入设置页，不能调用旧版清单卸载接口。 */
+  const setSettingsTab = useSetAtom(settingsTabAtom)
+  const setSettingsOpen = useSetAtom(settingsOpenAtom)
   const publishModules = useSetAtom(agentModulesAtom)
   const markLoaded = useSetAtom(agentModulesLoadedAtom)
   /** 同步当前模块栏缓存，后续打开会话无需重启应用。 */
@@ -65,6 +58,8 @@ export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, w
   /** 初次请求与失败重试的读取状态。 */
   const [loading, setLoading] = React.useState(!(initialModules && initialHealth))
   const [readVersion, setReadVersion] = React.useState(0)
+
+  React.useEffect(() => window.electronAPI.onContentPluginsChanged?.(() => setReadVersion(value => value + 1)), [])
 
   React.useEffect(() => {
     let disposed = false
@@ -118,7 +113,7 @@ export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, w
       {modules.length === 0 && <p className="text-xs text-muted-foreground">暂无可用模块</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((module) => {
-          const Icon = ICONS[module.id] ?? Blocks
+          const Icon = getAgentModuleIcon(module.id)
           return (
             <article key={module.id} className={cn('rounded-xl border border-border/60 bg-card p-3', 'transition-colors hover:border-primary/40')}>
               <div className="flex items-start gap-3">
@@ -137,13 +132,13 @@ export function ModuleCatalog({ initialModules, initialHealth, initialCatalog, w
                 <ModuleHealthBadge health={health.find((entry) => entry.pluginId === (module.pluginId ?? `builtin.${module.id}`))} />
               </div>
               {module.source === 'installed' && module.pluginId && <div className="mt-2 text-xs">
-                {uninstallId === module.pluginId ? <><span>仅移除此插件清单，保留 Skill 和其他文件。</span><button disabled={managementBusy} type="button" className="ml-2 text-destructive" onClick={() => manage(async () => { publishCatalog(await window.electronAPI.uninstallAgentPlugin(module.pluginId!)); setUninstallId(null) })}>确认卸载</button><button type="button" className="ml-2" onClick={() => setUninstallId(null)}>取消</button></> : <button type="button" onClick={() => setUninstallId(module.pluginId!)}>卸载插件</button>}
+                {module.resourceSource === 'package' ? <button type="button" onClick={() => { setSettingsTab('plugins'); setSettingsOpen(true) }}>前往设置管理插件</button> : uninstallId === module.pluginId ? <><span>仅移除此插件清单，保留 Skill 和其他文件。</span><button disabled={managementBusy} type="button" className="ml-2 text-destructive" onClick={() => manage(async () => { publishCatalog(await window.electronAPI.uninstallAgentPlugin(module.pluginId!)); setUninstallId(null) })}>确认卸载</button><button type="button" className="ml-2" onClick={() => setUninstallId(null)}>取消</button></> : <button type="button" onClick={() => setUninstallId(module.pluginId!)}>卸载插件</button>}
               </div>}
               <details className="mt-3 border-t border-border/50 pt-2 text-[11px]">
                 <summary className="cursor-pointer text-muted-foreground hover:text-foreground">查看模块合同</summary>
                 <div className="mt-2 space-y-2 text-muted-foreground">
                   <ModuleField label="Skills" values={module.skillRefs} empty="未绑定 Skill" />
-                  <ModuleSkillDependencies skillRefs={module.skillRefs} workspaceSlug={workspaceSlug} loadedWorkspaceSlug={loadedWorkspaceSlug} skills={skills} />
+                  {module.resourceSource === 'package' ? <p>Skill 来源：已校验插件包，选择模块时按需加载。</p> : <ModuleSkillDependencies skillRefs={module.skillRefs} workspaceSlug={workspaceSlug} loadedWorkspaceSlug={loadedWorkspaceSlug} skills={skills} />}
                   <ModuleField label="提示词" values={module.promptRefs} empty="未绑定模块提示" />
                   <ModuleField label="工具" values={module.toolRefs} empty="未绑定工具" />
                   <ModuleField label="入口" values={module.surfaceIds} empty="无独立入口" />

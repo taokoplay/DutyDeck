@@ -1,3 +1,5 @@
+import { CONTENT_PLUGIN_IPC_CHANNELS } from '@dutydeck/shared'
+import type { ContentPluginSnapshot, ContentPluginPreview } from '@dutydeck/shared'
 import { MOBILE_MIRROR_CHANNELS } from '@dutydeck/shared'
 import type { MobileMirrorSessionInput, MobileMirrorCaptureInput, MobileMirrorActionInput, MobileMirrorOpenResult, MobileMirrorDevice, MobileMirrorFrame } from '@dutydeck/shared'
 import { createTokenUsagePreload } from './token-usage-preload'
@@ -846,12 +848,24 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   /** 生成 Agent 会话标题 */
   generateAgentTitle: (input: AgentGenerateTitleInput) => Promise<string | null>
 
-  /** 获取宿主注册的 Agent 模块目录。 */
+  /** 读取本地内容插件摘要。 */
+  getContentPlugins: () => Promise<ContentPluginSnapshot>
+  /** 原生选择已签名包并预览；取消时返回 null。 */
+  previewContentPlugin: () => Promise<ContentPluginPreview | null>
+  /** 明确信任指纹后安装已预览的包。 */
+  installContentPlugin: (token: string, trustedKeyId: string) => Promise<ContentPluginSnapshot>
+  /** 按修订号切换插件是否允许被选中。 */
+  setContentPluginEnabled: (id: string, enabled: boolean, expectedRevision: number) => Promise<ContentPluginSnapshot>
+  /** 卸载内容插件，保留用户数据。 */
+  uninstallContentPlugin: (id: string, expectedRevision: number) => Promise<ContentPluginSnapshot>
+  /** 安装或可用状态变化后重新读取目录。 */
+  onContentPluginsChanged: (callback: () => void) => () => void
   previewAgentPlugin: () => Promise<AgentPluginPreview | null>
   installAgentPlugin: (token: string) => Promise<AgentPluginCatalogSnapshot>
   uninstallAgentPlugin: (pluginId: string) => Promise<AgentPluginCatalogSnapshot>
   refreshAgentPlugins: () => Promise<AgentPluginCatalogSnapshot>
   getAgentPluginCatalog: () => Promise<AgentPluginCatalogSnapshot>
+  /** 获取内置、V1 清单与已启用内容包的合并模块目录。 */
   getAgentModules: () => Promise<AgentModuleManifest[]>
   /** 获取内置 Plugin Host 健康快照。 */
   getAgentPluginHealth: () => Promise<AgentPluginHealth[]>
@@ -2458,6 +2472,17 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GENERATE_TITLE, input)
   },
 
+  getContentPlugins: () => ipcRenderer.invoke(CONTENT_PLUGIN_IPC_CHANNELS.GET),
+  previewContentPlugin: () => ipcRenderer.invoke(CONTENT_PLUGIN_IPC_CHANNELS.PREVIEW),
+  installContentPlugin: (token, trustedKeyId) => ipcRenderer.invoke(CONTENT_PLUGIN_IPC_CHANNELS.INSTALL, token, trustedKeyId),
+  setContentPluginEnabled: (id, enabled, expectedRevision) => ipcRenderer.invoke(CONTENT_PLUGIN_IPC_CHANNELS.SET_ENABLED, id, enabled, expectedRevision),
+  uninstallContentPlugin: (id, expectedRevision) => ipcRenderer.invoke(CONTENT_PLUGIN_IPC_CHANNELS.UNINSTALL, id, expectedRevision),
+  onContentPluginsChanged: (callback) => {
+    /** 不向页面暴露 Electron 事件对象。 */
+    const listener = (): void => callback()
+    ipcRenderer.on(CONTENT_PLUGIN_IPC_CHANNELS.CHANGED, listener)
+    return () => ipcRenderer.removeListener(CONTENT_PLUGIN_IPC_CHANNELS.CHANGED, listener)
+  },
   previewAgentPlugin: () => ipcRenderer.invoke(AGENT_IPC_CHANNELS.PREVIEW_AGENT_PLUGIN),
   installAgentPlugin: (token) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.INSTALL_AGENT_PLUGIN, token),
   uninstallAgentPlugin: (pluginId) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.UNINSTALL_AGENT_PLUGIN, pluginId),

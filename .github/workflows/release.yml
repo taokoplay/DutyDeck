@@ -255,6 +255,9 @@ jobs:
       - name: 安装依赖
         run: bun install --frozen-lockfile
 
+      - name: 构建插件公开合同与工具
+        run: bun run build:plugins
+
       - name: 测试稳定目录 helper
         run: bun test apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts
 

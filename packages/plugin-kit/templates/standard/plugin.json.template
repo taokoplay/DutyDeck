@@ -1,0 +1,23 @@
+{
+  "formatVersion": 2,
+  "apiVersion": "1.0.0",
+  "id": "__PLUGIN_ID__",
+  "publisherId": "__PUBLISHER_ID__",
+  "version": "1.0.0",
+  "displayName": "__PLUGIN_NAME__",
+  "description": "基于统一脚手架开发的需求整理助手。",
+  "license": "MIT",
+  "profile": "content",
+  "compatibility": {
+    "hostApi": "^1.0.0",
+    "requiredFeatures": ["plugin-packages-v2"],
+    "platforms": ["darwin", "win32", "linux"],
+    "architectures": ["arm64", "x64"]
+  },
+  "modules": [{ "id": "assistant", "displayName": "需求整理", "activation": "message-explicit", "skills": ["assist"], "prompts": ["workflow"] }],
+  "skills": [{ "id": "assist", "ownerModuleId": "assistant", "displayName": "需求梳理", "version": "1.0.0", "path": "skills/assist/SKILL.md", "required": true }],
+  "prompts": [{ "id": "workflow", "version": "1.0.0", "kind": "workflow", "path": "prompts/workflow.md" }],
+  "permissions": [],
+  "dependencies": [],
+  "exports": []
+}

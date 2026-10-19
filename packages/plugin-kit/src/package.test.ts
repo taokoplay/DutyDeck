@@ -1,0 +1,45 @@
+import { describe, expect, test } from 'bun:test'
+import { generateKeyPairSync } from 'node:crypto'
+import { createPluginPackage, inspectPluginPackage } from './package'
+import { createStandardPluginFiles } from './scaffold'
+import { createPluginArchive, readPluginArchive } from './archive'
+
+describe('标准脚手架与可交付插件包', () => {
+  test('Given 标准脚手架 When 生成与打包 Then 包含自己的模块和真实资源', () => {
+    /** 包含中文名称的普通作者插件。 */
+    const files = createStandardPluginFiles('acme.demo', '需求助手')
+    const packed = createPluginPackage(files)
+    const inspected = inspectPluginPackage(packed)
+    expect(inspected.manifest.id).toBe('acme.demo')
+    expect(inspected.manifest.displayName).toBe('需求助手')
+    expect(inspected.signatureVerified).toBe(false)
+    expect(inspected.resources.resources.some(resource => resource.kind === 'skill' && resource.content.includes('适用任务'))).toBe(true)
+    expect(inspected.files.has('package.json')).toBe(false)
+    expect(createPluginPackage(files)).toEqual(packed)
+  })
+
+  test('Given 作者密钥 When 签名打包 Then 校验签名并返回指纹而不自证信任', () => {
+    /** 测试密钥仅驻留进程，不进入用户密钥目录。 */
+    const { privateKey } = generateKeyPairSync('ed25519')
+    const inspection = inspectPluginPackage(createPluginPackage(createStandardPluginFiles('acme.demo', '助手'), privateKey))
+    expect(inspection.signatureVerified).toBe(true)
+    expect(inspection.signer?.keyId).toMatch(/^[a-f0-9]{64}$/)
+    expect(inspection.resources.trust).toBe('unverified')
+  })
+
+  test('Given ZIP可读但载荷或完整性被改 When 校验 Then 不接受旧签名或额外文件', () => {
+    const { privateKey } = generateKeyPairSync('ed25519')
+    const files = readPluginArchive(createPluginPackage(createStandardPluginFiles('acme.demo', '助手'), privateKey))
+    files.set('prompts/workflow.md', new TextEncoder().encode('tampered'))
+    expect(() => inspectPluginPackage(createPluginArchive(files))).toThrow()
+    const extraFiles = readPluginArchive(createPluginPackage(createStandardPluginFiles('acme.demo', '助手'), privateKey))
+    extraFiles.set('assets/extra.txt', new TextEncoder().encode('extra'))
+    expect(() => inspectPluginPackage(createPluginArchive(extraFiles))).toThrow('PLUGIN_UNLISTED_FILE')
+  })
+
+  test('Given 不支持的运行代码或缺资源 When 打包 Then 给出定位错误', () => {
+    const files = createStandardPluginFiles('acme.demo', '助手')
+    files.delete('skills/assist/SKILL.md')
+    expect(() => createPluginPackage(files)).toThrow()
+  })
+})

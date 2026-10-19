@@ -19,6 +19,19 @@ function context(extra: Record<string, unknown> = {}, runId = 'run-1'): AgentRun
 }
 
 describe('模块运行审计', () => {
+  test('Given 包资源上下文 When 读取审计 Then 保留版本摘要而不冒充 Pi Skill 加载或泄露正文', () => {
+    /** 保留资源种类字面量，与生产审计合同一致。 */
+    const resource = { id: 'acme.notes/skills/assist', kind: 'skill' as const, version: '1.0.0', byteLength: 128 }
+    const contribution = { ...module, pluginId: 'acme.notes', packageHash: 'a'.repeat(64), skillRefs: [resource.id],
+      packageResources: [{ ...resource, content: 'SECRET_BODY', path: '/SECRET/path' }, { ...resource, id: 'another/private' }],
+    }
+    const audit = buildAgentModuleRunAudits('session', [context({ modules: [contribution] })])[0]!
+    expect(audit.modules[0]?.packageHash).toBe('a'.repeat(64))
+    expect(audit.modules[0]?.packageResources).toEqual([resource])
+    expect(audit.activatedSkills).toEqual([])
+    expect(JSON.stringify(audit)).not.toContain('SECRET')
+    expect(JSON.stringify(audit)).not.toContain('another/private')
+  })
   test('Given 主进程快照与工具事件 When 投影 Then 按运行和 parentEventId 绑定且不泄露参数', () => {
     const audits = buildAgentModuleRunAudits('session', [context({ moduleCommandId: 'command-1' }),
       event('tool_started', { toolUseId: 'call-1', toolName: 'read', input: { secret: 'SECRET_ARGS' } }, { eventId: 'start-1' }),

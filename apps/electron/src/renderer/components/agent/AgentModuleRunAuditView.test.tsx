@@ -23,6 +23,16 @@ function toolRows(html: string): string[] {
 }
 
 describe('模块运行记录展示', () => {
+  test('Given 包内上下文资源，When 无 Pi Skill 加载事件，Then 显示包来源并区分两种事实', () => {
+    const html = renderToStaticMarkup(<AgentModuleRunAuditDetails audit={{ ...audit, activatedSkills: [], modules: [{ ...audit.modules[0]!, pluginId: 'acme.demo', packageHash: 'exact-package-hash', packageResources: [{ id: 'acme.demo/skills/assist', kind: 'skill', version: '1.2.0', byteLength: 1234 }] }] }} />)
+    const text = textContent(html)
+    expect(text).toContain('包内上下文资源（1）')
+    expect(text).toContain('acme.demo/skills/assist @1.2.0')
+    expect(text).toContain('包 SHA-256：exact-package-hash')
+    expect(text).toContain('Pi Skill 加载记录 0 条')
+    expect(text).not.toContain('Skills 已加载 1/1')
+  })
+
   test('Given 模块和加载事实 When 展示 Then 模块卡片保留 Skill 来源且工具单独汇总', () => {
     /** 渲染真实运行卡片，检查用户可读的分区与声明边界。 */
     const html = renderToStaticMarkup(<AgentModuleRunAuditDetails audit={audit} />)

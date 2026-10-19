@@ -39,6 +39,8 @@ export function createRecoveryContextDigest(input: {
   query: PiAgentQueryOptions
   hostVersion: string
   modulePrompts: readonly string[]
+  /** 内容包身份独立于正文，空模块/同正文重打包也不可替换恢复上下文。 */
+  contentPackages?: readonly { moduleId: string; pluginId: string; moduleVersion: string; packageHash: string }[]
   extensions: AgentRunExtensions
 }): string {
   const { query, extensions } = input
@@ -56,6 +58,7 @@ export function createRecoveryContextDigest(input: {
     excludedSkillSlugs: query.excludedSkillSlugs ? [...query.excludedSkillSlugs].sort() : [],
     explicitSkillSlugs: extensions.explicitSkillSlugs ? [...extensions.explicitSkillSlugs].sort() : [],
     modulePrompts: input.modulePrompts, extensionPrompt: extensions.systemPromptAppend,
+    ...(input.contentPackages?.length ? { contentPackages: [...input.contentPackages].sort((left, right) => left.moduleId.localeCompare(right.moduleId)) } : {}),
     singleApprovalToolNames: extensions.singleApprovalToolNames ? [...extensions.singleApprovalToolNames].sort() : [],
     readOnlyToolNames: extensions.readOnlyToolNames ? [...extensions.readOnlyToolNames].sort() : [],
     toolCallLimits: extensions.toolCallLimits, skillsMode: extensions.skillsMode,
