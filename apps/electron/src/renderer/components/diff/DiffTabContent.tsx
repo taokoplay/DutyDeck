@@ -47,6 +47,7 @@ import { getPreviewCandidateBasePaths, isAbsoluteFilePath } from './preview-open
 import { DefaultAppOpenButton } from './DefaultAppOpenButton'
 import { UnsupportedFilePreview } from './UnsupportedFilePreview'
 import { PreviewFindBar } from './PreviewFindBar'
+import { getPreviewMediaInfo, resolvePreviewMode } from './preview-media'
 import { MarkdownToc, MarkdownTocScrollTail } from './MarkdownToc'
 import {
   isCurrentMarkdownScrollRestore,
@@ -87,7 +88,6 @@ const PLAIN_TEXT_EDIT_EXTS = new Set(['.txt', '.text', '.log'])
 const PDF_EXTS = new Set(['.pdf'])
 const OFFICE_PREVIEW_EXTS = new Set(['.docx', '.xlsx', '.pptx'])
 const LEGACY_OFFICE_EXTS = new Set(['.doc', '.xls', '.ppt'])
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'])
 
 function getPreviewPathLabel(filePath: string): string {
   return filePath.split(/[\\/]/).filter(Boolean).at(-1) || filePath
@@ -260,8 +260,13 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
    * 初始模式仍由打开入口决定（改动列表 → 比对，文件区或 chip → 全文）；切换只改变当前
    * 面板的渲染模式，不新增预览身份，因此在这里用局部状态承载，避免同名文件出现两个 Tab。
    */
+  /** 当前文件对应的媒体渲染信息；未知或文本文件返回 null。 */
+  const previewMedia = getPreviewMediaInfo(filePath)
+  /** 是否需要绕过文本 Diff，改用媒体元素加载原始文件。 */
+  const isMedia = previewMedia !== null
   const [previewMode, setPreviewMode] = React.useState(Boolean(previewOnlyProp))
-  const previewOnly = previewMode
+  // 图片、视频、音频不属于文本 Diff；即使入口偏好改动视图，也必须进入媒体预览。
+  const previewOnly = resolvePreviewMode(filePath, previewMode)
   /** 用户手动切换过模式：此时不再因「无差异」自动关闭面板，改为就地给出提示。 */
   const manualModeSwitchRef = React.useRef(false)
   const [showNoDiffHint, setShowNoDiffHint] = React.useState(false)
@@ -284,7 +289,12 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
   // DOCX/XLSX/PPTX 没有可读的文本 diff；无论从文件区还是改动区打开都走 Office 预览。
   const isOfficePreview = OFFICE_PREVIEW_EXTS.has(ext)
   const isLegacyOffice = previewOnly && LEGACY_OFFICE_EXTS.has(ext)
-  const isImage = previewOnly && IMAGE_EXTS.has(ext)
+  /** 当前预览是否使用图片元素。 */
+  const isImage = previewOnly && previewMedia?.kind === 'image'
+  /** 当前预览是否使用视频元素。 */
+  const isVideo = previewOnly && previewMedia?.kind === 'video'
+  /** 当前预览是否使用音频元素。 */
+  const isAudio = previewOnly && previewMedia?.kind === 'audio'
   const markdownEditorCacheKey = React.useMemo(
     () => createMarkdownEditorCacheKey({ filePath, dirPath, gitRoot, basePaths }),
     [basePaths, dirPath, filePath, gitRoot],
@@ -353,8 +363,8 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
   const [pdfSrc, setPdfSrc] = React.useState('')
   const [pdfZoom, setPdfZoom] = React.useState(100)
   const pdfIframeRef = React.useRef<HTMLIFrameElement>(null)
-  const [imagePath, setImagePath] = React.useState('')
-  const [imageDataUrl, setImageDataUrl] = React.useState('')
+  // 媒体资源由主进程授权后返回 opaque URL，供 img、video、audio 共享加载路径。
+  const [mediaUrl, setMediaUrl] = React.useState('')
   // 默认 25%：预览面板空间有限，先展示缩略全貌，用户可手动放大查看细节
   const [imageZoom, setImageZoom] = React.useState(0.25)
   const [imageNaturalSize, setImageNaturalSize] = React.useState({ w: 0, h: 0 })
@@ -425,8 +435,8 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
     return () => { cancelled = true }
   }, [previewModeTargetDir, sessionId])
 
-  /** 图片 / PDF / Office 只有预览形态，不提供「改动 / 全文」切换。 */
-  const modeSwitchTypeEligible = !isImage && !isPdf && !isOfficePreview && !isLegacyOffice
+  /** 图片、音视频 / PDF / Office 只有预览形态，不提供「改动 / 全文」切换。 */
+  const modeSwitchTypeEligible = !isMedia && !isPdf && !isOfficePreview && !isLegacyOffice
   const canToggleContentMode = !loading && modeSwitchTypeEligible
     && (previewOnly ? previewModeCanCompare : newContent.length > 0)
 
@@ -703,8 +713,7 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
     setHtmlSourceMode(false)
     setPdfSrc('')
     setPdfZoom(100)
-    setImagePath('')
-    setImageDataUrl('')
+    setMediaUrl('')
     setImageZoom(0.25)
     setImageNaturalSize({ w: 0, h: 0 })
     setLoading(!isLegacyOffice)
@@ -727,7 +736,7 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
-  }, [isImage, imageDataUrl])
+  }, [isImage, mediaUrl])
 
   // 监听 PDF iframe 发回的缩放百分比
   React.useEffect(() => {
@@ -861,8 +870,7 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
       setPreviewMetadata(cached.previewMetadata)
       setPdfSrc(cached.pdfSrc ?? '')
       setPdfZoom(100)
-      setImagePath(cached.imagePath ?? '')
-      setImageDataUrl(cached.imageDataUrl ?? '')
+      setMediaUrl(cached.mediaUrl ?? cached.imageDataUrl ?? '')
       setImageZoom(0.25)
       setImageNaturalSize({ w: 0, h: 0 })
       setLoading(false)
@@ -883,8 +891,7 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
         setPreviewMetadata(undefined)
         setPdfSrc('')
         setPdfZoom(100)
-        setImagePath('')
-        setImageDataUrl('')
+        setMediaUrl('')
         setImageZoom(0.25)
         setImageNaturalSize({ w: 0, h: 0 })
         lastNewContentRef.current = ''
@@ -932,6 +939,17 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
             return
           }
           if (previewOnly) {
+            if (isMedia) {
+              // 媒体直接读取已授权 URL，避免先按 UTF-8 解码二进制导致乱码和重复读盘。
+              const resolved = await window.electronAPI.resolveFilePath(filePath, fileAccess)
+              if (cancelled) return
+              recordResolvedPreviewPath(resolved?.resolvedPath)
+              /** 主进程返回的受控 URL，供对应 HTML 媒体元素直接读取。 */
+              const nextMediaUrl = resolved?.url ?? ''
+              setMediaUrl(nextMediaUrl)
+              setPreviewContentCache(cacheKey, { oldContent: '', newContent: '', mediaUrl: nextMediaUrl })
+              return
+            }
             // 所有纯预览类型先记录主进程实际解析到的路径。相对路径的多个候选根
             // 中只有这个路径能使 watcher 刷新当前正在展示的文件。
             const resolvedPreview = await window.electronAPI.resolveAndReadFile(filePath, fileAccess)
@@ -944,20 +962,6 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
               const src = result?.tmpHtmlUrl ?? ''
               setPdfSrc(src)
               setPreviewContentCache(cacheKey, { oldContent: '', newContent: '', pdfSrc: src })
-              return
-            }
-            if (isImage) {
-              const resolved = await window.electronAPI.resolveFilePath(filePath, fileAccess)
-              if (cancelled) return
-              if (resolved) {
-                setImagePath(filePath)
-                setImageDataUrl(resolved.url)
-                setPreviewContentCache(cacheKey, { oldContent: '', newContent: '', imagePath: filePath, imageDataUrl: resolved.url })
-              } else {
-                setImagePath('')
-                setImageDataUrl('')
-                setPreviewContentCache(cacheKey, { oldContent: '', newContent: '', imagePath: '', imageDataUrl: '' })
-              }
               return
             }
             if (isLegacyOffice) {
@@ -1079,14 +1083,14 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
       message = 'PDF 文件过大，无法在此预览'
     } else if (isOfficePreview && !officeHtml && !officeHtmlUrl) {
       message = `无法加载 ${ext === '.pptx' ? 'PPTX' : ext === '.docx' ? 'DOCX' : 'Excel'} 预览`
-    } else if (isImage && !imageDataUrl) {
-      message = '图片文件过大，无法在此预览'
+    } else if (isMedia && !mediaUrl) {
+      message = '媒体文件过大或无法在此预览'
     }
     if (message) {
       toastedPreviewFailRef.current = key
       toast.warning(message)
     }
-  }, [previewOnly, isOfficePreview, loading, filePath, ext, isLegacyOffice, isPdf, pdfSrc, officeHtml, officeHtmlUrl, isImage, imageDataUrl])
+  }, [previewOnly, isOfficePreview, loading, filePath, ext, isLegacyOffice, isPdf, pdfSrc, officeHtml, officeHtmlUrl, isMedia, mediaUrl])
 
   // scrollPosition persistent: module-level Map scoped by session, file path, and resolution context
   // content changes (refreshVersion bump) → delete stored position;
@@ -1996,7 +2000,7 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
               </div>
               ) : null
             ) : isImage ? (
-              imageDataUrl ? (
+              mediaUrl ? (
                 <div className="relative h-full">
                 <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-2 py-1 rounded-lg bg-background/80 backdrop-blur-sm border border-border/30 shadow-sm">
                   <button
@@ -2038,7 +2042,7 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '100%', minHeight: '100%', width: imageNaturalSize.w > 0 ? imageNaturalSize.w * imageZoom : undefined, height: imageNaturalSize.h > 0 ? imageNaturalSize.h * imageZoom : undefined }}>
                     <img
-                      src={imageDataUrl}
+                      src={mediaUrl}
                       alt={filePath.split('/').pop() || 'Image'}
                       draggable={false}
                       onLoad={(e) => {
@@ -2050,6 +2054,30 @@ export function DiffTabContent({ filePath, dirPath, sessionId, gitRoot, previewO
                   </div>
                 </div>
               </div>
+              ) : null
+            ) : isVideo ? (
+              mediaUrl ? (
+                <div className="flex h-full items-center justify-center bg-black/5 p-4">
+                  <video
+                    src={mediaUrl}
+                    controls
+                    preload="metadata"
+                    className="max-h-full max-w-full rounded-md shadow-sm"
+                    aria-label={filePath.split('/').pop() || 'Video'}
+                  />
+                </div>
+              ) : null
+            ) : isAudio ? (
+              mediaUrl ? (
+                <div className="flex h-full items-center justify-center p-6">
+                  <audio
+                    src={mediaUrl}
+                    controls
+                    preload="metadata"
+                    className="w-full max-w-lg"
+                    aria-label={filePath.split('/').pop() || 'Audio'}
+                  />
+                </div>
               ) : null
             ) : isOfficePreview ? (
               officeHtmlUrl ? (

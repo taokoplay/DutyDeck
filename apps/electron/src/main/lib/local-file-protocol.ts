@@ -515,7 +515,10 @@ function contentTypeForPath(path: string): string {
   const extension = extname(path).toLowerCase()
   const contentTypes: Record<string, string> = {
     '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
-    '.svg': 'image/svg+xml', '.pdf': 'application/pdf', '.json': 'application/json', '.js': 'text/javascript',
+    '.svg': 'image/svg+xml', '.bmp': 'image/bmp', '.ico': 'image/x-icon',
+    '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.m4v': 'video/x-m4v',
+    '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.m4a': 'audio/mp4', '.flac': 'audio/flac',
+    '.pdf': 'application/pdf', '.json': 'application/json', '.js': 'text/javascript',
     '.mjs': 'text/javascript', '.htm': 'text/html', '.html': 'text/html', '.css': 'text/css', '.txt': 'text/plain', '.woff': 'font/woff',
     '.woff2': 'font/woff2',
   }

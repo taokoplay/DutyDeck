@@ -39,7 +39,7 @@
     },
     "apps/electron": {
       "name": "@dutydeck/electron",
-      "version": "0.20.5",
+      "version": "0.20.6",
       "dependencies": {
         "@codemirror/autocomplete": "6.20.3",
         "@codemirror/commands": "6.11.0",
@@ -75,15 +75,15 @@
         "typebox": "1.1.38",
       },
       "devDependencies": {
-        "@electron/rebuild": "^4.2.0",
-        "@emoji-mart/data": "^1.2.1",
-        "@emoji-mart/react": "^1.1.1",
-        "@larksuiteoapi/node-sdk": "^1.65.0",
         "@dutydeck/capability-runner": "workspace:*",
         "@dutydeck/core": "workspace:*",
         "@dutydeck/session-core": "workspace:*",
         "@dutydeck/shared": "workspace:*",
         "@dutydeck/ui": "workspace:*",
+        "@electron/rebuild": "^4.2.0",
+        "@emoji-mart/data": "^1.2.1",
+        "@emoji-mart/react": "^1.1.1",
+        "@larksuiteoapi/node-sdk": "^1.65.0",
         "@radix-ui/react-alert-dialog": "^1.1.15",
         "@radix-ui/react-collapsible": "^1.1.12",
         "@radix-ui/react-context-menu": "^2.2.16",
@@ -269,9 +269,9 @@
     },
   },
   "patchedDependencies": {
-    "@earendil-works/pi-coding-agent@0.99.1": "patches/@earendil-works%2Fpi-coding-agent@0.99.1.patch",
-    "@earendil-works/pi-ai@0.99.1": "patches/@earendil-works%2Fpi-ai@0.99.1.patch",
     "node-pty@1.1.0": "patches/node-pty@1.1.0.patch",
+    "@earendil-works/pi-ai@0.99.1": "patches/@earendil-works%2Fpi-ai@0.99.1.patch",
+    "@earendil-works/pi-coding-agent@0.99.1": "patches/@earendil-works%2Fpi-coding-agent@0.99.1.patch",
   },
   "overrides": {
     "@earendil-works/pi-agent-core": "0.99.1",
@@ -431,6 +431,22 @@
     "@codemirror/view": ["@codemirror/view@6.43.11", "", { "dependencies": { "@codemirror/state": "^6.7.0", "crelt": "^1.0.6", "style-mod": "^4.1.0", "w3c-keyname": "^2.2.4" } }, "sha512-2+esucbQX6wB2JYi1eDvdCPFTA31BN8oSy6xCmk3G6CloV11yOvEjYk+gH7kLrP0MuHG94E8WDhjs5oMiu3+Wg=="],
 
     "@develar/schema-utils": ["@develar/schema-utils@2.6.5", "", { "dependencies": { "ajv": "^6.12.0", "ajv-keywords": "^3.4.1" } }, "sha512-0cp4PsWQ/9avqTVMCtZ+GirikIA36ikvjtHweU4/j8yLtgObI0+JUPhYFScgwlteveGB1rt3Cm8UhN04XayDig=="],
+
+    "@dutydeck/capability-runner": ["@dutydeck/capability-runner@workspace:packages/capability-runner"],
+
+    "@dutydeck/cli": ["@dutydeck/cli@workspace:apps/cli"],
+
+    "@dutydeck/core": ["@dutydeck/core@workspace:packages/core"],
+
+    "@dutydeck/electron": ["@dutydeck/electron@workspace:apps/electron"],
+
+    "@dutydeck/mobile": ["@dutydeck/mobile@workspace:apps/mobile"],
+
+    "@dutydeck/session-core": ["@dutydeck/session-core@workspace:packages/session-core"],
+
+    "@dutydeck/shared": ["@dutydeck/shared@workspace:packages/shared"],
+
+    "@dutydeck/ui": ["@dutydeck/ui@workspace:packages/ui"],
 
     "@earendil-works/chord": ["@earendil-works/chord@0.99.2", "", { "dependencies": { "esbuild": "0.28.2" } }, "sha512-2dJWiNsOJm/ioBl1fhpJmw0hIjFUhM0CAteEnVkiVG0Kg4LimR7Asq8PfjclEvrbCPsDntzy7rGKhTZObI9TZw=="],
 
@@ -699,22 +715,6 @@
     "@pierre/theming": ["@pierre/theming@1.0.1", "", { "peerDependencies": { "@pierre/theme": "^1.1.0 || ^2.0.0", "@shikijs/themes": "^3.0.0 || ^4.0.0", "react": "^18.3.1 || ^19.0.0", "react-dom": "^18.3.1 || ^19.0.0", "shiki": "^3.0.0 || ^4.0.0" }, "optionalPeers": ["@pierre/theme", "@shikijs/themes", "react", "react-dom", "shiki"] }, "sha512-WCI5Qd7iprDpISL9fBYOLe8RV53+b7mFNA3bPzl60/2CKCSrsKN8zEcep6Y3BAzvARlmca50zGjDodqPGiTUKA=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
-
-    "@dutydeck/capability-runner": ["@dutydeck/capability-runner@workspace:packages/capability-runner"],
-
-    "@dutydeck/cli": ["@dutydeck/cli@workspace:apps/cli"],
-
-    "@dutydeck/core": ["@dutydeck/core@workspace:packages/core"],
-
-    "@dutydeck/electron": ["@dutydeck/electron@workspace:apps/electron"],
-
-    "@dutydeck/mobile": ["@dutydeck/mobile@workspace:apps/mobile"],
-
-    "@dutydeck/session-core": ["@dutydeck/session-core@workspace:packages/session-core"],
-
-    "@dutydeck/shared": ["@dutydeck/shared@workspace:packages/shared"],
-
-    "@dutydeck/ui": ["@dutydeck/ui@workspace:packages/ui"],
 
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
 

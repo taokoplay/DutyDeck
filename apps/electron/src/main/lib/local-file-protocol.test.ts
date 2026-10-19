@@ -53,6 +53,20 @@ describe('proma-file 目录授权', () => {
     expect(await response.text()).toBe('2345')
   })
 
+  test('Given 音视频文件 When 通过授权 URL 读取 Then 返回可播放的 MIME 类型', async () => {
+    const videoPath = join(root, 'demo.mp4')
+    const audioPath = join(root, 'voice.mp3')
+    writeFileSync(videoPath, Buffer.from([0, 1, 2]))
+    writeFileSync(audioPath, Buffer.from([3, 4, 5]))
+    const registry = createPromaFileProtocolRegistry({ now: () => 0 })
+
+    const videoResponse = await registry.handleRequest(new Request(registry.registerFilePath(videoPath)))
+    const audioResponse = await registry.handleRequest(new Request(registry.registerFilePath(audioPath)))
+
+    expect(videoResponse.headers.get('content-type')).toBe('video/mp4')
+    expect(audioResponse.headers.get('content-type')).toBe('audio/mpeg')
+  })
+
   test('Given 已授权 Buffer 注册为单文件 token When 原路径被替换 Then 协议始终返回授权内容', async () => {
     const filePath = join(root, 'preview.webp')
     const replacementPath = join(outsideRoot, 'replacement.webp')

@@ -78,3 +78,10 @@ pnpm-workspace.yaml
 .omx/context/
 .superpowers/
 .omx/
+
+# 仓库根目录的本地 Agent 会话与测试残留；保留本地数据，不纳入发布源码。
+/agent-sessions/
+/agent-workspaces/
+/agent-workspaces.json
+/agent-workspaces.json.bak
+/agent-workspaces.json.tmp

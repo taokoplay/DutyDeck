@@ -32,7 +32,7 @@ describe('HTML 源码与渲染授权分离', () => {
     const bindings: Record<string, unknown> = {
       previewOnly: true, previewContentVersion: 0, refreshVersion: 0,
       filePath: '/workspace/index.html', fileAccess: {}, previewContentRefreshKey: 'page',
-      isEditableText: false, activeMarkdownEditing: false, isLegacyOffice: false,
+      isEditableText: false, activeMarkdownEditing: false, isLegacyOffice: false, isMedia: false,
       isOfficePreview: false, isPdf: false, isImage: false, isHtml: true, ext: '.html',
       getContentCacheKey: () => 'preview', getPreviewContentCache: () => undefined,
       setPreviewContentCache: (_key: string, value: unknown) => { cacheUpdates.push(value) },
@@ -40,7 +40,7 @@ describe('HTML 源码与渲染授权分离', () => {
       setLoading: (value: boolean) => { loadingUpdates.push(value) },
       setOldContent: noOp, setOfficeHtml: noOp, setOfficeHtmlUrl: noOp, setOfficeText: noOp,
       setHtmlPreviewUrl: noOp, setUnsupportedPreviewReason: noOp, setPreviewMetadata: noOp,
-      setPdfSrc: noOp, setPdfZoom: noOp, setImagePath: noOp, setImageDataUrl: noOp,
+      setPdfSrc: noOp, setPdfZoom: noOp, setMediaUrl: noOp,
       setImageZoom: noOp, setImageNaturalSize: noOp, setPreviewResolvedPaths: noOp,
       restoreScrollRef: { current: false }, lastNewContentRef: { current: '' }, lastOldContentRef: { current: '' },
       scrollPositionCache: new Map(), scrollKey: 'page', MD_EXTS: new Set(['.md']),

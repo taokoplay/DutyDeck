@@ -6,6 +6,9 @@ export interface PreviewContentCacheEntry {
   newContent: string
   /** 非文本文件预览数据 */
   pdfSrc?: string
+  /** 图片、视频或音频对应的受控媒体 URL。 */
+  mediaUrl?: string
+  /** 兼容旧版本图片缓存。 */
   imageDataUrl?: string
   imagePath?: string
   officeHtml?: string
