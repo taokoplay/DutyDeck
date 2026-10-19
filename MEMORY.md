@@ -1,5 +1,7 @@
 # MEMORY.md
 
+- 2026-10-19（DutyDeck v0.20.6 标签已发布）：发布提交为 `23fad1f010e494dd819ee40b090b3e74926547f9`，当前分支 `codex/agent-module-pluginization` 与注释标签 `v0.20.6` 已原子推送到 origin，远端标签解引用 SHA 已核验一致。GitHub Release 工作流 `39196550229` 已由标签推送触发，地址 https://github.com/taokoplay/DutyDeck/actions/runs/39196550229 ；记录时仍在排队，尚未确认安装包构建或公开 Release 完成，不应把标签推送成功等同于四平台发布成功。工作区测试残留继续留在本地忽略规则内。
+
 - 2026-10-19（DutyDeck 0.20.6 发布准备）：用户授权提交全部剩余正式改动并发布新标签；远端最新为 v0.20.5，应用与锁文件升级到 0.20.6，发布说明覆盖模块显式接入、调用记录、图片预算、多设备/Web 和媒体预览。根目录 agent-sessions、agent-workspaces 及其 JSON 备份是测试/运行残留，保留本地并精准忽略。修复音视频预览中无效的“改动/全文”切换；媒体继续沿用原文件授权、100 MiB 单文件与 256 MiB Buffer 预算。67 项预览/协议/发布测试、全仓 8 包 typecheck、完整 Electron 构建及隔离实际客户端首次启动/再次启动/数据根恢复 smoke 通过；真实 MP4/WAV 的 metadata、播放、seek 与 Range 206 验证通过。此前全仓 bun test 失败尚未完成整体归因，本轮不宣称全套通过。发布推送当前 codex/agent-module-pluginization 分支及新标签，由现有四平台 CI 构建 Release，不改 main/upstream。Nowledge 定向搜索服务连接拒绝，未同步。
 
 - 2026-10-19（交互设计设备预览本地提交范围）：用户授权本地 Git 提交，收录手机外壳接入、全设备菜单、浏览器 Web、缩放与说明布局、相关测试及必要依赖锁定；共享记忆仅纳入本会话条目，其他任务和运行数据保留。41 项相关测试、全仓类型检查及真实 Electron 设备 smoke 已通过；仅本地提交，不推送、不发布。Nowledge 定向搜索服务连接拒绝。
