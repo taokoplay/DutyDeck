@@ -1,7 +1,6 @@
 import { realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { InteractionDesignChanged, MediaAssetRef } from '@dutydeck/shared'
-import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { getAgentSessionMeta } from '../agent-session-manager'
 import { isEligibleProjectAgent } from '../agent-session-visibility'
 import { getAgentWorkspace, getProjectFilesPath } from '../agent-workspace-manager'
@@ -28,8 +27,8 @@ function resolveSession(sessionId: string): { workspaceId: string; projectRoot: 
   /** 当前权威会话及项目。 */
   const session = getAgentSessionMeta(sessionId)
   const workspace = session?.workspaceId ? getAgentWorkspace(session.workspaceId) : undefined
-  if (!isOrdinaryTopLevelAgentSession(session) || !workspace || !isEligibleProjectAgent(session, workspace.id) || (session.toolMode ?? 'standard') !== 'standard') {
-    throw new Error('INTERACTION_DESIGN_ACCESS_DENIED: 交互设计仅支持当前项目的普通会话')
+  if (!session || !workspace || !isEligibleProjectAgent(session, workspace.id) || (session.toolMode ?? 'standard') !== 'standard') {
+    throw new Error('INTERACTION_DESIGN_ACCESS_DENIED: 交互设计仅支持当前项目的用户会话')
   }
   return { workspaceId: workspace.id, projectRoot: getProjectFilesPath(workspace.slug) }
 }

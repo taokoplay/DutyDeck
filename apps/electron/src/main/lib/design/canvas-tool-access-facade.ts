@@ -87,7 +87,7 @@ interface AuthorizedCanvasToolAgent {
   fixedCanvasId?: string
 }
 
-/** 要求当前会话仍是目标项目普通 Agent，或精确归属于本节点的 Canvas Agent。 */
+/** 要求当前会话仍是目标项目用户 Agent，或精确归属于本节点的 Canvas Agent。 */
 function requireAuthorizedAgent(
   dependencies: CanvasToolAccessFacadeDependencies,
   context: CanvasToolRunContext,

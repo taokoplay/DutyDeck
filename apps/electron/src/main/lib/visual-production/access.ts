@@ -19,7 +19,7 @@ export interface VisualProductionCommandService {
 
 /** 授权事实与文件服务由生产宿主注入，renderer 不可选项目路径。 */
 export interface VisualProductionAccessDependencies {
-  /** 获取当前普通会话，已归档或内部会话由宿主拒绝。 */
+  /** 获取当前用户项目会话，已归档或内部会话由宿主拒绝。 */
   resolveSession(sessionId: string): { workspaceId: string; projectRoot: string }
   /** 在每次新请求和异步返回后检查调用者仍有效。 */
   assertCaller?(): void

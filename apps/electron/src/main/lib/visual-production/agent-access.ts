@@ -1,5 +1,5 @@
-import { isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import type { AgentSessionMeta } from '@dutydeck/shared'
+import { isEligibleProjectAgent } from '../agent-session-visibility'
 import type { VisualProductionExecutor } from './access'
 
 /** 前台运行事实由编排器提供，不允许工具参数声明来源。 */
@@ -14,13 +14,12 @@ interface InteractionAgentAccessOptions {
   createAccess(sessionId: string, options: { assertCaller(): void; canWrite(): boolean }): VisualProductionExecutor
 }
 
-/** 仅当前普通前台运行注册能力，且每次调用重新检查归属、模式和取消状态。 */
+/** 仅当前用户项目前台运行注册能力，且每次调用重新检查归属、模式和取消状态。 */
 export function createVisualProductionAgentAccess(options: InteractionAgentAccessOptions): VisualProductionExecutor | null {
   /** 当前会话的初始归属。 */
   const initial = options.getSession(options.sessionId)
   if (options.toolMode !== 'standard' || options.automation || (options.triggeredBy && options.triggeredBy !== 'user')
-    || !isOrdinaryTopLevelAgentSession(initial) || initial.archived || !initial.workspaceId
-    || initial.explorationParentSessionId !== undefined) return null
+    || !initial || !initial.workspaceId || initial.archived || !isEligibleProjectAgent(initial, initial.workspaceId)) return null
   /** 固定标量身份，不能持有随后可能被就地更新的会话对象引用。 */
   const workspaceId = initial.workspaceId
   return options.createAccess(options.sessionId, {
@@ -29,8 +28,8 @@ export function createVisualProductionAgentAccess(options: InteractionAgentAcces
       options.assertRunActive()
       /** 后续回合不能继承已改变的运行归属。 */
       const current = options.getSession(options.sessionId)
-      if (!isOrdinaryTopLevelAgentSession(current) || current.archived || current.workspaceId !== workspaceId
-        || current.explorationParentSessionId !== undefined || (current.toolMode ?? 'standard') !== 'standard') {
+      if (!current || !current.workspaceId || current.archived || current.workspaceId !== workspaceId
+        || !isEligibleProjectAgent(current, workspaceId) || (current.toolMode ?? 'standard') !== 'standard') {
         throw new Error('VISUAL_PRODUCTION_ACCESS_CHANGED: Agent 运行归属已变化')
       }
     },

@@ -236,13 +236,33 @@ async function invoke<T>(
 describe('Agent-画布关联 IPC', () => {
   test.each([
     { archived: true },
-    { explorationParentSessionId: 'parent-session' },
   ] satisfies Array<Partial<AgentSessionMeta>>)(
-    'Given 非普通顶层会话 %o When 检查项目 Agent 资格 Then canonical helper 拒绝',
+    'Given 非项目用户会话 %o When 检查项目 Agent 资格 Then canonical helper 拒绝',
     (overrides) => {
       expect(isEligibleProjectAgent(createAgentSession('session-1', overrides), 'project-1')).toBe(false)
     },
   )
+
+  test('Given 当前项目的用户探索分支 When 建立画布关联 Then 关联成功且只绑定分支自身', async () => {
+    const handlers = new Map<string, TestHandler>()
+    const store = createStore()
+    const session = createAgentSession('exploration-1', { explorationParentSessionId: 'parent-session' })
+    registerAgentCanvasBindingIpcHandlers({
+      ...createProjectMutationDependencies(),
+      ipcMain: { handle: (channel, handler) => { handlers.set(channel, handler) }, removeHandler: (channel) => handlers.delete(channel) },
+      store,
+      getAgentSession: (sessionId) => sessionId === session.id ? session : null,
+      listCanvasSessions: () => [createCanvasSession()],
+      assertSenderProjectAccess: () => undefined,
+      broadcast: () => undefined,
+    })
+
+    const result = await invoke<AgentCanvasBinding>(handlers, CANVAS_IPC_CHANNELS.LINK_AGENT_CANVAS, createSender(1), {
+      projectId: 'project-1', sessionId: session.id, canvasId: 'canvas-1', makeDefault: false,
+    })
+    expect(result).toMatchObject({ ok: true, value: { projectId: 'project-1', sessionId: session.id, linkedCanvasIds: ['canvas-1'] } })
+    expect(store.listByProject('project-1')).toHaveLength(1)
+  })
 
   test('Given 单会话、Canvas 与工作区删除入口 When 检查主进程接缝 Then 均在主删除成功后使用 best-effort helper', () => {
     const source = readFileSync(join(import.meta.dir, '../../ipc.ts'), 'utf8')
@@ -881,7 +901,6 @@ describe('Agent-画布关联 IPC', () => {
       { delegationDepth: 1 },
       { delegationGoal: '检查代码' },
       { archived: true },
-      { explorationParentSessionId: 'parent-session' },
       { sourceAutomationId: '' },
       { parentSessionId: '' },
       { rootSessionId: '' },

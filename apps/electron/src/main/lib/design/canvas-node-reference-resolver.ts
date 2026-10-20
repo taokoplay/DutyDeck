@@ -121,7 +121,7 @@ export function createCanvasNodeReferenceResolver(
         /** 共享解析器先拒绝畸形 Renderer 输入。 */
         const parsedReferences = parseCanvasNodeReferences(input.references)
         if (parsedReferences.length === 0) throw invalidReferenceError()
-        /** 当前权威会话必须仍是同项目普通顶层用户 Agent。 */
+        /** 当前权威会话必须仍是同项目用户 Agent；探索分支也必须使用自身绑定。 */
         const session = dependencies.getSession(input.sessionId)
         if (!session
           || !session.workspaceId

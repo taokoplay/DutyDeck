@@ -103,7 +103,7 @@ describe('Agent service 迁移准入', () => {
     expect(source).toContain('runtime.createRun(')
   })
 
-  test('Given 内部、探索、归档或损坏来源会话 When 生产 eligibility 判断 Then 全部排除 Canvas 工具', () => {
+  test('Given 内部、委派、归档或损坏来源会话 When 生产 eligibility 判断 Then 仅用户探索分支保留 Canvas 工具', () => {
     /** 普通顶层项目 Agent 的最小权威元数据。 */
     const base = {
       workspaceId: 'project-1', archived: false,
@@ -112,7 +112,6 @@ describe('Agent service 迁移准入', () => {
     const rejected = [
       { sourceAutomationId: 'automation-1' },
       { sourceDelegationId: 'delegation-1' },
-      { explorationParentSessionId: 'parent-1' },
       { archived: true },
       { sourceDesignProjectId: '' },
       { sourceCanvasProjectId: '' },
@@ -120,6 +119,8 @@ describe('Agent service 迁移准入', () => {
       { sourceDelegationId: '' },
     ]
     expect(isEligibleProjectAgent(base, 'project-1')).toBe(true)
+    expect(isEligibleProjectAgent({ ...base, explorationParentSessionId: 'parent-1' }, 'project-1')).toBe(true)
+    expect(isEligibleProjectAgent({ ...base, explorationParentSessionId: ' ' }, 'project-1')).toBe(false)
     for (const fields of rejected) {
       expect(isEligibleProjectAgent({ ...base, ...fields }, 'project-1')).toBe(false)
     }

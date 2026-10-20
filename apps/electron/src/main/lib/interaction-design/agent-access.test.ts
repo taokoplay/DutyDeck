@@ -19,15 +19,17 @@ function fixture() {
 }
 
 describe('交互设计 Agent 准入', () => {
-  test('Given 非普通前台来源 When 构建工具 Then 不获得能力', () => {
+  test('Given 非用户项目来源 When 构建工具 Then 不获得能力；探索分支可独立获得能力', () => {
     const { options, state } = fixture()
     for (const triggeredBy of ['automation', 'delegation', 'external']) expect(createInteractionDesignAgentAccess({ ...options, triggeredBy })).toBeNull()
     expect(createInteractionDesignAgentAccess({ ...options, automation: true })).toBeNull()
     expect(createInteractionDesignAgentAccess({ ...options, toolMode: 'server-ops-write' })).toBeNull()
-    for (const fields of [{ archived: true }, { parentSessionId: 'parent' }, { sourceAutomationId: 'automation' }, { automationGraduated: true }, { explorationParentSessionId: 'parent' }, { sourceDesignProjectId: 'project-1' }]) {
+    for (const fields of [{ archived: true }, { parentSessionId: 'parent' }, { sourceAutomationId: 'automation' }, { automationGraduated: true }, { sourceDesignProjectId: 'project-1' }]) {
       state.session = { id: 'session-1', workspaceId: 'project-1', ...fields } as AgentSessionMeta
       expect(createInteractionDesignAgentAccess(options)).toBeNull()
     }
+    state.session = { id: 'session-1', workspaceId: 'project-1', explorationParentSessionId: 'parent' } as AgentSessionMeta
+    expect(createInteractionDesignAgentAccess(options)).not.toBeNull()
   })
   test('Given 已注册普通会话 When 取消或变更归属 Then 旧工具立即失效', () => {
     const { options, state } = fixture()

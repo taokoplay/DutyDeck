@@ -113,14 +113,14 @@ async function invokeSafely<T>(
   }
 }
 
-/** 要求普通可见顶层 Agent 精确属于目标项目。 */
+/** 要求用户可见项目 Agent（含探索分支）精确属于目标项目。 */
 function requireProjectAgent(
   sessionId: string,
   projectId: string,
   options: RegisterAgentCanvasBindingIpcOptions,
 ): AgentSessionMeta {
   const session = requireUserVisibleAgentSession(options.getAgentSession(sessionId) ?? undefined)
-  if (!isEligibleProjectAgent(session, projectId)) throw new Error('Agent 会话不是目标项目普通顶层会话')
+  if (!isEligibleProjectAgent(session, projectId)) throw new Error('Agent 会话不是目标项目用户会话')
   return session
 }
 

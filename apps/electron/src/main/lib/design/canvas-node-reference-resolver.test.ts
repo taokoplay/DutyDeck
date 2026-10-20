@@ -149,7 +149,6 @@ describe('CanvasNodeReferenceResolver', () => {
     ['Design Agent 作为宿主', { session: createSession({ sourceDesignProjectId: 'project-1', sourceDesignJobId: 'job-1' }) }],
     ['Automation 作为宿主', { session: createSession({ sourceAutomationId: 'automation-1' }) }],
     ['会话已归档', { session: createSession({ archived: true }) }],
-    ['探索子会话作为宿主', { session: createSession({ explorationParentSessionId: 'parent-session' }) }],
   ])('Given %s When 发送 Then 以稳定公开错误拒绝', (_label, options) => {
     const { resolver } = createHarness(options)
 
@@ -158,6 +157,19 @@ describe('CanvasNodeReferenceResolver', () => {
       mode: 'latest',
       references: [createReference()],
     })).toThrow('画布节点引用已失效，请重新选择后发送。')
+  })
+
+  test('Given 当前项目的探索分支已关联 Canvas When 发送节点引用 Then 仍按分支绑定读取权威节点', () => {
+    const { resolver, loadTargets } = createHarness({
+      session: createSession({ explorationParentSessionId: 'parent-session' }),
+    })
+
+    const result = resolver.resolveForSend({
+      sessionId: 'session-1', mode: 'latest', references: [createReference()],
+    })
+
+    expect(result.references[0]?.title).toBe('权威标题')
+    expect(loadTargets).toEqual([{ projectId: 'project-1', canvasId: 'canvas-1' }])
   })
 
   test('Given 引用伪造其它项目 When 发送 Then 在读取 Canvas 前拒绝', () => {

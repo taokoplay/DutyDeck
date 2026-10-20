@@ -66,13 +66,26 @@ export function hasValidDesignSessionOwnership(session: AgentSessionOwnershipFie
   return Boolean(session.sourceDesignProjectId?.trim() && session.sourceDesignJobId?.trim())
 }
 
-/** 判断会话是否为目标项目可持有 Canvas 关联的普通顶层 Agent。 */
+/**
+ * 判断会话是否为目标项目可持有项目级能力的用户 Agent。
+ *
+ * 探索分支仍是用户在当前项目中主动打开的可见会话，因此允许它独立建立
+ * Canvas 关联并按当前消息显式接入交互设计、影像创作等项目模块；父会话的
+ * 授权、自动化、委派和内部会话字段仍全部排除。
+ * @param session 待判断的会话元数据。
+ * @param projectId 目标项目稳定 ID。
+ * @returns 会话可见、未归档且只带目标项目归属时返回 true。
+ */
 export function isEligibleProjectAgent(session: ProjectAgentEligibilityFields, projectId: string): boolean {
   return isAgentSessionUserVisible(session)
     && session.workspaceId === projectId
     && !session.archived
-    && session.explorationParentSessionId === undefined
+    && (session.explorationParentSessionId === undefined
+      || (typeof session.explorationParentSessionId === 'string'
+        && session.explorationParentSessionId.length > 0
+        && session.explorationParentSessionId.trim() === session.explorationParentSessionId))
     && session.sourceAutomationId === undefined
+    && session.automationGraduated === undefined
     && session.parentSessionId === undefined
     && session.rootSessionId === undefined
     && session.sourceDelegationId === undefined
