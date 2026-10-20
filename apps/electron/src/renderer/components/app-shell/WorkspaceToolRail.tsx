@@ -132,10 +132,20 @@ export function WorkspaceToolRail({ expanded, onExpandedChange, items, onSelect,
               {visibleItems.filter((item) => item.group === group).map((item) => {
                 /** 工具图标由业务描述提供，保持 SVG 只作装饰。 */
                 const Icon = item.icon
+                /** 会话已接入时使用绿色表达权限，当前面板是否打开仍由按钮选中态表达。 */
+                const iconClass = item.moduleState === 'attached'
+                  ? 'text-emerald-500 dark:text-emerald-400'
+                  : item.active
+                    ? 'text-accent-foreground'
+                    : item.moduleState === 'unavailable'
+                      ? 'text-muted-foreground'
+                      : 'text-foreground/60 group-hover:text-foreground'
+                /** 状态同时进入无障碍标签，避免用户只能依赖颜色判断会话权限。 */
+                const accessibleLabel = item.statusLabel ? `${item.label}，${item.statusLabel}` : item.label
                 return (
                   <div key={item.id} className="group/row relative flex items-center">
-                    <button type="button" data-tool-id={item.id} data-tool-state={item.moduleState} aria-label={item.label} aria-pressed={Boolean(item.active)} disabled={Boolean(item.disabledReason)} title={item.disabledReason ? `${item.label}：${item.disabledReason}` : item.statusLabel ? `${item.label}：${item.statusLabel}` : item.label} onClick={() => onSelect(item.id as string)} className={cn(buttonClass, 'my-0.5', expanded && item.onRemove ? 'pr-14' : '', expanded ? 'px-2' : 'justify-center', item.active ? 'bg-accent-foreground/[0.10] text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]' : 'text-foreground/75 enabled:hover:bg-accent-foreground/[0.08] enabled:hover:text-foreground')}>
-                    <Icon className={cn('size-4 shrink-0', item.active ? 'text-accent-foreground' : 'text-foreground/60 group-hover:text-foreground')} aria-hidden="true" />
+                    <button type="button" data-tool-id={item.id} data-tool-state={item.moduleState} aria-label={accessibleLabel} aria-pressed={Boolean(item.active)} disabled={Boolean(item.disabledReason)} title={item.disabledReason ? `${item.label}：${item.disabledReason}` : item.statusLabel ? `${item.label}：${item.statusLabel}` : item.label} onClick={() => onSelect(item.id as string)} className={cn(buttonClass, 'my-0.5', expanded && item.onRemove ? 'pr-14' : '', expanded ? 'px-2' : 'justify-center', item.active ? 'bg-accent-foreground/[0.10] text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]' : 'text-foreground/75 enabled:hover:bg-accent-foreground/[0.08] enabled:hover:text-foreground')}>
+                      <Icon className={cn('size-4 shrink-0', iconClass)} aria-hidden="true" />
                     {expanded && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
                     {expanded && item.badge && <span className="rounded bg-accent-foreground/[0.08] px-1 text-[10px] tabular-nums text-muted-foreground">{item.badge}</span>}
                     {expanded && item.statusLabel && <span className="text-[10px] text-muted-foreground">{item.statusLabel}</span>}

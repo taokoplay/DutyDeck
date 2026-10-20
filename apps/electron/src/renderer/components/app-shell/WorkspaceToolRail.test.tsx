@@ -53,6 +53,21 @@ describe('统一工具菜单', () => {
     expect(markup).toContain('aria-label="从本会话移除新建浏览器标签"')
     expect(markup).toContain('title="新建浏览器标签：已接入"')
   })
+  test('Given 已接入但未打开面板的 Session 模块 When 渲染 Then 图标使用绿色表达当前会话权限', () => {
+    const markup = renderToStaticMarkup(<WorkspaceToolRail expanded items={[{
+      ...items[0]!, active: false, moduleState: 'attached', statusLabel: '已接入',
+    }]} onExpandedChange={() => {}} onSelect={() => {}} onAppearance={() => {}} />)
+    expect(markup).toContain('text-emerald-500 dark:text-emerald-400')
+    expect(markup).toContain('aria-label="新建浏览器标签，已接入"')
+    expect(markup).not.toContain('bg-accent-foreground/[0.10]')
+  })
+  test('Given 已接入且当前面板已打开的 Session 模块 When 渲染 Then 同时保留绿色权限图标和面板选中态', () => {
+    const markup = renderToStaticMarkup(<WorkspaceToolRail expanded items={[{
+      ...items[0]!, active: true, moduleState: 'attached', statusLabel: '已接入',
+    }]} onExpandedChange={() => {}} onSelect={() => {}} onAppearance={() => {}} />)
+    expect(markup).toContain('text-emerald-500 dark:text-emerald-400')
+    expect(markup).toContain('bg-accent-foreground/[0.10]')
+  })
   test('Given 查询 When 过滤 Then 按名称关键词和分组匹配、忽略大小写空白且无匹配为空', () => {
     expect(filterWorkspaceTools(items, ' WEB ')).toEqual([items[0]!])
     expect(filterWorkspaceTools(items, '专业')).toEqual([items[1]!])
