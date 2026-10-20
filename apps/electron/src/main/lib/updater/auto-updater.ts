@@ -188,6 +188,11 @@ function quitAndInstall(): void {
       return
     }
 
+    // 在 quitAndInstall 触发 BrowserWindow 销毁前解绑 webContents 健康监听。
+    // Electron 的 closed 事件可能晚于 webContents 销毁，不能把首次解绑留到那里。
+    updateCacheCleanupDisposer?.()
+    updateCacheCleanupDisposer = null
+
     // 移除所有窗口的 close 监听器，避免 preventDefault 阻止退出。
     for (const w of BrowserWindow.getAllWindows()) {
       w.removeAllListeners('close')

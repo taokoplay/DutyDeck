@@ -1,5 +1,7 @@
 # MEMORY.md
 
+- 2026-10-20（自动更新安装崩溃修复）：v0.20.7 在 macOS 自动更新安装退出阶段，`BrowserWindow` 的 `closed` 事件可能晚于 `webContents` 销毁，缓存健康监听解绑触发 `Object has been destroyed` 未捕获异常。修复为安装前主动解绑，关闭竞态下逐项幂等解绑并记录警告；更新器定向回归 21 项、Electron 类型检查和完整构建通过，准备发行 v0.20.8。Nowledge 定向检索因本机服务连接拒绝未同步。
+
 - 2026-10-20（v0.20.7 已正式发行）：插件发行提交 `9fc214f3` 已推送至 `codex/agent-module-pluginization`，标签 `v0.20.7` 指向同一提交。隔离快照通过 321 项定向回归、全仓类型检查、作者 tarball 离线闭环、真实 Electron 插件生命周期验收及 macOS arm64 目录打包；CI 四平台构建及 Release 全部成功，15 个附件齐全，三份更新清单的版本、资产引用与尺寸一致。Release：https://github.com/taokoplay/DutyDeck/releases/tag/v0.20.7 ；Actions：https://github.com/taokoplay/DutyDeck/actions/runs/39334346894 。本机 Git 直连 github.com 超时，按系统代理配置临时传入命令后恢复；未修改全局代理。Nowledge Mem 定向搜索因本机服务连接拒绝未同步。
 
 - 2026-10-20（v0.20.7 发行边界）：用户授权提交、推送并发行。此次只收录插件中心、创建指南及其 SDK/CLI、内容包安装和运行时依赖；已有媒体模型修复随当前分支发行，其他会话未提交改动继续保留。客户端发行不等于在线市场或第三方动态工具/UI/runtime 已开放，SDK/CLI 尚未发布公共包注册表。

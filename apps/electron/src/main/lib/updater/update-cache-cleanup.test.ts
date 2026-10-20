@@ -330,6 +330,27 @@ describe('更新缓存启动稳定门禁', () => {
     expect(unsubscribeCount).toBe(3)
   })
 
+  test('Given Electron 窗口已销毁导致解绑器抛错 When 释放健康监听 Then 不向主进程冒泡异常', () => {
+    /** 被测启动门禁。 */
+    const gate = createUpdateCacheCleanupStartupGate({
+      cleanup: () => ({ status: 'cleaned', deletedCount: 0 }),
+      shouldDefer: () => false,
+      log: silentLogger,
+    })
+    /** 模拟 webContents 销毁后 removeListener 抛出的 Electron 错误。 */
+    const destroyedError = new Error('Object has been destroyed')
+    /** 被测健康事件绑定。 */
+    const binding = bindUpdateCacheCleanupHealthEvents({
+      gate,
+      log: silentLogger,
+      addWindowUnresponsiveListener: () => () => { throw destroyedError },
+      addDidFailLoadListener: () => () => { throw destroyedError },
+      addRenderProcessGoneListener: () => () => { throw destroyedError },
+    })
+
+    expect(() => binding.dispose()).not.toThrow()
+  })
+
   test('Given 主窗口显示后保持稳定 When 延迟到期 Then 只执行一次清理', () => {
     /** 捕获的延迟回调。 */
     let scheduledCallback: (() => void) | undefined

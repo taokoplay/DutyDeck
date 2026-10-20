@@ -97,6 +97,8 @@ export interface UpdateCacheCleanupHealthEventsOptions {
   addDidFailLoadListener: (listener: (errorCode: number, isMainFrame: boolean) => void) => () => void
   /** 订阅 renderer 退出并返回解绑函数。 */
   addRenderProcessGoneListener: (listener: () => void) => () => void
+  /** 解绑失败时的日志出口。 */
+  log?: Pick<Console, 'warn'>
 }
 
 /** pending 为共享下载目录，活跃下载期间禁止任何清理。 */
@@ -340,6 +342,8 @@ export function createUpdateCacheCleanupStartupGate(options: UpdateCacheCleanupS
 
 /** 绑定窗口健康事件，并返回同时解绑监听与释放门禁的幂等控制器。 */
 export function bindUpdateCacheCleanupHealthEvents(options: UpdateCacheCleanupHealthEventsOptions) {
+  /** 健康监听解绑失败不应击穿主进程，尤其是 Electron 对象已销毁的竞态。 */
+  const log = options.log ?? console
   /** 所有健康失败事件共用的门禁关闭入口。 */
   const markRendererFailed = (): void => options.gate.markRendererFailed()
   /** 主框架加载失败时过滤正常导航取消和子框架错误。 */
@@ -359,9 +363,19 @@ export function bindUpdateCacheCleanupHealthEvents(options: UpdateCacheCleanupHe
   function dispose(): void {
     if (disposed) return
     disposed = true
-    removeWindowUnresponsiveListener()
-    removeDidFailLoadListener()
-    removeRenderProcessGoneListener()
+    /** 逐个解绑，确保某个已销毁 Electron 对象不会阻断其余资源收口。 */
+    const disposers: Array<{ name: string; dispose: () => void }> = [
+      { name: '窗口卡死监听', dispose: removeWindowUnresponsiveListener },
+      { name: '主框架加载失败监听', dispose: removeDidFailLoadListener },
+      { name: 'renderer 退出监听', dispose: removeRenderProcessGoneListener },
+    ]
+    for (const item of disposers) {
+      try {
+        item.dispose()
+      } catch (error) {
+        log.warn(`[更新缓存] 解绑${item.name}失败，窗口可能已销毁`, error)
+      }
+    }
     options.gate.dispose()
   }
 
