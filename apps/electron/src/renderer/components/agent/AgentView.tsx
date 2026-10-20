@@ -2591,7 +2591,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         ))
         toast.error('消息发送失败', { description: getErrorMessage(error) })
       })
-  }, [clearSentComposerReferences, setVisualProductionReferences, clearSentCanvasNodeReferences, createBaseAdditionalDirectories, preparePendingFilesForSend, restoreFailedInputContent, restoreQueuedAttachmentsToPending, rollbackOptimisticPersistedMessage, sessionId, agentChannelId, agentModelId, agentChannelProvider, currentWorkspaceId, streaming, backgroundWaiting, suggestion, hasAvailableModel, store, consumeQuotedSelection, currentQuotedSelection, setStreamingStates, setAgentStreamErrors, setPromptSuggestions, setInputContent, setInputHtmlContent, setLiveMessagesMap, permissionMode, messagesLoaded, setQueuedMessages, setQuotedSelectionMap, sendPlainTextAgentMessage, synchronizeCanvasBeforeSend, isLegacyTranscript, isStopping])
+  }, [modulePolicy, clearSentComposerReferences, setVisualProductionReferences, clearSentCanvasNodeReferences, createBaseAdditionalDirectories, preparePendingFilesForSend, restoreFailedInputContent, restoreQueuedAttachmentsToPending, rollbackOptimisticPersistedMessage, sessionId, agentChannelId, agentModelId, agentChannelProvider, currentWorkspaceId, streaming, backgroundWaiting, suggestion, hasAvailableModel, store, consumeQuotedSelection, currentQuotedSelection, setStreamingStates, setAgentStreamErrors, setPromptSuggestions, setInputContent, setInputHtmlContent, setLiveMessagesMap, permissionMode, messagesLoaded, setQueuedMessages, setQuotedSelectionMap, sendPlainTextAgentMessage, synchronizeCanvasBeforeSend, isLegacyTranscript, isStopping])
 
   /** 停止生成。异常流未发出终态时，允许再次下发幂等的 abort 请求。 */
   const handleStop = React.useCallback((): void => {

@@ -129,7 +129,7 @@ describe('模块栏实际使用的加载与保存控制器', () => {
   test('Given Session 目录返回可接入模块，When 右侧菜单点击 Then 使用目录 revision 原子接入并更新目录', async () => {
     const store = createStore()
     const catalog: AgentSessionModuleCatalog = {
-      sessionId: 'a', revision: 3, policy: policy(), entries: [{
+      sessionId: 'a', revision: 3, policy: { ...policy(), revision: 3 }, entries: [{
         id: 'canvas', displayName: '画布', description: '画布', icon: 'layout', group: '专业工具',
         surfaceId: 'canvas', moduleVersion: '1.0.0', activation: 'session-toggle', state: 'available',
       }],
@@ -144,7 +144,7 @@ describe('模块栏实际使用的加载与保存控制器', () => {
     await attachAgentModule(store, bridge, 'a', 'canvas')
     expect(receivedRevision).toBe(3)
     expect(store.get(agentSessionModuleCatalogAtomFamily('a'))?.entries[0]?.state).toBe('attached')
-    const detached = { ...next, revision: 5, policy: policy(), entries: [{ ...next.entries[0]!, state: 'available' as const }] }
+    const detached = { ...next, revision: 5, policy: { ...policy(), revision: 5 }, entries: [{ ...next.entries[0]!, state: 'available' as const }] }
     const detachBridge = api({ toggleSessionModule: async (input) => { expect(input.enabled).toBe(false); return detached } })
     await detachAgentModule(store, detachBridge, 'a', 'canvas')
     expect(store.get(agentSessionModuleCatalogAtomFamily('a'))?.entries[0]?.state).toBe('available')
@@ -153,7 +153,7 @@ describe('模块栏实际使用的加载与保存控制器', () => {
   test('Given 目录 revision 已被其他窗口更新 When 右侧接入冲突 Then 自动刷新目录供下一次点击继续', async () => {
     const store = createStore()
     const stale: AgentSessionModuleCatalog = {
-      sessionId: 'a', revision: 3, policy: policy(), entries: [{
+      sessionId: 'a', revision: 3, policy: { ...policy(), revision: 3 }, entries: [{
         id: 'canvas', displayName: '画布', description: '画布', icon: 'layout', group: '专业工具',
         surfaceId: 'canvas', moduleVersion: '1.0.0', activation: 'session-toggle', state: 'available',
       }],
@@ -182,4 +182,60 @@ describe('模块栏实际使用的加载与保存控制器', () => {
     expect(store.get(agentSessionModuleCatalogErrorAtomFamily('a'))).toBe('catalog unavailable')
     expect(store.get(agentModulePolicyErrorAtomFamily('a'))).toBeNull()
   })
+})
+
+
+describe('同会话权威策略的乱序保护', () => {
+  test('Given 旧策略读取未完成 When 新目录先返回 Then 旧策略不能回退最新 revision', async () => {
+    /** 隔离 store 和可控旧读取。 */
+    const store = createStore()
+    const pending = deferred<AgentSessionModulePolicy>()
+    const loading = loadAgentModulePolicy(store, api({ getSessionModulePolicy: () => pending.promise }), 'a')
+    /** 模拟另一个窗口已完成接入后目录刷新得到的新事实。 */
+    const latest = { ...policy(['canvas']), revision: 2 }
+    await loadAgentSessionModuleCatalog(store, api({ getSessionModuleCatalog: async () => ({ sessionId: 'a', revision: 2, policy: latest, entries: [] }) }), 'a')
+    pending.resolve(policy())
+    await loading
+    expect(store.get(agentSessionModulePolicyAtomFamily('a'))).toEqual(latest)
+  })
+
+  test('Given 旧目录读取未完成 When 策略 toggle 先保存 Then 旧目录不得覆盖策略或发布过期目录', async () => {
+    /** 旧目录加载不占用策略 busy，因此该交错在现有控制器中真实可达。 */
+    const store = createStore()
+    store.set(agentSessionModulePolicyAtomFamily('a'), policy())
+    const pending = deferred<AgentSessionModuleCatalog>()
+    const loading = loadAgentSessionModuleCatalog(store, api({ getSessionModuleCatalog: () => pending.promise }), 'a')
+    await toggleAgentModule(store, api(), 'a', 'canvas')
+    pending.resolve({ sessionId: 'a', revision: 0, policy: policy(), entries: [] })
+    await loading
+    expect(store.get(agentSessionModulePolicyAtomFamily('a'))?.revision).toBe(1)
+    expect(store.get(agentSessionModulePolicyAtomFamily('a'))?.enabledModuleIds).toEqual(['canvas'])
+    expect(store.get(agentSessionModuleCatalogAtomFamily('a'))).toBeNull()
+  })
+
+  test('Given 策略保存未完成 When 更新目录已返回 Then 迟到保存响应不能回退策略', async () => {
+    /** 保存返回前，另一个窗口可继续提交并由目录刷新带回更新 revision。 */
+    const store = createStore()
+    store.set(agentSessionModulePolicyAtomFamily('a'), policy())
+    const pending = deferred<AgentSessionModulePolicy>()
+    const saving = toggleAgentModule(store, api({ setSessionModulePolicy: () => pending.promise }), 'a', 'canvas')
+    const latest = { ...policy(['interaction-design']), revision: 2 }
+    await loadAgentSessionModuleCatalog(store, api({ getSessionModuleCatalog: async () => ({ sessionId: 'a', revision: 2, policy: latest, entries: [] }) }), 'a')
+    pending.resolve({ ...policy(['canvas']), revision: 1 })
+    await saving
+    expect(store.get(agentSessionModulePolicyAtomFamily('a'))).toEqual(latest)
+  })
+})
+
+
+test('Given 旧策略请求稍后失败 When 新目录已发布 Then 失败不得清空并发获得的权威策略', async () => {
+  /** 用延迟异常复现不同 IPC 通道交错，不模拟被 busy 锁禁止的 attach。 */
+  const store = createStore()
+  const pending = deferred<void>()
+  const loading = loadAgentModulePolicy(store, api({ getSessionModulePolicy: async () => { await pending.promise; throw new Error('offline') } }), 'a')
+  const latest = { ...policy(['canvas']), revision: 2 }
+  await loadAgentSessionModuleCatalog(store, api({ getSessionModuleCatalog: async () => ({ sessionId: 'a', revision: 2, policy: latest, entries: [] }) }), 'a')
+  pending.resolve()
+  await loading
+  expect(store.get(agentSessionModulePolicyAtomFamily('a'))).toEqual(latest)
 })

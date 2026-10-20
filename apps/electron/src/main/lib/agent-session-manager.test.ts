@@ -196,6 +196,62 @@ afterAll(() => {
   rmSync(tempHome, { recursive: true, force: true })
 })
 
+describe('Agent 预检拒绝的 Journal 终态', () => {
+  test.each(['policy-conflict', 'missing-channel'])('Given %s 在模型启动前拒绝 When 退出真实编排 Then Journal 记录失败且不产生未完成恢复', async (scenario) => {
+    /** 使用真实编排、展示存储和 Journal，仅隔离模型、代理及运行环境。 */
+    const { AgentOrchestrator } = await import('./agent-orchestrator')
+    const { AgentEventBus } = await import('./agent-event-bus')
+    const { AgentRunJournalStore } = await import('./agent-run-journal')
+    const channels = await import('./channel-manager')
+    const proxy = await import('./proxy-settings-service')
+    const environment = await import('./agent-runtime-env')
+    /** 有效本地项目确保请求确实到达目标预检边界。 */
+    const workspaceId = `journal-preflight-${scenario}`
+    writeAgentWorkspacesIndex([{ id: workspaceId, name: '预检日志回归', slug: workspaceId, projectRootPath: tempHome, createdAt: 1, updatedAt: 1 }])
+    const session = manager.createAgentSessionWithMetadata({ title: '预检日志回归', workspaceId })
+    manager.updateAgentSessionMeta(session.id, { modulePolicy: {
+      mode: 'pinned', enabledModuleIds: ['interaction-design'], disabledModuleIds: [], pinnedModuleIds: ['interaction-design'], revision: 1, updatedAt: 1,
+    } })
+    /** 无需真实凭据；本地渠道仅让预检走到策略 CAS，不实际调用 runtime。 */
+    const channelLookup = spyOn(channels, 'getChannelById').mockImplementation(() => scenario === 'missing-channel' ? undefined : {
+      id: 'offline', name: '离线回归', provider: 'dutydeck-local', baseUrl: '', apiKey: '', models: [], enabled: true, createdAt: 1, updatedAt: 1,
+    })
+    const proxyLookup = spyOn(proxy, 'getEffectiveProxyUrl').mockResolvedValue(undefined)
+    const runtimeEnvironment = spyOn(environment, 'buildAgentRuntimeEnv').mockReturnValue({ env: {} })
+    /** 预检失败不得进入模型迭代器。 */
+    const query = mock(async function* () {})
+    const adapter: AgentProviderAdapter = { query, abort: () => {}, forceCloseQuery: async () => {}, dispose: () => {} }
+    const orchestrator = new AgentOrchestrator(adapter, new AgentEventBus())
+    const onError = mock(() => {})
+    const onComplete = mock<SessionCallbacks['onComplete']>(() => {})
+    try {
+      /** 普通发送携带接入前的 revision，重现截图中的拒绝条件。 */
+      const pending = orchestrator.sendMessage({ sessionId: session.id, userMessage: '将页面放到交互设计里', channelId: 'offline', modulePolicyRevision: 0 }, { onError, onComplete, onTitleUpdated: () => {} })
+      if (scenario === 'policy-conflict') await expect(pending).rejects.toThrow('AGENT_MODULE_POLICY_REVISION_CONFLICT')
+      else {
+        await pending
+        expect(onError).toHaveBeenCalledTimes(1)
+        expect(onComplete).toHaveBeenCalledTimes(1)
+      }
+      /** 从磁盘重新读取事实，避免只测试编排内存标记。 */
+      const journal = new AgentRunJournalStore()
+      const events = journal.read(session.id)
+      expect(events.some(event => event.eventType === 'user_turn')).toBe(true)
+      expect(events.at(-1)?.eventType).toBe('run_failed')
+      expect(events.at(-1)?.payload.recoverableInterruption).toBe(false)
+      expect(events.filter(event => event.eventType === 'run_failed')).toHaveLength(1)
+      expect(journal.scanRecovery(session.id)).toEqual([])
+      expect(query).not.toHaveBeenCalled()
+      expect(orchestrator.isInFlight(session.id)).toBe(false)
+      expect(manager.getAgentSessionSDKMessages(session.id).filter(message => message.type === 'user')).toHaveLength(1)
+    } finally {
+      channelLookup.mockRestore()
+      proxyLookup.mockRestore()
+      runtimeEnvironment.mockRestore()
+    }
+  })
+})
+
 describe('Agent 会话 JSONL 读取', () => {
   test('Given 有效消息之间存在 null 记录 When 读取历史 Then 保留前后消息且不改写磁盘', async () => {
     /** 使用生产路径创建异常记录 fixture，不依赖历史默认根。 */

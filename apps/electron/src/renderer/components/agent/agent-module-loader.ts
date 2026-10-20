@@ -22,6 +22,20 @@ const catalogGenerations = new WeakMap<ReturnType<typeof createStore>, number>()
 /** 每个 Store/Session 的目录请求代次，插件切换或快速导航时丢弃迟到结果。 */
 const sessionCatalogGenerations = new WeakMap<ReturnType<typeof createStore>, Map<string, number>>()
 
+/** 按会话发布宿主策略；低版本响应返回 false，避免跨 IPC 通道的迟到结果回退事实。 */
+function publishSessionModulePolicy(
+  store: ReturnType<typeof createStore>,
+  sessionId: string,
+  policy: AgentSessionModulePolicy,
+): boolean {
+  /** 所有策略来源共用当前 atom 的 revision，不增加独立缓存或请求锁。 */
+  const policyAtom = agentSessionModulePolicyAtomFamily(sessionId)
+  const current = store.get(policyAtom)
+  if (current && current.revision > policy.revision) return false
+  store.set(policyAtom, policy)
+  return true
+}
+
 /** Store 生命周期持有请求结果，不因 React Effect 重跑而丢弃全局目录；失败可显式重试。 */
 export async function loadAgentModuleCatalog(store: ReturnType<typeof createStore>, api: AgentModuleLoaderAPI, force = false): Promise<void> {
   if (!force && (store.get(agentModulesLoadedAtom) || store.get(agentModulesLoadingAtom))) return
@@ -52,14 +66,18 @@ export async function loadAgentModulePolicy(store: ReturnType<typeof createStore
   /** 错误和策略都以显式会话标识绑定。 */
   const errorAtom = agentModulePolicyErrorAtomFamily(sessionId)
   if (store.get(busyAtom)) return
+  /** 失败只可清理本次读取之前的缓存，不抹掉其他 IPC 已发布的新事实。 */
+  const initialPolicy = store.get(agentSessionModulePolicyAtomFamily(sessionId))
   store.set(busyAtom, true)
   store.set(errorAtom, null)
   try {
     /** 持久化策略是事实源，目录缓存不影响本次读取。 */
     const policy = await api.getSessionModulePolicy(sessionId)
-    store.set(agentSessionModulePolicyAtomFamily(sessionId), policy)
+    publishSessionModulePolicy(store, sessionId, policy)
   } catch (cause) {
-    store.set(agentSessionModulePolicyAtomFamily(sessionId), null)
+    if (store.get(agentSessionModulePolicyAtomFamily(sessionId)) === initialPolicy) {
+      store.set(agentSessionModulePolicyAtomFamily(sessionId), null)
+    }
     store.set(errorAtom, cause instanceof Error ? cause.message : String(cause))
   } finally {
     store.set(busyAtom, false)
@@ -85,8 +103,8 @@ export async function loadAgentSessionModuleCatalog(
   try {
     const catalog = await api.getSessionModuleCatalog(sessionId)
     if (sessionCatalogGenerations.get(store)?.get(sessionId) !== generation) return
+    if (!publishSessionModulePolicy(store, sessionId, catalog.policy)) return
     store.set(agentSessionModuleCatalogAtomFamily(sessionId), catalog)
-    store.set(agentSessionModulePolicyAtomFamily(sessionId), catalog.policy)
   } catch (cause) {
     if (sessionCatalogGenerations.get(store)?.get(sessionId) !== generation) return
     store.set(agentSessionModuleCatalogAtomFamily(sessionId), null)
@@ -121,8 +139,8 @@ export async function setAgentModuleAttachment(
       enabled,
       expectedRevision: catalog.revision,
     })
+    if (!publishSessionModulePolicy(store, sessionId, next.policy)) return store.get(agentSessionModuleCatalogAtomFamily(sessionId))
     store.set(agentSessionModuleCatalogAtomFamily(sessionId), next)
-    store.set(agentSessionModulePolicyAtomFamily(sessionId), next.policy)
     return next
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause)
@@ -183,7 +201,7 @@ export async function toggleAgentModule(store: ReturnType<typeof createStore>, a
       sessionId, expectedRevision: policy.revision,
       policy: { mode: pinnedModuleIds.length > 0 ? 'pinned' : 'auto', enabledModuleIds, disabledModuleIds, pinnedModuleIds },
     })
-    store.set(policyAtom, next)
+    publishSessionModulePolicy(store, sessionId, next)
   } catch (cause) {
     store.set(errorAtom, cause instanceof Error ? cause.message : String(cause))
   } finally {

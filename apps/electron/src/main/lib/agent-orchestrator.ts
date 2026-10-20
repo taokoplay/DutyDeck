@@ -931,6 +931,8 @@ export class AgentOrchestrator {
     let runGeneration = 0
     let journalRunId: string | undefined
     let journalBranchId = 'main'
+    /** 已提交终态后，清理阶段的异常不能把本轮重新改判为未完成或失败。 */
+    let journalTerminalRecorded = false
     /** Journal 写失败不能覆盖 Agent 主流程，但必须留下可诊断日志。 */
     const appendRunJournal = (
       eventType: import('@dutydeck/shared').AgentRunJournalEventType,
@@ -950,6 +952,7 @@ export class AgentOrchestrator {
           ...(idempotencyKey ? { idempotencyKey } : {}),
           ...(parentEventId ? { parentEventId } : {}),
         })
+        if (eventType === 'run_completed' || eventType === 'run_failed' || eventType === 'run_stopped') journalTerminalRecorded = true
         return event.eventId
       } catch (error) {
         console.warn('[Agent Journal] 运行事件写入失败:', error instanceof Error ? error.message : String(error))
@@ -1169,6 +1172,7 @@ export class AgentOrchestrator {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         console.error('[Agent 编排] 持久化用户消息失败:', error)
+        appendRunJournal('run_failed', { error: `消息保存失败：${message}`, recoverableInterruption: false }, `terminal:failed:${runGeneration}`)
         terminalNotifier.onError(`消息保存失败：${message}`)
         completeBeforeRun()
         return
@@ -1212,6 +1216,7 @@ export class AgentOrchestrator {
       try { appendSDKMessages(sessionId, [errorSDKMsg]) } catch (e) {
         console.error('[Agent 编排] 持久化 preflight error 失败:', e)
       }
+      appendRunJournal('run_failed', { error: errorContent, recoverableInterruption: false }, `terminal:failed:${runGeneration}`)
       terminalNotifier.onError(errorContent)
       completeBeforeRun()
     }
@@ -3500,7 +3505,14 @@ export class AgentOrchestrator {
         exitPlanService.clearSessionPending(sessionId)
       }
     }
-    }).catch((error: unknown) => { knowledgeRunFailed = true; throw error }).finally(async () => {
+    }).catch((error: unknown) => {
+      knowledgeRunFailed = true
+      /** 策略冲突等准备异常尚未进入 query catch，也必须收束已创建的运行日志。 */
+      if (!journalTerminalRecorded) {
+        appendRunJournal('run_failed', { error: errorMessageOf(error), recoverableInterruption }, `terminal:failed:${runGeneration}`)
+      }
+      throw error
+    }).finally(async () => {
       /** 先撤销子任务和图片范围，再结算本轮生成任务，迟到结果不能回写。 */
       visualContextDelegation?.dispose()
       visualTaskContext?.dispose()
