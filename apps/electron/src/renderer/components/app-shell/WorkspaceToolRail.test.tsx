@@ -52,6 +52,11 @@ describe('统一工具菜单', () => {
     expect(markup).toContain('data-tool-state="attached"')
     expect(markup).toContain('aria-label="从本会话移除新建浏览器标签"')
     expect(markup).toContain('title="新建浏览器标签：已接入"')
+    // 状态仍保留在无障碍语义和悬浮提示中，但不再占用菜单行的可视空间。
+    expect(markup).not.toMatch(/<span[^>]*>已接入<\/span>/)
+    // 移除按钮占用右侧空间时，主按钮不能再用 px-2 覆盖右侧预留。
+    expect(markup).toMatch(/data-tool-id="browser"[^>]*class="[^"]*pl-2 pr-14[^"]*"/)
+    expect(markup).not.toMatch(/data-tool-id="browser"[^>]*class="[^"]*px-2[^"]*"/)
   })
   test('Given 已接入但未打开面板的 Session 模块 When 渲染 Then 图标使用绿色表达当前会话权限', () => {
     const markup = renderToStaticMarkup(<WorkspaceToolRail expanded items={[{
