@@ -1,5 +1,7 @@
 # MEMORY.md
 
+- 2026-10-20（v0.20.8 已正式发行）：修复 v0.20.7 macOS 自动更新安装退出阶段的 `Object has been destroyed` 崩溃。提交 `0235b440` 已推送，标签 `v0.20.8` 指向同一提交；21 项更新器回归、Electron 类型检查、完整 Electron build 和 GitHub Actions 四平台构建通过，Release 15 个附件及三份更新清单核对通过。Release：https://github.com/taokoplay/DutyDeck/releases/tag/v0.20.8；Actions：https://github.com/taokoplay/DutyDeck/actions/runs/39347200976。Nowledge 定向检索因本机服务连接拒绝未同步。
+
 - 2026-10-20（自动更新安装崩溃修复）：v0.20.7 在 macOS 自动更新安装退出阶段，`BrowserWindow` 的 `closed` 事件可能晚于 `webContents` 销毁，缓存健康监听解绑触发 `Object has been destroyed` 未捕获异常。修复为安装前主动解绑，关闭竞态下逐项幂等解绑并记录警告；更新器定向回归 21 项、Electron 类型检查和完整构建通过，准备发行 v0.20.8。Nowledge 定向检索因本机服务连接拒绝未同步。
 
 - 2026-10-20（v0.20.7 已正式发行）：插件发行提交 `9fc214f3` 已推送至 `codex/agent-module-pluginization`，标签 `v0.20.7` 指向同一提交。隔离快照通过 321 项定向回归、全仓类型检查、作者 tarball 离线闭环、真实 Electron 插件生命周期验收及 macOS arm64 目录打包；CI 四平台构建及 Release 全部成功，15 个附件齐全，三份更新清单的版本、资产引用与尺寸一致。Release：https://github.com/taokoplay/DutyDeck/releases/tag/v0.20.7 ；Actions：https://github.com/taokoplay/DutyDeck/actions/runs/39334346894 。本机 Git 直连 github.com 超时，按系统代理配置临时传入命令后恢复；未修改全局代理。Nowledge Mem 定向搜索因本机服务连接拒绝未同步。
