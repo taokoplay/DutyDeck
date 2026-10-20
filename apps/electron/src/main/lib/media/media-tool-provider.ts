@@ -49,6 +49,26 @@ const MEDIA_AUTOMATION_TOOL_NAMES: ReadonlySet<string> = new Set([
 /** 新建意图区分当次对话确认与用户在设置中授予的自主权限。 */
 const WORKFLOW_CREATION_INTENT_SCHEMA = Type.Union([Type.Literal('user-confirmed'), Type.Literal('automatic-policy')])
 
+/** 统一媒体工具公开的受管资产引用，字段必须与共享解析器保持一致。 */
+const MEDIA_ASSET_REFERENCE_SCHEMA = Type.Object({
+  assetId: Type.String({ minLength: 1, maxLength: 256 }),
+  revision: Type.Integer({ minimum: 1 }),
+  hash: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+  mediaKind: Type.Union([Type.Literal('image'), Type.Literal('audio'), Type.Literal('video')]),
+}, { additionalProperties: false })
+
+/** 统一媒体输入的公开合同；模型只能传有限标量或受管资产，不得传路径和 URL。 */
+const MEDIA_INPUT_VALUE_SCHEMA = Type.Union([
+  Type.Object({
+    kind: Type.Literal('scalar'),
+    value: Type.Union([Type.String(), Type.Number(), Type.Boolean()]),
+  }, { additionalProperties: false }),
+  Type.Object({
+    kind: Type.Literal('asset'),
+    asset: MEDIA_ASSET_REFERENCE_SCHEMA,
+  }, { additionalProperties: false }),
+])
+
 /** 首版固定注册的媒体工具；来源导入工具仅在 Host 提供适配器时追加。 */
 export const MEDIA_TOOL_NAMES = [
   'media_list_workflows',
@@ -1175,11 +1195,11 @@ export function createMediaToolRun(dependencies: MediaToolProviderDependencies, 
       }),
       defineTool({
         name: 'media_prepare_generation', label: '准备统一媒体生成',
-        description: '按稳定 modelRef 准备一次图片、音频或视频生成；只校验配置和参数，不发送供应商请求。',
+        description: '按稳定 modelRef 准备一次图片、音频或视频生成；inputs 的每个值必须是 { kind: "scalar", value } 或 { kind: "asset", asset: { assetId, revision, hash, mediaKind } }，参考图必须使用受管资产引用；只校验配置和参数，不发送供应商请求。',
         parameters: Type.Object({
           modelRef: Type.String({ minLength: 1, maxLength: 640 }),
           prompt: Type.String({ minLength: 1, maxLength: 16_384 }),
-          inputs: Type.Record(Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' }), Type.Unknown()),
+          inputs: Type.Record(Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' }), MEDIA_INPUT_VALUE_SCHEMA),
         }, { additionalProperties: false }),
         execute: async (toolCallId, params) => {
           authorize(dependencies, context, 'prepare')

@@ -234,6 +234,26 @@ describe('媒体 Agent 工具提供器', () => {
     expect((await executeTool(run.piCustomTools, 'media_wait_generation', { runId: current.id, afterRevision: 1 })).details).toMatchObject({ phase: 'succeeded' })
   })
 
+  test('Given 统一媒体准备工具 When Agent读取参数合同 Then 明确标出标量与受管资产输入形状', () => {
+    /** 工具 schema 必须公开解析器真正接受的 MediaInputValue，避免 Agent 盲猜字段。 */
+    const f = fixture()
+    f.dependencies.generation = {
+      listModels: () => [],
+      prepare: () => { throw new Error('未调用') },
+      execute: async () => { throw new Error('未调用') },
+      get: () => { throw new Error('未调用') },
+      wait: async () => { throw new Error('未调用') },
+      cancel: () => { throw new Error('未调用') },
+    }
+    const tool = createMediaToolRun(f.dependencies, context).piCustomTools.find((item) => item.name === 'media_prepare_generation')
+    expect(tool).toBeDefined()
+    const schema = JSON.stringify(tool?.parameters)
+    expect(schema).toContain('assetId')
+    expect(schema).toContain('mediaKind')
+    expect(schema).toContain('scalar')
+    expect(tool?.description).toContain('kind')
+  })
+
   test('Given 用户切换生成授权 When 同一 Agent 再次调用 Then 仅媒体与画布运行工具读取最新策略', () => {
     /** 同轮修改设置，验证工具策略不是启动时的旧快照。 */
     const f = fixture()

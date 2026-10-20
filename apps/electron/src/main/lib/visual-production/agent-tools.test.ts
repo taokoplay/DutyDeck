@@ -13,6 +13,9 @@ describe('Given 主 Agent 影像工具', () => {
     await create.execute('call', { title: '作品', kind: 'film' }, new AbortController().signal, undefined, {} as never)
     expect(writes).toEqual([true])
     await expect(create.execute('call', { title: '作品', kind: 'film', sessionId: 'other' }, new AbortController().signal, undefined, {} as never)).rejects.toThrow('INVALID_INPUT')
+    const reference = tools.find(tool => tool.name === 'visual_production_reference_media')!
+    expect(reference.description).toContain('inputs.reference')
+    expect(reference.description).toContain('kind: "asset"')
   })
 
   test('When 读取并提出时间线修改 Then 只传结构化时间线且候选不直接采用', async () => {
