@@ -32,11 +32,8 @@ render();
 </script></body></html>`
 /** 候选与 head 不同以检验不自动采用。 */
 const candidate: PrototypeCandidate = { id: 'candidate-a', prototypeId: 'proto-a', baseRevision: 1, summary: '明确欢迎文案', affectedPageIds: ['home'], status: 'ready', createdAt: 2, draft: { ...structuredClone(initial), pages: initial.pages.map(page => ({ ...page, html: page.html.replace('拾光</h1>', '开始你的第一天</h1>') })) } }
-/** 模拟 Agent 在当前项目新建的原型及其导入候选，验证目录不会漏掉其他原型事件。 */
-const remoteDocument: PrototypeDocument = { ...structuredClone(initial), id: 'proto-remote', name: '缓存与空间', pages: [{ ...structuredClone(initial.pages[0]!), name: '首页', html: '<html><body><h1>缓存与空间</h1></body></html>' }], entryPageId: 'home' }
-const remoteCandidate: PrototypeCandidate = { id: 'candidate-remote', prototypeId: 'proto-remote', baseRevision: 1, summary: '导入缓存页面', status: 'ready', createdAt: 3, draft: { ...structuredClone(remoteDocument), pages: [...remoteDocument.pages, { id: 'cache', groupId: 'group-a', name: '缓存页', html: '<html><body><h1>缓存页</h1></body></html>' }] } }
 /** 调用记录和延迟开关只存在 fixture 内存。 */
-const state = { snapshot: { document: structuredClone(initial), versions: [{ revision: 1, summary: '初始版本', createdAt: 1 }], candidates: [candidate], assets: structuredClone(fixtureAssets), jobs: [], checks: [] } as PrototypeSnapshot, remoteVisible: false, calls: [] as string[], assetReadCounts: {} as Record<string, number>, assetsInFlight: 0, maxAssetsInFlight: 0, holdCandidate: false, pendingCandidate: false, failNext: false }
+const state = { snapshot: { document: structuredClone(initial), versions: [{ revision: 1, summary: '初始版本', createdAt: 1 }], candidates: [candidate], assets: structuredClone(fixtureAssets), jobs: [], checks: [] } as PrototypeSnapshot, calls: [] as string[], assetReadCounts: {} as Record<string, number>, assetsInFlight: 0, maxAssetsInFlight: 0, holdCandidate: false, pendingCandidate: false, failNext: false }
 /** 可控的资源延迟用于验证每个画板的加载状态与迟到隔离。 */
 const heldAssets = new Map<string, Array<() => void>>()
 /** 待暂缓的资源身份，只有测试显式释放时才完成读取。 */
@@ -58,11 +55,10 @@ const api: InteractionDesignApi = {
     state.calls.push(`${method}:${input.sessionId}`)
     if (state.failNext) { state.failNext = false; throw new Error('fixture 读取失败') }
     let result: unknown
-    /** fixture 当前请求的目标原型；list/create 等命令没有该字段。 */
-    const requestedPrototypeId = 'prototypeId' in input ? input.prototypeId : undefined
-    const current = input.sessionId === 'session-b' ? { ...state.snapshot, document: { ...initial, id: 'proto-b', name: '新项目原型' }, candidates: [] } : input.sessionId === 'session-a' && requestedPrototypeId === 'proto-remote' ? { document: structuredClone(remoteDocument), versions: [{ revision: 1, summary: '创建原型', createdAt: 3 }], candidates: [structuredClone(remoteCandidate)], assets: [], jobs: [], checks: [] } : state.snapshot
+    /** fixture 当前请求的项目；list/create 等命令也沿用同一唯一模块。 */
+    const current = input.sessionId === 'session-b' ? { ...state.snapshot, document: { ...initial, id: 'proto-b', name: '新项目原型' }, candidates: [] } : state.snapshot
     switch (method) {
-      case 'list': result = input.sessionId === 'session-c' ? [] : input.sessionId === 'session-a' && state.remoteVisible ? [{ id: state.snapshot.document.id, name: state.snapshot.document.name, platform: 'mobile', revision: state.snapshot.document.revision, pageCount: 2, updatedAt: 1 }, { id: remoteDocument.id, name: remoteDocument.name, platform: 'mobile', revision: remoteDocument.revision, pageCount: remoteCandidate.draft.pages.length, updatedAt: 3 }] : [{ id: current.document.id, name: current.document.name, platform: 'mobile', revision: current.document.revision, pageCount: 2, updatedAt: 1 }]; break
+      case 'list': result = input.sessionId === 'session-c' ? [] : [{ id: current.document.id, name: current.document.name, platform: current.document.platform, revision: current.document.revision, pageCount: current.document.pages.length, updatedAt: current.document.updatedAt }]; break
       case 'load': result = structuredClone(current); break
       case 'create': {
         const request = input as InteractionDesignInputs['create']
@@ -79,7 +75,7 @@ const api: InteractionDesignApi = {
         /** 实际选中的候选摘要携带独立状态，默认候选正文允许测试修改。 */
         const selected = current.candidates.find(item => item.id === request.candidateId)
         if (!selected) throw new Error('fixture 候选不存在')
-        result = { ...structuredClone(selected), draft: structuredClone(request.candidateId === remoteCandidate.id ? remoteCandidate.draft : candidate.draft) }
+        result = { ...structuredClone(selected), draft: structuredClone(candidate.draft) }
         break
       }
       case 'getCandidateImpact': {
@@ -186,7 +182,7 @@ const api: InteractionDesignApi = {
   },
 }
 Object.defineProperty(window, 'electronAPI', { value: { interactionDesign: api }, configurable: true })
-Object.defineProperty(window, '__interactionSmoke', { value: { state, candidate, geometryHtml, switchPaneActive: (active: boolean) => switchPaneActive?.(active), delayedAssets, recoveredAssets, releaseAsset: (id: string) => { delayedAssets.delete(id); heldAssets.get(id)?.forEach(resolve => resolve()); heldAssets.delete(id) }, switchHost: () => switchHost?.(), switchEmpty: () => switchEmpty?.(), release: () => { state.holdCandidate = false; releaseCandidate?.() }, prompt: () => store.get(agentPendingPromptAtom), change: (workspaceId = 'workspace-a', prototypeId?: string) => { if (workspaceId === 'workspace-a' && prototypeId === 'proto-remote') state.remoteVisible = true; for (const listener of listeners) listener({ workspaceId, prototypeId }) } } })
+Object.defineProperty(window, '__interactionSmoke', { value: { state, candidate, geometryHtml, switchPaneActive: (active: boolean) => switchPaneActive?.(active), delayedAssets, recoveredAssets, releaseAsset: (id: string) => { delayedAssets.delete(id); heldAssets.get(id)?.forEach(resolve => resolve()); heldAssets.delete(id) }, switchHost: () => switchHost?.(), switchEmpty: () => switchEmpty?.(), release: () => { state.holdCandidate = false; releaseCandidate?.() }, prompt: () => store.get(agentPendingPromptAtom), change: (workspaceId = 'workspace-a', prototypeId?: string) => { for (const listener of listeners) listener({ workspaceId, prototypeId }) } } })
 /** API 安装后再载入真实组件。 */
 const { InteractionDesignWorkspace } = await import('../src/renderer/components/interaction-design/InteractionDesignWorkspace')
 function Fixture(): React.ReactElement {

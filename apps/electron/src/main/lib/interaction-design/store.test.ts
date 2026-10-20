@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { InteractionDesignService } from './store'
 import { InteractionSourceService, interactionHash } from './source-service'
 import { writeJsonFileAtomic } from '../safe-file'
 import { parsePrototypeDraft } from '@dutydeck/shared'
-import type { PrototypeCandidate } from '@dutydeck/shared'
+import type { PrototypeCandidate, PrototypeDocument } from '@dutydeck/shared'
 
 /** 测试独立目录，禁止触碰真实项目数据。 */
 const roots: string[] = []
@@ -24,6 +24,34 @@ const sessionId = 'session'
 /** 比较旧合同页面正文时忽略新增的页面独立版本元数据。 */
 function withoutPageRevisions<T extends { pageRevision?: number }>(pages: T[]): Array<Omit<T, 'pageRevision'>> {
   return pages.map(({ pageRevision: _pageRevision, ...page }) => page)
+}
+
+/** 将现有合法模块复制成历史模块夹具，只重写身份和一页正文。 */
+function clonePrototype(root: string, source: PrototypeDocument, id: string, name: string, html: string): void {
+  /** 正式模块目录；复制后所有不可变内容仍属于隔离测试项目。 */
+  const sourceDirectory = join(root, '.proma', 'interaction-design', 'prototypes', source.id)
+  const targetDirectory = join(root, '.proma', 'interaction-design', 'prototypes', id)
+  cpSync(sourceDirectory, targetDirectory, { recursive: true })
+  /** head 身份必须与目标目录一致，避免服务把历史夹具误判为篡改。 */
+  const headPath = join(targetDirectory, 'head.json')
+  const head = JSON.parse(readFileSync(headPath, 'utf8')) as { prototypeId: string }
+  head.prototypeId = id
+  writeJsonFileAtomic(headPath, head)
+  /** 版本元数据不保存 HTML，新增正文通过内容 hash 接回不可变内容目录。 */
+  const legacy = structuredClone(source)
+  legacy.id = id
+  legacy.name = name
+  legacy.pages[0] = { ...legacy.pages[0]!, name, html }
+  const contentHash = interactionHash(html)
+  writeJsonFileAtomic(join(targetDirectory, 'contents', `${contentHash}.json`), { html })
+  const revisionPath = join(targetDirectory, 'revisions', `${source.revision}.json`)
+  const stored = JSON.parse(readFileSync(revisionPath, 'utf8')) as { hash: string; document: { id: string; name: string; pages: Array<{ name: string; contentHash: string }> } }
+  stored.document.id = id
+  stored.document.name = name
+  stored.document.pages[0]!.name = name
+  stored.document.pages[0]!.contentHash = contentHash
+  stored.hash = interactionHash(JSON.stringify([legacy.id, legacy.revision, legacy.createdAt, legacy.updatedAt, parsePrototypeDraft(legacy)]))
+  writeJsonFileAtomic(revisionPath, stored)
 }
 
 /** 项目还原任务的完整规划，测试正文只关注任务边界而不伪造源码字节。 */
@@ -335,6 +363,33 @@ describe('交互设计版本与候选', () => {
     const { service } = setup()
     await service.invoke('create', { sessionId, name: '唯一模块', platform: 'mobile' })
     await expect(service.invoke('create', { sessionId, name: '重复模块', platform: 'desktop' })).rejects.toThrow('已存在')
+  })
+  it('Given 项目残留多个历史模块 When 列出交互模块 Then 合并为最新模块且页面跳转与合并标记只写一次', async () => {
+    /** 项目先创建正式模块，再复制一份合法旧目录模拟升级前数据。 */
+    const { root, service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '缓存与空间', platform: 'mobile' })
+    clonePrototype(root, first.document, 'legacy', '旧模块', '<button data-prototype-page="home">返回旧首页</button>')
+    /** 正式模块增加一页，使其更新时间和页面内容都成为合并后的基准。 */
+    const canonical = await service.invoke('save', {
+      sessionId, prototypeId: first.document.id, baseRevision: 1,
+      draft: { ...first.document, pages: [...first.document.pages, { id: 'detail', groupId: 'main', name: '缓存页', html: '<h1>缓存页</h1>' }] },
+      summary: '增加缓存页',
+    })
+    const summaries = await service.invoke('list', { sessionId })
+    expect(summaries).toHaveLength(1)
+    expect(summaries[0]).toMatchObject({ id: first.document.id, pageCount: 3, revision: 3 })
+    const merged = await service.invoke('load', { sessionId, prototypeId: first.document.id })
+    expect(merged.document.pages.map(page => page.name)).toEqual(expect.arrayContaining(['首页', '缓存页', '旧模块']))
+    const legacyPage = merged.document.pages.find(page => page.name === '旧模块')!
+    expect(legacyPage.id).not.toBe('home')
+    expect(legacyPage.html).toContain(`data-prototype-page="${legacyPage.id}"`)
+    /** 第二次列表读取只复用 canonical，不再生成 v4 或重复追加页面。 */
+    expect(await service.invoke('list', { sessionId })).toEqual(summaries)
+    expect((await service.invoke('load', { sessionId, prototypeId: first.document.id })).document.revision).toBe(3)
+    const marker = JSON.parse(readFileSync(join(root, '.proma', 'interaction-design', 'consolidation.json'), 'utf8')) as { canonicalId: string; sourceIds: string[] }
+    expect(marker).toMatchObject({ canonicalId: first.document.id, sourceIds: expect.arrayContaining([first.document.id, 'legacy']) })
+    expect(readdirSync(join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions')).sort()).toEqual(['1.json', '2.json', '3.json'])
+    expect(canonical.document.pages).toHaveLength(2)
   })
   it('Given 新项目 When 创建、保存及恢复 Then 只切换当前版本且保留后续历史', async () => {
     /** 隔离服务。 */

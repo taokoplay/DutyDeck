@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, opendirSync, readdirSync } from 'node:fs'
 import { basename, join, posix } from 'node:path'
-import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypePage, PrototypePageComparison, PrototypePageVersionSummary, PrototypeSnapshot, PrototypeVersion } from '@dutydeck/shared'
+import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypePage, PrototypePageComparison, PrototypePageVersionSummary, PrototypeSnapshot, PrototypeSummary, PrototypeVersion } from '@dutydeck/shared'
 import { assertPrototypeDraft, inferPrototypeJobMode, isProjectRestoreInstruction, parsePrototypeDraft, parsePrototypePlan, parseInteractionDesignCommand, PROTOTYPE_LIMITS, validateProjectRestoreDraft, validatePrototypeStructure } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, removeFileAtomic, writeJsonFileAtomicSecure } from '../safe-file'
@@ -11,6 +11,15 @@ import { InteractionSourceService, interactionHash } from './source-service'
 import type { InteractionSourceReader } from './source-service'
 import { createInteractionDelivery, createInteractionHandoff } from './delivery-service'
 import { validatePrototypeContent } from './content-validation'
+
+/** 项目内多原型历史合并后的唯一指针；旧目录保留用于兼容外部引用。 */
+interface PrototypeConsolidation {
+  schemaVersion: 1
+  workspaceId: string
+  canonicalId: string
+  sourceIds: string[]
+  createdAt: number
+}
 
 /** 主进程为已授权项目构造的依赖，真实来源读取使用稳定目录能力。 */
 export interface InteractionDesignServiceDependencies {
@@ -67,6 +76,17 @@ export class InteractionDesignService {
   }
   /** 获取已校验的正式目录；不把全局缓存当权威数据。 */
   private root(create = false): string { return interactionDirectory(this.dependencies.projectRoot, ['.proma', 'interaction-design'], create) }
+  /** 读取项目级合并指针；指针损坏时停止加载，避免把历史模块误当成当前模块。 */
+  private consolidation(): PrototypeConsolidation | null {
+    const path = join(this.root(), 'consolidation.json')
+    if (!existsSync(path)) return null
+    const value = this.json<PrototypeConsolidation>(path, 64 * 1024)
+    try { assertInteractionId(value.canonicalId) } catch { throw new Error('交互模块合并记录损坏') }
+    if (value.schemaVersion !== 1 || value.workspaceId !== this.dependencies.workspaceId || !Number.isSafeInteger(value.createdAt) || value.createdAt < 0
+      || !Array.isArray(value.sourceIds) || value.sourceIds.length < 2 || new Set(value.sourceIds).size !== value.sourceIds.length
+      || value.sourceIds.some(id => !/^[A-Za-z0-9_-]{1,128}$/.test(id)) || !value.sourceIds.includes(value.canonicalId)) throw new Error('交互模块合并记录损坏')
+    return value
+  }
   /** 检查项目是否已经存在正式交互模块；旧模块目录保留以避免重复创建。 */
   private hasPrototype(): boolean {
     const path = join(this.dependencies.projectRoot, '.proma', 'interaction-design', 'prototypes')
@@ -149,6 +169,100 @@ export class InteractionDesignService {
       remaining -= bytes.length
       return JSON.parse(bytes.toString('utf8')) as T
     })
+  }
+  /** 枚举项目内正式原型目录，保留有 head 的稳定身份。 */
+  private prototypeIds(): string[] {
+    const path = join(this.dependencies.projectRoot, '.proma', 'interaction-design', 'prototypes')
+    if (!existsSync(path)) return []
+    this.root()
+    interactionDirectory(this.dependencies.projectRoot, ['.proma', 'interaction-design', 'prototypes'])
+    const ids: string[] = []
+    const handle = opendirSync(path)
+    let entries = 0
+    try {
+      for (let entry = handle.readSync(); entry; entry = handle.readSync()) {
+        if (++entries > 4000) throw new Error('原型目录条目超过列表预算')
+        if (/^[A-Za-z0-9_-]+$/.test(entry.name) && existsSync(join(path, entry.name, 'head.json'))) ids.push(entry.name)
+        if (ids.length > 2000) throw new Error('原型数量超过列表预算')
+      }
+    } finally { handle.closeSync() }
+    return ids
+  }
+  /** 仅读取当前版本摘要，不打开页面正文。 */
+  private prototypeSummary(id: string, budget: { remaining: number }): PrototypeSummary {
+    const head = this.head(id, budget)
+    const bytes = readInteractionFile(join(this.directory(id, 'revisions'), `${head.revision}.json`), Math.min(budget.remaining, 2 * 1024 * 1024))
+    budget.remaining -= bytes.length
+    const stored = JSON.parse(bytes.toString('utf8')) as StoredVersion
+    const document = stored.document
+    if (!document || document.id !== id || document.revision !== head.revision || document.schemaVersion !== 1
+      || typeof document.name !== 'string' || document.name.length > 120 || !document.name.trim()
+      || (document.platform !== 'mobile' && document.platform !== 'desktop')
+      || !Array.isArray(document.pages) || document.pages.length < 1 || document.pages.length > PROTOTYPE_LIMITS.pages
+      || !Number.isSafeInteger(document.updatedAt) || document.updatedAt < 0) throw new Error('原型摘要元数据损坏')
+    return { id, name: document.name, platform: document.platform, revision: document.revision, pageCount: document.pages.length, updatedAt: document.updatedAt }
+  }
+  /** 把一个历史模块追加到正式模块，冲突身份自动重写并保留页面跳转。 */
+  private appendPrototype(canonical: PrototypeDraft, source: PrototypeDocument): PrototypeDraft {
+    const usedGroups = new Set(canonical.groups.map(group => group.id))
+    const usedPages = new Set(canonical.pages.map(page => page.id))
+    const usedFlows = new Set(canonical.flows.map(flow => flow.id))
+    /** 先为全部分组分配身份，再解析父子关系，避免依赖源数组顺序。 */
+    const groupIds = new Map(source.groups.map(group => [group.id, usedGroups.has(group.id) ? randomUUID() : group.id]))
+    const pageIds = new Map<string, string>()
+    const sourceName = source.name.trim() || '历史模块'
+    const groups = source.groups.map(group => {
+      /** 当前分组已经在全量映射中预留身份，父级映射不受数组顺序影响。 */
+      const id = groupIds.get(group.id)!
+      usedGroups.add(id)
+      return { ...group, id, ...(group.parentId ? { parentId: groupIds.get(group.parentId) ?? group.parentId } : {}) }
+    })
+    source.pages.forEach(page => { const id = usedPages.has(page.id) ? randomUUID() : page.id; usedPages.add(id); pageIds.set(page.id, id) })
+    /** 重写双引号、单引号及等号周围空白，保留合并页面的内部跳转。 */
+    const rewrite = (html: string): string => [...pageIds.entries()].reduce((value, [before, after]) => value.replace(new RegExp(`(data-prototype-page\\s*=\\s*["'])${before}(["'])`, 'g'), `$1${after}$2`), html)
+    const pages = source.pages.map(page => {
+      const id = pageIds.get(page.id)!
+      const groupId = groupIds.get(page.groupId) ?? page.groupId
+      return { ...page, id, groupId, html: rewrite(page.html), ...(page.states ? { states: page.states.map(state => ({ ...state, html: rewrite(state.html) })) } : {}) }
+    })
+    const flows = source.flows.map(flow => {
+      const id = usedFlows.has(flow.id) ? randomUUID() : flow.id
+      usedFlows.add(id)
+      return { ...flow, id, fromPageId: pageIds.get(flow.fromPageId) ?? flow.fromPageId, targetPageId: pageIds.get(flow.targetPageId) ?? flow.targetPageId }
+    })
+    const namedGroups = new Set(canonical.groups.map(group => group.name))
+    const normalizedGroups = groups.map(group => {
+      if (!namedGroups.has(group.name)) { namedGroups.add(group.name); return group }
+      return { ...group, name: `${sourceName} · ${group.name}` }
+    })
+    const merged = { ...canonical, groups: [...canonical.groups, ...normalizedGroups], pages: [...canonical.pages, ...pages], flows: [...canonical.flows, ...flows] }
+    if (!merged.brief.trim() && source.brief.trim()) merged.brief = source.brief
+    return merged
+  }
+  /** 首次发现历史多模块时一次性合并；后续列表读取只返回正式模块摘要。 */
+  private async consolidatePrototypes(ids: string[], summaries: PrototypeSummary[]): Promise<PrototypeSummary> {
+    const marker = this.consolidation()
+    if (marker) {
+      const summary = summaries.find(item => item.id === marker.canonicalId)
+      if (!summary) throw new Error('交互模块合并指针指向不存在的正式模块')
+      return summary
+    }
+    const ordered = [...summaries].sort((left, right) => left.updatedAt - right.updatedAt || left.id.localeCompare(right.id))
+    const canonicalSummary = ordered[ordered.length - 1]
+    if (!canonicalSummary) throw new Error('没有可合并的交互模块')
+    const documents = await Promise.all(ordered.map(item => Promise.resolve(this.version(item.id, item.revision))))
+    let merged: PrototypeDraft = structuredClone(documents[documents.length - 1]!)
+    for (let index = documents.length - 2; index >= 0; index -= 1) merged = this.appendPrototype(merged, documents[index]!)
+    assertPrototypeDraft(merged)
+    await this.write(() => {
+      /** 并发列表请求可能在本次读取后先完成合并，写锁内再次检查避免重复提交。 */
+      if (this.consolidation()) return
+      this.commit(canonicalSummary.id, canonicalSummary.revision, merged, `合并 ${ids.length} 个交互模块`)
+      const path = join(this.root(true), 'consolidation.json')
+      writeJsonFileAtomicSecure(path, { schemaVersion: 1, workspaceId: this.dependencies.workspaceId, canonicalId: canonicalSummary.id, sourceIds: [...ids], createdAt: Date.now() } satisfies PrototypeConsolidation, { expectedDestination: { kind: 'missing' } })
+    })
+    const budget = { remaining: 8 * 1024 * 1024 }
+    return this.prototypeSummary(canonicalSummary.id, budget)
   }
   /** 删除前核验固定交接引用；输入模块和版本，遇到引用或不可验证记录时拒绝删除。 */
   private assertVersionUnreferenced(id: string, revision: number): void {
@@ -542,43 +656,18 @@ export class InteractionDesignService {
     switch (method) {
       case 'list': {
         /** 原型根不存在时不创建任何正式数据。 */
-        const path = join(this.dependencies.projectRoot, '.proma', 'interaction-design', 'prototypes')
-        if (!existsSync(path)) return []
-        this.root()
-        interactionDirectory(this.dependencies.projectRoot, ['.proma', 'interaction-design', 'prototypes'])
-        /** 原型与目录条目都有硬上限，避免无界枚举或静默截断。 */
-        const ids: string[] = []
-        /** 流式目录句柄，不预先加载所有文件名。 */
-        const handle = opendirSync(path)
-        /** 任何目录条目都会消耗枚举预算。 */
-        let entries = 0
-        try {
-          for (let entry = handle.readSync(); entry; entry = handle.readSync()) {
-            if (++entries > 4000) throw new Error('原型目录条目超过列表预算')
-            if (!/^[A-Za-z0-9_-]+$/.test(entry.name)) continue
-            if (existsSync(join(path, entry.name, 'head.json'))) ids.push(entry.name)
-            if (ids.length > 2000) throw new Error('原型数量超过列表预算')
-          }
-        } finally { handle.closeSync() }
-        /** head 与版本元数据共享 8 MiB 读取预算，正文不参与列表查询。 */
+        const ids = this.prototypeIds()
+        if (!ids.length) return []
         const budget = { remaining: 8 * 1024 * 1024 }
-        return ids.map(id => {
-          /** 当前版本提交点。 */
-          const head = this.head(id, budget)
-          /** 仅读取包含页面 locator 的版本元数据，不打开 contents。 */
-          const bytes = readInteractionFile(join(this.directory(id, 'revisions'), `${head.revision}.json`), Math.min(budget.remaining, 2 * 1024 * 1024))
-          budget.remaining -= bytes.length
-          /** 摘要不是内容完整性证明；完整 hash 校验由 load/getVersion 执行。 */
-          const stored = JSON.parse(bytes.toString('utf8')) as StoredVersion
-          /** 用于轻量展示的当前版本元数据。 */
-          const document = stored.document
-          if (!document || document.id !== id || document.revision !== head.revision || document.schemaVersion !== 1
-            || typeof document.name !== 'string' || document.name.length > 120 || !document.name.trim()
-            || (document.platform !== 'mobile' && document.platform !== 'desktop')
-            || !Array.isArray(document.pages) || document.pages.length < 1 || document.pages.length > PROTOTYPE_LIMITS.pages
-            || !Number.isSafeInteger(document.updatedAt) || document.updatedAt < 0) throw new Error('原型摘要元数据损坏')
-          return { id, name: document.name, platform: document.platform, revision: document.revision, pageCount: document.pages.length, updatedAt: document.updatedAt }
-        })
+        const summaries = ids.map(id => this.prototypeSummary(id, budget))
+        const marker = this.consolidation()
+        if (marker) {
+          const summary = summaries.find(item => item.id === marker.canonicalId)
+          if (!summary) throw new Error('交互模块合并指针指向不存在的正式模块')
+          return [summary]
+        }
+        if (summaries.length > 1) return [await this.consolidatePrototypes(ids, summaries)]
+        return summaries
       }
       case 'create': {
         /** 已解析的新建参数。 */

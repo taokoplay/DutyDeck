@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { PrototypeDocument } from '@dutydeck/shared'
-import { buildPrototypeGroupTree, buildPrototypeHandoffPrompt, buildPrototypePrompt, canSwitchPrototype, copyPrototypeDraft, deletePrototypeGroup, deletePrototypePage, movePrototypePage, PrototypeRequestGate } from './interaction-design-model'
+import { buildPrototypeGroupTree, buildPrototypeHandoffPrompt, buildPrototypePrompt, copyPrototypeDraft, deletePrototypeGroup, deletePrototypePage, movePrototypePage, PrototypeRequestGate } from './interaction-design-model'
 
 /** 独立测试文档包含跨组路由，验证目录操作不会改变业务路径。 */
 const document: PrototypeDocument = { schemaVersion: 1, id: 'prototype-a', revision: 7, createdAt: 1, updatedAt: 2, name: '产品', platform: 'mobile', brief: '', groups: [{ id: 'g1', name: '开始' }, { id: 'g2', name: '业务', parentId: 'g1' }], pages: [{ id: 'p1', groupId: 'g1', name: '入口', html: '<h1>入口</h1>' }, { id: 'p2', groupId: 'g1', name: '列表', html: '<h1>列表</h1>' }, { id: 'p3', groupId: 'g2', name: '详情', html: '<h1>详情</h1>' }], entryPageId: 'p1', flows: [{ id: 'f1', fromPageId: 'p1', elementId: 'next', targetPageId: 'p2' }, { id: 'f2', fromPageId: 'p2', elementId: 'next', targetPageId: 'p3' }] }
@@ -10,13 +10,6 @@ describe('交互设计 renderer 身份与编辑边界', () => {
     const gate = new PrototypeRequestGate()
     const old = gate.next(); gate.next(); const current = gate.next()
     expect(gate.accepts(old)).toBe(false); expect(gate.accepts(current)).toBe(true)
-  })
-  test('Given 当前没有编辑或写入 When 选择另一个原型 Then 允许加载目标原型', () => {
-    expect(canSwitchPrototype(false, false)).toBe(true)
-  })
-  test('Given 表单或写入正在进行 When 选择另一个原型 Then 阻止切换以保留当前输入', () => {
-    expect(canSwitchPrototype(true, false)).toBe(false)
-    expect(canSwitchPrototype(false, true)).toBe(false)
   })
   test('Given 候选正文 When 修改复制草稿 Then 当前已采纳内容不变', () => {
     const draft = copyPrototypeDraft(document)

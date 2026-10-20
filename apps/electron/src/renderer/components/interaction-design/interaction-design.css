@@ -76,19 +76,11 @@ body>[data-radix-popper-content-wrapper]:has(>.id-directory-menu){z-index:9999 !
 @keyframes id-preview-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.id-preview-spinner{animation:none}}
 
-/* 多个交互原型共存时显式切换；选择器只改变当前模块视图，不改正式版本。 */
+/* 单项目只保留一个交互模块；标题区不再提供模块切换入口。 */
 .id-title-content{min-width:0}
 .id-title-row{display:flex;align-items:center;gap:7px;min-width:0}
-.id-prototype-selector{display:flex;align-items:center;gap:4px;min-width:0;max-width:220px;padding:2px 5px;border-radius:5px;color:hsl(var(--muted-foreground));font-size:11px}
-.id-prototype-selector:hover{background:hsl(var(--muted));color:hsl(var(--foreground))}
-.id-prototype-selector>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.id-prototype-menu{min-width:245px}
-.id-prototype-option{display:flex;align-items:center;gap:10px;min-width:220px}
-.id-prototype-option>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.id-prototype-option small{margin-left:auto;color:hsl(var(--muted-foreground));font-size:10px;white-space:nowrap}
 .id-feedback-actions{display:flex;align-items:center;gap:3px;flex-shrink:0}
 .id-feedback-actions button{display:grid;place-items:center;min-height:24px;padding:2px 6px}
-@container(max-width:640px){.id-prototype-selector{max-width:130px}.id-prototype-menu{min-width:220px}}
 
 /* 历史窗口固定筛选区域，只让记录列表滚动；Portal 内使用显式样式兼容窄屏和深浅主题。 */
 .id-pending-dot{display:inline-block!important;width:6px;height:6px;flex:none;border-radius:50%;background:hsl(var(--destructive));font-style:normal}
