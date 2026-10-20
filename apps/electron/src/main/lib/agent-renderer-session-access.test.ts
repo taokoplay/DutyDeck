@@ -512,6 +512,20 @@ const RENDERER_HANDLER_POLICIES: Record<FullChannelKey, RendererHandlerPolicy> =
     'UPDATE_SESSION_REASONING_LEVEL',
     'UPDATE_TITLE',
   ], { kind: 'agent-session', guards: ['requireVisibleSession'] }),
+  ...defineRendererHandlerPolicies('AGENT_IPC_CHANNELS', [
+    'CANCEL_AGENT_MODULE_COMMAND',
+    'GET_AGENT_MODULE_COMMANDS',
+    'GET_AGENT_MODULE_RUN_AUDITS',
+    'GET_SESSION_MODULE_CATALOG',
+    'GET_SESSION_MODULE_POLICY',
+    'SET_SESSION_MODULE_POLICY',
+    'SUBMIT_AGENT_MODULE_COMMAND',
+    'TOGGLE_SESSION_MODULE',
+  ], { kind: 'agent-session', guards: ['requireVisibleSession'] }),
+  ...defineRendererHandlerPolicies('AGENT_IPC_CHANNELS', [
+    'GET_AGENT_MODULES',
+    'GET_AGENT_PLUGIN_HEALTH',
+  ], { kind: 'exempt', reason: '只读宿主模块目录与健康快照，不接收 Session 或文件路径' }),
   ...defineRendererHandlerPolicies('AGENT_ISLAND_IPC_CHANNELS', [
     'MARK_SESSION_VIEWED',
   ], { kind: 'agent-session', guards: ['requireVisibleSession'] }),
