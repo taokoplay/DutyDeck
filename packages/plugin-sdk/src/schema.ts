@@ -70,9 +70,9 @@ export const PLUGIN_MANIFEST_SCHEMA = {
     }),
     modules: array(object({
       id, displayName: text, activation: {
-        const: 'message-explicit'
+        enum: ['message-explicit', 'session-toggle']
       }, skills: array(id), prompts: array(id), styles: array(id)
-    }, ['id', 'displayName', 'activation', 'skills', 'prompts']), 1),
+    }, ['id', 'displayName', 'skills', 'prompts']), 1),
     skills: array(object({
       id, ownerModuleId: id, displayName: text, version, path: text, required: {
         type: 'boolean'

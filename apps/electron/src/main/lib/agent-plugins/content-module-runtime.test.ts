@@ -48,6 +48,7 @@ describe('内容插件到 Agent 的显式接入', () => {
     expect(result.promptFragments.join('\n')).toContain('适用任务')
     expect(result.modules[0]).toMatchObject({ pluginId: 'acme.notes', moduleVersion: '1.0.0', packageResources: [{ kind: 'skill' }, { kind: 'prompt' }] })
     expect(result.modules[0]?.packageHash).toHaveLength(64)
+    expect(dependencies.listModules()[0]?.activation).toBe('message-explicit')
   })
   test('Given 包已安装 When 未选择或 Skills 受限 Then 不读取任何包正文', () => {
     const { input, dependencies } = fixture()

@@ -18,6 +18,15 @@ export type AgentModuleMode = 'auto' | 'available' | 'pinned'
 export type AgentModuleInvocationMode = 'available' | 'pinned' | 'invoke'
 export type AgentModuleScope = 'session' | 'project' | 'global'
 export type AgentModuleContribution = 'surface' | 'skill' | 'prompt' | 'tool' | 'artifact'
+/** 模块默认接入方式；旧清单缺失时必须保持逐消息显式调用。 */
+export type AgentModuleActivationMode = 'message-explicit' | 'session-toggle'
+
+/** Session 接入时冻结的模块身份；插件升级或替换后旧运行会 fail closed。 */
+export interface AgentSessionModuleBinding {
+  moduleId: string
+  moduleVersion: string
+  packageHash?: string
+}
 
 export interface AgentModuleManifest {
   id: string
@@ -34,6 +43,8 @@ export interface AgentModuleManifest {
   artifactTypes: string[]
   surfaceIds: string[]
   requiredPermissions: string[]
+  /** 只有 session-toggle 模块才能由右侧菜单附着到当前 Session。 */
+  activation?: AgentModuleActivationMode
   minHostVersion?: string
   /** 宿主目录投影的来源；第三方 manifest 不可通过输入清单自行伪造。 */
   source?: 'builtin' | 'installed'
@@ -52,6 +63,8 @@ export interface AgentSessionModulePolicy {
   pinnedModuleIds: string[]
   revision: number
   updatedAt: number
+  /** 可选以兼容旧会话；新右侧接入会写入版本/hash 快照。 */
+  moduleBindings?: AgentSessionModuleBinding[]
 }
 
 export interface AgentModuleActivation {
@@ -89,6 +102,42 @@ export interface AgentModuleCommand {
 export interface AgentSessionModulePolicyUpdateInput {
   sessionId: string
   policy: Partial<AgentSessionModulePolicy>
+  expectedRevision?: number
+}
+
+/** Session 右侧工具目录中单个模块的可见状态。 */
+export type AgentSessionModuleEntryState = 'available' | 'attached' | 'unavailable'
+
+/** 右侧工具菜单使用的模块目录条目；只投影宿主已知的面板入口。 */
+export interface WorkspaceToolEntry {
+  id: string
+  displayName: string
+  description: string
+  icon: string
+  group: '专业工具' | '插件工具'
+  surfaceId: string
+  moduleVersion: string
+  activation: AgentModuleActivationMode
+  state: AgentSessionModuleEntryState
+  source?: AgentModuleManifest['source']
+  pluginId?: string
+  packageHash?: string
+  reason?: string
+}
+
+/** 当前 Session 的模块目录快照；revision 与策略保持同一提交边界。 */
+export interface AgentSessionModuleCatalog {
+  sessionId: string
+  revision: number
+  policy: AgentSessionModulePolicy
+  entries: WorkspaceToolEntry[]
+}
+
+/** 从右侧工具菜单原子接入或移除一个模块。 */
+export interface AgentSessionModuleToggleInput {
+  sessionId: string
+  moduleId: string
+  enabled: boolean
   expectedRevision?: number
 }
 
@@ -148,6 +197,9 @@ export function parseAgentModuleManifest(value: unknown): ParsedAgentModuleManif
   if (!VERSION_PATTERN.test(version)) throw new Error('AGENT_MODULE_MANIFEST_VERSION_INVALID')
   if (record.apiVersion !== 1) throw new Error('AGENT_MODULE_MANIFEST_API_VERSION_UNSUPPORTED')
   if (scope !== 'session' && scope !== 'project' && scope !== 'global') throw new Error('AGENT_MODULE_MANIFEST_SCOPE_INVALID')
+  if (record.activation !== undefined && record.activation !== 'session-toggle' && record.activation !== 'message-explicit') {
+    throw new Error('AGENT_MODULE_MANIFEST_ACTIVATION_INVALID')
+  }
 
   const arrayFields = ['contributions', 'skillRefs', 'promptRefs', 'toolRefs', 'artifactTypes', 'surfaceIds', 'requiredPermissions'] as const
   for (const key of arrayFields) {
@@ -178,6 +230,9 @@ export function parseAgentModuleManifest(value: unknown): ParsedAgentModuleManif
     artifactTypes: uniqueStrings(record.artifactTypes as string[]),
     surfaceIds: uniqueStrings(record.surfaceIds as string[]),
     requiredPermissions: uniqueStrings(record.requiredPermissions as string[]),
+    ...(record.activation === 'session-toggle' || record.activation === 'message-explicit'
+      ? { activation: record.activation }
+      : {}),
     ...(typeof record.minHostVersion === 'string' && record.minHostVersion.trim().length > 0
       ? { minHostVersion: record.minHostVersion.trim() }
       : {}),
@@ -206,13 +261,22 @@ export function normalizeAgentSessionModulePolicy(value: unknown, now = Date.now
   const enabledModuleIds = normalizeIds('enabledModuleIds').filter((id) => !disabled.has(id))
   const enabled = new Set(enabledModuleIds)
   const pinnedModuleIds = normalizeIds('pinnedModuleIds').filter((id) => enabled.has(id))
+  const moduleBindings = Array.isArray(record.moduleBindings)
+    ? record.moduleBindings.flatMap((item): AgentSessionModuleBinding[] => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+      const binding = item as Record<string, unknown>
+      if (typeof binding.moduleId !== 'string' || typeof binding.moduleVersion !== 'string') return []
+      if (binding.packageHash !== undefined && typeof binding.packageHash !== 'string') return []
+      return [{ moduleId: binding.moduleId, moduleVersion: binding.moduleVersion, ...(typeof binding.packageHash === 'string' ? { packageHash: binding.packageHash } : {}) }]
+    })
+    : []
   const revision = typeof record.revision === 'number' && Number.isSafeInteger(record.revision) && record.revision >= 0
     ? record.revision
     : 0
   const updatedAt = typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt) && record.updatedAt > 0
     ? record.updatedAt
     : now
-  return { mode, enabledModuleIds, disabledModuleIds, pinnedModuleIds, revision, updatedAt }
+  return { mode, enabledModuleIds, disabledModuleIds, pinnedModuleIds, revision, updatedAt, ...(moduleBindings.length ? { moduleBindings } : {}) }
 }
 
 /**

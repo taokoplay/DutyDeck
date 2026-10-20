@@ -22,6 +22,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     artifactTypes: ['canvas.document', 'canvas.node'],
     surfaceIds: ['canvas'],
     requiredPermissions: ['project.files.read', 'project.files.write'],
+    activation: 'session-toggle',
   },
   {
     id: 'visual-production',
@@ -38,6 +39,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     artifactTypes: ['media.image', 'media.video', 'media.audio'],
     surfaceIds: ['visual-production'],
     requiredPermissions: ['project.files.read', 'project.files.write', 'media.execute'],
+    activation: 'session-toggle',
   },
   {
     id: 'interaction-design',
@@ -54,6 +56,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     artifactTypes: ['interaction.prototype', 'interaction.page'],
     surfaceIds: ['interaction-design'],
     requiredPermissions: ['project.files.read', 'project.files.write'],
+    activation: 'session-toggle',
   },
   {
     id: 'browser',
@@ -102,6 +105,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     artifactTypes: ['server-ops.task', 'server-ops.query'],
     surfaceIds: ['server-ops'],
     requiredPermissions: ['network.request'],
+    activation: 'session-toggle',
   },
   {
     id: 'api-workbench',
@@ -118,6 +122,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     artifactTypes: ['api.request', 'api.run', 'api.scenario'],
     surfaceIds: ['api-workbench'],
     requiredPermissions: ['project.files.read', 'project.files.write', 'network.request'],
+    activation: 'session-toggle',
   },
   {
     id: 'capability-factory',
@@ -134,6 +139,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     artifactTypes: ['factory.scene', 'factory.draft'],
     surfaceIds: ['capability-factory'],
     requiredPermissions: ['project.files.read', 'project.files.write'],
+    activation: 'session-toggle',
   },
 ]
 

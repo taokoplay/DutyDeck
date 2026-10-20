@@ -226,6 +226,8 @@ import type {
   ExportCanvasArtifactInput,
   ImageGenerationPublicCatalog,
   AgentModuleManifest,
+  AgentSessionModuleCatalog,
+  AgentSessionModuleToggleInput,
   AgentSessionModulePolicy,
   AgentModuleCommand,
   AgentSessionModulePolicyUpdateInput,
@@ -513,6 +515,7 @@ import { agentEventBus, prepareAgentRun, runAgent, runPreparedAgent, runAgentHea
 import { registerAgentMessageIpcHandlers } from './lib/agent-message-ipc'
 import { listBuiltinAgentModules } from './lib/agent-modules/module-registry'
 import { getAgentSessionModulePolicy, updateAgentSessionModulePolicy } from './lib/agent-modules/module-policy-store'
+import { buildAgentSessionModuleCatalog, toggleAgentSessionModule } from './lib/agent-modules/session-module-catalog'
 import { AgentModuleCommandBus } from './lib/agent-modules/module-command-bus'
 import { setAgentModuleRuntimeCatalog } from './lib/agent-modules/module-skill-resolver'
 import { AgentModuleCommandDispatcher } from './lib/agent-modules/module-command-dispatcher'
@@ -7002,6 +7005,17 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(
+    AGENT_IPC_CHANNELS.GET_SESSION_MODULE_CATALOG,
+    async (_, sessionId: string): Promise<AgentSessionModuleCatalog> => {
+      requireVisibleSession(sessionId)
+      return buildAgentSessionModuleCatalog(sessionId, agentPluginRegistry, {
+        get: getAgentSessionModulePolicy,
+        update: updateAgentSessionModulePolicy,
+      })
+    },
+  )
+
+  ipcMain.handle(
     AGENT_IPC_CHANNELS.GET_AGENT_PLUGIN_HEALTH,
     async (): Promise<AgentPluginHealth[]> => getAgentPluginHealth(),
   )
@@ -7018,7 +7032,29 @@ export function registerIpcHandlers(): void {
     AGENT_IPC_CHANNELS.SET_SESSION_MODULE_POLICY,
     async (_, input: AgentSessionModulePolicyUpdateInput): Promise<AgentSessionModulePolicy> => {
       requireVisibleSession(input.sessionId)
+      /** 策略写入不能绕过右侧菜单合同，把旧 renderer 提交限制在已注册的 session-toggle 模块。 */
+      const requestedIds = new Set([
+        ...(input.policy.enabledModuleIds ?? []),
+        ...(input.policy.disabledModuleIds ?? []),
+        ...(input.policy.pinnedModuleIds ?? []),
+      ])
+      for (const moduleId of requestedIds) {
+        const module = agentPluginRegistry.getModule(moduleId)
+        if (!module) throw new Error('AGENT_MODULE_NOT_AVAILABLE')
+        if (module.activation !== 'session-toggle') throw new Error('AGENT_MODULE_SESSION_TOGGLE_UNSUPPORTED')
+      }
       return updateAgentSessionModulePolicy(input.sessionId, input.policy, { expectedRevision: input.expectedRevision })
+    },
+  )
+
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.TOGGLE_SESSION_MODULE,
+    async (_, input: AgentSessionModuleToggleInput): Promise<AgentSessionModuleCatalog> => {
+      requireVisibleSession(input.sessionId)
+      return toggleAgentSessionModule(input, agentPluginRegistry, {
+        get: getAgentSessionModulePolicy,
+        update: updateAgentSessionModulePolicy,
+      })
     },
   )
 

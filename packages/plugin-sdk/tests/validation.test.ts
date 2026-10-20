@@ -14,6 +14,20 @@ describe('Given V2 内容插件', () => {
     expect(getModuleId('sample.demo', 'writer')).toBe('sample.demo.writer'); expect(getSkillId('sample.demo', 'draft')).toBe('sample.demo/skills/draft');
     if (resources.ok) expect(resources.value.trust).toBe('unverified');
   });
+  it('When 模块声明 session-toggle Then 保留会话激活合同', () => {
+    const input = fixture();
+    input.modules[0]!.activation = 'session-toggle';
+    const result = parsePluginManifest(input);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.modules[0]!.activation).toBe('session-toggle');
+  });
+  it('When 旧插件缺少 activation Then 安全降级为逐消息显式调用', () => {
+    const input = fixture();
+    delete (input.modules[0] as { activation?: string }).activation;
+    const result = parsePluginManifest(input);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.modules[0]!.activation).toBe('message-explicit');
+  });
   it('When 无可选资源 Then 接受空资源集合', () => { const input = fixture(); input.skills = []; input.prompts = []; input.modules[0]!.skills = []; input.modules[0]!.prompts = []; expect(parsePluginManifest(input).ok).toBe(true); });
   for (const path of ['../escape.md', '/etc/passwd', 'a\\b', 'a/CON.md', 'a/é.md', 'a/./x', 'a//x', 'a/name.']) it(`When 路径攻击 ${path} Then 拒绝`, () => { const input = fixture(); input.prompts[0]!.path = path; expect(parsePluginManifest(input).ok).toBe(false); });
   it('When 未知执行字段或未来能力 Then 明确拒绝', () => { expect(parsePluginManifest({...fixture(), entry: 'index.js'}).ok).toBe(false); const input = fixture(); input.compatibility.requiredFeatures.push('future'); expect(parsePluginManifest(input).issues.some(i => i.code === 'unsupported')).toBe(true); expect(parsePluginManifest({...fixture(), dependencies:['other']}).ok).toBe(false); });

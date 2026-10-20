@@ -45,6 +45,14 @@ describe('统一工具菜单', () => {
     expect(markup).toContain('title="画布：请先选择项目"')
     expect(markup).toContain('disabled=""')
   })
+  test('Given 已接入 Session 模块 When 展开工具菜单 Then 提供独立的移除按钮并保留主入口', () => {
+    const markup = renderToStaticMarkup(<WorkspaceToolRail expanded items={[{
+      ...items[0]!, moduleState: 'attached', statusLabel: '已接入', onRemove: () => {},
+    }]} onExpandedChange={() => {}} onSelect={() => {}} onAppearance={() => {}} />)
+    expect(markup).toContain('data-tool-state="attached"')
+    expect(markup).toContain('aria-label="从本会话移除新建浏览器标签"')
+    expect(markup).toContain('title="新建浏览器标签：已接入"')
+  })
   test('Given 查询 When 过滤 Then 按名称关键词和分组匹配、忽略大小写空白且无匹配为空', () => {
     expect(filterWorkspaceTools(items, ' WEB ')).toEqual([items[0]!])
     expect(filterWorkspaceTools(items, '专业')).toEqual([items[1]!])

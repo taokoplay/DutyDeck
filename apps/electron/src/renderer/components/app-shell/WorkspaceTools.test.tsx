@@ -7,11 +7,11 @@ import { productivityToolsAtom } from '@/atoms/ui-preferences'
 import { WorkspaceTools } from './WorkspaceTools'
 
 describe('常驻工具菜单', () => {
-  test('Given 默认 Agent 未打开会话 When 渲染 Then 包含交互设计的 15 项入口可发现且资源入口说明不可用原因', () => {
+  test('Given 默认 Agent 未打开会话 When 渲染 Then 包含交互设计的 16 项入口可发现且资源入口说明不可用原因', () => {
     /** 独立 store 不触碰真实配置或 IPC。 */
     const store = createStore()
     const html = renderToStaticMarkup(<Provider store={store}><WorkspaceTools /></Provider>)
-    expect((html.match(/data-tool-id=/g) ?? []).length).toBe(15)
+    expect((html.match(/data-tool-id=/g) ?? []).length).toBe(16)
     // 交互设计与其他项目工具一样保持可发现，无 Agent 会话时禁止进入。
     expect(html).toMatch(/<button\b[^>]*data-tool-id="interaction-design"[^>]*disabled=""/)
     expect(html).toContain('data-expanded="false"')

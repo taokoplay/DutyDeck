@@ -11,6 +11,7 @@ export function projectContentPluginModules(snapshot: ContentPluginSnapshot): Ag
     skillRefs: module.skills.map(id => getSkillId(plugin.manifest.id, id)),
     promptRefs: [...module.prompts.map(id => `${plugin.manifest.id}/prompts/${id}`), ...(module.styles ?? []).map(id => `${plugin.manifest.id}/styles/${id}`)],
     toolRefs: [], artifactTypes: [], surfaceIds: [], requiredPermissions: [], source: 'installed',
+    activation: module.activation ?? 'message-explicit',
     pluginId: plugin.manifest.id, resourceSource: 'package', packageHash: plugin.packageHash,
   })))
 }

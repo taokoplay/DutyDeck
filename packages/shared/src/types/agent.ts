@@ -2331,10 +2331,14 @@ export const AGENT_IPC_CHANNELS = {
   REFRESH_AGENT_PLUGINS: 'agent:refresh-plugins',
   GET_AGENT_PLUGIN_CATALOG: 'agent:get-plugin-catalog',
   GET_AGENT_MODULES: 'agent:get-agent-modules',
+  /** 获取当前 Session 可见的右侧模块目录。 */
+  GET_SESSION_MODULE_CATALOG: 'agent:get-session-module-catalog',
   /** 获取指定 Session 的模块策略。 */
   GET_SESSION_MODULE_POLICY: 'agent:get-session-module-policy',
   /** 更新指定 Session 的模块策略。 */
   SET_SESSION_MODULE_POLICY: 'agent:set-session-module-policy',
+  /** 原子接入或移除当前 Session 的一个模块。 */
+  TOGGLE_SESSION_MODULE: 'agent:toggle-session-module',
   /** 提交一次显式模块动作。 */
   SUBMIT_AGENT_MODULE_COMMAND: 'agent:submit-agent-module-command',
   /** 取消尚未完成的模块动作。 */

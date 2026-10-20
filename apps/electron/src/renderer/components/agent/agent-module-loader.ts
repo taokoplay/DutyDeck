@@ -1,9 +1,10 @@
 import type { createStore } from 'jotai'
-import type { AgentModuleManifest, AgentPluginHealth, AgentSessionModulePolicy, AgentSessionModulePolicyUpdateInput } from '@dutydeck/shared'
+import type { AgentModuleManifest, AgentPluginHealth, AgentSessionModuleCatalog, AgentSessionModulePolicy, AgentSessionModulePolicyUpdateInput, AgentSessionModuleToggleInput } from '@dutydeck/shared'
 import {
   agentModulesAtom, agentModulesLoadedAtom, agentModulesLoadingAtom, agentModulesErrorAtom,
   agentPluginHealthAtom, agentSessionModulePolicyAtomFamily, agentModulePolicyBusyAtomFamily,
-  agentModulePolicyErrorAtomFamily,
+  agentModulePolicyErrorAtomFamily, agentSessionModuleCatalogAtomFamily, agentSessionModuleCatalogBusyAtomFamily,
+  agentSessionModuleCatalogErrorAtomFamily,
 } from '@/atoms/agent-module-atoms'
 
 /** 仅策略与目录 IPC；刻意不提供命令/Skill 执行入口。 */
@@ -12,10 +13,14 @@ export interface AgentModuleLoaderAPI {
   getAgentPluginHealth(): Promise<AgentPluginHealth[]>
   getSessionModulePolicy(sessionId: string): Promise<AgentSessionModulePolicy>
   setSessionModulePolicy(input: AgentSessionModulePolicyUpdateInput): Promise<AgentSessionModulePolicy>
+  getSessionModuleCatalog?(sessionId: string): Promise<AgentSessionModuleCatalog>
+  toggleSessionModule?(input: AgentSessionModuleToggleInput): Promise<AgentSessionModuleCatalog>
 }
 
 /** 每个 Store 的目录请求代次，插件变更后丢弃旧请求。 */
 const catalogGenerations = new WeakMap<ReturnType<typeof createStore>, number>()
+/** 每个 Store/Session 的目录请求代次，插件切换或快速导航时丢弃迟到结果。 */
+const sessionCatalogGenerations = new WeakMap<ReturnType<typeof createStore>, Map<string, number>>()
 
 /** Store 生命周期持有请求结果，不因 React Effect 重跑而丢弃全局目录；失败可显式重试。 */
 export async function loadAgentModuleCatalog(store: ReturnType<typeof createStore>, api: AgentModuleLoaderAPI, force = false): Promise<void> {
@@ -59,6 +64,97 @@ export async function loadAgentModulePolicy(store: ReturnType<typeof createStore
   } finally {
     store.set(busyAtom, false)
   }
+}
+
+/** 读取当前 Session 的右侧模块目录，目录和策略绑定到同一 session。 */
+export async function loadAgentSessionModuleCatalog(
+  store: ReturnType<typeof createStore>,
+  api: AgentModuleLoaderAPI,
+  sessionId: string,
+  force = false,
+): Promise<void> {
+  const busyAtom = agentSessionModuleCatalogBusyAtomFamily(sessionId)
+  const errorAtom = agentSessionModuleCatalogErrorAtomFamily(sessionId)
+  if ((store.get(busyAtom) && !force) || !api.getSessionModuleCatalog) return
+  const generations = sessionCatalogGenerations.get(store) ?? new Map<string, number>()
+  const generation = (generations.get(sessionId) ?? 0) + 1
+  generations.set(sessionId, generation)
+  sessionCatalogGenerations.set(store, generations)
+  store.set(busyAtom, true)
+  store.set(errorAtom, null)
+  try {
+    const catalog = await api.getSessionModuleCatalog(sessionId)
+    if (sessionCatalogGenerations.get(store)?.get(sessionId) !== generation) return
+    store.set(agentSessionModuleCatalogAtomFamily(sessionId), catalog)
+    store.set(agentSessionModulePolicyAtomFamily(sessionId), catalog.policy)
+  } catch (cause) {
+    if (sessionCatalogGenerations.get(store)?.get(sessionId) !== generation) return
+    store.set(agentSessionModuleCatalogAtomFamily(sessionId), null)
+    store.set(errorAtom, cause instanceof Error ? cause.message : String(cause))
+  } finally {
+    if (sessionCatalogGenerations.get(store)?.get(sessionId) === generation) store.set(busyAtom, false)
+  }
+}
+
+/** 右侧菜单原子接入或移除模块；面板打开/关闭由调用方管理。 */
+export async function setAgentModuleAttachment(
+  store: ReturnType<typeof createStore>,
+  api: AgentModuleLoaderAPI,
+  sessionId: string,
+  moduleId: string,
+  enabled: boolean,
+): Promise<AgentSessionModuleCatalog | null> {
+  const catalog = store.get(agentSessionModuleCatalogAtomFamily(sessionId))
+  if (!catalog) return null
+  if (store.get(agentSessionModuleCatalogBusyAtomFamily(sessionId))) return null
+  const entry = catalog?.entries.find((candidate) => candidate.id === moduleId)
+  if (!entry || entry.state === 'unavailable' || !api.toggleSessionModule) return null
+  const busyAtom = agentModulePolicyBusyAtomFamily(sessionId)
+  const errorAtom = agentSessionModuleCatalogErrorAtomFamily(sessionId)
+  if (store.get(busyAtom)) return null
+  store.set(busyAtom, true)
+  store.set(errorAtom, null)
+  try {
+    const next = await api.toggleSessionModule({
+      sessionId,
+      moduleId,
+      enabled,
+      expectedRevision: catalog.revision,
+    })
+    store.set(agentSessionModuleCatalogAtomFamily(sessionId), next)
+    store.set(agentSessionModulePolicyAtomFamily(sessionId), next.policy)
+    return next
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause)
+    store.set(errorAtom, message)
+    /** CAS 失败说明另一个窗口已提交新 revision，立即刷新目录让下一次点击可继续。 */
+    if (message === 'AGENT_MODULE_POLICY_REVISION_CONFLICT') {
+      await loadAgentSessionModuleCatalog(store, api, sessionId, true)
+    }
+    return null
+  } finally {
+    store.set(busyAtom, false)
+  }
+}
+
+/** 点击右侧模块时接入当前 Session。 */
+export function attachAgentModule(
+  store: ReturnType<typeof createStore>,
+  api: AgentModuleLoaderAPI,
+  sessionId: string,
+  moduleId: string,
+): Promise<AgentSessionModuleCatalog | null> {
+  return setAgentModuleAttachment(store, api, sessionId, moduleId, true)
+}
+
+/** 从当前 Session 移除模块，不改变右侧面板的历史布局。 */
+export function detachAgentModule(
+  store: ReturnType<typeof createStore>,
+  api: AgentModuleLoaderAPI,
+  sessionId: string,
+  moduleId: string,
+): Promise<AgentSessionModuleCatalog | null> {
+  return setAgentModuleAttachment(store, api, sessionId, moduleId, false)
 }
 
 /** 切换一个模块的会话策略，返回保存完成；不发送消息、不执行模块动作。 */

@@ -42,9 +42,38 @@ function unique(values: readonly string[]): string[] {
   return [...new Set(values)]
 }
 
-/** 运行时只接受当前消息显式选择的模块；Session 策略不再自动扩展模型上下文。 */
+/**
+ * 合并本条消息的一次性选择和 Session 已附着模块。
+ * 只有带 session-toggle 合同的模块才能从 Session 策略进入普通消息；旧模块仍需显式调用。
+ */
 function resolveSelectedModuleIds(input: ResolveActiveModuleContextInput): string[] {
-  return unique(input.explicitModuleIds ?? []).filter((moduleId) => !isAutomaticAgentModuleId(moduleId))
+  const explicit = unique(input.explicitModuleIds ?? [])
+  const sessionEnabled = unique(input.policy.enabledModuleIds ?? [])
+  return unique([...sessionEnabled, ...explicit]).filter((moduleId) => !isAutomaticAgentModuleId(moduleId))
+}
+
+/**
+ * 返回本轮可作为宿主运行能力判断依据的模块 ID。
+ * 该函数只读取已加载目录和 Session 策略，不读取 Skills 或插件正文，供 Agent service
+ * 在 Canvas/媒体运行创建前与完整 resolver 共享同一选择规则。
+ */
+export function resolveActiveModuleIds(
+  input: ResolveActiveModuleContextInput,
+  catalog: readonly AgentModuleManifest[] = listRuntimeModules(),
+): string[] {
+  const explicitIds = new Set(unique(input.explicitModuleIds ?? []).filter((moduleId) => !isAutomaticAgentModuleId(moduleId)))
+  const disabled = new Set(input.policy.disabledModuleIds)
+  const moduleMap = new Map(catalog.map((module) => [module.id, module]))
+  return resolveSelectedModuleIds(input).filter((moduleId) => {
+    if (disabled.has(moduleId)) return false
+    const module = moduleMap.get(moduleId)
+    if (!module || (!explicitIds.has(moduleId) && module.activation !== 'session-toggle')) return false
+    if (!explicitIds.has(moduleId)) {
+      const binding = input.policy.moduleBindings?.find((candidate) => candidate.moduleId === moduleId)
+      if (binding && (binding.moduleVersion !== module.version || binding.packageHash !== module.packageHash)) return false
+    }
+    return true
+  })
 }
 
 function getSkillStatus(skills: readonly SkillMeta[]): Map<string, SkillMeta> {
@@ -76,7 +105,7 @@ function resolveModulePrompt(ref: string): string | undefined {
 }
 
 /** 返回宿主已加载快照；没有宿主初始化时使用内置模块。 */
-function listRuntimeModules(): readonly AgentModuleManifest[] {
+export function listRuntimeModules(): readonly AgentModuleManifest[] {
   return runtimeCatalog ?? listBuiltinAgentModules()
 }
 
@@ -112,12 +141,15 @@ export function resolveActiveModuleContext(
 ): ResolvedAgentModuleContext {
   const now = input.now ?? Date.now()
   const disabled = new Set(input.policy.disabledModuleIds)
+  const explicitIds = new Set(unique(input.explicitModuleIds ?? []).filter((moduleId) => !isAutomaticAgentModuleId(moduleId)))
+  const sessionEnabledIds = new Set(unique(input.policy.enabledModuleIds ?? []).filter((moduleId) => !isAutomaticAgentModuleId(moduleId)))
   const selectedIds = resolveSelectedModuleIds(input)
   // 未显式选择模块时直接返回，避免每轮读取 Skills 目录和构建模块提示。
   if (selectedIds.length === 0) {
     return { modules: [], skillMentions: [], promptFragments: [], allowedToolNames: [], unavailable: [] }
   }
-  const moduleMap = new Map((dependencies.listModules ?? listRuntimeModules)().map((module) => [module.id, module]))
+  const catalog = (dependencies.listModules ?? listRuntimeModules)()
+  const moduleMap = new Map(catalog.map((module) => [module.id, module]))
   /** 仅真正需要 Skills 且运行允许时读取受管目录。 */
   const needsSkills = selectedIds.some((id) => !disabled.has(id) && moduleMap.get(id)?.resourceSource !== 'package' && (moduleMap.get(id)?.skillRefs.length ?? 0) > 0)
   const skills = getSkillStatus(input.workspaceSlug && input.skillsEnabled !== false && needsSkills
@@ -146,6 +178,15 @@ export function resolveActiveModuleContext(
     if (!module) {
       unavailable.push({ moduleId, reason: 'AGENT_MODULE_NOT_FOUND' })
       continue
+    }
+    /** 旧 manifest 缺少 activation 时保持显式调用，不能被 Session 策略隐式扩权。 */
+    if (sessionEnabledIds.has(moduleId) && !explicitIds.has(moduleId) && module.activation !== 'session-toggle') continue
+    if (sessionEnabledIds.has(moduleId) && !explicitIds.has(moduleId)) {
+      const binding = input.policy.moduleBindings?.find((candidate) => candidate.moduleId === moduleId)
+      if (binding && (binding.moduleVersion !== module.version || binding.packageHash !== module.packageHash)) {
+        unavailable.push({ moduleId, reason: 'AGENT_MODULE_IDENTITY_CHANGED' })
+        continue
+      }
     }
     if (module.resourceSource === 'package') {
       if (input.skillsEnabled === false) {

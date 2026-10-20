@@ -29,7 +29,6 @@ import { AgentMessages, type AgentHistoryQuoteNavigationRequest } from './AgentM
 import { AgentHeader } from './AgentHeader'
 import { AgentMessageQueue } from './AgentMessageQueue'
 import { AgentComposerFrame } from './AgentComposerFrame'
-import { AgentModuleBar } from './AgentModuleBar'
 import { AgentStatusBar } from './AgentStatusBar'
 import { AgentModuleCommandReceipt } from './AgentModuleCommandReceipt'
 import { AgentRunRecoveryNotice } from './AgentRunRecoveryNotice'
@@ -3164,15 +3163,6 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   const canSend = !isStopping && messagesLoaded && (streaming || !messagesRefreshing) && (hasTextInput || pendingFiles.length > 0 || !!suggestion || canvasNodeReferences.length > 0 || visualProductionReferences.length > 0) && agentChannelId !== null && hasAvailableModel && (!streaming || hasTextInput || canvasNodeReferences.length > 0 || visualProductionReferences.length > 0)
 
   const inputToolbarItems = React.useMemo<ToolbarItem[]>(() => [
-    {
-      key: 'modules',
-      node: <AgentModuleBar
-        sessionId={sessionId}
-        disabled={isComposerDisabled || isStopping}
-        messageMode
-        inputRef={richTextInputRef}
-      />,
-    },
     ...(isCodexFastModeAvailable ? [{
       key: 'codex-fast-mode',
       node: (

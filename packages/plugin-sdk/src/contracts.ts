@@ -2,7 +2,8 @@
 export interface PluginModule {
   id: string;
   displayName: string;
-  activation: 'message-explicit';
+  /** 缺失时由兼容解析层补为 message-explicit。 */
+  activation?: 'message-explicit' | 'session-toggle';
   skills: string[];
   prompts: string[];
   styles?: string[];

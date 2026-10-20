@@ -119,7 +119,15 @@ export function parsePluginManifest(input: unknown, file = 'plugin.json'): Valid
       ok: false, issues
     };
   /** 同源 Schema 已检查所有字段，此后只执行语义校验。 */
-  const manifest = input as PluginPackageManifest;
+  const sourceManifest = input as PluginPackageManifest;
+  /** 旧 V2 清单没有 activation 时安全降级，避免历史包意外获得 Session 级接入。 */
+  const manifest: PluginPackageManifest = {
+    ...sourceManifest,
+    modules: sourceManifest.modules.map(module => ({
+      ...module,
+      activation: module.activation ?? 'message-explicit',
+    })),
+  };
   /** 创建具备位置的语义错误。 */
   const fail = (code: ValidationIssue['code'], field: string, message: string): void => {
     issues.push({ code, field, file, message });

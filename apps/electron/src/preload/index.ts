@@ -166,6 +166,8 @@ import type {
   RewindSessionInput,
   RewindSessionResult,
   AgentModuleManifest,
+  AgentSessionModuleCatalog,
+  AgentSessionModuleToggleInput,
   AgentPluginHealth,
   AgentPluginPreview,
   AgentPluginCatalogSnapshot,
@@ -867,12 +869,16 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   getAgentPluginCatalog: () => Promise<AgentPluginCatalogSnapshot>
   /** 获取内置、V1 清单与已启用内容包的合并模块目录。 */
   getAgentModules: () => Promise<AgentModuleManifest[]>
+  /** 获取当前 Session 的右侧模块目录及接入状态。 */
+  getSessionModuleCatalog: (sessionId: string) => Promise<AgentSessionModuleCatalog>
   /** 获取内置 Plugin Host 健康快照。 */
   getAgentPluginHealth: () => Promise<AgentPluginHealth[]>
   /** 获取当前 Session 的模块策略。 */
   getSessionModulePolicy: (sessionId: string) => Promise<AgentSessionModulePolicy>
   /** 更新当前 Session 的模块策略。 */
   setSessionModulePolicy: (input: AgentSessionModulePolicyUpdateInput) => Promise<AgentSessionModulePolicy>
+  /** 原子接入或移除当前 Session 的模块。 */
+  toggleSessionModule: (input: AgentSessionModuleToggleInput) => Promise<AgentSessionModuleCatalog>
   /** 提交一次显式模块动作。 */
   submitAgentModuleCommand: (input: AgentModuleCommandInput) => Promise<AgentModuleCommand>
   /** 取消尚未完成的模块动作。 */
@@ -2492,6 +2498,10 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_MODULES)
   },
 
+  getSessionModuleCatalog: (sessionId: string) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_SESSION_MODULE_CATALOG, sessionId)
+  },
+
   getAgentPluginHealth: () => {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_AGENT_PLUGIN_HEALTH)
   },
@@ -2502,6 +2512,10 @@ const electronAPI: ElectronAPI = {
 
   setSessionModulePolicy: (input: AgentSessionModulePolicyUpdateInput) => {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.SET_SESSION_MODULE_POLICY, input)
+  },
+
+  toggleSessionModule: (input: AgentSessionModuleToggleInput) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.TOGGLE_SESSION_MODULE, input)
   },
 
   submitAgentModuleCommand: (input: AgentModuleCommandInput) => {

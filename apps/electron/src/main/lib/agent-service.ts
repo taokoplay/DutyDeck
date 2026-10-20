@@ -141,6 +141,8 @@ import {
 } from './design/canvas-node-reference-resolver'
 import { getCanvasToolProviderRuntime } from './design/canvas-document-ipc'
 import { openAuthorizedAgentMediaSource } from './design/design-session-bridge'
+import { getAgentSessionModulePolicy } from './agent-modules/module-policy-store'
+import { listRuntimeModules, resolveActiveModuleIds } from './agent-modules/module-skill-resolver'
 import {
   prepareAgentMediaAttachmentsForSend,
   type AgentMediaAttachmentInput,
@@ -238,10 +240,16 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
   const isInteractiveUserRun = !('triggeredBy' in input)
     || input.triggeredBy === undefined
     || input.triggeredBy === 'user'
-  /** 专业模块仍由本条消息选择接入，不读取历史会话状态。 */
-  const canvasSelected = input.moduleIds?.includes('canvas') === true
+  /** Session 附着和消息显式调用共享主进程目录快照，避免 Canvas/媒体初始化与 resolver 分叉。 */
+  const modulePolicy = getAgentSessionModulePolicy(input.sessionId)
+  const activeModuleIds = resolveActiveModuleIds({
+    sessionId: input.sessionId,
+    policy: modulePolicy,
+    explicitModuleIds: input.moduleIds,
+  }, listRuntimeModules())
+  const canvasSelected = activeModuleIds.includes('canvas')
   /** 影像模块复用媒体能力，但不获得画布管理能力。 */
-  const visualSelected = input.moduleIds?.includes('visual-production') === true
+  const visualSelected = activeModuleIds.includes('visual-production')
   /** 直接选媒体模型即为本轮媒体意图，只装配共享媒体工具，不隐式开启专业模块。 */
   const mediaModelSelected = getReferencedMediaModelRefs(input.mentionedMediaModelRefs).length > 0
   if (!runtime

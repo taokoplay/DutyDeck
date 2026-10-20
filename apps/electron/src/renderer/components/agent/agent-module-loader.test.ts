@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { createStore } from 'jotai'
-import type { AgentSessionModulePolicy, AgentSessionModulePolicyUpdateInput } from '@dutydeck/shared'
+import type { AgentSessionModuleCatalog, AgentSessionModulePolicy, AgentSessionModulePolicyUpdateInput } from '@dutydeck/shared'
 import {
   agentModulesAtom, agentModulesLoadedAtom, agentModulesLoadingAtom, agentModulesErrorAtom,
-  agentSessionModulePolicyAtomFamily, agentModulePolicyBusyAtomFamily, agentModulePolicyErrorAtomFamily,
+  agentSessionModulePolicyAtomFamily, agentModulePolicyBusyAtomFamily, agentModulePolicyErrorAtomFamily, agentSessionModuleCatalogAtomFamily, agentSessionModuleCatalogErrorAtomFamily,
 } from '@/atoms/agent-module-atoms'
-import { loadAgentModuleCatalog, loadAgentModulePolicy, toggleAgentModule, type AgentModuleLoaderAPI } from './agent-module-loader'
+import { attachAgentModule, detachAgentModule, loadAgentModuleCatalog, loadAgentModulePolicy, loadAgentSessionModuleCatalog, toggleAgentModule, type AgentModuleLoaderAPI } from './agent-module-loader'
 
 /** 构造可独立修改的会话策略夹具。 */
 function policy(enabled: string[] = []): AgentSessionModulePolicy {
@@ -123,6 +123,63 @@ describe('模块栏实际使用的加载与保存控制器', () => {
     expect(store.get(agentModulePolicyErrorAtomFamily('b'))).toBeNull()
     expect(store.get(agentModulePolicyBusyAtomFamily('a'))).toBe(false)
     await loadAgentModulePolicy(store, api(), 'a')
+    expect(store.get(agentModulePolicyErrorAtomFamily('a'))).toBeNull()
+  })
+
+  test('Given Session 目录返回可接入模块，When 右侧菜单点击 Then 使用目录 revision 原子接入并更新目录', async () => {
+    const store = createStore()
+    const catalog: AgentSessionModuleCatalog = {
+      sessionId: 'a', revision: 3, policy: policy(), entries: [{
+        id: 'canvas', displayName: '画布', description: '画布', icon: 'layout', group: '专业工具',
+        surfaceId: 'canvas', moduleVersion: '1.0.0', activation: 'session-toggle', state: 'available',
+      }],
+    }
+    let receivedRevision: number | undefined
+    const next = { ...catalog, revision: 4, policy: { ...policy(['canvas']), revision: 4 }, entries: [{ ...catalog.entries[0]!, state: 'attached' as const }] }
+    const bridge = api({
+      getSessionModuleCatalog: async () => catalog,
+      toggleSessionModule: async (input) => { receivedRevision = input.expectedRevision; return next },
+    })
+    await loadAgentSessionModuleCatalog(store, bridge, 'a')
+    await attachAgentModule(store, bridge, 'a', 'canvas')
+    expect(receivedRevision).toBe(3)
+    expect(store.get(agentSessionModuleCatalogAtomFamily('a'))?.entries[0]?.state).toBe('attached')
+    const detached = { ...next, revision: 5, policy: policy(), entries: [{ ...next.entries[0]!, state: 'available' as const }] }
+    const detachBridge = api({ toggleSessionModule: async (input) => { expect(input.enabled).toBe(false); return detached } })
+    await detachAgentModule(store, detachBridge, 'a', 'canvas')
+    expect(store.get(agentSessionModuleCatalogAtomFamily('a'))?.entries[0]?.state).toBe('available')
+  })
+
+  test('Given 目录 revision 已被其他窗口更新 When 右侧接入冲突 Then 自动刷新目录供下一次点击继续', async () => {
+    const store = createStore()
+    const stale: AgentSessionModuleCatalog = {
+      sessionId: 'a', revision: 3, policy: policy(), entries: [{
+        id: 'canvas', displayName: '画布', description: '画布', icon: 'layout', group: '专业工具',
+        surfaceId: 'canvas', moduleVersion: '1.0.0', activation: 'session-toggle', state: 'available',
+      }],
+    }
+    const refreshed: AgentSessionModuleCatalog = {
+      ...stale,
+      revision: 4,
+      policy: { ...policy(), revision: 4 },
+    }
+    const bridge = api({
+      getSessionModuleCatalog: async () => refreshed,
+      toggleSessionModule: async () => { throw new Error('AGENT_MODULE_POLICY_REVISION_CONFLICT') },
+    })
+    store.set(agentSessionModuleCatalogAtomFamily('a'), stale)
+    await attachAgentModule(store, bridge, 'a', 'canvas')
+    expect(store.get(agentSessionModuleCatalogAtomFamily('a'))?.revision).toBe(4)
+    expect(store.get(agentModulePolicyErrorAtomFamily('a'))).toBeNull()
+  })
+
+  test('Given 右侧目录读取失败 When 策略仍可读取 Then 目录错误不污染策略错误', async () => {
+    const store = createStore()
+    await loadAgentSessionModuleCatalog(store, api({ getSessionModuleCatalog: async () => { throw new Error('catalog unavailable') } }), 'a')
+    expect(store.get(agentSessionModuleCatalogErrorAtomFamily('a'))).toBe('catalog unavailable')
+    expect(store.get(agentModulePolicyErrorAtomFamily('a'))).toBeNull()
+    await loadAgentModulePolicy(store, api(), 'a')
+    expect(store.get(agentSessionModuleCatalogErrorAtomFamily('a'))).toBe('catalog unavailable')
     expect(store.get(agentModulePolicyErrorAtomFamily('a'))).toBeNull()
   })
 })

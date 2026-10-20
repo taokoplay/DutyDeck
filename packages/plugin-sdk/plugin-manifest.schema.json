@@ -110,7 +110,10 @@
             "maxLength": 4096
           },
           "activation": {
-            "const": "message-explicit"
+            "enum": [
+              "message-explicit",
+              "session-toggle"
+            ]
           },
           "skills": {
             "type": "array",
@@ -149,7 +152,6 @@
         "required": [
           "id",
           "displayName",
-          "activation",
           "skills",
           "prompts"
         ],
