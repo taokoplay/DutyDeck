@@ -1,4 +1,4 @@
-import { mergeVisualProductionReferences } from '@dutydeck/shared'
+import { mergeVisualProductionReferences, resolveVisualShotOutputs, withVisualShotOutput } from '@dutydeck/shared'
 import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
@@ -19,6 +19,9 @@ import { VisualProductionMediaConfigurationPanel } from './VisualProductionMedia
 import { VisualProductionRecords } from './VisualProductionRecords'
 import { VisualAssetReference } from './VisualAssetReference'
 import { VisualShotDetails } from './VisualShotDetails'
+import { VisualShotMedia } from './VisualShotMedia'
+import { buildShotMediaSlots } from './shot-media-model'
+import { SHOT_MEDIA_KINDS, SHOT_MEDIA_LABELS } from './shot-media-model'
 import { VisualRelationCanvas } from './VisualRelationCanvas'
 import { VisualProductionDelivery } from './VisualProductionDelivery'
 import { VisualEditingWorkspace } from './VisualEditingWorkspace'
@@ -58,6 +61,10 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   const [busy, setBusy] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
   const [playing, setPlaying] = React.useState(false)
+  /** 记录弹窗打开时停止并卸载背景媒体，关闭后才恢复预览。 */
+  const [recordsOpen, setRecordsOpen] = React.useState(false)
+  /** 每次点击生成独立请求，支持重复打开同一候选。 */
+  const [candidatePreview, setCandidatePreview] = React.useState<{ id: string; sequence: number } | null>(null)
   /** 等待实际媒体加载后再计时，避免读取耗时吞掉预演。 */
   const [mediaReady, setMediaReady] = React.useState('')
   /** 横向分镜容器只在镜头切换时滚动，不移动下方播放器所在的纵向工作区。 */
@@ -88,7 +95,18 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   const showingAssetDetails = !!selectedAsset && !editor
   /** 使用位置仅按资产身份关联，不把同名资产或其他作品镜头混入。 */
   const assetUsages = React.useMemo(() => document?.shots.filter(item => item.assetIds.includes(selectedAsset?.id ?? '')) ?? [], [document, selectedAsset?.id])
-  const currentMedia = snapshot?.media.find(item => item.id === shot?.mediaId)
+  /** 三类素材共享一次元数据索引，正式视觉优先影片。 */
+  const mediaById = React.useMemo(() => new Map(snapshot?.media.map(item => [item.id, item]) ?? []), [snapshot?.media])
+  const currentOutputs = shot ? resolveVisualShotOutputs(shot, mediaById) : undefined
+  const currentMedia = mediaById.get(currentOutputs?.video ?? currentOutputs?.image ?? '')
+  /** 主窗口优先使用影片候选，控制条、连续预演和加载计时与实际显示保持一致。 */
+  const currentPreviewMedia = React.useMemo(() => {
+    if (!snapshot || !shot) return currentMedia
+    const slots = buildShotMediaSlots(snapshot, shot)
+    return slots.find(slot => slot.kind === 'video' && slot.preview)?.preview ?? slots.find(slot => slot.kind === 'image' && slot.preview)?.preview ?? currentMedia
+  }, [snapshot, shot, currentMedia])
+  /** 预演只能在当前可见分镜上执行，弹窗中的试听拥有独立焦点。 */
+  const shotMediaActive = paneActive && view.tab === 'shots' && !recordsOpen && !editor && !selectedAsset
   const shotIndex = shots.findIndex(item => item.id === shot?.id)
   /** 异步回流读取当前作用域，避免闭包把旧作品写回新面板。 */
   const latest = React.useRef({ busy, document, snapshot })
@@ -130,7 +148,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   React.useEffect(() => { void refreshList(); return () => { listGate.current.next() } }, [refreshList])
   React.useEffect(() => {
     latest.current.busy = false; editorSequence.current++
-    setSnapshot(null); setEditor(null); setCreate(false); setAssetId(null); setError(''); setNotice(''); setBusy(false); setPlaying(false); setImportPath('')
+    setSnapshot(null); setEditor(null); setCreate(false); setAssetId(null); setError(''); setNotice(''); setBusy(false); setPlaying(false); setRecordsOpen(false); setCandidatePreview(null); setImportPath('')
     void load(true)
     return () => { gate.current.next() }
   }, [context, load])
@@ -172,14 +190,18 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   }, [])
   /** 镜头切换按正式排序进行，末镜头播完停止。 */
   const advance = React.useCallback((): void => {
-    if (shots[shotIndex + 1]) updateView({ shotId: shots[shotIndex + 1]!.id })
-    else setPlaying(false)
-  }, [shots, shotIndex, updateView])
+    /** 未采用视觉素材的镜头不能继续计时，也不能用待采用候选冒充正式预演。 */
+    const next = shots[shotIndex + 1]
+    if (!next) { setPlaying(false); return }
+    updateView({ shotId: next.id })
+    const outputs = resolveVisualShotOutputs(next, mediaById)
+    if (!mediaById.has(outputs.video ?? outputs.image ?? '')) setPlaying(false)
+  }, [shots, shotIndex, updateView, mediaById])
   React.useEffect(() => {
-    if (!playing || !paneActive || !shot || mediaReady !== `${shot.id}:${shot.mediaId}`) return
+    if (!playing || !shotMediaActive || !shot || mediaReady !== `${shot.id}:${currentPreviewMedia?.id}`) return
     const timer = window.setTimeout(advance, Math.max(0.1, shot.duration) * 1000)
     return () => window.clearTimeout(timer)
-  }, [playing, paneActive, shot?.id, shot?.duration, currentMedia?.kind, advance, mediaReady])
+  }, [playing, shotMediaActive, shot?.id, shot?.duration, currentPreviewMedia?.id, advance, mediaReady])
   /** 所有写操作冻结上下文；旧返回既不清新草稿，也不更换新选择。 */
   const mutate = async (operation: () => Promise<VisualProductionSnapshot>, after?: () => void): Promise<void> => {
     if (latest.current.busy) return
@@ -277,7 +299,8 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
       <Film size={17} />
       <strong>{document?.title ?? '影像创作'}</strong>{document && <span className="vp-badge">v{document.revision}</span>}
       {document && snapshot && <VisualProductionRecords key={context} sessionId={sessionId} snapshot={snapshot} paneActive={paneActive} busy={busy} error={error}
-        onOpen={() => setPlaying(false)}
+        previewRequest={candidatePreview}
+        onOpenChange={open => { setRecordsOpen(open); if (open) setPlaying(false) }}
         onAdopt={candidateId => void mutate(() => window.electronAPI.visualProduction.invoke('adopt', { sessionId, productionId: document.id, baseRevision: document.revision, candidateId }))}
         onDiscard={candidateId => void mutate(() => window.electronAPI.visualProduction.invoke('discardCandidate', { sessionId, productionId: document.id, candidateId }))}
         onCancel={jobId => void mutate(() => window.electronAPI.visualProduction.invoke('cancelJob', { sessionId, productionId: document.id, jobId }))}
@@ -360,8 +383,8 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
             <strong>{item.name}</strong>
             <span className="vp-muted">{item.type} · {item.locked ? '已锁定' : '可编辑'}</span>
           </button>)}</div>{!document.assets.length && <p className="vp-muted">新增角色、场景或产品资产，镜头引用后可查看关联影响。</p>}</div>}
-        {view.tab === 'shots' && <div className="vp-section">
-          <div className="flex min-w-0 items-center gap-2">
+        {view.tab === 'shots' && <div className="vp-section vp-shot-page" aria-label="分镜工作台">
+          <header className="vp-shot-page-header flex min-w-0 items-center gap-2">
             <Select value={episodeId ?? ''} disabled={!document.episodes.length} onValueChange={value => updateView({ episodeId: value, shotId: null })}>
               <SelectTrigger aria-label="当前集数" className="h-8 min-w-0 max-w-72 flex-1 gap-2 text-xs [&>span]:min-w-0 [&>svg]:shrink-0"><SelectValue placeholder="尚无集数" /></SelectTrigger>
               <SelectContent>{document.episodes.map(item => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent>
@@ -369,11 +392,13 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
             <span className="vp-muted shrink-0 whitespace-nowrap">{shots.length} 个{document.kind === 'image' ? '图片' : '镜头'}</span>
             <Button className="ml-auto shrink-0" size="sm" variant="outline" disabled={!episodeId} onClick={() => openEditor('shot')}>
               <Plus size={14} />新增</Button>
-          </div>{document.kind === 'image' ? <div className="vp-grid">{shots.map(item => <button className="vp-card" key={item.id} onClick={() => { updateView({ shotId: item.id }); openEditor('shot', item.id) }}>
+          </header>{document.kind === 'image' ? <div className="vp-grid">{shots.map(item => <button className="vp-card" key={item.id} onClick={() => { updateView({ shotId: item.id }); openEditor('shot', item.id) }}>
             <VisualMediaView active={paneActive} sessionId={sessionId} productionId={document.id} media={snapshot?.media.find(media => media.id === item.mediaId)} />
             <p className="mt-2">{item.title}</p>
           </button>)}</div> : <>
-            <div ref={shotStrip} className="vp-strip" role="group" aria-label="分镜序列">{shots.map((item, index) => {
+            <section className="vp-shot-sequence" aria-label="分镜序列">
+              <div className="vp-shot-sequence-heading"><div><strong>镜头序列</strong><span className="vp-muted">选择镜头后，在下方影片主窗口中预览</span></div><span className="vp-badge">{shots.length} 个镜头</span></div>
+              <div ref={shotStrip} className="vp-strip" role="group" aria-label="分镜序列">{shots.map((item, index) => {
               /** 没有输出时显示未生成，避免把空画面混同于需要重做的已采用素材。 */
               const status = !item.mediaId ? '未生成' : snapshot?.shotStates[item.id]?.needsUpdate ? '待更新' : '已采用'
               return <button key={item.id} className="vp-shot" aria-pressed={shot?.id === item.id} aria-label={`镜头 ${index + 1}，${item.title}，${item.duration} 秒，${status}`} onClick={() => { setPlaying(false); updateView({ shotId: item.id }) }}>
@@ -385,17 +410,19 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
                 <span className="vp-shot-title" title={item.title}>{item.title}</span>
                 <span className="vp-shot-footer"><span className="vp-shot-status">{status}</span>{shot?.id === item.id && <span className="vp-shot-current">当前</span>}</span>
               </button>
-            })}</div>
-            <div className="vp-player" style={{ aspectRatio: document.ratio.replace(':', '/'), width: `min(100%, calc(46vh * ${document.ratio.replace(':', ' / ')}))`, height: 'auto', maxHeight: '46vh', marginInline: 'auto' }} onClick={event => { if (shot && currentMedia && (event.target instanceof HTMLImageElement || event.target instanceof HTMLVideoElement)) setPlaying(value => !value) }}>{shot ? <VisualMediaView active={paneActive} key={`${document.id}:${shot.id}:${shot.mediaId}`} sessionId={sessionId} productionId={document.id} media={currentMedia} playing={playing && paneActive} onReady={() => setMediaReady(`${shot.id}:${shot.mediaId}`)} onEnded={advance} onError={() => setPlaying(false)} /> : <div className="vp-player-empty">新增镜头，开始安排画面</div>}</div>{shot && <div className="vp-row">
+              })}</div>
+            </section>
+            <section className="vp-shot-preview-area" aria-label="镜头主预览">
+            {shot && snapshot ? <VisualShotMedia key={`${document.id}:${shot.id}`} sessionId={sessionId} snapshot={snapshot} shot={shot} active={shotMediaActive} playing={playing} onReady={() => setMediaReady(`${shot.id}:${currentPreviewMedia?.id}`)} onEnded={advance} onError={() => setPlaying(false)} onAudioPlay={() => setPlaying(false)} onPause={() => setPlaying(false)} onPreviewCandidate={id => { setPlaying(false); setCandidatePreview(previous => ({ id, sequence: (previous?.sequence ?? 0) + 1 })) }} /> : <div className="vp-player-empty">新增镜头，开始安排画面</div>}{shot && <div className="vp-row">
               <Button variant="outline" disabled={shotIndex <= 0} aria-label="上一镜头" onClick={() => { setPlaying(false); updateView({ shotId: shots[shotIndex - 1]?.id ?? null }) }}>
                 <ChevronLeft size={14} />
               </Button>
-              <Button disabled={!currentMedia} onClick={() => setPlaying(!playing)}>{playing ? '暂停' : '连续播放'}</Button>
+              <Button disabled={!currentPreviewMedia} onClick={() => setPlaying(!playing)}>{playing ? '暂停' : '连续播放'}</Button>
               <Button variant="outline" disabled={shotIndex >= shots.length - 1} aria-label="下一镜头" onClick={() => { setPlaying(false); updateView({ shotId: shots[shotIndex + 1]?.id ?? null }) }}>
                 <ChevronRight size={14} />
               </Button>
-              <span className="vp-muted">{currentMedia?.kind === 'video' ? '视频素材' : '静帧预演'} · {shotIndex + 1} / {shots.length}</span>
-            </div>}</>}{shot && <section className="vp-card vp-shot-detail-card">
+              <span className="vp-muted">{currentPreviewMedia?.kind === 'video' ? '视频预演' : '静帧预演'} · {shotIndex + 1} / {shots.length}</span>
+            </div>}</section></>}{shot && <section className="vp-card vp-shot-detail-card">
               <div className="vp-shot-detail-header">
                 <div className="min-w-0 flex-1"><strong className="block truncate" title={shot.title}>{shot.title}</strong><span className="vp-muted">{document.kind === 'image' ? '图片' : `镜头 ${shotIndex + 1} / ${shots.length} · ${shot.duration} 秒`}</span></div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -403,14 +430,14 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
                   <Button size="sm" variant="ghost" onClick={() => reference(shot.id)}>引用到 Agent</Button>
                 </div>
               </div>
-              <VisualShotDetails key={`${document.id}:${shot.id}`} sessionId={sessionId} productionId={document.id} shot={shot} assets={document.assets} media={snapshot?.media ?? []} state={snapshot?.shotStates[shot.id]} active={paneActive} onOpenAsset={openAsset} />
+              <VisualShotDetails key={`${document.id}:${shot.id}`} sessionId={sessionId} productionId={document.id} shot={shot} assets={document.assets} media={snapshot?.media ?? []} state={snapshot?.shotStates[shot.id]} active={shotMediaActive} onOpenAsset={openAsset} />
               <div className="vp-row vp-shot-detail-footer">
                 <span className="vp-muted mr-auto">调整顺序</span>
                 <Button variant="ghost" size="sm" disabled={busy || shotIndex <= 0} onClick={() => { const draft = copyVisualDraft(document); draft.shots = reorderVisualShot(draft.shots, shot.id, -1); void mutate(() => window.electronAPI.visualProduction.invoke('save', { sessionId, productionId: document.id, baseRevision: document.revision, draft })) }}>前移</Button>
                 <Button variant="ghost" size="sm" disabled={busy || shotIndex >= shots.length - 1} onClick={() => { const draft = copyVisualDraft(document); draft.shots = reorderVisualShot(draft.shots, shot.id, 1); void mutate(() => window.electronAPI.visualProduction.invoke('save', { sessionId, productionId: document.id, baseRevision: document.revision, draft })) }}>后移</Button>
               </div>
             </section>}</div>}
-        {view.tab === 'relations' && snapshot && <VisualRelationCanvas key={document.id} projectId={projectId} sessionId={sessionId} snapshot={snapshot} active={paneActive} onOpenAsset={openAsset} onOpenShots={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} />}
+        {view.tab === 'relations' && snapshot && <VisualRelationCanvas key={document.id} projectId={projectId} sessionId={sessionId} snapshot={snapshot} active={paneActive && !recordsOpen && !editor && !selectedAsset} onOpenAsset={openAsset} onOpenShots={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} />}
         {view.tab === 'editing' && snapshot && <VisualEditingWorkspace key={`editing:${context}:${episodeId ?? ''}`} sessionId={sessionId} productionId={document.id} snapshot={snapshot} episodeId={episodeId ?? null} active={paneActive && view.tab === 'editing'} onEpisodeChange={nextEpisodeId => updateView({ tab: 'editing', episodeId: nextEpisodeId, shotId: null })} />}
         {view.tab === 'delivery' && snapshot && <VisualProductionDelivery key={`delivery:${context}`} sessionId={sessionId} snapshot={snapshot} active={paneActive} onExportManifest={exportManifest} onExportMedia={exportMedia} onOpenAsset={openAsset} onOpenShot={(targetEpisodeId, targetShotId) => updateView({ tab: 'shots', episodeId: targetEpisodeId, shotId: targetShotId })} onOpenShots={() => updateView({ tab: 'shots' })} />}
       </>}
@@ -524,11 +551,17 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
               </aside>
             </div>}
             {(editor.kind === 'asset' || editor.kind === 'shot') && <>
-              <label>采用素材<Select value={editAsset?.mediaId ?? editShot?.mediaId ?? NO_MEDIA_VALUE} onValueChange={value => changeEditor(draft => { if (editor.kind === 'asset') draft.assets.find(item => item.id === editor.targetId)!.mediaId = value === NO_MEDIA_VALUE ? null : value; else draft.shots.find(item => item.id === editor.targetId)!.mediaId = value === NO_MEDIA_VALUE ? null : value })}>
+              {editor.kind === 'asset' && editAsset && <label>采用素材<Select value={editAsset.mediaId ?? NO_MEDIA_VALUE} onValueChange={value => changeEditor(draft => { draft.assets.find(item => item.id === editor.targetId)!.mediaId = value === NO_MEDIA_VALUE ? null : value })}>
                 <SelectTrigger aria-label="采用素材"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value={NO_MEDIA_VALUE}>暂无素材</SelectItem>{snapshot?.media.filter(item => editor.kind === 'asset' || (item.kind !== 'audio' && (editor.draft.kind !== 'image' || item.kind === 'image'))).map(item => <SelectItem key={item.id} value={item.id}>{item.name} · {item.kind}</SelectItem>)}</SelectContent>
-              </Select>
-              </label>
+                <SelectContent><SelectItem value={NO_MEDIA_VALUE}>暂无素材</SelectItem>{snapshot?.media.filter(item => editAsset.type === '声音' ? item.kind === 'audio' : item.kind !== 'audio').map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+              </Select></label>}
+              {editor.kind === 'shot' && editShot && <div className="vp-shot-output-selects">{SHOT_MEDIA_KINDS.filter(kind => editor.draft.kind !== 'image' || kind === 'image').map(kind => <label key={kind}>采用{SHOT_MEDIA_LABELS[kind]}<Select value={resolveVisualShotOutputs(editShot, mediaById)[kind] ?? NO_MEDIA_VALUE} onValueChange={value => changeEditor(draft => {
+                /** 只替换选中的输出槽，并同步旧版使用的主视觉身份。 */
+                draft.shots = draft.shots.map(item => item.id === editor.targetId ? withVisualShotOutput(item, kind, value === NO_MEDIA_VALUE ? null : value, mediaById) : item)
+              })}>
+                <SelectTrigger aria-label={`采用${SHOT_MEDIA_LABELS[kind]}`}><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value={NO_MEDIA_VALUE}>尚未采用{SHOT_MEDIA_LABELS[kind]}</SelectItem>{snapshot?.media.filter(item => item.kind === kind).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+              </Select></label>)}</div>}
               <Collapsible>
                 <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm" className="group justify-start px-0"><ChevronRight size={14} className="transition-transform group-data-[state=open]:rotate-90" />从当前项目导入媒体</Button></CollapsibleTrigger>
                 <CollapsibleContent>

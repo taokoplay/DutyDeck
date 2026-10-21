@@ -195,6 +195,25 @@ function fixture(options: { largeResources?: boolean; withSources?: boolean; wit
 }
 
 describe('媒体 Agent 工具提供器', () => {
+  test('Given 普通对话 When 装配精简媒体入口 Then 可生成三类媒体而不加载工作流管理工具', () => {
+    /** 所有生成出口都是失败替身，证明装配阶段没有模型请求。 */
+    const f = fixture({ withSources: true, withLocalImport: true, withAssetFile: true })
+    const forbidden = (): never => { throw new Error('装配阶段不能读取配置或生成') }
+    f.dependencies.generation = { listModels: forbidden, prepare: forbidden, execute: forbidden, get: forbidden, wait: forbidden, cancel: forbidden }
+    const run = createMediaToolRun(f.dependencies, { ...context, mediaOnly: true, mediaToolScope: 'generation' })
+    expect(run.allowedToolNames).toEqual(expect.arrayContaining(['media_list_models', 'media_prepare_generation', 'media_execute_generation', 'media_wait_generation', 'media_get_asset_file']))
+    expect(run.allowedToolNames).not.toContain('media_discover_workflows')
+    expect(run.allowedToolNames).not.toContain('media_save_profile')
+    expect(run.systemPromptAppend).toContain('图片、音频和视频')
+    expect(run.systemPromptAppend).toContain('不要读取渠道配置')
+    expect(run.systemPromptAppend).not.toContain('必须先调用 media_discover_workflows')
+    expect(f.calls).toEqual([])
+    const planned = createMediaToolRun(f.dependencies, { ...context, mediaOnly: true, mediaToolScope: 'generation', permissionCeiling: 'plan' })
+    expect(planned.allowedToolNames).toContain('media_prepare_generation')
+    expect(planned.allowedToolNames).not.toContain('media_execute_generation')
+    expect(planned.allowedToolNames).not.toContain('media_import_assets')
+  })
+
   test('Given 仅影像模块 When 创建真实媒体运行 Then 提示与工具描述不指向未选画布能力', () => {
     /** 直接验证生产媒体 Provider，防止 Canvas 外层过滤掩盖内部提示泄漏。 */
     const f = fixture()
@@ -232,6 +251,20 @@ describe('媒体 Agent 工具提供器', () => {
     expect(prepared.details).toMatchObject({ phase: 'prepared', availableActions: ['media_execute_generation'] })
     expect((await executeTool(run.piCustomTools, 'media_execute_generation', { runId: current.id, expectedRevision: 0 })).details).toMatchObject({ phase: 'running' })
     expect((await executeTool(run.piCustomTools, 'media_wait_generation', { runId: current.id, afterRevision: 1 })).details).toMatchObject({ phase: 'succeeded' })
+  })
+
+  test('Given 会话从原项目改绑 When 操作旧项目生成任务 Then 读取执行等待取消均拒绝且没有副作用', async () => {
+    /** 宿主已验证同一会话，但任务属于之前的项目。 */
+    const f = fixture()
+    const old: MediaGenerationSnapshot = { id: 'old-run', projectId: 'project-old', revision: 0, phase: 'prepared', modelRef: 'media:audio:minimax:audio:speech', mediaKind: 'audio', createdAt: 1, updatedAt: 1, outputs: [], error: null }
+    let effects = 0
+    f.dependencies.generation = { listModels: () => [], prepare: () => old, get: () => old,
+      execute: async () => { effects++; return old }, wait: async () => { effects++; return old }, cancel: () => { effects++; return old } }
+    const run = createMediaToolRun(f.dependencies, context)
+    for (const name of ['media_get_generation', 'media_execute_generation', 'media_wait_generation', 'media_cancel_generation']) {
+      await expect(executeTool(run.piCustomTools, name, { runId: old.id, expectedRevision: 0, cancelIntent: 'explicit' })).rejects.toThrow('MEDIA_GENERATION_PROJECT_MISMATCH')
+    }
+    expect(effects).toBe(0)
   })
 
   test('Given 统一媒体准备工具 When Agent读取参数合同 Then 明确标出标量与受管资产输入形状', () => {

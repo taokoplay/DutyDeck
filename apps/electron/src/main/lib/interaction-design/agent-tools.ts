@@ -38,11 +38,15 @@ export function buildInteractionDesignAgentTools(options: InteractionDesignAgent
   const plan = Type.Object({ schemaVersion: Type.Literal(1), summary: Type.String({ maxLength: 4000 }), groups: Type.Array(Type.Object({ id, name: Type.String({ minLength: 1, maxLength: 120 }), parentId: Type.Optional(id) }, { additionalProperties: false }), { minItems: 1, maxItems: PROTOTYPE_LIMITS.groups }), pages: Type.Array(planPage, { minItems: 1, maxItems: PROTOTYPE_LIMITS.pages }), entryPageId: id, flows: Type.Array(Type.Object({ id, fromPageId: id, elementId: id, targetPageId: id }, { additionalProperties: false }), { maxItems: PROTOTYPE_LIMITS.flows }), unresolved: Type.Array(Type.String({ maxLength: 500 }), { maxItems: PROTOTYPE_LIMITS.planUnresolved }) }, { additionalProperties: false })
   /** Agent 可声明的生成边界模式。 */
   const jobMode = Type.Union([Type.Literal('design'), Type.Literal('page-edit'), Type.Literal('project-restore')])
+  /** 设备与布局合同显式 opt-in，页面和全屏状态可独立覆盖。 */
+  const presentation = Type.Object({ schemaVersion: Type.Literal(1), contentLayout: Type.Union([Type.Literal('safe'), Type.Literal('edge-to-edge')]), statusBar: Type.Union([Type.Literal('dark'), Type.Literal('light'), Type.Literal('hidden')]), navigation: Type.Union([Type.Literal('inline'), Type.Literal('overlay'), Type.Literal('none')]), orientation: Type.Union([Type.Literal('portrait'), Type.Literal('landscape')]) }, { additionalProperties: false })
+  /** 仅允许预览器支持的设备，拒绝模型臆造尺寸。 */
+  const environment = Type.Object({ schemaVersion: Type.Literal(1), target: Type.Union([Type.Literal('ios'), Type.Literal('android'), Type.Literal('web')]), deviceId: Type.Union(['iPhone 17', 'iPhone 18 Pro', 'iPhone X', 'iPhone 8', 'iPhone 8 Plus', 'iPhone Duo', 'Pixel 10', 'Galaxy S25', 'iPad Mini', 'iPad Pro', 'MacBook Pro', 'MacBook Pro 2020', '浏览器 Web'].map(value => Type.Literal(value))) }, { additionalProperties: false })
   /** 候选完整页面包；HTML 内使用稳定元素与内部路由声明。 */
   const draft = Type.Object({
-    name: Type.String(), platform: Type.Union([Type.Literal('mobile'), Type.Literal('desktop')]), brief: Type.String(),
+    environment: Type.Optional(environment), name: Type.String(), platform: Type.Union([Type.Literal('mobile'), Type.Literal('desktop')]), brief: Type.String(),
     groups: Type.Array(Type.Object({ id, name: Type.String(), parentId: Type.Optional(id) })),
-    pages: Type.Array(Type.Object({ id, groupId: id, name: Type.String(), html: Type.String(), defaultStateName: Type.Optional(Type.String()), pageRevision: Type.Optional(revision), route: Type.Optional(Type.String({ maxLength: 512 })), role: Type.Optional(Type.String({ maxLength: 240 })), states: Type.Optional(Type.Array(Type.Object({ id, name: Type.String(), html: Type.String() }), { maxItems: PROTOTYPE_LIMITS.statesPerPage })), source: Type.Optional(Type.Object({ path: relativePath, hash: Type.String(), kind: Type.Union([Type.Literal('html'), Type.Literal('code')]) })) })),
+    pages: Type.Array(Type.Object({ id, groupId: id, name: Type.String(), html: Type.String(), presentation: Type.Optional(presentation), defaultStateName: Type.Optional(Type.String()), pageRevision: Type.Optional(revision), route: Type.Optional(Type.String({ maxLength: 512 })), role: Type.Optional(Type.String({ maxLength: 240 })), states: Type.Optional(Type.Array(Type.Object({ id, name: Type.String(), html: Type.String(), presentation: Type.Optional(presentation) }), { maxItems: PROTOTYPE_LIMITS.statesPerPage })), source: Type.Optional(Type.Object({ path: relativePath, hash: Type.String(), kind: Type.Union([Type.Literal('html'), Type.Literal('code')]) })) })),
     entryPageId: id,
     flows: Type.Array(Type.Object({ id, fromPageId: id, elementId: id, targetPageId: id })),
   })
@@ -96,7 +100,7 @@ export function buildInteractionDesignAgentTools(options: InteractionDesignAgent
   /** 页面读取固定已知版本，不把邻页正文混入模型上下文。 */
   const readPageParameters = Type.Object({ ...target, revision, pageId: id }, { additionalProperties: false })
   /** 单页候选只接收目标正文；其余快照由可信宿主补齐。 */
-  const proposePageParameters = Type.Object({ ...base, jobId: id, pageId: id, stateId: Type.Optional(id), html: Type.String({ maxLength: PROTOTYPE_LIMITS.pageChars }), summary: Type.String({ minLength: 1, maxLength: 2000 }) }, { additionalProperties: false })
+  const proposePageParameters = Type.Object({ ...base, jobId: id, pageId: id, stateId: Type.Optional(id), presentation: Type.Optional(presentation), html: Type.String({ maxLength: PROTOTYPE_LIMITS.pageChars }), summary: Type.String({ minLength: 1, maxLength: 2000 }) }, { additionalProperties: false })
   tools.push(options.sdk.defineTool({
     name: 'prototype_read_page', label: '读取原型单页',
     description: '局部修改优先使用。读取指定版本的目标页面HTML与全部states、原型元信息、页面目录摘要和相关流程；不返回其他页面正文。pageId来自界面引用或已有目录，revision来自prototype_list或界面引用。',
@@ -109,7 +113,7 @@ export function buildInteractionDesignAgentTools(options: InteractionDesignAgent
       if (!page) throw new Error('原型页面不存在')
       /** 显式字段投影避免未来文档字段无意泄露其他页面正文。 */
       const result = {
-        prototype: { id: document.id, revision: document.revision, name: document.name, platform: document.platform, brief: document.brief, entryPageId: document.entryPageId, groups: document.groups },
+        prototype: { id: document.id, revision: document.revision, name: document.name, platform: document.platform, ...(document.environment === undefined ? {} : { environment: document.environment }), brief: document.brief, entryPageId: document.entryPageId, groups: document.groups },
         pages: document.pages.map((item) => ({ id: item.id, groupId: item.groupId, name: item.name })),
         page,
         flows: document.flows.filter((flow) => flow.fromPageId === page.id || flow.targetPageId === page.id),
@@ -120,7 +124,7 @@ export function buildInteractionDesignAgentTools(options: InteractionDesignAgent
     },
   }), options.sdk.defineTool({
     name: 'prototype_propose_page', label: '提交原型单页候选',
-    description: '局部修改优先使用。仅传入指定页HTML；stateId指定已有附加状态，省略时仅修改默认HTML并保留states；新增删除状态使用完整propose。宿主读取baseRevision并保持其他页面、目录、来源和流程原样，生成完整候选。必须提供本会话begin_job的jobId和pageId；候选可随后由prototype_adopt_page按页面CAS自动采纳。需要修改流程或目录时使用完整prototype_propose。创建页面前必须先读取目录、名称、路由和职责，已有页面优先复用pageId。目标状态须独立离线完整、图片使用已导入资源、脚本完整；保留3D等核心直接操作，不用静态图或toast替代，并实际体验目标状态。',
+    description: '局部修改优先使用。仅传入指定页HTML；stateId指定已有附加状态，省略时仅修改默认HTML并保留states；presentation可显式更新目标页或stateId指定状态的布局，省略保持原配置；新增删除状态使用完整propose。宿主读取baseRevision并保持其他页面、目录、来源和流程原样，生成完整候选。必须提供本会话begin_job的jobId和pageId；候选可随后由prototype_adopt_page按页面CAS自动采纳。需要修改流程或目录时使用完整prototype_propose。创建页面前必须先读取目录、名称、路由和职责，已有页面优先复用pageId。目标状态须独立离线完整、图片使用已导入资源、脚本完整；保留3D等核心直接操作，不用静态图或toast替代，并实际体验目标状态。',
     parameters: proposePageParameters,
     async execute(_callId, input, signal) {
       if (!Value.Check(proposePageParameters, input)) throw new Error('INTERACTION_DESIGN_INVALID_INPUT')
@@ -130,8 +134,8 @@ export function buildInteractionDesignAgentTools(options: InteractionDesignAgent
       const targetPage = document.pages.find((page) => page.id === input.pageId)
       if (!targetPage) throw new Error('原型页面不存在')
       if (input.stateId !== undefined && !targetPage.states?.some((state) => state.id === input.stateId)) throw new Error('页面状态不存在')
-      /** 仅替换正文；页面身份、分组、名称、来源及全部其他页面保持不变。 */
-      const draft = { ...document, pages: document.pages.map((page) => page.id !== input.pageId ? page : input.stateId === undefined ? { ...page, html: input.html } : { ...page, states: page.states?.map((state) => state.id === input.stateId ? { ...state, html: input.html } : state) }) }
+      /** 仅替换目标正文及显式布局；页面身份、分组、名称、来源及其他页面保持不变。 */
+      const draft = { ...document, pages: document.pages.map((page) => page.id !== input.pageId ? page : input.stateId === undefined ? { ...page, html: input.html, ...(input.presentation === undefined ? {} : { presentation: input.presentation }) } : { ...page, states: page.states?.map((state) => state.id === input.stateId ? { ...state, html: input.html, ...(input.presentation === undefined ? {} : { presentation: input.presentation }) } : state) }) }
       const result = await invoke('propose', { sessionId: options.sessionId, prototypeId: input.prototypeId, baseRevision: input.baseRevision, jobId: input.jobId, draft, summary: input.summary }, true, signal)
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result }
     },

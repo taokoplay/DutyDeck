@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { applyVisualEditingOperations, parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperations } from '@dutydeck/shared'
+import { resolveVisualShotOutputs, applyVisualEditingOperations, parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperations } from '@dutydeck/shared'
 import type { VisualEditingClip, VisualEditingDocument, VisualEditingExportJob, VisualEditingExportSettings, VisualEditingOperation, VisualEditingTimelineCandidate, VisualEditingTimelineSnapshot, VisualProductionSnapshot, VisualMedia } from '@dutydeck/shared'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
@@ -89,8 +89,9 @@ export class VisualEditingStore {
         if (!source) continue
         const shot = snapshot.document.shots.find(item => item.id === source.shotId)
         const currentMedia = media.get(source.mediaId)
-        const currentShot = shot ? snapshot.shotStates[shot.id] : undefined
-        if (!shot || !currentMedia || shot.mediaId !== source.mediaId || currentMedia.hash !== source.mediaHash || currentShot?.outputVersion !== source.shotOutputVersion) result.push(clip.id)
+        /** 按原媒体类型比较独立槽，音频更新不使画面片段失效。 */
+        const outputId = shot && currentMedia ? resolveVisualShotOutputs(shot, media)[currentMedia.kind] : null
+        if (!shot || !currentMedia || outputId !== source.mediaId || currentMedia.hash !== source.mediaHash) result.push(clip.id)
       }
     }
     return result
@@ -121,17 +122,22 @@ export class VisualEditingStore {
     const now = Date.now()
     let cursor = 0
     const clips: VisualEditingClip[] = []
+    /** 独立声音按镜头起点对齐，已有时间线不自动重建。 */
+    const voices: VisualEditingClip[] = []
+    const mediaById = new Map(snapshot.media.map(item => [item.id, item]))
     for (const shot of snapshot.document.shots.filter(item => item.episodeId === episodeId)) {
-      if (!shot.mediaId) continue
-      const media = snapshot.media.find(item => item.id === shot.mediaId)
+      const outputs = resolveVisualShotOutputs(shot, mediaById)
+      const media = mediaById.get(outputs.video ?? outputs.image ?? '')
       if (!media || (media.kind !== 'image' && media.kind !== 'video')) continue
       const duration = Math.max(shot.duration, 0.1)
       const outputVersion = snapshot.shotStates[shot.id]?.outputVersion ?? 0
-      clips.push({ id: randomUUID(), source: { type: 'shot-media', shotId: shot.id, mediaId: media.id, mediaHash: media.hash, shotOutputVersion: outputVersion }, start: cursor, duration, sourceIn: 0, sourceOut: duration, label: shot.title, ...((media.kind === 'image' || media.kind === 'video') ? {} : {}) })
+      clips.push({ id: randomUUID(), source: { type: 'shot-media', shotId: shot.id, mediaId: media.id, mediaHash: media.hash, shotOutputVersion: outputVersion }, start: cursor, duration, sourceIn: 0, sourceOut: duration, label: shot.title })
+      const audio = outputs.audio ? mediaById.get(outputs.audio) : undefined
+      if (audio?.kind === 'audio') voices.push({ id: randomUUID(), source: { type: 'shot-media', shotId: shot.id, mediaId: audio.id, mediaHash: audio.hash, shotOutputVersion: outputVersion }, start: cursor, duration, sourceIn: 0, sourceOut: duration, label: `${shot.title} · 音频`, volume: 1 })
       cursor += duration
     }
     if (!clips.length) throw new Error('当前集没有可剪辑的已采用镜头')
-    const timeline: VisualEditingDocument = { schemaVersion: 1, id: randomUUID(), productionId: snapshot.document.id, episodeId, revision: 1, baseProductionRevision: snapshot.document.revision, tracks: [{ id: 'video', kind: 'video', clips }], duration: cursor, createdAt: now, updatedAt: now }
+    const timeline: VisualEditingDocument = { schemaVersion: 1, id: randomUUID(), productionId: snapshot.document.id, episodeId, revision: 1, baseProductionRevision: snapshot.document.revision, tracks: [{ id: 'video', kind: 'video', clips }, ...(voices.length ? [{ id: 'voice', kind: 'voice' as const, clips: voices }] : [])], duration: cursor, createdAt: now, updatedAt: now }
     parseVisualEditingDocument(timeline)
     const path = this.path(snapshot.document.id, episodeId, true)
     const file: VisualEditingFile = { schemaVersion: 1, timeline, candidates: [], exportJobs: [] }

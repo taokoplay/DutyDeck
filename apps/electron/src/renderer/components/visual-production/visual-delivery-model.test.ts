@@ -20,6 +20,22 @@ function fixture(): VisualProductionSnapshot {
 }
 
 describe('影像素材导出', () => {
+  it('Given 同镜头有独立画面影片音频 When 导出 Then 三者均保留且未绑定候选不混入', () => {
+    const snapshot = fixture()
+    snapshot.media.push({ ...media, id: 'video', kind: 'video', mime: 'video/mp4' }, { ...media, id: 'audio', kind: 'audio', mime: 'audio/wav' })
+    snapshot.document.shots[0]!.outputs = { image: media.id, video: 'video', audio: 'audio' }
+    expect(buildVisualDelivery(snapshot).items.map(item => item.id)).toEqual([media.id, 'video', 'audio'])
+  })
+  it('Given 镜头只有独立音频 When 整理交付 Then 音频可交付且无画面的镜头仍待制作', () => {
+    /** 音频已采用不等于镜头的视觉内容已完成。 */
+    const snapshot = fixture()
+    snapshot.document.assets = []
+    snapshot.document.shots = [{ ...snapshot.document.shots[0]!, mediaId: null, outputs: { image: null, video: null, audio: 'audio' } }]
+    snapshot.media.push({ ...media, id: 'audio', kind: 'audio', mime: 'audio/wav' })
+    const result = buildVisualDelivery(snapshot)
+    expect(result.items.map(item => item.id)).toEqual(['audio'])
+    expect(result.unmadeShots).toBe(1)
+  })
   it('Given 机器文件名且跨集共享 When 整理导出列表 Then 使用业务名并去重且保留全部来源', () => {
     /** 保留副本，验证投影不改写作品或素材名称。 */
     const snapshot = fixture()

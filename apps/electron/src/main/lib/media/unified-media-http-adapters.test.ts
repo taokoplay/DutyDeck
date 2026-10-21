@@ -116,3 +116,87 @@ for (const adapterId of referenceAdapters) {
     }
   })
 }
+
+describe('参数与安全失败合同', () => {
+  for (const id of ['openai-images', 'minimax-image', 'minimax-video', 'minimax-speech', 'xiaomi-speech']) {
+    test(`Given ${id} 未知参数 When 预处理 Then 请求前拒绝`, () => {
+      /** 不应触发任何网络调用。 */
+      const adapter = createUnifiedMediaHttpAdapters().find(item => item.id === id)!
+      expect(() => adapter.prepareInputs!({ request: { ...request, inputs: { duration: { kind: 'scalar', value: 5 } } }, route: route(id, 'image') })).toThrow('MEDIA_GENERATION_PARAMETER_UNSUPPORTED')
+    })
+  }
+  for (const [status, code] of [[401, 'AUTH_FAILED'], [403, 'AUTH_FAILED'], [402, 'QUOTA_EXCEEDED'], [429, 'RATE_LIMITED'], [503, 'TEMPORARY_FAILURE']] as const) {
+    test(`Given HTTP ${status} When 提交 Then 安全分类不泄露响应`, async () => {
+      /** 上游错误可能包含密钥，不能直接展示。 */
+      const adapter = createUnifiedMediaHttpAdapters({ fetch: async () => new Response('Bearer secret-key', { status }) })[0]!
+      await expect(adapter.generate({ request, route: route(adapter.id, 'image'), signal: new AbortController().signal })).rejects.toThrow(`MEDIA_ADAPTER_${code}`)
+    })
+  }
+  test('Given POST 网络错误 When 提交 Then 结果未知且不重发或泄露错误', async () => {
+    /** 计数确保不会隐式重试收费提交。 */
+    let calls = 0
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async () => { calls++; throw new Error('Authorization: secret-key') } })[0]!
+    await expect(adapter.generate({ request, route: route(adapter.id, 'image'), signal: new AbortController().signal })).rejects.toThrow('MEDIA_ADAPTER_SUBMISSION_UNKNOWN')
+    expect(calls).toBe(1)
+  })
+  test('Given 已持久化视频任务 When 恢复 Then 只查询下载不再POST', async () => {
+    /** 收集 HTTP 方法验证恢复不会重复生成。 */
+    const methods: string[] = []
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async (url, init) => {
+      methods.push(init?.method ?? 'GET')
+      return String(url).includes('/query/') ? Response.json({ status: 'Success', video_url: 'https://cdn.example.test/video.mp4' }) : new Response(new Uint8Array([1]))
+    } }).find(item => item.id === 'minimax-video')!
+    await adapter.generate({ request, route: route(adapter.id, 'video'), signal: new AbortController().signal, remoteTask: { taskId: 'saved' } })
+    expect(methods).toEqual(['GET', 'GET'])
+  })
+  test('Given 保存taskId失败 When 视频提交成功 Then 不继续查询', async () => {
+    /** 保存失败必须停在首次提交之后。 */
+    let calls = 0
+    const adapter = createUnifiedMediaHttpAdapters({ timeoutMs: 5, pollIntervalMs: 0, fetch: async () => { calls++; return Response.json({ task_id: 'task' }) } }).find(item => item.id === 'minimax-video')!
+    await expect(adapter.generate({ request, route: route(adapter.id, 'video'), signal: new AbortController().signal, onRemoteTask: () => { throw new Error('SAVE_FAILED') } })).rejects.toThrow('SAVE_FAILED')
+    expect(calls).toBe(1)
+  })
+})
+
+describe('供应商安全分类与恢复边界', () => {
+  test('Given 不明业务错误含余额文字 When 生成 Then 不误报余额不足且不泄露原文', async () => {
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async () => Response.json({ base_resp: { status_code: 999, status_msg: '余额不足 secret-key' } }) })[0]!
+    await expect(adapter.generate({ request, route: route(adapter.id, 'image'), signal: new AbortController().signal })).rejects.toThrow(/^MEDIA_ADAPTER_REMOTE_FAILED$/)
+  })
+  test('Given 视频任务首次成功 When 开始查询 Then 已通知保存且下载不带密钥', async () => {
+    /** 记录保存先于查询的时序。 */
+    let saved = false
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async (url, init) => {
+      if (init?.method === 'POST') return Response.json({ task_id: 'task' })
+      expect(saved).toBe(true)
+      if (String(url).includes('/query/')) return Response.json({ status: 'Success', video_url: 'https://cdn.example.test/video.mp4' })
+      expect(new Headers(init?.headers).get('Authorization')).toBeNull()
+      return new Response(new Uint8Array([1]))
+    } }).find(item => item.id === 'minimax-video')!
+    await adapter.generate({ request, route: route(adapter.id, 'video'), signal: new AbortController().signal, onRemoteTask: task => { expect(task.taskId).toBe('task'); saved = true } })
+  })
+  test('Given GET网络失败 When 恢复视频 Then 返回安全暂时失败且不POST', async () => {
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async (_url, init) => { expect(init?.method).toBe('GET'); throw new Error('Bearer secret-key') } }).find(item => item.id === 'minimax-video')!
+    await expect(adapter.generate({ request, route: route(adapter.id, 'video'), signal: new AbortController().signal, remoteTask: { taskId: 'saved' } })).rejects.toThrow(/^MEDIA_ADAPTER_TEMPORARY_FAILURE$/)
+  })
+  test('Given POST响应流中断 When 读取响应 Then 提交结果未知且不泄露底层错误', async () => {
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async () => new Response(new ReadableStream({ start(controller) { controller.error(new Error('Bearer secret-key')) } })) })[0]!
+    await expect(adapter.generate({ request, route: route(adapter.id, 'image'), signal: new AbortController().signal })).rejects.toThrow(/^MEDIA_ADAPTER_SUBMISSION_UNKNOWN$/)
+  })
+})
+
+for (const adapterId of ['minimax-speech', 'xiaomi-speech']) {
+  test(`Given ${adapterId} 自定义音色 When 生成 Then 实际透传参数并返回MP3`, async () => {
+    /** 捕获供应商请求体，验证公开参数没有被静默丢弃。 */
+    let submitted: Record<string, unknown> = {}
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async (_url, init) => {
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return Response.json(adapterId === 'minimax-speech' ? { data: { audio: 'dm9pY2U=' } } : { choices: [{ message: { audio: { data: 'dm9pY2U=' } } }] })
+    } }).find(item => item.id === adapterId)!
+    /** 输入与输出格式严格一致，不以MP3标签包装其他格式。 */
+    const outputs = await adapter.generate({ request: { ...request, inputs: { voice: { kind: 'scalar', value: 'custom' }, format: { kind: 'scalar', value: 'mp3' } } }, route: route(adapterId, 'audio'), signal: new AbortController().signal })
+    expect(adapterId === 'minimax-speech' ? submitted.voice_setting : submitted.audio).toEqual(adapterId === 'minimax-speech' ? { voice_id: 'custom' } : { voice: 'custom', format: 'mp3' })
+    expect(outputs[0]?.contentType).toBe('audio/mpeg')
+    expect(new TextDecoder().decode(outputs[0]?.bytes)).toBe('voice')
+  })
+}

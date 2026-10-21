@@ -285,7 +285,7 @@ function readResults(input: GenerateDreaminaImagesInput, paths: readonly string[
 /** 隔离 CLI/注入运行器的异常，不泄漏 stderr、系统路径或请求内容。 */
 async function callCli(dependencies: DreaminaImageGenerationDependencies, args: readonly string[], cliPath: string, signal?: AbortSignal): Promise<DreaminaCliResult> {
   try { return await dependencies.runCli(args, cliPath, signal) }
-  catch { assertActive(signal); throw new DreaminaGenerationError('即梦 CLI 执行失败，请检查登录态') }
+  catch { assertActive(signal); throw new DreaminaGenerationError('即梦 CLI 执行失败，提交结果未知') }
 }
 
 /** CLI 缺失或超时统一转成可操作提示。 */
@@ -300,7 +300,9 @@ function describeCliFailure(result: DreaminaCliResult): string | null {
   if (output.includes('AigcComplianceConfirmationRequired')) {
     return '该模型需要先在即梦网页端完成一次生成确认，请到即梦 Web 完成后再重试'
   }
-  if (result.exitCode !== 0) return '即梦 CLI 执行失败，请检查登录态'
+  /** 只有明确登录错误才指导重新登录；未知退出可能发生在远端已接受提交之后。 */
+  if (result.exitCode !== 0 && /not logged in|login required|please log(?:in| in)|未登录|登录(?:态)?(?:已)?失效/i.test(output)) return '即梦 CLI 执行失败，请检查登录态'
+  if (result.exitCode !== 0) return '即梦 CLI 执行失败，提交结果未知'
   return null
 }
 

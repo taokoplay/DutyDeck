@@ -1,7 +1,7 @@
 ---
 name: interaction-design
 description: 在当前项目生成、还原和局部修改可点击的 App/Web 多页原型，用户直接描述目标页面，使用主会话候选流程。
-version: 1.0.10
+version: 1.0.11
 ---
 
 # 交互设计
@@ -27,6 +27,69 @@ version: 1.0.10
 默认状态和每个附加状态都必须独立离线运行：包含完整样式、脚本和初始化逻辑，不依赖另一状态的 DOM、变量或已加载资源。逐状态检查所有图片引用（包括 CSS 背景、srcset 和脚本赋值），项目图片先导入，再使用 `prototype-asset:<id>`；不能遗留 `assets/cabinet.png` 等项目相对路径、临时文件地址或外链。提交前检查正文与脚本完整性，不把截断脚本或省略号当成完整实现。
 
 候选摘要按业务页面列出已覆盖状态、未覆盖页面与推断点，不能只写“包含全部交互”。`prototype_read_page` 返回目标页的所有状态；`prototype_propose_page` 可传 `stateId` 修改已有附加状态，省略时仅修改默认正文并保留附加状态。新增或删除状态使用完整 `prototype_propose`。结构检查和页面访问记录不能证明每个状态均已体验或视觉验收。
+
+## 移动端系统区域与全屏布局
+
+新建或明确修正移动页面时使用下列布局合同；不要在 HTML 里重复画时间、信号、电量、灵动岛、刘海或手势条。宿主统一绘制系统区域，应用的品牌、标题、返回按钮、Tab 和业务导航仍由页面实现。已有页面未声明 `presentation` 时继续保持原样；局部修改其他内容不得擅自迁移导航或删除用户自定义系统栏。
+
+原型的 `environment` 固定设计目标和基准机型，预览临时切设备不会修改它：
+
+```json
+{"schemaVersion":1,"target":"ios","deviceId":"iPhone 17"}
+```
+
+`target` 可为 `ios`、`android`、`web`。`deviceId` 使用宿主支持的精确名称：`iPhone 17`、`iPhone 18 Pro`、`iPhone X`、`iPhone 8`、`iPhone 8 Plus`、`iPhone Duo`、`Pixel 10`、`Galaxy S25`、`iPad Mini`、`iPad Pro`、`MacBook Pro`、`MacBook Pro 2020`、`浏览器 Web`。优先保留现有基准，不按当前预览外壳猜测设计目标；改变 environment 是全原型变更，不能通过单页采纳夹带。
+
+页面和附加状态可声明 `presentation`；状态省略时继承页面。所有字段必须完整提供：
+
+```json
+{"schemaVersion":1,"contentLayout":"safe","statusBar":"dark","navigation":"inline","orientation":"portrait"}
+```
+
+- `contentLayout`：`safe` 只对 `[data-prototype-shell]` 留安全区；`edge-to-edge` 让该容器铺满视口。不要全局设置 body padding。
+- `statusBar`：`dark` 为深色图标，`light` 为浅色图标，`hidden` 隐藏状态栏。隐藏状态栏不会消除硬件遮挡；Web 目标不模拟 OS 栏。
+- `navigation`：`inline` 使用页面自身普通布局，`overlay` 将标记导航浮在安全区内，`none` 隐藏标记导航。宿主不会生成业务导航或猜测返回目标。
+- `orientation`：`portrait` / `landscape`。状态可以独立声明横屏，不能只旋转内容图片冒充游戏横屏。
+
+普通页面使用一个 shell，业务间距放在内部容器。固定导航与底部操作、只滚动正文时可采用完整最小骨架：
+
+```html
+<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<style>
+html,body{margin:0;height:100%;font:16px system-ui;background:#f7f5fa;color:#17171b}
+[data-prototype-shell]{height:100dvh;display:flex;flex-direction:column}
+nav,footer{flex:none;padding:0 20px;display:flex;align-items:center;gap:12px}
+section{flex:1;min-height:0;overflow:auto;padding:20px}
+button{min-width:44px;min-height:44px}footer{padding:12px 20px}
+</style><body><main data-prototype-shell>
+<nav data-prototype-navigation><strong>页面标题</strong></nav>
+<section><h1 data-prototype-element="title">正文标题</h1><p>页面内容</p></section>
+<footer><button data-prototype-element="action">主要操作</button></footer>
+</main></body></html>
+```
+
+直播推荐 `edge-to-edge + light + overlay`；游戏推荐 `edge-to-edge + hidden + none`。背景、video、canvas可以铺满，关闭、HUD、互动输入等关键控件放进独立 `[data-prototype-safe-controls]`，或使用 `--prototype-safe-top/right/bottom/left` 精确定位。不要既给 shell 留白又给同一层 controls 重复加 padding。完整全屏骨架：
+
+```html
+<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<style>
+html,body{margin:0;height:100%;font:16px system-ui;background:#132235;color:white}
+[data-prototype-shell]{height:100dvh;overflow:hidden}
+.scene{position:absolute;inset:0;background:linear-gradient(140deg,#102c42,#38695e)}
+[data-prototype-navigation]{padding:0 20px;display:flex;justify-content:space-between}
+.hud{position:absolute;top:12px;left:20px}.actions{position:absolute;right:20px;bottom:16px}
+html[data-prototype-navigation-mode="overlay"] .hud{top:56px}
+button{min-width:44px;min-height:44px}
+</style><body><main data-prototype-shell>
+<div class="scene" aria-label="全屏场景"></div>
+<nav data-prototype-navigation><strong>直播间</strong></nav>
+<div data-prototype-safe-controls><span class="hud">业务状态</span><div class="actions"><button data-prototype-element="action">互动操作</button></div></div>
+</main></body></html>
+```
+
+进入/退出同页全屏可以同时更新 `document.documentElement` 上的 `data-prototype-layout`、`data-prototype-status-bar`、`data-prototype-navigation-mode`，使用上述枚举；根节点模式属性与业务元素的 `data-prototype-navigation` 标记分别命名，避免导航样式影响整个页面；运行时原地更新，不重建页面。页面可设置 `--prototype-home-color` 指定沉浸画面中的手势条颜色。方向由页面/状态合同或宿主方向按钮决定，不调用浏览器 Fullscreen API 冒充原生系统能力。
+
+采用新合同时提交 HTML 和 presentation；`prototype_propose_page` 允许修改目标页面或指定状态的 presentation，省略字段保留原值。旧页面迁移必须同时移除它自己绘制的重复系统栏并改为 shell，先比较候选再采纳。结构校验后还要逐状态查看完整机身：文字不被圆角/摄像头裁掉，控制区不落入手势边缘，状态栏颜色可读，横屏和切设备不丢表单与滚动现场。独立导出和开发交接使用保存的基准设备，不将临时设备预览当成正式设计尺寸；预览参数是模拟值，真实系统手势与栏隐藏必须由目标平台实现并实机验收。
 
 ## 代码还原的真实度要求
 

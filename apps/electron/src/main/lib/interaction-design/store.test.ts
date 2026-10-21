@@ -1088,3 +1088,74 @@ it('Given 已采纳任务对应当前版本 When 从任务入口删除 Then 同�
   writeFileSync(baselinePath, '{}')
   await expect(service.invoke('getCandidateImpact', { ...base, candidateId: candidate.id })).rejects.toThrow('版本页面记录非法')
 })
+
+/** 布局变更必须经过与正文相同的持久化和版本边界。 */
+describe('显示合同的版本和全局边界', () => {
+  it('Given 独立全屏状态 When 保存重载和恢复 Then 保留布局且递增页面版本', async () => {
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '游戏', platform: 'mobile' })
+    const presentation = { schemaVersion: 1 as const, contentLayout: 'edge-to-edge' as const, statusBar: 'hidden' as const, navigation: 'none' as const, orientation: 'landscape' as const }
+    const draft = { ...first.document, pages: first.document.pages.map(page => ({ ...page, states: [{ id: 'game', name: '游戏', html: '<main>游戏</main>', presentation }] })) }
+    const saved = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft, summary: '全屏状态' })
+    expect(saved.document.pages[0]!.states![0]!.presentation).toEqual(presentation)
+    const changed = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 2, draft: { ...saved.document, pages: saved.document.pages.map(page => ({ ...page, presentation })) }, summary: '横屏页面' })
+    expect(changed.document.pages[0]!.pageRevision).toBe(3)
+    const history = await service.invoke('getPageVersions', { sessionId, prototypeId: first.document.id, pageId: 'home' })
+    expect(history).toHaveLength(3)
+    const restored = await service.invoke('restore', { sessionId, prototypeId: first.document.id, baseRevision: 3, revision: 2 })
+    expect(restored.document.pages[0]!.states![0]!.presentation).toEqual(presentation)
+    expect(restored.document.pages[0]!.presentation).toEqual(saved.document.pages[0]!.presentation)
+  })
+  it('Given 单页面原型改变全局设备 When 页面采纳 Then 明确拒绝并保留原基线', async () => {
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '环境', platform: 'mobile' })
+    const candidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: { ...first.document, environment: { schemaVersion: 1, target: 'android', deviceId: 'Pixel 10' } }, summary: '换平台' })
+    expect(candidate.affectedPageIds).toEqual(['home'])
+    await expect(service.invoke('adoptPage', { sessionId, prototypeId: first.document.id, candidateId: candidate.id, baseRevision: 1, basePageRevision: 1, pageId: 'home' })).rejects.toThrow('全局')
+  })
+})
+
+it('Given 页面任务 When 修改目标布局 Then 可提交但全局环境变更不可混入', async () => {
+  /** 页面任务权限不随布局扩展而扩张到其他页面或全局环境。 */
+  const { service } = setup()
+  const first = await service.invoke('create', { sessionId, name: '布局任务', platform: 'mobile' })
+  const job = await service.invoke('beginJob', { sessionId, prototypeId: first.document.id, baseRevision: 1, pageId: 'home', instruction: '将本页切换为全屏游戏' })
+  const draft = structuredClone(first.document)
+  draft.pages[0]!.presentation = { schemaVersion: 1, contentLayout: 'edge-to-edge', statusBar: 'hidden', navigation: 'none', orientation: 'landscape' }
+  const input = { sessionId, prototypeId: first.document.id, baseRevision: 1, jobId: job.id, draft, summary: '全屏布局' }
+  await expect(service.invoke('propose', { ...input, draft: { ...draft, environment: { schemaVersion: 1, target: 'android', deviceId: 'Pixel 10' } } })).rejects.toThrow('超出任务页面范围')
+  const candidate = await service.invoke('propose', input)
+  const saved = await service.invoke('adoptPage', { sessionId, prototypeId: first.document.id, candidateId: candidate.id, baseRevision: 1, basePageRevision: 1, pageId: 'home' })
+  expect(saved.document.pages[0]!.presentation).toEqual(draft.pages[0]!.presentation)
+  expect(saved.document.environment).toEqual(first.document.environment)
+})
+
+it('Given 多页面模块 When 全局设备环境改变 Then 所有页面的影响范围和版本更新', async () => {
+  /** 环境变化影响每个页面，即使正文完全未改。 */
+  const { service } = setup()
+  const first = await service.invoke('create', { sessionId, name: '设备', platform: 'mobile' })
+  const draft = { ...first.document, pages: [...first.document.pages, { id: 'other', groupId: 'main', name: '另一页', html: '<main>另一页</main>' }] }
+  const base = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft, summary: '增加页面' })
+  const candidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 2, draft: { ...base.document, environment: { schemaVersion: 1, target: 'ios', deviceId: 'iPhone X' } }, summary: '基准设备修改' })
+  expect(candidate.affectedPageIds).toEqual(['home', 'other'])
+  const saved = await service.invoke('adopt', { sessionId, prototypeId: first.document.id, baseRevision: 2, candidateId: candidate.id })
+  expect(saved.document.pages.map(page => page.pageRevision)).toEqual(base.document.pages.map(page => page.pageRevision! + 1))
+})
+
+it('Given 旧版磁盘记录 When 缺省全部布局字段 Then 原内容hash仍可读取且不自动迁移', async () => {
+  /** 构造与旧版本完全一致的持久化载荷，不使用新解析器生成历史 hash。 */
+  const { root, service } = setup()
+  const first = await service.invoke('create', { sessionId, name: '旧记录', platform: 'mobile' })
+  const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions', '1.json')
+  const stored = JSON.parse(readFileSync(path, 'utf8')) as { hash: string; document: { environment?: unknown; pages: Array<{ presentation?: unknown }> } }
+  delete stored.document.environment
+  for (const page of stored.document.pages) delete page.presentation
+  const page = first.document.pages[0]!
+  const legacy = { name: first.document.name, platform: first.document.platform, brief: first.document.brief, groups: first.document.groups, pages: [{ id: page.id, groupId: page.groupId, name: page.name, html: page.html, pageRevision: page.pageRevision }], entryPageId: first.document.entryPageId, flows: first.document.flows }
+  stored.hash = interactionHash(JSON.stringify([first.document.id, 1, first.document.createdAt, first.document.updatedAt, legacy]))
+  writeJsonFileAtomic(path, stored)
+  const loaded = await service.invoke('getVersion', { sessionId, prototypeId: first.document.id, revision: 1 })
+  expect(loaded).not.toHaveProperty('environment')
+  expect(loaded.pages[0]).not.toHaveProperty('presentation')
+  expect(loaded.pages[0]!.html).toBe(page.html)
+})

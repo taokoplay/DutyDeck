@@ -1,5 +1,4 @@
 import { isExactRecoveryEligible } from './agent-recovery-context'
-import { getReferencedMediaModelRefs } from './agent-media-model-selection'
 import { parseVisualProductionReferences } from '@dutydeck/shared'
 import { createProductionVisualProductionAccess } from './visual-production/integration'
 import { prepareVisualProductionReferences, VisualReferenceInvalidError } from './visual-production/reference-preparation'
@@ -105,7 +104,7 @@ import {
   getWorkspaceAttachedFiles,
 } from './agent-workspace-manager'
 import { getAgentSessionMeta, isAgentSessionDeleting, markAgentSessionDeleting, listAgentSessions, updateAgentSessionMeta } from './agent-session-manager'
-import { buildCanvasAgentActiveRunSnapshot, isEligibleProjectAgent } from './agent-session-visibility'
+import { buildCanvasAgentActiveRunSnapshot, isEligibleUserMediaAgent } from './agent-session-visibility'
 import {
   resolveHeadlessAgentRunTerminalStatus,
   setAgentStopper,
@@ -140,6 +139,8 @@ import {
   type CanvasNodeReferenceResolver,
 } from './design/canvas-node-reference-resolver'
 import { getCanvasToolProviderRuntime } from './design/canvas-document-ipc'
+import { createUnavailableMediaToolRun, getMediaToolProviderRuntime } from './media/media-tool-runtime'
+import type { CanvasToolRunContext } from './design/canvas-tool-provider'
 import { openAuthorizedAgentMediaSource } from './design/design-session-bridge'
 import { getAgentSessionModulePolicy } from './agent-modules/module-policy-store'
 import { listRuntimeModules, resolveActiveModuleIds } from './agent-modules/module-skill-resolver'
@@ -250,15 +251,12 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
   const canvasSelected = activeModuleIds.includes('canvas')
   /** 影像模块复用媒体能力，但不获得画布管理能力。 */
   const visualSelected = activeModuleIds.includes('visual-production')
-  /** 直接选媒体模型即为本轮媒体意图，只装配共享媒体工具，不隐式开启专业模块。 */
-  const mediaModelSelected = getReferencedMediaModelRefs(input.mentionedMediaModelRefs).length > 0
-  if (!runtime
-    || !sessionMeta?.workspaceId
-    || !isEligibleProjectAgent(sessionMeta, sessionMeta.workspaceId)
-    || !isInteractiveUserRun
-    || (!canvasSelected && !visualSelected && !mediaModelSelected)) return prepared
-  const canvasRun = runtime.createRun({
+  if (!sessionMeta || !isEligibleUserMediaAgent(sessionMeta) || !isInteractiveUserRun) return prepared
+  /** 媒体能力独立于画布初始化；项目身份只取自主进程会话。 */
+  const mediaRuntime = getMediaToolProviderRuntime()
+  const toolContext: CanvasToolRunContext | undefined = sessionMeta.workspaceId ? {
     mediaOnly: !canvasSelected,
+    ...(!canvasSelected && !visualSelected ? { mediaToolScope: 'generation' as const } : {}),
     projectId: sessionMeta.workspaceId,
     sessionId: input.sessionId,
     runStartedAt: 'startedAt' in input && input.startedAt != null ? input.startedAt : Date.now(),
@@ -268,7 +266,11 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
         ? 'plan'
         : 'execute',
     ...(dialogOwnerWebContentsId !== undefined ? { dialogOwnerWebContentsId } : {}),
-  })
+  } : undefined
+  /** 专业画布继续使用原 facade，普通会话与影像直接消费共享媒体入口。 */
+  const canvasRun = !toolContext ? createUnavailableMediaToolRun('MEDIA_PROJECT_REQUIRED')
+    : canvasSelected ? runtime?.createRun(toolContext) ?? createUnavailableMediaToolRun('MEDIA_SERVICE_UNAVAILABLE')
+      : mediaRuntime?.createRun(toolContext) ?? createUnavailableMediaToolRun('MEDIA_SERVICE_UNAVAILABLE')
   return {
     ...prepared,
     extensions: {

@@ -10,6 +10,8 @@ export interface InteractionDesignView {
   device: 'mobile' | 'desktop'
   /** 当前预览机型，仅驻留项目视图，不改写原型平台。 */
   previewDevice?: PrototypeDeviceId
+  /** 横竖屏仅是临时预览偏好，不覆盖页面的正式布局。 */
+  previewOrientation?: 'portrait' | 'landscape'
   /** 手动预览比例；缺省自动适应可用区域，不改变设计视口。 */
   zoom?: number
   collapsedGroups: string[]

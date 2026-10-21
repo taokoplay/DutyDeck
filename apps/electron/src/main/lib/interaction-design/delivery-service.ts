@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { PrototypeDocument, InteractionDesignResults, PrototypeHandoff, PrototypeHandoffGroup } from '@dutydeck/shared'
-import { buildPrototypeExport } from '@dutydeck/shared'
+import { buildPrototypeExport, getPrototypeSafeArea, getPrototypeViewport } from '@dutydeck/shared'
 import { writeJsonFileAtomicSecure } from '../safe-file'
 import type { InteractionAssetService } from './asset-service'
 import { interactionHash } from './source-service'
@@ -82,18 +82,27 @@ export function createInteractionHandoff(document: PrototypeDocument, assets: In
     ...(group.parentId ? { parentId: group.parentId } : {}),
     path: groupPath(group.id),
   }))
+  /** 仅新版合同附加有效布局，旧交接包结构和 hash 保持兼容。 */
+  const displaySummary = (presentation: PrototypeDocument['pages'][number]['presentation']) => {
+    if (!document.environment && !presentation) return {}
+    const geometry = getPrototypeViewport(document, presentation)
+    return { ...(presentation === undefined ? {} : { presentation }), viewport: { width: geometry.width, height: geometry.height }, safeArea: getPrototypeSafeArea(geometry, presentation?.statusBar ?? 'hidden') }
+  }
   const pages = document.pages.map(page => ({
     id: page.id,
+    ...displaySummary(page.presentation),
     name: page.name,
     groupId: page.groupId,
     groupPath: groupPath(page.groupId),
     elementIds: [...new Set([page.html, ...(page.states ?? []).map(state => state.html)].flatMap(elementIds))],
-    states: [{ name: page.defaultStateName ?? '默认', elementIds: elementIds(page.html) }, ...(page.states ?? []).map(state => ({ id: state.id, name: state.name, elementIds: elementIds(state.html) }))],
+    states: [{ name: page.defaultStateName ?? '默认', ...displaySummary(page.presentation), elementIds: elementIds(page.html) }, ...(page.states ?? []).map(state => ({ id: state.id, name: state.name, ...displaySummary(state.presentation ?? page.presentation), elementIds: elementIds(state.html) }))],
     flowIds: document.flows.filter(flow => flow.fromPageId === page.id).map(flow => flow.id),
   }))
-  const viewport = document.platform === 'mobile' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
+  const geometry = getPrototypeViewport(document, document.pages.find(page => page.id === document.entryPageId)?.presentation)
+  const viewport = { width: geometry.width, height: geometry.height }
   const visualContract: PrototypeHandoff['visualContract'] = {
     viewport,
+    ...(document.environment === undefined ? {} : { environment: document.environment }),
     preserve: ['页面布局比例与层级', '字体层级、颜色、间距、圆角和组件尺寸', '页面之间的交互路径与入口关系', '加载、空态、失败和恢复状态的表达'],
   }
   /** hash 不包含交接包身份和生成时间，便于同一版本重复交接时稳定比较。 */

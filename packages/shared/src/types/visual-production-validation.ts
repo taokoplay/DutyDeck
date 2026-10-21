@@ -84,14 +84,16 @@ export function parseVisualProductionDraft(value: unknown): VisualProductionDraf
   const assetIds = new Set(assets.map(entry => entry.id))
   /** 每个镜头必须归属现有集数并引用现有资产。 */
   const shots = array(draft.shots, VISUAL_PRODUCTION_LIMITS.shots).map(value => {
-    const entry = object(value, ['id', 'episodeId', 'title', 'duration', 'scene', 'motion', 'dialogue', 'assetIds', 'mediaId'])
+    const entry = object(value, ['id', 'episodeId', 'title', 'duration', 'scene', 'motion', 'dialogue', 'assetIds', 'mediaId', 'outputs'])
     const episodeId = id(entry.episodeId)
     if (!episodeIds.has(episodeId)) invalid('镜头所属集数不存在')
     const references = array(entry.assetIds, VISUAL_PRODUCTION_LIMITS.assets).map(id)
     unique(references)
     if (references.some(reference => !assetIds.has(reference))) invalid('镜头引用资产不存在')
     if (typeof entry.duration !== 'number' || !Number.isFinite(entry.duration) || entry.duration > 600 || entry.duration < 0 || (productionKind !== 'image' && entry.duration === 0)) invalid('镜头时长无效')
-    return { id: id(entry.id), episodeId, title: string(entry.title, '镜头名称', 120), duration: entry.duration, scene: string(entry.scene, '画面描述', 8000, true), motion: string(entry.motion, '动作描述', 8000, true), dialogue: string(entry.dialogue, '对白', 8000, true), assetIds: references, mediaId: mediaId(entry.mediaId) }
+    /** 独立输出必须显式提供三个槽，缺省字段仍兼容旧镜头。 */
+    const outputs = entry.outputs === undefined ? undefined : object(entry.outputs, ['image', 'video', 'audio'])
+    return { id: id(entry.id), episodeId, title: string(entry.title, '镜头名称', 120), duration: entry.duration, scene: string(entry.scene, '画面描述', 8000, true), motion: string(entry.motion, '动作描述', 8000, true), dialogue: string(entry.dialogue, '对白', 8000, true), assetIds: references, mediaId: mediaId(entry.mediaId), ...(outputs === undefined ? {} : { outputs: { image: mediaId(outputs.image), video: mediaId(outputs.video), audio: mediaId(outputs.audio) } }) }
   })
   unique(shots.map(entry => entry.id))
   /** 规范结果最后执行总量预算，不接受局部上限叠加后的无界作品。 */

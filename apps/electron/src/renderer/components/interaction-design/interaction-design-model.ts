@@ -8,7 +8,7 @@ export interface PrototypeGroupTreeNode {
 
 /** 冻结设计正文，避免候选/表单修改已采纳对象。 */
 export function copyPrototypeDraft(document: PrototypeDraft): PrototypeDraft {
-  return structuredClone({ name: document.name, platform: document.platform, brief: document.brief, groups: document.groups, pages: document.pages, entryPageId: document.entryPageId, flows: document.flows })
+  return structuredClone({ name: document.name, platform: document.platform, brief: document.brief, groups: document.groups, pages: document.pages, entryPageId: document.entryPageId, flows: document.flows, ...(document.environment === undefined ? {} : { environment: document.environment }) })
 }
 
 /** 将扁平分组索引为稳定的多级目录树，保留正文数组顺序。 */
@@ -82,6 +82,7 @@ export function buildPrototypeHandoffPrompt(handoff: PrototypeHandoff): string {
     platform: handoff.platform,
     brief: handoff.brief,
     viewport: handoff.visualContract.viewport,
+    ...(handoff.visualContract.environment === undefined ? {} : { environment: handoff.visualContract.environment }),
     preserve: handoff.visualContract.preserve,
     groups: handoff.groups,
     pages: handoff.pages,
@@ -90,5 +91,5 @@ export function buildPrototypeHandoffPrompt(handoff: PrototypeHandoff): string {
     assets: handoff.assets.map(asset => ({ id: asset.id, name: asset.name, hash: asset.hash, mime: asset.mime, byteSize: asset.byteSize })),
     designTokens: handoff.designTokens,
   }
-  return `请根据下面固定的交互设计开发交接包实现 App。先调用 prototype_read_version 读取 prototypeId 对应的完整 revision，保持页面和元素身份；开发完成后在固定 viewport 截图对比并说明偏差。交接包只代表设计基线，不代表业务接口、权限和异常逻辑已经实现。\n\n${JSON.stringify(summary, null, 2)}`
+  return `请根据下面固定的交互设计开发交接包实现 App。先调用 prototype_read_version 读取 prototypeId 对应的完整 revision，保持页面和元素身份；开发完成后按各页面/状态的 viewport、presentation 和 safeArea 截图对比并说明偏差；缺省时沿用顶层 viewport。沉浸画面允许延伸到屏幕边缘，交互控件避让硬件遮挡，禁止强制所有页面添加导航或全局留白。交接包只代表设计基线，不代表业务接口、权限和异常逻辑已经实现。\n\n${JSON.stringify(summary, null, 2)}`
 }

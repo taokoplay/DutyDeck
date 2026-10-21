@@ -2,19 +2,21 @@
 
 日期：2026-10-19。状态：供评审与协作拆分的设计草案，尚未实施；当前不构成已发布 SDK 或包格式承诺。
 
-用户已明确要求：由 DutyDeck 制定统一插件规范和开发脚手架，开发者在其中实现模块并打包交付；插件携带的 Skills 标注模块名称，提示词及所需资源遵循统一合同；支持安装、卸载与关闭、独立安装包、团队私有分发和设置中的插件市场。
+用户已明确要求：由 DutyDeck 制定统一插件规范和开发脚手架，开发者在其中实现可执行业务模块并打包交付；项目/工作区已有的 Skills 继续由现有 Skill 系统管理，插件只声明稳定 Skill 引用，不复制或拥有 Skill 正文；提示词、工具、服务、界面、状态与产物遵循统一合同；支持安装、卸载与关闭、独立安装包、团队私有分发和设置中的插件市场。
+
+2026-10-20 边界修正：Skill 不是插件交付物。插件的最小价值是“模块运行时 + Agent 工具 + 右侧 Surface + 受控服务 + 状态/生命周期”；Skill 只作为项目或工作区的既有知识资源，由插件通过稳定 ID、版本范围和作用域引用。当前 `content` 包仅作为旧版兼容形态保留，新的标准脚手架以 `module-runtime`/受信 runtime 为目标；当前宿主尚未开放任意第三方可执行 runtime。
 
 2026-10-19 语义修正：用户说的“风格”指统一插件方案及开发规范。本文以一个标准脚手架、一套包格式为主线；设计类业务需要的视觉约束只是插件内部的可选资源，随所属插件管理，不构成额外的安装分类或首版前置能力。
 
-首版范围和优先顺序以 [插件模块首版规划](../plans/2026-10-19-plugin-module-v1-plan.md) 为准：先完成统一插件脚手架、包内资源接入、插件中心、私有源和独立作者工具，不等待六个内置业务模块全部迁出。
+首版范围和优先顺序以 [插件模块首版规划](../plans/2026-10-19-plugin-module-v1-plan.md) 为准：先完成模块 runtime 脚手架、Skill 引用解析、插件中心、私有源和独立作者工具，不等待六个内置业务模块全部迁出。
 
 本规范覆盖旧计划 `../plans/2026-10-18-agent-module-pluginization.md` 中“会话长期启用/固定”“目录只留在 Skills 页”等过时产品方向，保留已有实现与验证记录。当前消息显式选择专业模块、浏览器/终端自动按需调用的约定继续有效。
 
 ## 1. 结论与现状差距
 
-推荐把插件作为**可独立交付的能力包**，模块是包中面向用户的入口，Skill、提示、风格、工具、界面和产物类型是该入口的贡献。一个插件可以包含多个模块，但首批官方插件尽量一个业务模块一个包，避免一次关闭影响无关能力。
+推荐把插件作为**可独立交付的业务模块**，模块是包中面向用户的入口，工具、受控服务、右侧 Surface、状态、生命周期和产物类型是该入口的贡献；Skill 由项目/工作区现有系统提供，插件只声明引用。一个插件可以包含多个模块，但首批官方插件尽量一个业务模块一个包，避免一次关闭影响无关能力。
 
-我们负责清单与目录、模块/Skill 命名、提示结构、SDK 接口、界面约定、生命周期、校验和分发标准；开发者负责业务逻辑、模块所需资源和测试。插件安装后，其专业模块由用户在消息中选中，宿主才解析该模块的资源并开放已受支持、已授权的能力。
+我们负责清单与目录、模块命名、Skill 引用解析、提示结构、SDK 接口、界面约定、生命周期、校验和分发标准；开发者负责业务逻辑、工具/服务/Surface 和测试。插件安装后，其专业模块由用户在消息中选中，宿主才解析该模块声明的 Skill 引用并开放已受支持、已授权的能力。
 
 当前已经有清单、注册表、消息选择、Skill/prompt 接入、工具门禁、审计、清单安装管理和内置 Host 框架。仍缺少真实包资源所有权、全局开关、版本事务、动态工具/界面贡献、发布者身份、市场源、开发 SDK。
 
@@ -22,7 +24,7 @@
 
 | 现状 | 依据 | 对后续开发的影响 |
 | --- | --- | --- |
-| 只接收 manifest-only，不安装包内 Skill | `packages/shared/src/types/agent-plugin.ts`；`apps/electron/src/main/lib/agent-modules/plugin-management-service.ts` | 不能把当前“安装清单”称为独立业务插件安装 |
+| 只接收 manifest-only，且没有可执行 provider/runtime | `packages/shared/src/types/agent-plugin.ts`；`apps/electron/src/main/lib/agent-modules/plugin-management-service.ts` | 这是当前主要缺口：清单能展示模块，但不能承载业务工具、服务和右侧 Surface |
 | 内置 adapter 仅包装既有服务；生产注册没有注入真实服务 adapter | `agent-modules/builtin-plugin-adapters.ts`；`apps/electron/src/main/ipc.ts` | Host 的 running 不证明模块服务已经拆出 |
 | 编排器仍直接导入模块业务 | `apps/electron/src/main/lib/agent-orchestrator.ts` | 新业务插件还不能只实现公开 SDK 就加入系统 |
 | Skill 元数据没有可信的插件和模块归属，引用主要是裸 slug | `packages/shared/src/types/agent.ts`；`agent-modules/module-skill-resolver.ts` | 同名、来源标注、共享引用与升级归属需要统一 |
@@ -37,13 +39,14 @@
 | 方案 | 收益 | 代价 | 选择 |
 | --- | --- | --- | --- |
 | 继续扩充清单 | 变更最少 | 不能随包安装 Skills，不能独立交付业务 | 不作为最终目标 |
-| 统一脚手架先交付资源能力，随后支持业务运行 | 作者沿同一标准开发，逐步验证完整模块的独立交付 | 分阶段交付，需要明确每阶段支持范围 | 推荐 |
+| 统一脚手架直接面向模块 runtime，先做官方受信模块 | 与用户目标一致，工具/面板/服务有统一生命周期 | 需要 broker、权限、签名和隔离先行 | **推荐** |
 | 首版开放任意第三方代码和原生依赖 | 扩展范围最大 | 沙箱、升级与跨平台运维负担过大，拖延基础体验 | 不作为首版 |
 
-统一脚手架和包格式通过 `profile` 声明执行能力级别。下列取值仅用于兼容与准入校验，不是两套插件开发体系，也不作为市场的业务分类：
+统一脚手架和包格式通过 `profile` 声明执行能力级别。下列取值仅用于兼容与准入校验，不是市场业务分类：
 
-- `content`：Skills、纯文本提示、风格、模板、静态素材和声明式设置；不执行安装脚本，不注册任意 Node/系统工具。官方、社区、私有源均可发布。
-- `trusted-runtime`：在内容包之上提供业务服务、工具、界面及迁移适配器。先用于经宿主明确信任的官方模块迁出；签名正确或来自私有源不自动获得该资格。
+- `content`：旧版兼容形态，只能声明已有 Skill 引用、纯文本提示、静态元数据和声明式设置；不得携带或复制 Skill 正文，也不注册任意 Node/系统工具。
+- `module-runtime`：标准目标形态，提供业务工具、受控服务、右侧 Surface、状态和生命周期；当前只允许宿主内置或经 allowlist 的官方 provider。
+- `trusted-runtime`：`module-runtime` 的受信执行实现，先用于官方模块迁出；签名正确或来自私有源不自动获得该资格。
 
 非可信可执行插件的开放是单独发布门槛：真实文件/网络/凭据/资源隔离验证通过前拒绝安装该能力配置，不能以独立 utility 进程或 JS VM 冒充安全沙箱。这不阻止第三方先开发内容包或在隔离的开发数据根贡献业务插件源码。
 
@@ -56,7 +59,7 @@
 | 发布者 | 包身份与发布密钥的所有者 | `acme`，显示“Acme 团队” |
 | 插件 | 安装、升级、关闭、卸载的单位 | `acme.design-kit`，显示“设计助手” |
 | 模块 | 用户在消息中选择的能力入口 | `acme.design-kit.design`，显示“页面设计” |
-| Skill | 特定任务的操作知识与工作流 | `acme.design-kit/skills/page-design` |
+| Skill 引用 | 项目/工作区既有的操作知识与工作流 | `project:skills/page-design` |
 | 提示 | 有角色和用途的有界文本资源 | `acme.design-kit/prompts/workflow` |
 | 设计约束资源 | 插件内部可选的视觉约束、说明与示例 | `acme.design-kit/styles/clean-business` |
 | 工具/界面 | 通过 Host 合同注册的执行或展示能力 | `acme.design-kit/tools/inspect` |
@@ -64,7 +67,7 @@
 
 稳定 ID 使用英文小写命名空间，与中文显示名分离；名称修改不影响历史引用。包版本、资源版本、清单格式版本、Host API 版本和产物数据版本是五个独立维度，不能混用。
 
-新插件 `id` 使用 `<publisherId>.<pluginSlug>`，模块 ID 使用 `<pluginId>.<localModuleId>`。资源 ID 使用 `<pluginId>/<kind>/<localId>`；包内引用用本地 ID，由宿主编译为完整 ID。业务 Skill 只有一个所属模块；共享能力明确声明导出及消费者，不靠同名匹配共享。
+新插件 `id` 使用 `<publisherId>.<pluginSlug>`，模块 ID 使用 `<pluginId>.<localModuleId>`。插件运行资源 ID 使用 `<pluginId>/<kind>/<localId>`；Skill 不产生插件资源 ID，插件通过 `{id, scope, versionRange, required}` 稳定引用项目/工作区 Skill。共享能力明确声明导出及消费者，不靠同名匹配共享。
 
 内置模块现有 ID（例如 `interaction-design`）和 `builtin.*` 插件身份保留宿主专属兼容映射，不批量重写历史会话。第三方不得占用这些名字；迁出后的官方包只有通过宿主的发布者/密钥迁移授权才能继承原身份。短别名仅在唯一时可解析；存在歧义必须展示候选并拒绝静默选择第一个。
 
@@ -74,10 +77,10 @@
 
 - 主标题采用“交互设计 · 页面设计”“影像创作 · 镜头规划”；所属模块是独立标签，来源另外显示“官方 / Acme 团队 / 本地开发”。同名模块再显示插件名区分。
 - 详情显示插件、模块、作者、版本、是否已自定义、使用范围、必需/可选和可用状态；高级详情显示稳定 ID 和内容摘要。
-- `pluginId`、`ownerModuleId`、`publisherId`、可信来源及 hash 由安装记录生成，不能信任 Skill frontmatter 自报的来源。
-- 独立用户 Skill 继续显示“个人 / 项目”，不强制归入插件。用户创建的同名 Skill 不被覆盖或伪装成插件资源。
-- 插件资源不复制进通用工作区 Skills 目录；资源解析器直接挂载只读版本包。用户编辑通过独立覆盖层保存，标注“已自定义”，升级展示三方差异。
-- 必需 Skill 关闭或缺失时模块不可运行，说明阻断项；可选 Skill 关闭后仍可用的能力须写在详情中。
+- Skill 的真实来源、作用域、版本和 hash 由项目/工作区 Skill 注册表提供，不能信任插件 manifest 自报归属。
+- 独立用户 Skill 继续显示“个人 / 项目”，不强制归入插件；用户创建的同名 Skill 不会被插件覆盖。
+- 插件安装只保存 Skill 引用和解析锁，不复制正文到插件目录；运行快照记录实际解析到的 Skill revision/hash。
+- 必需 Skill 缺失、版本不兼容或项目未授权时模块不可运行，说明阻断项；可选 Skill 失效时显示降级能力。
 - 点击专业 Skill 只插入一个受控草稿操作：清楚显示“将同时选中交互设计”，用户点击该动作后同时加入模块 chip 和 Skill chip；手写引用而未选择模块时直接阻断，不在后台隐式选模块。
 
 ## 4. 启用、选择、运行与关闭
@@ -125,17 +128,18 @@
 - 插件生成的业务产物遵循自身领域规范。设计类插件可包含视觉约束，运维、接口等插件不需要生成无关的设计资源。
 - 插件的界面开发规范与它指导模型生成页面的视觉要求分别表达；后者不能覆盖宿主管理界面的统一体验。
 
-### 5.1 Skill 与提示的职责
+### 5.1 Skill 引用与提示的职责
 
-- Skill frontmatter 保持 `name`、`description`、`version` 兼容；归属信息来自包清单。正文采用固定章节：适用任务、输入、执行步骤、工具边界、输出、失败/取消、验收。
+- Skill 继续由项目/工作区现有 Skill 系统维护，保持 `name`、`description`、`version` 和既有正文合同；插件清单只声明 `skillRefs`，不得携带 `SKILL.md` 或覆盖正文。宿主按作用域、稳定 ID、版本范围和项目授权解析引用。
+- Skill 引用必须显式声明 `id`、`scope`、`versionRange` 和 `required`；解析结果写入运行快照，禁止每轮按名称重新择优。
 - 必需规则须可验证，不能把“已调用工具”等同“已完成目标”。不得要求关闭审批、读取别的插件私有目录或覆盖宿主/项目规则。
 - 提示声明 `kind`：`workflow`、`output-contract` 或 `style-guidance`。宿主安全规则和真实工具 schema 不能由插件 prompt 覆盖。
 - 提示资源是数据而非文件访问授权，不允许任意绝对路径、远程脚本、环境变量展开或执行模板表达式。
-- 包内资源默认私有。跨包共享只通过显式 `exports` 和精确依赖绑定；公开的基础资源不得夹带另一个专业模块的工作流或工具。业务 Skill 必须要求其所属模块的本轮选择，不能通过 A 引用 B 绕过 B。
+- 插件运行资源默认私有。跨插件共享只通过显式 `exports` 和精确依赖绑定；公开的基础资源不得夹带另一个专业模块的工作流或工具。业务 Skill 引用必须要求其所属模块的本轮选择，不能通过 A 引用 B 绕过 B。
 
 共享资源另有 `shared-knowledge` 类型，记录包所有者和消费者，不作为无归属的业务 Skill。其内容只允许数据/模型说明等被动知识，不贡献工具或任务工作流；已选消费者通过宿主核验的导出接口加载，供应包必须启用且持有资源租约。既有 `media-models` 迁为宿主拥有的共享资源适配，不以“画布 Skill”身份授权影像模块。业务 Skill 的 `requiredModuleIds` 由可信所属关系推导；作者不能通过自报 shared 类型抹去已知业务模块的门禁。
 
-内容包不执行宿主安装/启动代码，并不代表其中的自然语言天然可信。Skill 驱动的后续基础工具调用仍受原有权限、项目范围和审批约束；不承诺用文本分类器证明一份 Skill 没有提示注入。
+兼容内容包不执行宿主安装/启动代码，并不代表其中的自然语言天然可信。项目 Skill 驱动的后续基础工具调用仍受原有权限、项目范围和审批约束；不承诺用文本分类器证明一份 Skill 没有提示注入。
 
 ### 5.2 可选的设计约束资源
 
@@ -186,9 +190,9 @@
 
 ### 5.4 按需加载与预算
 
-目录仅加载元数据；运行时仅解析所选模块，只有选中的风格和必要 Skill 才读正文。安装 100 个插件不会把 100 份 Skill 和所有风格样例放进模型上下文。
+目录仅加载插件元数据和 Skill 引用；运行时仅解析所选模块，只有已授权且实际需要的 Skill revision 才读正文。安装 100 个插件不会扫描或复制 100 份项目 Skill，也不会把它们放进模型上下文。
 
-V2 初始硬上限：每提示 UTF-8 16 KiB，每包提示合计 64 KiB；每 Skill 64 KiB；每风格说明 8 KiB，完整风格 JSON 32 KiB，每个对象最多 128 个字段、数组最多 64 项、嵌套深度最多 8。每轮固定提示与风格编译结果合计不超过 64 KiB，计入 tokens/layout/components、覆盖层、引用包装等实际发送文本，后续 Skill 正文累计不超过 128 KiB；最终完整模型请求还须符合上下文剩余预算。字节限制不冒充精确 token 数；可用模型 tokenizer 时另作 token 校验。必需合同超额必须在调用前说明并阻断，不悄悄截断；可选示例可不加载，但需显示未加载原因。
+V2 初始硬上限：每提示 UTF-8 16 KiB，插件提示合计 64 KiB；每个解析后的 Skill 正文仍遵守项目 Skill 系统的预算；每风格说明 8 KiB，完整风格 JSON 32 KiB，每个对象最多 128 个字段、数组最多 64 项、嵌套深度最多 8。每轮固定提示与风格编译结果合计不超过 64 KiB，计入引用包装等实际发送文本；最终完整模型请求还须符合上下文剩余预算。必需合同超额必须在调用前说明并阻断，不悄悄截断。
 
 V1 原有字符预算继续按原合同解析，不以 V2 字节限制直接否定旧包。预算是客户端初始策略，基准测试和版本记录可调整，不能让插件自行无限提高。
 
@@ -196,7 +200,7 @@ V1 原有字符预算继续按原合同解析，不以 V2 字节限制直接否�
 
 ### 6.1 文件布局与兼容
 
-采用 `.ddplugin` 扩展名的 ZIP 容器，便于本地、离线及私有源复用；这是本草案的推荐格式。可移植包不带安装脚本，不打包 `node_modules`、运行缓存、凭据、绝对路径或用户作品。
+采用 `.ddplugin` 扩展名的 ZIP 容器，便于本地、离线及私有源复用；这是本草案的推荐格式。可移植包不带安装脚本，不打包 `node_modules`、运行缓存、凭据、绝对路径、用户作品或项目 Skill 正文。
 
 ```text
 acme.design-kit-1.0.0.ddplugin
@@ -207,14 +211,15 @@ acme.design-kit-1.0.0.ddplugin
   LICENSE
   THIRD_PARTY_NOTICES.md
   CHANGELOG.md
-  skills/page-design/SKILL.md
   prompts/workflow.md
   styles/clean-business.json
+  runtime/module.mjs
+  surfaces/module/index.html
   assets/icon.png
   assets/clean-business-preview.png
 ```
 
-统一清单示例：此插件声明首版支持的内容执行能力，并携带自己的页面设计模块及内部设计约束；不需要这类约束的插件可省略 `styles` 声明和目录。
+统一清单示例：此插件声明一个受信模块 runtime、一个右侧 Surface、一个已有项目 Skill 引用及内部设计约束；不需要这类约束的插件可省略 `styles` 声明和目录。
 
 ```json
 {
@@ -226,7 +231,7 @@ acme.design-kit-1.0.0.ddplugin
   "displayName": "设计助手",
   "description": "提供页面设计工作流与简洁商务风格。",
   "license": "MIT",
-  "profile": "content",
+  "profile": "module-runtime",
   "compatibility": {
     "hostApi": "^1.0.0",
     "requiredFeatures": ["plugin-packages-v2"],
@@ -237,13 +242,18 @@ acme.design-kit-1.0.0.ddplugin
     "id": "design",
     "displayName": "页面设计",
     "activation": "message-explicit",
-    "skills": ["page-design"],
+    "skillRefs": [{"id": "interaction-design/page-design", "scope": "project", "versionRange": "^1.0.0", "required": true}],
     "prompts": ["workflow"],
-    "styles": ["clean-business"]
+    "styles": ["clean-business"],
+    "tools": ["inspect"],
+    "surfaces": ["design-workspace"]
   }],
-  "skills": [{"id": "page-design", "ownerModuleId": "design", "displayName": "页面设计", "version": "1.0.0", "path": "skills/page-design/SKILL.md", "required": true}],
+  "skillRefs": [{"id": "interaction-design/page-design", "scope": "project", "versionRange": "^1.0.0", "required": true}],
   "prompts": [{"id": "workflow", "version": "1.0.0", "kind": "workflow", "path": "prompts/workflow.md"}],
   "styles": [{"id": "clean-business", "version": "1.0.0", "path": "styles/clean-business.json"}],
+  "runtime": {"entry": "runtime/module.mjs", "protocolVersion": 1},
+  "surfaces": [{"id": "design-workspace", "entry": "surfaces/module/index.html", "apiVersion": 1}],
+  "tools": [{"id": "inspect", "apiVersion": 1}],
   "permissions": [],
   "dependencies": [],
   "exports": [],
@@ -253,9 +263,9 @@ acme.design-kit-1.0.0.ddplugin
 
 示例域名仅说明字段，不是已存在的市场或项目地址；这个示例提供自己的文字工作流，不因模块显示名相似而获得官方原型工具。跨模块工具使用仍须满足对应模块选择、公开能力合同和原有权限。
 
-首版脚手架默认生成一个专业模块，模块清单不能为空；多个模块必须分别声明资源归属。各类资源按需声明，所有引用必须解析到已验证的文件和身份。包内资源与所属插件共用安装、启停和版本事务；不为某一种资源建立另一套插件安装协议。
+标准脚手架默认生成一个可运行模块，模块清单不能为空；多个模块必须分别声明工具、Surface、服务和 Skill 引用。Skill 引用必须解析到宿主已知的项目/工作区 Skill，不允许以包内路径提供正文。包内运行资源与所属插件共用安装、启停和版本事务；不为某一种资源建立另一套插件安装协议。
 
-`dependencies` 项为 `{pluginId, versionRange, required}`，来源与发布者由安装器在用户可见的计划中锁定；不能由未信任包指定认证信息或搜索全网最高版本。`exports` 项为 `{resourceId, kind, apiVersion, visibility}`，visibility 为 public 或明确消费者列表；resourceId 必须归本包所有，业务 Skill 的导出不能消除其所属模块门禁。解析后形成包含精确版本、摘要和来源的 lock，不在每轮运行重新择优解析。
+`dependencies` 项为 `{pluginId, versionRange, required}`，来源与发布者由安装器在用户可见的计划中锁定；不能由未信任包指定认证信息或搜索全网最高版本。`exports` 项为 `{resourceId, kind, apiVersion, visibility}`，visibility 为 public 或明确消费者列表；resourceId 必须归本包所有，Skill 只能作为宿主资源引用，不能通过 exports 重新发布或绕过所属模块门禁。解析后形成包含精确版本、摘要和来源的 lock，不在每轮运行重新择优解析。
 
 V1 `plugin.json` 继续只读兼容，显式标记“旧版清单插件”。用户执行转换时产生新的 V2 包和可检查的引用映射；不凭名称吞并工作区用户 Skill，不让旧宿主写回/降级 V2 格式。V2 不兼容当前 parser，必须先发布支持包格式的宿主。
 
@@ -327,7 +337,8 @@ V1 `plugin.json` 继续只读兼容，显式标记“旧版清单插件”。用
 
 | 数据 | 默认卸载处理 |
 | --- | --- |
-| 包内 Skill、提示、风格、代码、图标 | 从能力目录移除；无运行/恢复引用的包可回收 |
+| 插件提示、风格、runtime、Surface、代码、图标 | 从能力目录移除；无运行/恢复引用的包可回收 |
+| 项目/工作区 Skill | 仍由原 Skill 系统管理；插件卸载不删除、不覆盖、不迁移 |
 | 用户作品、项目原型、媒体、会话 | 保留，由宿主通用查看/导出能力访问 |
 | 用户设置、提示/风格覆盖 | 保留，重新安装可恢复；清理是单独操作 |
 | 包缓存 | 可清理，只删除有明确所有权的路径 |
@@ -371,7 +382,7 @@ RPC 调用者身份由宿主连接绑定，不能信任消息自报 pluginId；�
 
 ### 8.3 运行与恢复记录
 
-每轮冻结：插件 ID/版本/包 hash、依赖锁、模块选择、实际 Skill 版本/hash、提示 hash、风格及覆盖内容对象 revision/hash、权限 revision、数据 schema、Host API。用户修改覆盖生成新对象，新运行使用新 revision，旧运行/恢复仍可加载所引用旧对象；只有 hash 没有内容不算可恢复快照。运行中更新不能改变它们。
+每轮冻结：插件 ID/版本/包 hash、依赖锁、模块选择、解析后的 Skill 作用域/版本/hash、提示 hash、风格及覆盖内容对象 revision/hash、权限 revision、数据 schema、Host API。Skill 正文仍由项目/工作区 Skill 系统保存，插件只锁定解析结果；用户修改 Skill 后新运行使用新 revision，旧运行/恢复仍可加载所引用旧对象；只有 hash 没有内容不算可恢复快照。运行中更新不能改变它们。
 
 审计分开记录选择、解析、注入、实际加载和工具执行。不能因为包声明了工具就显示已调用，不能按工具名猜模块归属。恢复必须核验同一快照和既有 Journal/Pi 事实源；原包缺失、权限被撤销或数据不兼容时解释阻断，不换新版继续旧任务。
 
@@ -412,9 +423,9 @@ Skills 页保留资源浏览、所属标签和到插件详情的跳转；原 Mod
 
 ### 11.1 必须先交付的作者工具
 
-提供一个标准插件脚手架，统一清单、模块入口、Skills、提示、按需资源、设置、测试与文档。公开版本化 JSON Schema、Host SDK、错误码、能力/平台支持矩阵、BDD 契约测试和本地调试说明；不同业务示例均从同一脚手架生成。
+提供一个标准插件脚手架，统一清单、模块入口、Skill 引用、提示、工具、Surface、受控服务、状态、设置、测试与文档。公开版本化 JSON Schema、Host SDK、错误码、能力/平台支持矩阵、BDD 契约测试和本地调试说明；脚手架不得生成或打包 Skill 正文，不同业务示例均从同一脚手架生成。
 
-首版生成可安装的资源型实现；后续工具、服务与 UI 在同一清单和工程内增加受支持的贡献，runtime 参考明确标成后续能力。脚手架升级给出迁移说明，不覆盖作者业务文件。SDK 与 plugin-kit 产出独立发行物，名称建议为 `@dutydeck/plugin-sdk` / `@dutydeck/plugin-kit`，发布前核验可用性；不得残留 workspace 依赖、monorepo 绝对路径或宿主源码导入。下面的仓库 scripts 只是公开 CLI 的转发入口，外部作者可在自己的仓库直接使用相同能力。
+首版生成可安装的模块 runtime 合同和 Skill 引用样例；内容型旧包仅作为兼容验证，不作为新业务插件目标。脚手架升级给出迁移说明，不覆盖作者业务文件。SDK 与 plugin-kit 产出独立发行物，名称建议为 `@dutydeck/plugin-sdk` / `@dutydeck/plugin-kit`，发布前核验可用性；不得残留 workspace 依赖、monorepo 绝对路径或宿主源码导入。下面的仓库 scripts 只是公开 CLI 的转发入口，外部作者可在自己的仓库直接使用相同能力。
 
 规划的统一命令（当前尚不存在）：
 
@@ -436,7 +447,7 @@ bun run plugin:test ./examples/plugins/design-kit
 - 包必须有维护者、支持入口、许可证、第三方素材说明、变更记录、支持矩阵和最小测试。只声明实际测试的平台，不把 CI 未跑平台标成支持。
 - 包使用 SemVer；工具输入输出破坏、数据不可兼容或主要工作流变更提高 major；兼容能力增加提高 minor；修复提高 patch。默认 Skill 正文改动仍递增 Skill 自身版本。
 - Host API 的破坏变化提高 major；同一 API major 内只增加兼容字段/能力，未知可选字段可保留，未知必需能力明确拒绝。弃用至少提供两个宿主 minor 版本的适配窗口，安全问题可提前停止并解释。
-- 官方、社区、私有包共用技术校验；发布/审核权限可以不同。社区作者不需要修改 orchestrator、主 IPC 巨文件或全局工具白名单才能贡献内容包。
+- 官方、社区、私有包共用技术校验；发布/审核权限可以不同。社区作者不需要修改 orchestrator、主 IPC 巨文件或全局工具白名单才能提交包，但只有宿主 allowlist 的 runtime 才能获得执行能力。
 - 业务插件通过公开 SDK 注册，禁止跨插件内部 import。共享工具由单独维护者拥有，消费者走明确版本接口。
 - PR 模板包含用户变化、权限差异、数据迁移/回退、性能证据、兼容范围和验证日志；评审不能仅以“已编译”代替安装/运行/卸载。
 - 安装行为、SDK 合同与发布包必须同一版本验收；CI 不使用真实付费模型或用户数据，真实供应商验收单独安排。
@@ -469,10 +480,10 @@ bun run plugin:test ./examples/plugins/design-kit
 
 ## 13. 分阶段完成标准
 
-1. **统一规范、脚手架与资源接入**：身份/归属/资源 schema、独立 SDK/CLI；作者用同一脚手架开发包含模块、Skills、提示与按需资源的真实安装包。
+1. **统一规范、脚手架与模块接入**：身份/模块/Skill 引用 schema、独立 SDK/CLI；作者用同一脚手架开发包含 runtime、工具、Surface、提示与按需资源的真实安装包。
 2. **生命周期与管理**：启用/停用、升级/回退、数据所有权、跨实例事务、资源快照和设置插件中心完整闭环。
 3. **市场与私有源、外部作者验收**：共用安装器/信任协议，独立仓库基于标准脚手架开发插件、签名和直接分享；在同一候选发布版验证，再从正式发行入口复验。此阶段不等待业务模块迁出。
 4. **运行宿主与交互设计试点**：真实 runtime/broker/surface 验证后迁出服务、工具、界面；原型作品与历史兼容，旧硬编码装配退出生产路径。
 5. **业务生态扩展**：其余专业模块按依赖顺序迁移；第三方可执行插件定义公开准入路径，真实隔离验收后再开放，不永久限定官方作者。
 
-只有当业务代码、工具、UI、资源与数据适配能随独立包交付，且不修改宿主核心也能安装/更新/卸载时，才称该模块“完整插件化”。首版应如实称“统一插件机制已支持模块、Skills、提示与包内资源”，并列明尚未开放的执行能力。
+只有当业务代码、工具、UI、服务、状态与数据适配能随独立包交付，且不修改宿主核心也能安装/更新/卸载时，才称该模块“完整插件化”。Skill 仍由项目/工作区系统提供；首版应如实称“统一插件机制已支持模块 runtime、Skill 引用、提示与受控 Surface”，并列明尚未开放的第三方执行能力。

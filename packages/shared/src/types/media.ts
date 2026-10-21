@@ -390,10 +390,24 @@ export const MEDIA_IPC_CHANNELS = {
   DREAMINA_LOGIN_CANCEL: 'media:dreamina-login-cancel',
   DREAMINA_LOGOUT: 'media:dreamina-logout',
   LIST_UNIFIED_MODELS: 'media:list-unified-models',
+  READ_GENERATION_PREVIEW: 'media:read-generation-preview',
+  RELEASE_GENERATION_PREVIEW: 'media:release-generation-preview',
 } as const
+
+/** 受管单文件预览；只有主进程可创建 URL。 */
+export interface MediaGenerationPreview {
+  leaseId: string
+  mediaUrl: string
+  mediaKind: MediaKind
+  filename: string
+}
 
 /** 四层 IPC 的公开接口；运行写入口由 Canvas/Agent 授权 Host 接线。 */
 export interface MediaPreloadApi {
+  /** 按消息会话核验任务归属，仅打开其真实产物。 */
+  mediaGenerationReadPreview(input: { sessionId: string; runId: string; outputKey: string }): Promise<MediaGenerationPreview>
+  /** 释放本窗口与该会话持有的预览租约。 */
+  mediaGenerationReleasePreview(input: { sessionId: string; leaseId: string }): Promise<void>
   mediaGetSettings(): Promise<MediaSettingsSnapshot>
   mediaSaveAuthorizationMode(mode: MediaAuthorizationMode, expectedRevision: number): Promise<MediaSettingsSnapshot>
   mediaSaveConnection(input: SaveMediaConnectionInput, expectedRevision: number): Promise<MediaSettingsSnapshot>

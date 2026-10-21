@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { VisualEditingDocument, VisualEditingExportSettings, VisualMedia } from '@dutydeck/shared'
+import type { VisualEditingClip, VisualEditingDocument, VisualEditingExportSettings, VisualMedia } from '@dutydeck/shared'
 import { execFileAsync } from '../async-command'
 
 /** 成片编码输入；媒体字节由时间线存储在调用期间按身份读取。 */
@@ -94,7 +94,8 @@ export async function renderVisualEditingExport(input: VisualEditingExportInput,
       if (media.kind === 'image') args.push('-loop', '1', '-t', String(clip.duration), '-i', path)
       else args.push('-ss', String(clip.sourceIn), '-t', String(clip.duration), '-i', path)
     }
-    const audioInputIndexes: number[] = []
+    /** 只记录成功添加的声音输入，过滤无效来源后仍与片段属性一一对应。 */
+    const audioInputs: { index: number; clip: VisualEditingClip }[] = []
     for (const [index, clip] of audioClips.entries()) {
       if (!clip.source) continue
       const media = mediaById.get(clip.source.mediaId)
@@ -102,7 +103,7 @@ export async function renderVisualEditingExport(input: VisualEditingExportInput,
       const source = input.readMedia(media.id)
       const path = join(tempRoot, `audio-${index}${extension(source.mime)}`)
       writeFileSync(path, source.bytes)
-      audioInputIndexes.push(videoInputIndexes.length + audioInputIndexes.length)
+      audioInputs.push({ index: videoInputIndexes.length + audioInputs.length, clip })
       args.push('-ss', String(clip.sourceIn), '-t', String(clip.duration), '-i', path)
     }
     const { width, height } = outputSize(input.settings.ratio)
@@ -120,15 +121,15 @@ export async function renderVisualEditingExport(input: VisualEditingExportInput,
         finalVideo = next
       }
     }
-    if (audioInputIndexes.length) {
-      const audioLabels = audioInputIndexes.map((index, clipIndex) => `[${index}:a]aresample=async=1[a${clipIndex}]`)
+    if (audioInputs.length) {
+      const audioLabels = audioInputs.map(({ index, clip }, clipIndex) => `[${index}:a]asetpts=PTS-STARTPTS,aresample=async=1,volume=${clip.volume ?? 1},adelay=${Math.round(clip.start * 1000)}:all=1[a${clipIndex}]`)
       filters.push(...audioLabels)
-      filters.push(`${audioInputIndexes.map((_, index) => `[a${index}]`).join('')}amix=inputs=${audioInputIndexes.length}:duration=longest:dropout_transition=0[aout]`)
+      filters.push(`${audioInputs.map((_, index) => `[a${index}]`).join('')}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=0:normalize=0,apad,atrim=duration=${input.timeline.duration}[aout]`)
     }
     args.push('-filter_complex', filters.join(';'), '-map', `[${finalVideo}]`, '-r', String(input.settings.fps), '-c:v', 'libx264', '-pix_fmt', 'yuv420p')
-    if (audioInputIndexes.length) args.push('-map', '[aout]', '-c:a', 'aac', '-shortest')
+    if (audioInputs.length) args.push('-map', '[aout]', '-c:a', 'aac')
     else args.push('-an')
-    args.push('-movflags', '+faststart', 'output.mp4')
+    args.push('-t', String(input.timeline.duration), '-movflags', '+faststart', 'output.mp4')
     await execute(encoder, args, { cwd: tempRoot })
     const output = readFileSync(join(tempRoot, 'output.mp4'))
     if (output.length < 12 || output.subarray(4, 8).toString() !== 'ftyp') throw new Error('编码器未生成有效 MP4')

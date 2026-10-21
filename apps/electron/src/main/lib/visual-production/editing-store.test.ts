@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { VisualProductionDraft } from '@dutydeck/shared'
 import { VisualProductionService } from './store'
+import { VisualEditingStore } from './editing-store'
 
 /** 每个用例使用独立临时项目，避免读取真实用户数据。 */
 const roots: string[] = []
@@ -32,6 +33,21 @@ async function fixture() {
 }
 
 describe('影像剪辑时间线存储', () => {
+  it('Given 独立画面影片音频 When 粗剪与后续音频更新 Then 音画对齐且只标记音频过期', async () => {
+    const { snapshot, projectRoot, episodeId } = await fixture()
+    const image = snapshot.media[0]!
+    snapshot.media.push({ ...image, id: 'video', kind: 'video', mime: 'video/mp4' }, { ...image, id: 'audio', kind: 'audio', mime: 'audio/wav' }, { ...image, id: 'audio-next', kind: 'audio', mime: 'audio/wav' })
+    snapshot.document.shots[0]!.outputs = { image: image.id, video: 'video', audio: 'audio' }
+    snapshot.document.shots.unshift({ ...snapshot.document.shots[0]!, id: 'silent-intro', outputs: { image: image.id, video: null, audio: null } })
+    const store = new VisualEditingStore({ projectRoot })
+    const initial = store.createRoughCut(snapshot, episodeId)
+    expect(initial.timeline!.tracks.map(track => track.kind)).toEqual(['video', 'voice'])
+    expect(initial.timeline!.tracks[0]!.clips[1]!.source!.mediaId).toBe('video')
+    expect(initial.timeline!.tracks[1]!.clips[0]).toMatchObject({ start: 4, duration: 4, source: { mediaId: 'audio' } })
+    snapshot.document.shots[1]!.outputs!.audio = 'audio-next'
+    snapshot.shotStates['shot-1']!.outputVersion++
+    expect(store.load(snapshot, episodeId).needsReplacementClipIds).toEqual([initial.timeline!.tracks[1]!.clips[0]!.id])
+  })
   it('Given 已采用镜头 When 建立粗剪 Then 只创建有媒体的连续画面片段', async () => {
     const { service, target, episodeId } = await fixture()
     const result = await service.invoke('createRoughCut', { ...target, episodeId, baseProductionRevision: 2 })

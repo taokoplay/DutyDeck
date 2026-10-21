@@ -266,6 +266,125 @@ async function runChild(): Promise<void> {
       console.log('PASS: real reference action preserves draft, adds stable object chip state, deduplicates, and does not submit prompts.')
       return
     }
+    if (process.env.VISUAL_SMOKE_OUTPUTS_ONLY === '1') {
+      /** 临时项目采用画面和音频，影片保留为候选，复现生成结果不易发现的场景。 */
+      const sessionId = 'smoke-session'
+      const productionId = (await service.invoke('list', { sessionId }))[0]!.id
+      const image = await access().execute('importFile', { sessionId, productionId, relativePath: 'frame.png' })
+      const video = await access().execute('importFile', { sessionId, productionId, relativePath: 'clip.mp4' })
+      const audio = await access().execute('importFile', { sessionId, productionId, relativePath: 'voice.wav' })
+      const initial = await service.invoke('load', { sessionId, productionId })
+      const { schemaVersion: _schema, id: _id, revision, createdAt: _created, updatedAt: _updated, ...draft } = initial.document
+      draft.shots = [
+        { id: 'slots-first', episodeId: draft.episodes[0]!.id, title: '三种素材独立展示', duration: 8, scene: '蓝色画面', motion: '固定镜头', dialogue: '独立旁白', assetIds: [], mediaId: image.id, outputs: { image: image.id, video: null, audio: audio.id } },
+        { id: 'slots-second', episodeId: draft.episodes[0]!.id, title: '第二镜空状态', duration: 8, scene: '', motion: '', dialogue: '', assetIds: [], mediaId: null },
+      ]
+      await access().execute('save', { sessionId, productionId, baseRevision: revision, draft })
+      const before = await service.invoke('load', { sessionId, productionId })
+      const job = await access().execute('beginJob', { sessionId, productionId, baseRevision: before.document.revision, shotId: 'slots-first', instruction: '只生成影片' })
+      const candidate = await access().execute('proposeShot', { sessionId, productionId, baseRevision: before.document.revision, jobId: job.id, shotId: 'slots-first', mediaId: video.id, summary: '可见的视频候选' })
+      await click(window, button('分镜'))
+      /** 稳定语义属性让断言不依赖布局顺序或状态数量。 */
+      const imageNode = `document.querySelector('[data-output-kind="image"] img')`
+      const videoNode = `document.querySelector('[data-output-kind="video"] video')`
+      const audioNode = `document.querySelector('[data-output-kind="audio"] audio')`
+      await wait(window, `document.querySelector('[data-output-kind="audio"]')`)
+      await window.webContents.executeJavaScript(`document.querySelector('[data-output-kind="audio"]').scrollIntoView({block:'nearest'})`)
+      await wait(window, `${imageNode}?.naturalWidth > 0 && ${videoNode}?.readyState >= 2 && ${audioNode}?.readyState >= 2`)
+      assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('[data-output-kind]').length`), 3)
+      assert.ok(await window.webContents.executeJavaScript(`document.querySelector('[data-output-kind="video"]').textContent.includes('待采用')`))
+      assert.equal((await service.invoke('load', { sessionId, productionId })).document.shots[0]!.outputs?.video, null)
+      await writeFile('/private/tmp/dutydeck-shot-outputs-pending.png', (await window.webContents.capturePage()).toPNG())
+      /** 原生媒体 play 事件也必须暂停另一个播放器。 */
+      await bounded('播放独立音频', window.webContents.executeJavaScript(`${audioNode}.play()`))
+      await wait(window, `!${audioNode}.paused`)
+      await bounded('播放候选影片', window.webContents.executeJavaScript(`${videoNode}.play()`))
+      await wait(window, `!${videoNode}.paused && ${audioNode}.paused`)
+      await bounded('再次播放音频', window.webContents.executeJavaScript(`${audioNode}.play()`))
+      await wait(window, `${videoNode}.paused && !${audioNode}.paused`)
+      await window.webContents.executeJavaScript(`window.__slotPausedMedia = [${videoNode}, ${audioNode}]; window.__visualSmoke.active(false)` )
+      await wait(window, `window.__slotPausedMedia.every(node=>node.paused)`)
+      await window.webContents.executeJavaScript('window.__visualSmoke.active(true)')
+      await wait(window, `${audioNode}?.readyState >= 2`)
+      await bounded('弹窗前播放音频', window.webContents.executeJavaScript(`${audioNode}.play()`))
+      await window.webContents.executeJavaScript(`window.__slotPausedMedia = [${audioNode}]`)
+      await click(window, `document.querySelector('[aria-label="预览待采用影片：可见的视频候选"]')`)
+      await wait(window, `document.querySelector('[role="dialog"] [data-candidate-output="video"]') && window.__slotPausedMedia.every(node=>node.paused)`)
+      await click(window, button('采用候选'))
+      await wait(window, `document.querySelector('[role="dialog"]')?.textContent.includes('已采用')`)
+      const adopted = await service.invoke('load', { sessionId, productionId })
+      assert.deepEqual(adopted.document.shots[0]!.outputs, { image: image.id, video: video.id, audio: audio.id })
+      assert.equal(adopted.candidates.find(item => item.id === candidate.id)?.status, 'adopted')
+      await pressKey(window, 'Escape', 27)
+      await wait(window, `!document.querySelector('[role="dialog"]') && ${videoNode}?.readyState >= 2 && ${imageNode}?.naturalWidth > 0`)
+      /** 原生暂停必须取消连续预演的计时器；用短镜头保证等待能越过原定切镜时间。 */
+      const pauseSnapshot = await service.invoke('load', { sessionId, productionId })
+      const { schemaVersion: _pauseSchema, id: _pauseId, revision: pauseRevision, createdAt: _pauseCreated, updatedAt: _pauseUpdated, ...pauseDraft } = pauseSnapshot.document
+      pauseDraft.shots[0]!.duration = 0.6
+      await access().execute('save', { sessionId, productionId, baseRevision: pauseRevision, draft: pauseDraft })
+      await wait(window, `document.querySelector('.vp-shot[aria-pressed="true"]')?.textContent.includes('0.6s')`)
+      await click(window, button('连续播放'))
+      await wait(window, `${videoNode}?.currentTime > 0.05 && !${videoNode}.paused`)
+      await window.webContents.executeJavaScript(`${videoNode}.pause()`)
+      await wait(window, button('连续播放'))
+      await window.webContents.executeJavaScript('new Promise(resolve=>setTimeout(resolve,1000))')
+      assert.ok(await window.webContents.executeJavaScript(`document.querySelector('.vp-shot[aria-pressed="true"]').textContent.includes('三种素材独立展示')`), '原生暂停后不得按旧计时器跳镜')
+      /** 恢复长镜头后视频自身先结束，ended 必须继续切镜，不能被 pause 事件抢先取消。 */
+      const endedSnapshot = await service.invoke('load', { sessionId, productionId })
+      const { schemaVersion: _endedSchema, id: _endedId, revision: endedRevision, createdAt: _endedCreated, updatedAt: _endedUpdated, ...endedDraft } = endedSnapshot.document
+      endedDraft.shots[0]!.duration = 8
+      await access().execute('save', { sessionId, productionId, baseRevision: endedRevision, draft: endedDraft })
+      await wait(window, `document.querySelector('.vp-shot[aria-pressed="true"]')?.textContent.includes('8s')`)
+      const endedStartedAt = Date.now()
+      await click(window, button('连续播放'))
+      await wait(window, `document.querySelector('.vp-shot[aria-pressed="true"]')?.textContent.includes('第二镜空状态')`)
+      assert.ok(Date.now() - endedStartedAt < 5000, '两秒影片应由自然结束切镜，不能等待八秒镜头计时器')
+      await wait(window, button('连续播放'))
+      assert.equal(await window.webContents.executeJavaScript(`(${button('连续播放')}).disabled`), true, '切到空镜头必须停止并禁用连续播放')
+      await click(window, `[...document.querySelectorAll('.vp-shot')].find(node=>node.textContent.includes('三种素材独立展示'))`)
+      await wait(window, `${videoNode}?.readyState >= 2 && ${audioNode}?.readyState >= 2`)
+      await bounded('切镜前播放音频', window.webContents.executeJavaScript(`${audioNode}.play()`))
+      await click(window, `[...document.querySelectorAll('.vp-shot')].find(node=>node.textContent.includes('第二镜空状态'))`)
+      await wait(window, `!document.querySelector('[data-output-kind] audio') && !document.querySelector('[data-output-kind] video')`)
+      assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('[data-output-kind]').length`), 3)
+      await click(window, `[...document.querySelectorAll('.vp-shot')].find(node=>node.textContent.includes('三种素材独立展示'))`)
+      await wait(window, `${videoNode}?.readyState >= 2 && ${audioNode}?.readyState >= 2`)
+      assert.ok(await window.webContents.executeJavaScript(`${videoNode}.paused && ${audioNode}.paused`), '切回镜头不恢复旧声音')
+      /** 解码并播放到真实帧后暂停，截图不采用原生控件尚未更新的首帧状态。 */
+      await bounded('已采用影片解码播放', window.webContents.executeJavaScript(`${videoNode}.play()`))
+      await wait(window, `${videoNode}.currentTime > 0.2`)
+      await window.webContents.executeJavaScript(`${videoNode}.pause()`)
+      assert.ok(await window.webContents.executeJavaScript(`${videoNode}.readyState >= 2 && !${videoNode}.error`))
+      /** 宽窄与深浅组合检查横向溢出，并保留真实 Chromium 截图供复核。 */
+      for (const width of [1000, 460]) {
+        window.setSize(width, 800)
+        await wait(window, `innerWidth === ${width}`)
+        for (const dark of [false, true]) {
+          await window.webContents.executeJavaScript(`document.documentElement.classList.toggle('dark', ${dark})`)
+          await wait(window, `(()=>{const rgb=getComputedStyle(document.querySelector('.vp-workspace')).backgroundColor.match(/\\d+/g);return rgb && (${dark} ? Number(rgb[0]) < 128 : Number(rgb[0]) >= 128)})()`)
+          await window.webContents.executeJavaScript('new Promise(resolve=>setTimeout(resolve,150))')
+          assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.vp-body').scrollWidth > document.querySelector('.vp-body').clientWidth`), false, `${width}px 三槽不应横向溢出`)
+          const frameRatio = await window.webContents.executeJavaScript(`(()=>{const b=document.querySelector('.vp-player').getBoundingClientRect();return b.width/b.height})()`)
+          assert.ok(Math.abs(frameRatio - 16 / 9) < 0.02, `${width}px 默认画框比例错误：${frameRatio}`)
+          await writeFile(`/private/tmp/dutydeck-shot-outputs-${width}-${dark ? 'dark' : 'light'}.png`, (await window.webContents.capturePage()).toPNG())
+          if (width === 460) {
+            await window.webContents.executeJavaScript(`document.querySelector('[data-output-kind="audio"]').scrollIntoView({block:'center'})`)
+            await window.webContents.executeJavaScript('new Promise(resolve=>setTimeout(resolve,150))')
+            await writeFile(`/private/tmp/dutydeck-shot-outputs-audio-${dark ? 'dark' : 'light'}.png`, (await window.webContents.capturePage()).toPNG())
+            await window.webContents.executeJavaScript(`document.querySelector('[data-output-kind="image"]').scrollIntoView({block:'start'})`)
+          }
+        }
+      }
+      /** 超宽作品在窄窗仍等比缩放，不被列宽压成竖幅。 */
+      const wideSnapshot = await service.invoke('load', { sessionId, productionId })
+      const { schemaVersion: _wideSchema, id: _wideId, revision: wideRevision, createdAt: _wideCreated, updatedAt: _wideUpdated, ...wideDraft } = wideSnapshot.document
+      wideDraft.ratio = '21:9'
+      await access().execute('save', { sessionId, productionId, baseRevision: wideRevision, draft: wideDraft })
+      await wait(window, `(()=>{const b=document.querySelector('.vp-player').getBoundingClientRect();return Math.abs(b.width/b.height-21/9)<0.02})()`)
+      assert.deepEqual(errors, [])
+      console.log('PASS: independent image/video/audio slots, visible pending video, adoption preserves image/audio, mutually exclusive playback, native pause cancels timers, natural ended advances and stops on empty shots, pane/dialog/shot pause, 16:9/21:9 ratios, 460/1000px light/dark. Real IPC/storage; no models or user data.')
+      return
+    }
     if (process.env.VISUAL_SMOKE_CONFIGURATION_ONLY === '1') {
       const created = (await service.invoke('list', { sessionId: 'smoke-session' }))[0]!
       await verifyMediaConfiguration(created.id, created.revision)
@@ -300,7 +419,8 @@ async function runChild(): Promise<void> {
     /** 自动采用 fixture 的正式版本基线。 */
     const adoptionBaseline = await service.invoke('load', { sessionId, productionId })
     const { schemaVersion: _adSchema, id: _adId, revision: adoptionRevision, createdAt: _adCreated, updatedAt: _adUpdated, ...adoptionDraft } = structuredClone(adoptionBaseline.document)
-    adoptionDraft.shots.push({ ...adoptionDraft.shots[0]!, id: 'auto-shot-2', title: '自动采用第二镜', mediaId: null })
+    adoptionDraft.shots.push({ ...adoptionDraft.shots[0]!, id: 'auto-shot-2', title: '自动采用第二镜', outputs: undefined, mediaId: null })
+    adoptionDraft.shots[0]!.outputs = undefined
     adoptionDraft.shots[0]!.mediaId = null
     await access().execute('save', { sessionId, productionId, baseRevision: adoptionRevision, draft: adoptionDraft })
     /** 两个旧任务共享的空镜头版本。 */
@@ -309,7 +429,7 @@ async function runChild(): Promise<void> {
     const secondJob = await access().execute('beginJob', { sessionId, productionId, baseRevision: emptyRevision, instruction: '自动采用第二镜', shotId: 'auto-shot-2' })
     /** 模拟旧版本已提交但尚未采用的候选，避免新 proposeShot 的即时自动采用干扰并行旧结果。 */
     const pending = await service.invoke('load', { sessionId, productionId })
-    const legacy = (job: typeof firstJob, shotId: string, id: string) => ({ id, jobId: job.id, baseRevision: emptyRevision, status: 'ready' as const, createdAt: Date.now(), summary: `唯一图片 ${shotId}`, draft: { ...adoptionDraft, shots: adoptionDraft.shots.map(shot => shot.id === shotId ? { ...shot, mediaId: media.id } : shot) } })
+    const legacy = (job: typeof firstJob, shotId: string, id: string) => ({ id, jobId: job.id, baseRevision: emptyRevision, status: 'ready' as const, createdAt: Date.now(), summary: `唯一图片 ${shotId}`, draft: { ...adoptionDraft, shots: adoptionDraft.shots.map(shot => shot.id === shotId ? { ...shot, outputs: undefined, mediaId: media.id } : shot) } })
     pending.jobs = pending.jobs.map(job => job.id === firstJob.id || job.id === secondJob.id ? { ...job, status: 'candidate' as const } : job)
     pending.candidates = [legacy(firstJob, adoptionDraft.shots[0]!.id, 'legacy-auto-1'), legacy(secondJob, 'auto-shot-2', 'legacy-auto-2')]
     writeJsonFileAtomicSecure(join(projectRoot, '.proma/visual-production/projects', productionId, 'snapshot.json'), pending)
@@ -334,7 +454,7 @@ async function runChild(): Promise<void> {
     const choiceJob = await access().execute('beginJob', { sessionId, productionId, baseRevision: afterAutoOpen.document.revision, instruction: '手工选择替代图', shotId: adoptionDraft.shots[0]!.id })
     const choiceSnapshot = await service.invoke('load', { sessionId, productionId })
     const { schemaVersion: _choiceSchema, id: _choiceId, revision: _choiceRevision, createdAt: _choiceCreated, updatedAt: _choiceUpdated, ...choiceEditable } = choiceSnapshot.document
-    const choiceDraft = (mediaId: string, id: string) => ({ id, jobId: choiceJob.id, baseRevision: choiceSnapshot.document.revision, status: 'ready' as const, createdAt: Date.now(), summary: '手工选择候选', draft: { ...choiceEditable, shots: choiceEditable.shots.map(shot => shot.id === adoptionDraft.shots[0]!.id ? { ...shot, mediaId } : shot) } })
+    const choiceDraft = (mediaId: string, id: string) => ({ id, jobId: choiceJob.id, baseRevision: choiceSnapshot.document.revision, status: 'ready' as const, createdAt: Date.now(), summary: '手工选择候选', draft: { ...choiceEditable, shots: choiceEditable.shots.map(shot => shot.id === adoptionDraft.shots[0]!.id ? { ...shot, outputs: undefined, mediaId } : shot) } })
     choiceSnapshot.jobs = choiceSnapshot.jobs.map(job => job.id === choiceJob.id ? { ...job, status: 'candidate' as const } : job)
     choiceSnapshot.candidates = [choiceDraft(media.id, 'choice-1'), choiceDraft(alternativeMedia.id, 'choice-2')]
     writeJsonFileAtomicSecure(join(projectRoot, '.proma/visual-production/projects', productionId, 'snapshot.json'), choiceSnapshot)
@@ -443,11 +563,11 @@ async function runChild(): Promise<void> {
     }
     window.setSize(1000, 800)
     await wait(window, 'innerWidth === 1000')
-    await click(window, button('镜头设置')); await selectOption(window, '采用素材', `${media.name} · ${media.kind}`)
+    await click(window, button('镜头设置')); await selectOption(window, '采用画面', media.name)
     /** 清空媒体映射回 null，选择后关闭重开仍保留当前草稿。 */
-    await selectOption(window, '采用素材', '暂无素材'); await click(window, button('保存设置'))
+    await selectOption(window, '采用画面', '尚未采用画面'); await click(window, button('保存设置'))
     assert.equal((await service.invoke('load', { sessionId, productionId })).document.shots[0]!.mediaId, null)
-    await click(window, button('镜头设置')); await selectOption(window, '采用素材', `${media.name} · ${media.kind}`); await click(window, button('保存设置'))
+    await click(window, button('镜头设置')); await selectOption(window, '采用画面', media.name); await click(window, button('保存设置'))
     await wait(window, `!document.querySelector('[role="dialog"]') && document.querySelector('.vp-player img')?.naturalWidth > 0`)
     await click(window, button('镜头设置')); await fill(window, '画面描述', '尚未保存的描述'); await click(window, button('关闭')); await click(window, button('镜头设置'))
     assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[role="dialog"] textarea').value`), '尚未保存的描述')
@@ -495,10 +615,17 @@ async function runChild(): Promise<void> {
     const playback = await service.invoke('load', { sessionId, productionId })
     const { schemaVersion: _ps, id: _pi, revision: playbackRevision, createdAt: _pc, updatedAt: _pu, ...playbackDraft } = playback.document
     playbackDraft.ratio = '9:16'
+    /** 同步显式输出与兼容主视觉，避免测试制造非法双重来源。 */
+    playbackDraft.shots[0]!.outputs = { image: media.id, video: clip.id, audio: null }
     playbackDraft.shots[0]!.mediaId = clip.id
     playbackDraft.shots[0]!.duration = 0.5
-    playbackDraft.shots.push({ ...playbackDraft.shots[0]!, id: 'second-shot', title: '第二镜头', mediaId: media.id, duration: 0.5 })
+    playbackDraft.shots.push({ ...playbackDraft.shots[0]!, id: 'second-shot', title: '第二镜头', outputs: { image: media.id, video: null, audio: null }, mediaId: media.id, duration: 0.5 })
     await access().execute('save', { sessionId, productionId, baseRevision: playbackRevision, draft: playbackDraft })
+    await wait(window, `document.querySelector('[data-output-kind="video"] .vp-player')`)
+    /** 主窗口固定显示影片，画面卡片必须位于影片下方，避免回退成并列静帧。 */
+    const outputOrder = await window.webContents.executeJavaScript(`(()=>{const video=document.querySelector('[data-output-kind="video"]');const image=document.querySelector('[data-output-kind="image"]');return{videoTop:video?.getBoundingClientRect().top ?? Infinity,imageTop:image?.getBoundingClientRect().top ?? -Infinity}})()`)
+    assert.ok(outputOrder.videoTop < outputOrder.imageTop, JSON.stringify(outputOrder))
+    await window.webContents.executeJavaScript(`document.querySelector('.vp-player').scrollIntoView({block:'center'})`)
     await wait(window, `document.querySelector('.vp-player video')?.readyState >= 2`)
     /** 竖幅预演必须维持作品比例，不能仅改变文字标签。 */
     const frameRatio = await window.webContents.executeJavaScript(`(()=>{const frame=document.querySelector('.vp-player').getBoundingClientRect();return frame.width/frame.height})()`)
@@ -509,8 +636,9 @@ async function runChild(): Promise<void> {
     await wait(window, button('连续播放'))
     await click(window, `document.querySelector('.vp-shot')`)
     await click(window, button('连续播放'))
-    await window.webContents.executeJavaScript('window.__visualSmoke.active(false)')
-    await wait(window, `document.querySelector('.vp-player video')?.paused`)
+    await wait(window, `document.querySelector('.vp-player video')`)
+    await window.webContents.executeJavaScript(`window.__slotPausedMedia = [document.querySelector('.vp-player video')]; window.__visualSmoke.active(false)`)
+    await wait(window, `window.__slotPausedMedia.every(node=>node.paused)`)
     await window.webContents.executeJavaScript('window.__visualSmoke.active(true)')
     /** 指定第二镜头换真实视频：候选可播放，采用前后验证其他镜头和资产完全保留。 */
     const beforeReplacement = await service.invoke('load', { sessionId, productionId })
@@ -580,7 +708,7 @@ async function runChild(): Promise<void> {
     const { schemaVersion: _ss, id: _si, revision: stripRevision, createdAt: _sc, updatedAt: _su, ...stripDraft } = stripSnapshot.document
     /** 保留用户名称里的序号，测试超长文本截断而不改变原始标题。 */
     const stripTitles = ['01 | 古镜里的白光', '02 | 醒在刀下', '03 | 两件定罪证物', '04 | 先验刀，再杀我', '05 | 仵作要求验尸', '06 | 尸身上的细微伤口透露另一条线索', '07 | 围观', '08 | 凶手露出破绽', '09 | 当众复原案发现场', '10 | 刑场风起', '11 | 真相渐明', '12 | 县令忽然躬身喊了一声：沈警官']
-    stripDraft.shots = stripTitles.map((title, index) => ({ ...stripDraft.shots[0]!, id: `strip-shot-${index}`, title, duration: index >= 10 ? 1 : 6 + index % 3, mediaId: index === 4 ? clip.id : index === 5 || index >= 10 ? media.id : null }))
+    stripDraft.shots = stripTitles.map((title, index) => ({ ...stripDraft.shots[0]!, id: `strip-shot-${index}`, title, outputs: undefined, duration: index >= 10 ? 1 : 6 + index % 3, mediaId: index === 4 ? clip.id : index === 5 || index >= 10 ? media.id : null }))
     await access().execute('save', { sessionId, productionId, baseRevision: stripRevision, draft: stripDraft })
     await click(window, button('分镜'))
     await wait(window, `document.querySelectorAll('.vp-shot').length === 12`)
@@ -723,6 +851,14 @@ async function orchestrate(): Promise<void> {
     encoder.once('error', reject)
     encoder.once('exit', code => code === 0 ? resolve() : reject(new Error('测试视频生成失败，需要本机 ffmpeg')))
   })
+  if (process.env.VISUAL_SMOKE_OUTPUTS_ONLY === '1') {
+    /** 本机合成测试声音，不使用用户音频或在线生成服务。 */
+    await new Promise<void>((resolve, reject) => {
+      const encoder = spawn('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=8', join(root, 'project', 'voice.wav')])
+      encoder.once('error', reject)
+      encoder.once('exit', code => code === 0 ? resolve() : reject(new Error('测试音频生成失败')))
+    })
+  }
   await writeFile(fixtureHtml, '<html lang="zh-CN"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module">import RefreshRuntime from "/@react-refresh";RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;</script><script type="module" src="./visual-production-ui-smoke-renderer.tsx"></script></body></html>')
   await writeFile(fixtureConfig, "import config from '../vite.config';export default {...config,server:{...config.server,hmr:false,watch:null}}")
   const vite = spawn(process.execPath, [join(process.cwd(), 'node_modules/vite/bin/vite.js'), '--config', fixtureConfig, '--host', '127.0.0.1', '--port', String(listenPort), '--strictPort'], { stdio: 'inherit' })

@@ -77,8 +77,12 @@ export function hasValidDesignSessionOwnership(session: AgentSessionOwnershipFie
  * @returns 会话可见、未归档且只带目标项目归属时返回 true。
  */
 export function isEligibleProjectAgent(session: ProjectAgentEligibilityFields, projectId: string): boolean {
+  return session.workspaceId === projectId && isEligibleUserMediaAgent(session)
+}
+
+/** 判断可直接获得媒体入口的交互用户会话；无项目会话仅获得选择项目诊断。 */
+export function isEligibleUserMediaAgent(session: ProjectAgentEligibilityFields): boolean {
   return isAgentSessionUserVisible(session)
-    && session.workspaceId === projectId
     && !session.archived
     && (session.explorationParentSessionId === undefined
       || (typeof session.explorationParentSessionId === 'string'

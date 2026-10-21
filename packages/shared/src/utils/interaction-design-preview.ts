@@ -1,5 +1,7 @@
 import type { PrototypeDraft } from '../types/interaction-design'
 import { prototypeLifecycleScript } from './interaction-design-preview-lifecycle'
+import { getPrototypeViewport } from './interaction-design-device-profile'
+import { prototypePresentationScript } from './interaction-design-presentation'
 
 /** 预览消息只报告稳定身份，父窗口仍必须核对 event.source 与当前 iframe。 */
 export interface PrototypePreviewMessage {
@@ -23,6 +25,11 @@ export interface PrototypePreviewOptions {
   token: string
   revision: number
   assets: Record<string, string>
+  /** 临时预览设备和方向，不写回正式设计基线。 */
+  deviceId?: string
+  orientation?: 'portrait' | 'landscape'
+  /** 独立导出没有硬件外壳，需要在系统层模拟屏幕遮挡。 */
+  simulateHardware?: boolean
 }
 
 /** 序列化内联脚本数据，避免正文的闭合标签逃逸脚本。 */
@@ -65,7 +72,9 @@ export function buildPrototypePreview(draft: PrototypeDraft, pageId: string, opt
   /** 不允许未知状态静默回退到默认页，以免修改/验收错误内容。 */
   const state = options.stateId === undefined ? undefined : page.states?.find((item) => item.id === options.stateId)
   if (options.stateId !== undefined && !state) throw new Error('页面状态不存在')
-  const context = scriptData({ active: options.active, pageId, stateId: options.stateId, token: options.token, revision: options.revision, mode: options.mode, pages: draft.pages.map((item) => item.id), flows: draft.flows.filter((item) => item.fromPageId === pageId) })
+  /** 旧页面不自动采用新布局；附加状态只在缺省时继承页面合同。 */
+  const presentation = state?.presentation ?? page.presentation
+  const context = scriptData({ active: options.active, pageId, stateId: options.stateId, token: options.token, revision: options.revision, mode: options.mode, pages: draft.pages.map((item) => item.id), flows: draft.flows.filter((item) => item.fromPageId === pageId), ...(presentation ? { presentation, viewport: getPrototypeViewport(draft, presentation, options.deviceId, options.orientation), simulateHardware: options.simulateHardware === true } : {}) })
   const policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'"
   const bridge = `<script>(()=>{
     const config=${context};document.currentScript.remove();
@@ -78,6 +87,7 @@ export function buildPrototypePreview(draft: PrototypeDraft, pageId: string, opt
     const get=(el,name)=>el?Reflect.apply(attr,el,[name]):null;
     const near=(el,selector)=>el instanceof Element?Reflect.apply(closest,el,[selector]):null;
     ${prototypeLifecycleScript}
+    ${presentation ? prototypePresentationScript : ''}
     on('message',e=>{if(e.source!==host||!e.data||e.data.token!==config.token||e.data.type!=='prototype-mode')return;if(e.data.mode==='play'||e.data.mode==='select'){mode=e.data.mode;cancel(e)}});
     on('click',e=>{
       if(!active){cancel(e);return}
@@ -158,10 +168,30 @@ export function validatePrototypeStructure(draft: PrototypeDraft): string[] {
   return issues
 }
 
-/** 导出独立离线文档；所有页面是惰性 srcDoc 字符串，始终只有一个活动 iframe。 */
+/** 导出独立离线文档；新布局固定设计视口并缩放展示，旧页面继续自适应窗口。 */
 export function buildPrototypeExport(draft: PrototypeDraft, assets: Record<string, string>): string {
+  /** 离线身份只用于本窗口内部导航，不授予任何宿主能力。 */
   const token = 'offline-prototype'
   /** 全部状态预编译为字符串，切换时仍只有一个活动 iframe。 */
-  const pages = draft.pages.map((page) => ({ id: page.id, name: page.name, states: [{ name: page.defaultStateName ?? '默认', html: buildPrototypePreview(draft, page.id, { mode: 'play', token, revision: 0, assets }) }, ...(page.states ?? []).map((state) => ({ id: state.id, name: state.name, html: buildPrototypePreview(draft, page.id, { mode: 'play', token, revision: 0, assets, stateId: state.id }) }))] }))
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>交互原型</title><style>html,body{margin:0;width:100%;height:100%}body{display:flex;flex-direction:column;overflow:hidden}nav{padding:8px;display:flex;gap:8px}nav[hidden]{display:none}iframe{width:100%;flex:1;min-height:0;border:0}</style><nav aria-label="页面与状态"><select aria-label="页面"></select><select aria-label="状态"></select></nav><iframe sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" title="交互原型"></iframe><script>(()=>{const pages=${scriptData(pages)},frame=document.querySelector('iframe'),nav=document.querySelector('nav'),[pageSelect,stateSelect]=document.querySelectorAll('select');let current=${scriptData(draft.entryPageId)},currentState;for(const p of pages){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;pageSelect.append(option)}nav.hidden=!pages.some(p=>p.states.length>1);function show(id,stateId){const page=pages.find(p=>p.id===id),state=page?.states.find(s=>s.id===stateId);if(!page||!state)return;current=id;currentState=stateId;pageSelect.value=id;stateSelect.replaceChildren();for(const s of page.states){const option=document.createElement('option');option.value=s.id||'';option.textContent=s.name;stateSelect.append(option)}stateSelect.value=stateId||'';frame.srcdoc=state.html}pageSelect.onchange=()=>show(pageSelect.value);stateSelect.onchange=()=>show(current,stateSelect.value||undefined);window.addEventListener('message',e=>{const m=e.data;if(e.source!==frame.contentWindow||!m||m.type!=='prototype-navigate'||m.token!==${scriptData(token)}||m.pageId!==current||m.stateId!==currentState||m.revision!==0)return;show(m.targetPageId)});show(current)})()</script></html>`
+  const pages = draft.pages.map(page => ({
+    id: page.id, name: page.name,
+    states: [{ id: undefined, name: page.defaultStateName ?? '默认', presentation: page.presentation }, ...(page.states ?? []).map(state => ({ id: state.id, name: state.name, presentation: state.presentation ?? page.presentation }))].map(state => ({
+      id: state.id, name: state.name,
+      ...(state.presentation ? { viewport: getPrototypeViewport(draft, state.presentation) } : {}),
+      html: buildPrototypePreview(draft, page.id, { mode: 'play', token, revision: 0, assets, stateId: state.id, simulateHardware: true }),
+    })),
+  }))
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>交互原型</title><style>html,body{margin:0;width:100%;height:100%}body{display:flex;flex-direction:column;overflow:hidden}nav{padding:8px;display:flex;gap:8px}nav[hidden]{display:none}#stage{position:relative;flex:1;min-height:0;overflow:hidden}iframe{display:block;width:100%;height:100%;border:0}</style><nav aria-label="页面与状态"><select aria-label="页面"></select><select aria-label="状态"></select></nav><div id="stage"><iframe sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" title="交互原型"></iframe></div><script>(()=>{
+    const pages=${scriptData(pages)},frame=document.querySelector('iframe'),stage=document.getElementById('stage'),nav=document.querySelector('nav'),[pageSelect,stateSelect]=document.querySelectorAll('select');
+    let current=${scriptData(draft.entryPageId)},currentState,currentViewport;
+    for(const p of pages){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;pageSelect.append(option)}
+    nav.hidden=!pages.some(p=>p.states.length>1);
+    // 缩放外层显示，不改变页面内部视口；离线导出与交接具有相同基准。
+    function fit(){if(!currentViewport){frame.removeAttribute('style');stage.style.background='';return}const {width,height}=currentViewport,scale=Math.min(1,stage.clientWidth/width,stage.clientHeight/height);stage.style.background='#242424';Object.assign(frame.style,{position:'absolute',left:'50%',top:'50%',width:width+'px',height:height+'px',transform:'translate(-50%,-50%) scale('+scale+')',transformOrigin:'center'})}
+    function show(id,stateId){const page=pages.find(p=>p.id===id),state=page?.states.find(s=>s.id===stateId);if(!page||!state)return;current=id;currentState=stateId;currentViewport=state.viewport;pageSelect.value=id;stateSelect.replaceChildren();for(const s of page.states){const option=document.createElement('option');option.value=s.id||'';option.textContent=s.name;stateSelect.append(option)}stateSelect.value=stateId||'';fit();frame.srcdoc=state.html}
+    pageSelect.onchange=()=>show(pageSelect.value);stateSelect.onchange=()=>show(current,stateSelect.value||undefined);
+    window.addEventListener('resize',fit);
+    window.addEventListener('message',e=>{const m=e.data;if(e.source!==frame.contentWindow||!m||m.type!=='prototype-navigate'||m.token!==${scriptData(token)}||m.pageId!==current||m.stateId!==currentState||m.revision!==0)return;show(m.targetPageId)});
+    show(current);
+  })()</script></html>`
 }

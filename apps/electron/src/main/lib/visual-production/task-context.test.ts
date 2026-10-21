@@ -17,6 +17,15 @@ function fixture(options: Partial<VisualTaskContextRuntimeOptions> = {}) {
 }
 
 describe('影像任务范围', () => {
+  test('Given 镜头具有三类独立输出 When 打开范围 Then 全部可检查但不扩展到其他镜头', async () => {
+    const { snapshot, runtime, input } = fixture()
+    snapshot.media.push({ ...snapshot.media[0]!, id: 'mv', kind: 'video', mime: 'video/mp4' }, { ...snapshot.media[0]!, id: 'ms', kind: 'audio', mime: 'audio/wav' })
+    snapshot.document.shots[0]!.outputs = { image: 'm1', video: 'mv', audio: 'ms' }
+    const opened = await runtime.open(input)
+    const scope = await runtime.describe(opened.details.visualTaskContext.contextId)
+    expect(scope.media.map(item => item.id)).toEqual(['m1', 'mv', 'ms', 'ma'])
+    await expect(runtime.inspect({ contextId: scope.contextId, mediaId: 'm2' })).rejects.toThrow('OUT_OF_SCOPE')
+  })
   test('Given目标镜头 When打开 Then只允许正式输出与绑定资产', async () => {
     const { runtime, input } = fixture()
     const opened = await runtime.open(input)

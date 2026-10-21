@@ -127,3 +127,7 @@ export {
 } from './canvas-node-size'
 export { buildPrototypePreview, buildPrototypeExport, parsePrototypePreviewMessage, validatePrototypeStructure } from './interaction-design-preview'
 export type { PrototypePreviewMessage, PrototypePreviewOptions } from './interaction-design-preview'
+export { getPrototypeDeviceProfile, getPrototypeViewport, getPrototypeSafeArea, PROTOTYPE_DEVICE_PROFILES } from './interaction-design-device-profile'
+export type { PrototypeDeviceProfile, PrototypeViewport, PrototypeSafeArea, PrototypeCutout } from './interaction-design-device-profile'
+export { createPrototypeBlankPage } from './interaction-design-page'
+export { resolveVisualShotOutputs, withVisualShotOutput, mergeLegacyVisualShotOutputs } from './visual-shot-outputs'

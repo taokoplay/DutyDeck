@@ -26,7 +26,7 @@ const reference: MediaInputValue = { kind: 'asset', asset: { assetId: 'reference
 const request: MediaGenerationRequest = { projectId: 'project', operationId: 'operation', modelRef: route.option.ref, prompt: '保持主角与服饰，制作镜头', inputs: {} }
 
 /** 复用真实核心与适配器，只有 CLI 和资产读取由受控 fixture 替换。 */
-async function fixture(options: { failure?: 'login' | 'missing' | 'confirmation'; hold?: boolean } = {}) {
+async function fixture(options: { failure?: 'login' | 'missing' | 'confirmation' | 'timeout' | 'unknown' | 'thrown'; hold?: boolean } = {}) {
   /** 记录实际参数和引用字节，证明没有静默丢弃多图。 */
   const calls: string[][] = []
   const references: Buffer[] = []
@@ -42,6 +42,9 @@ async function fixture(options: { failure?: 'login' | 'missing' | 'confirmation'
     runCli: async (args, cliPath) => {
       expect(cliPath).toBe('/fixture/dreamina')
       calls.push([...args])
+      if (options.failure === 'timeout') return { exitCode: 1, stdout: '', stderr: '', failureCode: 'timeout' }
+      if (options.failure === 'unknown') return { exitCode: 1, stdout: '', stderr: 'unclassified secret-cookie-value' }
+      if (options.failure === 'thrown') throw new Error('network secret-cookie-value')
       if (options.failure === 'missing') return { exitCode: 1, stdout: '', stderr: '', failureCode: 'cliMissing' }
       if (options.failure === 'login') return { exitCode: 1, stdout: '', stderr: 'Not logged in. Please login. secret-cookie-value' }
       if (options.failure === 'confirmation') return { exitCode: 1, stdout: 'AigcComplianceConfirmationRequired', stderr: '' }
@@ -129,3 +132,17 @@ describe('即梦接入统一媒体运行', () => {
     expect(existsSync(f.root)).toBe(false)
   })
 })
+
+for (const failure of ['timeout', 'unknown', 'thrown'] as const) {
+  test(`Given 即梦 ${failure} 不能证明未提交 When 结束等待 Then unknown 且禁止自动重发`, async () => {
+    const f = await fixture({ failure })
+    const prepared = f.service.prepare('session', request)
+    const running = await f.service.execute('session', prepared.id, 0)
+    const done = await f.service.wait('session', prepared.id, 2000, running.revision)
+    expect(done.phase).toBe('unknown')
+    expect(done.error).toContain('避免重复生成')
+    expect(done.error).not.toContain('secret-cookie-value')
+    await expect(f.service.execute('session', prepared.id, done.revision)).rejects.toThrow('OUTCOME_UNKNOWN')
+    expect(f.calls).toHaveLength(1)
+  })
+}

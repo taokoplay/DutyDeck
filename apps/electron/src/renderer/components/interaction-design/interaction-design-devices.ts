@@ -62,9 +62,23 @@ export const PROTOTYPE_DEVICES = [...DEVICE_DEFINITIONS.map(definition => {
 export type PrototypeDeviceId = (typeof PROTOTYPE_DEVICES)[number]['id']
 
 /** 输入可选机型与旧平台偏好，返回有效设备；兼容未选择具体机型的旧视图状态。 */
-export function getPrototypeDevice(device?: string, platform: 'mobile' | 'desktop' = 'mobile'): (typeof PROTOTYPE_DEVICES)[number] {
-  return PROTOTYPE_DEVICES.find(item => item.id === device)
+export function getPrototypeDevice(device?: string, platform: 'mobile' | 'desktop' = 'mobile', orientation: 'portrait' | 'landscape' = 'portrait') {
+  /** 原始库参数保持不可变，横屏派生值仅属于当前预览实例。 */
+  const base = PROTOTYPE_DEVICES.find(item => item.id === device)
     ?? PROTOTYPE_DEVICES.find(item => item.id === (platform === 'desktop' ? 'MacBook Pro' : 'iPhone 17'))!
+  /** 库组件仍接收未旋转尺寸，由自身的 landscape 样式交换宽高。 */
+  const frameSize = { frameWidth: base.width, frameHeight: base.height }
+  if (orientation !== 'landscape' || base.group === '电脑') return { ...base, ...frameSize }
+  /** Duo闭合外屏是库的横向重排，边框与摄像头不旋转；其他模型沿用库的旋转样式。 */
+  const reflow = base.id === 'iPhone Duo'
+  return {
+    ...base, ...frameSize, width: base.height, height: base.width,
+    frame: { ...base.frame, landscape: true } as MockFrameProps,
+    shellWidth: reflow ? base.shellWidth - base.width + base.height : base.shellHeight,
+    shellHeight: reflow ? base.shellHeight - base.height + base.width : base.shellWidth,
+    screenLeft: reflow ? base.screenLeft : base.screenTop,
+    screenTop: reflow ? base.screenTop : base.screenLeft,
+  }
 }
 
 /** 输入菜单值，校验后返回支持的预览身份，未知值不修改视图。 */

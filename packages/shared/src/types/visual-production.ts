@@ -28,6 +28,15 @@ export interface VisualAsset {
   /** 独立影像媒体身份；尚无素材时为空。 */
   mediaId: string | null
 }
+/** 同一镜头独立保存画面、影片和音频，空值表示未采用。 */
+export interface VisualShotOutputs {
+  /** 静态画面身份。 */
+  image: string | null
+  /** 动态影片身份。 */
+  video: string | null
+  /** 独立音频身份。 */
+  audio: string | null
+}
 /** 数组位置表示同集镜头顺序；图片作品也使用此创作单元。 */
 export interface VisualShot {
   /** 稳定镜头身份。 */
@@ -46,8 +55,10 @@ export interface VisualShot {
   dialogue: string
   /** 当前绑定的项目资产。 */
   assetIds: string[]
-  /** 正式采用的媒体身份。 */
+  /** 兼容视觉主输出，优先影片，其次画面。 */
   mediaId: string | null
+  /** 独立输出；缺省时按旧媒体的实际种类解析。 */
+  outputs?: VisualShotOutputs
 }
 /** 人工和 Agent 共用的完整创作内容；不含运行态及系统版本。 */
 export interface VisualProductionDraft {

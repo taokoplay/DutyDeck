@@ -4,6 +4,8 @@ import type { MediaPreloadApi } from '@dutydeck/shared'
 /** Renderer 只能通过结构化 IPC 访问媒体配置和运行投影。 */
 export function createMediaPreloadApi(invoke: (channel: string, input?: unknown) => Promise<unknown>, listen: (channel: string, callback: (value: unknown) => void) => () => void): MediaPreloadApi {
   return {
+    mediaGenerationReadPreview: (input) => invoke(MEDIA_IPC_CHANNELS.READ_GENERATION_PREVIEW, input) as ReturnType<MediaPreloadApi['mediaGenerationReadPreview']>,
+    mediaGenerationReleasePreview: (input) => invoke(MEDIA_IPC_CHANNELS.RELEASE_GENERATION_PREVIEW, input) as Promise<void>,
     mediaGetSettings: () => invoke(MEDIA_IPC_CHANNELS.GET_SETTINGS) as ReturnType<MediaPreloadApi['mediaGetSettings']>,
     mediaSaveAuthorizationMode: (mode, expectedRevision) => invoke(MEDIA_IPC_CHANNELS.SAVE_AUTHORIZATION, { mode, expectedRevision }) as ReturnType<MediaPreloadApi['mediaSaveAuthorizationMode']>,
     mediaSaveConnection: (input, expectedRevision) => invoke(MEDIA_IPC_CHANNELS.SAVE_CONNECTION, { input, expectedRevision }) as ReturnType<MediaPreloadApi['mediaSaveConnection']>,

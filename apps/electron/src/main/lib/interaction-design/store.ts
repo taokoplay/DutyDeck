@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, opendirSync, readdirSync } from 'node:fs'
 import { basename, join, posix } from 'node:path'
 import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypePage, PrototypePageComparison, PrototypePageVersionSummary, PrototypeSnapshot, PrototypeSummary, PrototypeVersion } from '@dutydeck/shared'
-import { assertPrototypeDraft, inferPrototypeJobMode, isProjectRestoreInstruction, parsePrototypeDraft, parsePrototypePlan, parseInteractionDesignCommand, PROTOTYPE_LIMITS, validateProjectRestoreDraft, validatePrototypeStructure } from '@dutydeck/shared'
+import { assertPrototypeDraft, createPrototypeBlankPage, inferPrototypeJobMode, isProjectRestoreInstruction, parsePrototypeDraft, parsePrototypePlan, parseInteractionDesignCommand, PROTOTYPE_LIMITS, validateProjectRestoreDraft, validatePrototypeStructure } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, removeFileAtomic, writeJsonFileAtomicSecure } from '../safe-file'
 import { assertInteractionId, interactionDirectory, readInteractionFile } from './paths'
@@ -53,7 +53,7 @@ interface PrototypeHead {
 interface StoredVersion {
   /** 完整文档的 SHA-256，用于检测版本元数据篡改。 */
   hash: string
-  document: Omit<PrototypeDocument, 'pages'> & { pages: Array<Omit<PrototypeDocument['pages'][number], 'html' | 'states'> & { contentHash: string; states?: Array<{ id: string; name: string; contentHash: string }> }> }
+  document: Omit<PrototypeDocument, 'pages'> & { pages: Array<Omit<PrototypeDocument['pages'][number], 'html' | 'states'> & { contentHash: string; states?: Array<Omit<NonNullable<PrototypePage['states']>[number], 'html'> & { contentHash: string }> }> }
   version: PrototypeVersion
 }
 /** 历史删除采用单个原子索引，正文、采纳事实和交接记录保持不变。 */
@@ -145,7 +145,7 @@ export class InteractionDesignService {
       if (page.states !== undefined && (!Array.isArray(page.states) || page.states.length > PROTOTYPE_LIMITS.statesPerPage)) throw new Error('版本页面状态记录非法')
       /** 存储定位字段不穿过公开边界。 */
       const { contentHash, states, ...metadata } = page
-      return { ...metadata, html: readContent(contentHash), ...(states === undefined ? {} : { states: states.map(state => ({ id: state.id, name: state.name, html: readContent(state.contentHash) })) }) }
+      return { ...metadata, html: readContent(contentHash), ...(states === undefined ? {} : { states: states.map(state => ({ id: state.id, name: state.name, html: readContent(state.contentHash), ...(state.presentation === undefined ? {} : { presentation: state.presentation }) })) }) }
     }) }
     if (document.id !== id || document.revision !== revision || document.schemaVersion !== 1) throw new Error('版本身份不匹配')
     assertPrototypeDraft(document)
@@ -325,8 +325,8 @@ export class InteractionDesignService {
         groups.push([group, value.groups.filter(item => item.parentId === group.parentId).findIndex(item => item.id === group.id)])
         groupId = group.parentId
       }
-        const pageContent = { id: page.id, groupId: page.groupId, name: page.name, html: page.html, ...(page.defaultStateName === undefined ? {} : { defaultStateName: page.defaultStateName }), ...(page.states === undefined ? {} : { states: page.states }), ...(page.source === undefined ? {} : { source: page.source }), ...(page.route === undefined ? {} : { route: page.route }), ...(page.role === undefined ? {} : { role: page.role }) }
-        return [page.id, JSON.stringify([pageContent, groups, value.pages.filter(item => item.groupId === page.groupId).findIndex(item => item.id === page.id), value.flows.filter(flow => flow.fromPageId === page.id), value.entryPageId === page.id])]
+        const pageContent = { id: page.id, groupId: page.groupId, name: page.name, html: page.html, ...(page.defaultStateName === undefined ? {} : { defaultStateName: page.defaultStateName }), ...(page.states === undefined ? {} : { states: page.states }), ...(page.source === undefined ? {} : { source: page.source }), ...(page.route === undefined ? {} : { route: page.route }), ...(page.role === undefined ? {} : { role: page.role }), ...(page.presentation === undefined ? {} : { presentation: page.presentation }) }
+        return [page.id, JSON.stringify([pageContent, groups, value.pages.filter(item => item.groupId === page.groupId).findIndex(item => item.id === page.id), value.flows.filter(flow => flow.fromPageId === page.id), value.entryPageId === page.id, ...(value.environment === undefined ? [] : [value.environment])])]
     }))
     /** 两份稿的页面签名，只遍历有限页面集。 */
     const before = signatures(baseline)
@@ -344,7 +344,7 @@ export class InteractionDesignService {
     for (const stored of versions) {
       const page = stored.document.pages.find(item => item.id === pageId)
       if (!page) continue
-      const contentHash = interactionHash(JSON.stringify([page.contentHash, ...(page.states ?? []).map(state => [state.id, state.contentHash]), page.name, page.groupId, page.route, page.role]))
+      const contentHash = interactionHash(JSON.stringify([page.contentHash, ...(page.states ?? []).map(state => [state.id, state.contentHash, ...(state.presentation === undefined ? [] : [state.presentation])]), page.name, page.groupId, page.route, page.role, ...(page.presentation === undefined ? [] : [page.presentation]), ...(stored.document.environment === undefined ? [] : [stored.document.environment])]))
       if (contentHash === lastHash) continue
       const explicitRevision = Number.isSafeInteger(page.pageRevision) && page.pageRevision! > 0 ? page.pageRevision! : derivedRevision + 1
       derivedRevision = Math.max(derivedRevision + 1, explicitRevision)
@@ -386,8 +386,8 @@ export class InteractionDesignService {
     const states = { added: [...afterStates.keys()].filter(id => !beforeStates.has(id)), removed: [...beforeStates.keys()].filter(id => !afterStates.has(id)), changed: [...afterStates.keys()].filter(id => beforeStates.has(id) && JSON.stringify(afterStates.get(id)) !== JSON.stringify(beforeStates.get(id))) }
     return {
       prototypeId: input.prototypeId, pageId: input.pageId,
-      left: { kind: left.kind, id: left.id, globalRevision: left.globalRevision, pageRevision: left.pageRevision, name: left.page.name, html: left.page.html, ...(left.page.states === undefined ? {} : { states: left.page.states }) },
-      right: { kind: right.kind, id: right.id, globalRevision: right.globalRevision, pageRevision: right.pageRevision, name: right.page.name, html: right.page.html, ...(right.page.states === undefined ? {} : { states: right.page.states }) },
+      left: { kind: left.kind, id: left.id, globalRevision: left.globalRevision, pageRevision: left.pageRevision, name: left.page.name, html: left.page.html, ...(left.page.states === undefined ? {} : { states: left.page.states }), ...(left.page.presentation === undefined ? {} : { presentation: left.page.presentation }) },
+      right: { kind: right.kind, id: right.id, globalRevision: right.globalRevision, pageRevision: right.pageRevision, name: right.page.name, html: right.page.html, ...(right.page.states === undefined ? {} : { states: right.page.states }), ...(right.page.presentation === undefined ? {} : { presentation: right.page.presentation }) },
       defaultHtml: { changed: left.page.html !== right.page.html, before: left.page.html, after: right.page.html, ...lineDiff },
       states,
       assets: { added: [...afterAssets].filter(id => !beforeAssets.has(id)), removed: [...beforeAssets].filter(id => !afterAssets.has(id)) },
@@ -545,7 +545,7 @@ export class InteractionDesignService {
     const pages = document.pages.map(page => {
       /** 保留旧文档未提供状态字段时的原始磁盘结构。 */
       const { html, states, ...metadata } = page
-      return { ...metadata, contentHash: storeContent(html), ...(states === undefined ? {} : { states: states.map(state => ({ id: state.id, name: state.name, contentHash: storeContent(state.html) })) }) }
+      return { ...metadata, contentHash: storeContent(html), ...(states === undefined ? {} : { states: states.map(state => ({ id: state.id, name: state.name, contentHash: storeContent(state.html), ...(state.presentation === undefined ? {} : { presentation: state.presentation }) })) }) }
     })
     /** 新版本记录完整写入后才允许发布 head。 */
     const versionPath = join(this.directory(id, 'revisions', true), `${revision}.json`)
@@ -598,7 +598,7 @@ export class InteractionDesignService {
     /** 固定任务基线。 */
     const baseline = parsePrototypeDraft(this.version(job.prototypeId, job.baseRevision))
     /** 目标页默认正文、附加状态及状态名称可不同；页面名称和目录仍受保护。 */
-    const withoutPageContent = (value: PrototypeDraft): string => JSON.stringify({ ...value, pages: value.pages.map(page => page.id === job.pageId ? { ...page, html: '', defaultStateName: undefined, states: undefined } : page) })
+    const withoutPageContent = (value: PrototypeDraft): string => JSON.stringify({ ...value, pages: value.pages.map(page => page.id === job.pageId ? { ...page, html: '', defaultStateName: undefined, states: undefined, presentation: undefined } : page) })
     if (withoutPageContent(baseline) !== withoutPageContent(draft)) throw new Error('候选修改超出任务页面范围')
   }
   /** 项目还原任务必须按冻结的业务页面清单提交，防止导览页加整套 App 单页冒充拆分。 */
@@ -679,7 +679,7 @@ export class InteractionDesignService {
           /** 页面入口传 pageName 时直接使用用户的页面名，避免先创建容器再生成重复首页。 */
           const pageName = request.pageName ?? '首页'
           /** 页面入口创建的是项目唯一模块，模块名称固定为默认值；Agent 直接创建时仍保留其明确命名。 */
-          this.commit(id, 0, { name: request.pageName ? '交互设计' : request.name, platform: request.platform, brief: '', groups: [{ id: 'main', name: '主要页面' }], pages: [{ id: 'home', groupId: 'main', name: pageName, html: '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><body><main><h1 data-prototype-element="title">新页面</h1><p>在主会话描述这个页面的内容和交互。</p></main></body></html>' }], entryPageId: 'home', flows: [] }, request.pageName ? '创建页面' : '创建原型')
+          this.commit(id, 0, { name: request.pageName ? '交互设计' : request.name, platform: request.platform, environment: { schemaVersion: 1, target: request.platform === 'mobile' ? 'ios' : 'web', deviceId: request.platform === 'mobile' ? 'iPhone 17' : '浏览器 Web' }, brief: '', groups: [{ id: 'main', name: '主要页面' }], pages: [createPrototypeBlankPage('home', 'main', pageName, request.platform === 'mobile' ? 'ios' : 'web')], entryPageId: 'home', flows: [] }, request.pageName ? '创建页面' : '创建原型')
           return this.snapshot(id)
         })
       }
@@ -831,7 +831,8 @@ export class InteractionDesignService {
           const baselinePage = baseline.pages.find(page => page.id === request.pageId)
           const candidatePage = candidate.draft.pages.find(page => page.id === request.pageId)
           if (!baselinePage || !candidatePage) throw new Error('页面候选目标不存在')
-          const affected = candidate.affectedPageIds ?? this.affectedPages(baseline, candidate.draft)
+          if (JSON.stringify(baseline.environment) !== JSON.stringify(candidate.draft.environment)) throw new Error('页面候选包含全局设备环境修改，请使用整原型采纳')
+          const affected = this.affectedPages(baseline, candidate.draft)
           if (affected.some(pageId => pageId !== request.pageId)) throw new Error('页面候选包含跨页修改，请使用整原型采纳')
           if ((baselinePage.pageRevision ?? 1) !== request.basePageRevision) throw new Error('页面候选基线版本不匹配')
           const head = this.head(request.prototypeId)

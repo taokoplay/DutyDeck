@@ -55,7 +55,7 @@ describe('Headless Agent 可信运行来源', () => {
 })
 
 describe('Agent service 迁移准入', () => {
-  test('Given 普通消息未选专业模块或合法媒体模型 When 准备扩展 Then 不创建画布或媒体运行', () => {
+  test('Given 普通消息未选专业模块 When 准备扩展 Then 直接装配精简共享媒体入口', () => {
     /** 服务接线检查确保门禁发生在唯一 runtime 工厂调用之前。 */
     const source = readFileSync(join(import.meta.dir, 'agent-service.ts'), 'utf8')
     expect(source).toContain('resolveActiveModuleIds')
@@ -64,22 +64,21 @@ describe('Agent service 迁移准入', () => {
     expect(source).toContain("const visualSelected = activeModuleIds.includes('visual-production')")
     expect(source).not.toContain("const canvasSelected = input.moduleIds?.includes('canvas') === true")
     expect(source).not.toContain("const visualSelected = input.moduleIds?.includes('visual-production') === true")
-    expect(source).toContain('const mediaModelSelected = getReferencedMediaModelRefs(input.mentionedMediaModelRefs).length > 0')
-    expect(source).toContain('|| (!canvasSelected && !visualSelected && !mediaModelSelected)) return prepared')
-    expect(source.indexOf('|| (!canvasSelected && !visualSelected && !mediaModelSelected)) return prepared'))
-      .toBeLessThan(source.indexOf('const canvasRun = runtime.createRun('))
+    expect(source).toContain('getMediaToolProviderRuntime()')
+    expect(source).toContain("mediaToolScope: 'generation'")
+    expect(source).not.toContain('!canvasSelected && !visualSelected && !mediaModelSelected')
     expect(source).toContain('mediaOnly: !canvasSelected')
   })
 
   test('Given 普通项目、无项目与 Design 内部会话 When 准备运行 Then 仅普通项目在引用解析后注入 Canvas 单轮工具', () => {
     const source = readFileSync(join(import.meta.dir, 'agent-service.ts'), 'utf8')
-    expect(source).toContain('runtime.createRun(')
+    expect(source).toContain('runtime?.createRun(')
     expect(source).toContain('prepareAgentRun(input, extensions, webContents.id)')
     expect(source).toContain('prepareAgentRun(createAgentQueueNowInput(candidate), {}, webContents.id)')
     expect(source).toContain('...(dialogOwnerWebContentsId !== undefined ? { dialogOwnerWebContentsId } : {})')
     expect(source).toContain('prepared.references')
     expect(source).toContain('toolApprovalPolicy: canvasRun.toolApprovalPolicy')
-    expect(source).toContain('isEligibleProjectAgent(sessionMeta, sessionMeta.workspaceId)')
+    expect(source).toContain('isEligibleUserMediaAgent(sessionMeta)')
     expect(source).toContain("((prepared.input as AgentSendInput).permissionModeOverride ?? sessionMeta.permissionMode) === 'plan'")
     expect(source).not.toContain('resolveCanvasToolUserIntent')
     expect(source).not.toContain('prepared.input.userMessage')
@@ -90,7 +89,7 @@ describe('Agent service 迁移准入', () => {
     const functionEnd = source.indexOf('/** Agent service', functionStart)
     /** 被测运行准备函数的源码片段。 */
     const functionBody = source.slice(functionStart, functionEnd)
-    expect(functionBody.indexOf('runtime.createRun('))
+    expect(functionBody.indexOf('runtime?.createRun('))
       .toBeGreaterThan(functionBody.indexOf('prepareAgentCanvasMessageForSend('))
   })
 
@@ -100,7 +99,7 @@ describe('Agent service 迁移准入', () => {
     expect(source).not.toContain('new AgentCanvasBindingStore(')
     expect(source).not.toContain('createCanvasDocumentStore(')
     expect(source).toContain('runtime.referenceResolver')
-    expect(source).toContain('runtime.createRun(')
+    expect(source).toContain('runtime?.createRun(')
   })
 
   test('Given 内部、委派、归档或损坏来源会话 When 生产 eligibility 判断 Then 仅用户探索分支保留 Canvas 工具', () => {

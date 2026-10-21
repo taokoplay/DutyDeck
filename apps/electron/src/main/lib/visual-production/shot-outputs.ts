@@ -1,31 +1,40 @@
-import type { VisualProductionDraft } from '@dutydeck/shared'
+import { resolveVisualShotOutputs, withVisualShotOutput } from '@dutydeck/shared'
+import type { VisualMedia, VisualProductionDraft, VisualShotOutputs } from '@dutydeck/shared'
 
-/**
- * 识别只替换现有镜头媒体的候选，任何设定、顺序或资产变更均返回 null。
- * @param current 当前正式草稿。
- * @param proposed 候选草稿。
- * @returns 有变化的镜头与非空媒体身份；无变化或非纯画面候选返回 null。
- */
-export function shotOutputChanges(current: VisualProductionDraft, proposed: VisualProductionDraft): Map<string, string> | null {
-  /** 顶层只比较业务字段，忽略正式文档的宿主身份与时间。 */
+/** 每镜头只记录真正变化的槽，重建候选时不覆盖其他已采用输出。 */
+export type ShotOutputChanges = Map<string, Partial<VisualShotOutputs>>
+
+/** 识别纯输出候选；旧草稿只声明单一媒体所属槽，其余槽不是删除指令。 */
+export function shotOutputChanges(current: VisualProductionDraft, proposed: VisualProductionDraft, media: ReadonlyMap<string, VisualMedia>): ShotOutputChanges | null {
+  /** 顶层仅比较业务内容。 */
   const fields = ['title', 'kind', 'brief', 'ratio', 'fps', 'voice', 'music', 'episodes', 'assets'] as const
   if (fields.some(field => JSON.stringify(current[field]) !== JSON.stringify(proposed[field])) || current.shots.length !== proposed.shots.length) return null
-  /** 同一位置必须是同一镜头，避免将重排混同为图片采用。 */
-  const changes = new Map<string, string>()
+  /** 输出变更按槽存储。 */
+  const changes: ShotOutputChanges = new Map()
   for (let index = 0; index < current.shots.length; index++) {
     const previous = current.shots[index]!
     const next = proposed.shots[index]!
-    if (JSON.stringify({ ...previous, mediaId: next.mediaId }) !== JSON.stringify(next)) return null
-    if (next.mediaId !== previous.mediaId) {
-      if (!next.mediaId) return null
-      changes.set(next.id, next.mediaId)
+    if (JSON.stringify({ ...previous, mediaId: null, outputs: undefined }) !== JSON.stringify({ ...next, mediaId: null, outputs: undefined })) return null
+    const before = resolveVisualShotOutputs(previous, media)
+    const after = resolveVisualShotOutputs(next, media)
+    const delta: Partial<VisualShotOutputs> = {}
+    for (const kind of ['image', 'video', 'audio'] as const) {
+      if (!next.outputs && !after[kind]) continue
+      if (before[kind] !== after[kind]) delta[kind] = after[kind]
     }
+    if (Object.keys(delta).length) changes.set(next.id, delta)
   }
   return changes.size ? changes : null
 }
 
-/** 根据已验证的媒体变更构造新草稿，保留当前版本的所有其他内容。 */
-export function withShotOutputs(current: VisualProductionDraft, outputs: ReadonlyMap<string, string>): VisualProductionDraft {
+/** 将指定槽变更应用于最新正式草稿，保持其他槽和全部设定不变。 */
+export function withShotOutputs(current: VisualProductionDraft, changes: ReadonlyMap<string, Partial<VisualShotOutputs>>, media: ReadonlyMap<string, VisualMedia>): VisualProductionDraft {
   const { title, kind, brief, ratio, fps, voice, music, episodes, assets, shots } = current
-  return { title, kind, brief, ratio, fps, voice, music, episodes, assets, shots: shots.map(shot => outputs.has(shot.id) ? { ...shot, mediaId: outputs.get(shot.id)! } : shot) }
+  return { title, kind, brief, ratio, fps, voice, music, episodes, assets, shots: shots.map(shot => {
+    const outputs = changes.get(shot.id)
+    if (!outputs) return shot
+    let next = shot
+    for (const kind of ['image', 'video', 'audio'] as const) if (outputs[kind] !== undefined) next = withVisualShotOutput(next, kind, outputs[kind]!, media)
+    return next
+  }) }
 }

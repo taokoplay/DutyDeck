@@ -13,6 +13,24 @@ const timeline: VisualEditingDocument = {
 const settings: VisualEditingExportSettings = { ratio: '16:9', fps: 24, includeVoice: false, includeMusic: false, includeCaptions: false }
 
 describe('影像成片编码器', () => {
+  it('Given 延迟入场的独立声音 When 导出 Then 保留镜头起点音量且不截短影片', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'visual-export-audio-'))
+    try {
+      const edit = structuredClone(timeline)
+      edit.tracks.push({ id: 'voice', kind: 'voice', clips: [{ ...edit.tracks[0]!.clips[0]!, id: 'voice-clip', start: 2, volume: 0.5, source: { ...edit.tracks[0]!.clips[0]!.source!, mediaId: 'audio' } }] })
+      edit.duration = 4
+      let captured: readonly string[] = []
+      const hash = createHash('sha256').update(Buffer.from('0000ftypisom')).digest('hex')
+      await renderVisualEditingExport({ productionId: 'production', episodeId: 'episode', timeline: edit, settings: { ...settings, includeVoice: true }, sourceMedia: [{ id: 'media', name: 'frame', hash: 'a'.repeat(64), mime: 'image/png', kind: 'image', byteSize: 3, createdAt: 1 }, { id: 'audio', name: 'voice', hash: 'b'.repeat(64), mime: 'audio/wav', kind: 'audio', byteSize: 3, createdAt: 1 }], readMedia: id => ({ bytes: new Uint8Array([1, 2, 3]), mime: id === 'audio' ? 'audio/wav' : 'image/png' }) }, {
+        candidates: ['fake'], probe: async () => true, tempDirectory: () => root,
+        execute: async (_file, args, options) => { captured = args; writeFileSync(join(options.cwd, 'output.mp4'), Buffer.from('0000ftypisom')); return { stdout: '', stderr: '' } },
+        registerArtifact: async () => ({ mediaId: hash, hash }),
+      })
+      expect(captured[captured.indexOf('-filter_complex') + 1]).toContain('volume=0.5,adelay=2000:all=1')
+      expect(captured).not.toContain('-shortest')
+      expect(captured[captured.indexOf('-t') + 1]).toBeDefined()
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  })
   it('Given ffmpeg 执行成功 When 编码时间线 Then 注册真实 MP4 输出并返回哈希身份', async () => {
     const root = mkdtempSync(join(tmpdir(), 'visual-export-'))
     try {

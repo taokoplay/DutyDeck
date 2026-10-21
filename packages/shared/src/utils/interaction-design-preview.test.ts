@@ -122,7 +122,7 @@ test('Given 离线多状态导出 When 切换状态与跨页跳转 Then 状态�
   /** 运行真实导出脚本，最小DOM替身仅承接select和iframe操作。 */
   const source = structuredClone(draft)
   source.pages[0]!.states = [{ id: 'empty', name: '无数据', html: '<p>EMPTY_VIEW</p>' }]
-  const frame = { srcdoc: '', contentWindow: {} }
+  const frame = { srcdoc: '', contentWindow: {}, removeAttribute(_name: string) {} }
   const createSelect = () => ({ value: '', onchange: undefined as (() => void) | undefined, append(_option: unknown) {}, replaceChildren() {} })
   const pageSelect = createSelect()
   const stateSelect = createSelect()
@@ -131,7 +131,7 @@ test('Given 离线多状态导出 When 切换状态与跨页跳转 Then 状态�
   const html = buildPrototypeExport(source, {})
   const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
   runInNewContext(script, {
-    document: { querySelector(selector: string) { return selector === 'iframe' ? frame : nav }, querySelectorAll() { return [pageSelect, stateSelect] }, createElement() { return { value: '', textContent: '' } } },
+    document: { getElementById() { return { style: {} } }, querySelector(selector: string) { return selector === 'iframe' ? frame : nav }, querySelectorAll() { return [pageSelect, stateSelect] }, createElement() { return { value: '', textContent: '' } } },
     window: { addEventListener(_type: string, listener: typeof onMessage) { onMessage = listener } },
   })
   expect(nav.hidden).toBe(false)

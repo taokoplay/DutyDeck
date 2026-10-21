@@ -5,7 +5,7 @@ import type { MediaAssetRef, MediaGenerationRequest, MediaInputValue } from '@du
 import { generateDreaminaImages } from '../chat-tools/dreamina-image-generation'
 import type { DreaminaImageGenerationDependencies } from '../chat-tools/dreamina-image-generation'
 import { detectMediaFileSignature } from './media-file-probe'
-import { MediaGenerationUserError, scalarInput } from './unified-media-generation-service'
+import { MediaGenerationOutcomeUnknownError, MediaGenerationUserError, scalarInput } from './unified-media-generation-service'
 import type { UnifiedMediaGenerationAdapter } from './unified-media-generation-service'
 import type { UnifiedMediaModelRoute } from './unified-media-model-catalog'
 
@@ -53,11 +53,12 @@ function visibleError(error: unknown): Error {
   if (message.includes('未找到即梦 CLI')) return new MediaGenerationUserError('未找到即梦 CLI，请在媒体设置中检查 CLI 路径。')
   if (message.includes('网页端完成一次生成确认')) return new MediaGenerationUserError('请先到即梦网页完成此模型的生成确认，再重试。')
   if (message.includes('登录态')) return new MediaGenerationUserError('即梦 CLI 调用失败，请在媒体设置中检查本机登录状态。')
-  if (message.includes('超时')) return new MediaGenerationUserError('即梦等待超时，远端任务可能仍在运行；请先在即梦中查看，避免重复生成。')
+  if (message.includes('超时')) return new MediaGenerationOutcomeUnknownError('即梦等待超时，远端任务可能仍在运行；请先在即梦中查看，避免重复生成。')
   if (message === '内容安全审核未通过') return new MediaGenerationUserError('即梦内容审核未通过，请调整提示词。')
   if (message.includes('自定义尺寸')) return new MediaGenerationUserError('自定义宽高不符合当前即梦分辨率要求，请调整尺寸。')
   if (message.startsWith('MEDIA_')) return new Error(message)
-  return new MediaGenerationUserError('即梦图片生成失败，请检查模型与即梦任务状态后重试。')
+  if (message === '即梦生成失败') return new MediaGenerationUserError('即梦任务已明确失败，请检查模型与任务状态。')
+  return new MediaGenerationOutcomeUnknownError('即梦任务结果尚未确认，请先在即梦中查看，避免重复生成。')
 }
 
 /**

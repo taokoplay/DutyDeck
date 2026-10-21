@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, opendirSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { visualProductionMediaSourceAllows, parseVisualProductionMediaConfiguration, parseVisualProductionMediaExecution, parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, assertVisualProductionId } from '@dutydeck/shared'
-import type { MediaAssetRef, VisualCandidate, VisualEditingDocument, VisualEditingExportSettings, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution } from '@dutydeck/shared'
+import { mergeLegacyVisualShotOutputs, resolveVisualShotOutputs, visualProductionMediaSourceAllows, parseVisualProductionMediaConfiguration, parseVisualProductionMediaExecution, parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, assertVisualProductionId } from '@dutydeck/shared'
+import type { MediaAssetRef, VisualCandidate, VisualEditingDocument, VisualEditingExportSettings, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution, VisualShotOutputs } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
@@ -124,8 +124,15 @@ export class VisualProductionService {
     const mediaById = new Map(snapshot.media.map(media => [media.id, media]))
     for (const item of [...draft.assets, ...draft.shots]) if (item.mediaId && !mediaById.has(item.mediaId)) throw new Error('媒体引用不属于当前影像作品')
     for (const shot of draft.shots) {
-      const media = shot.mediaId ? mediaById.get(shot.mediaId) : undefined
-      if (media && (media.kind === 'audio' || (draft.kind === 'image' && media.kind !== 'image'))) throw new Error('镜头媒体类型与作品不匹配')
+      const outputs = resolveVisualShotOutputs(shot, mediaById)
+      for (const kind of ['image', 'video', 'audio'] as const) {
+        const mediaId = outputs[kind]
+        if (!mediaId) continue
+        if (!mediaById.has(mediaId)) throw new Error('媒体引用不属于当前影像作品')
+        if (mediaById.get(mediaId)!.kind !== kind || (draft.kind === 'image' && kind !== 'image')) throw new Error('镜头媒体类型与作品不匹配')
+      }
+      if (shot.outputs && shot.mediaId !== (outputs.video ?? outputs.image ?? null)) throw new Error('镜头视觉主输出与独立输出不一致')
+      if (!shot.outputs && shot.mediaId && mediaById.get(shot.mediaId)?.kind === 'audio') throw new Error('镜头媒体类型与作品不匹配')
     }
     for (const asset of draft.assets) {
       const media = asset.mediaId ? mediaById.get(asset.mediaId) : undefined
@@ -163,10 +170,11 @@ export class VisualProductionService {
   private commit(snapshot: VisualProductionSnapshot, draft: VisualProductionDraft, preserveOutputs = false): void {
     this.references(snapshot, draft)
     const previous = snapshot.document
+    const media = new Map(snapshot.media.map(item => [item.id, item]))
     /** 只有宿主确认纯画面变更后才允许合并其他候选，正式编辑仍使旧输入失效。 */
-    const outputOnly = preserveOutputs && shotOutputChanges(previous, draft) !== null
+    const outputOnly = preserveOutputs && shotOutputChanges(previous, draft, media) !== null
     /** 在更新正式版本前冻结每份候选自身的媒体差异，禁止用旧完整草稿覆盖新作品。 */
-    const pendingOutputs = new Map(snapshot.candidates.filter(candidate => candidate.status === 'ready').map(candidate => [candidate.id, outputOnly ? shotOutputChanges(previous, candidate.draft) : null]))
+    const pendingOutputs = new Map(snapshot.candidates.filter(candidate => candidate.status === 'ready').map(candidate => [candidate.id, outputOnly ? shotOutputChanges(previous, candidate.draft, media) : null]))
     const changedAssets = new Set<string>()
     /** 删除资产的计数不无限累积，正式引用只保留当前集合。 */
     const nextAssetVersions: Record<string, number> = {}
@@ -182,9 +190,13 @@ export class VisualProductionService {
     for (const shot of draft.shots) {
       const old = previous.shots.find(item => item.id === shot.id)
       const prior = snapshot.shotStates[shot.id]
-      const replaced = Boolean(shot.mediaId && shot.mediaId !== old?.mediaId)
+      const before = old ? resolveVisualShotOutputs(old, media) : { image: null, video: null, audio: null }
+      const after = resolveVisualShotOutputs(shot, media)
+      const replaced = !same(before, after)
+      const visualReplaced = Boolean((after.video ?? after.image) && (after.video ?? after.image) !== (before.video ?? before.image))
       const changed = !same(old, shot)
-      nextStates[shot.id] = { revision: (prior?.revision ?? 0) + (changed ? 1 : 0), outputVersion: (prior?.outputVersion ?? 0) + (replaced ? 1 : 0), needsUpdate: replaced ? false : !shot.mediaId || Boolean(prior?.needsUpdate) || changed || settingsChanged || shot.assetIds.some(id => changedAssets.has(id)) }
+      const settings = !old || !same({ ...old, mediaId: null, outputs: undefined }, { ...shot, mediaId: null, outputs: undefined })
+      nextStates[shot.id] = { revision: (prior?.revision ?? 0) + (changed ? 1 : 0), outputVersion: (prior?.outputVersion ?? 0) + (replaced ? 1 : 0), needsUpdate: visualReplaced ? false : !(after.image || after.video) || Boolean(prior?.needsUpdate) || settings || settingsChanged || shot.assetIds.some(id => changedAssets.has(id)) }
     }
     snapshot.shotStates = nextStates
     snapshot.document = { ...draft, schemaVersion: 1, id: previous.id, revision: previous.revision + 1, createdAt: previous.createdAt, updatedAt: Date.now() }
@@ -195,8 +207,8 @@ export class VisualProductionService {
       if (!outputs) { candidate.status = 'stale'; continue }
       candidate.sourceRevision ??= candidate.baseRevision
       candidate.baseRevision = snapshot.document.revision
-      candidate.draft = withShotOutputs(snapshot.document, outputs)
-      if (!shotOutputChanges(snapshot.document, candidate.draft)) { candidate.status = 'adopted'; candidate.adoptedRevision = snapshot.document.revision }
+      candidate.draft = withShotOutputs(snapshot.document, outputs, media)
+      if (!shotOutputChanges(snapshot.document, candidate.draft, media)) { candidate.status = 'adopted'; candidate.adoptedRevision = snapshot.document.revision }
     }
     for (const job of snapshot.jobs) {
       if (job.status !== 'running') continue
@@ -219,31 +231,33 @@ export class VisualProductionService {
     const choices = new Map<string, Set<string>>()
     for (const candidate of ready) {
       for (const shot of candidate.draft.shots) {
-        if (!shots.has(shot.id) || !shot.mediaId || shot.mediaId === shots.get(shot.id)!.mediaId) continue
+        const current = shots.get(shot.id)
+        const imageId = resolveVisualShotOutputs(shot, media).image
+        if (!current || !imageId || imageId === resolveVisualShotOutputs(current, media).image) continue
         const alternatives = choices.get(shot.id) ?? new Set<string>()
-        alternatives.add(shot.mediaId); choices.set(shot.id, alternatives)
+        alternatives.add(imageId); choices.set(shot.id, alternatives)
       }
     }
     /** 只合并纯画面候选；混有剧本或资产变更的草稿继续等待人工采用。 */
     const selected: VisualCandidate[] = []
-    const outputs = new Map<string, string>()
+    const outputs = new Map<string, Partial<VisualShotOutputs>>()
     for (const candidate of ready) {
-      const changes = shotOutputChanges(snapshot.document, candidate.draft)
+      const changes = shotOutputChanges(snapshot.document, candidate.draft, media)
       /** 同镜头连续运行各一张也属于多图；整作品输出数超过改图镜头数时也无法证明每镜唯一。 */
       const job = jobs.get(candidate.jobId)
       const imageRuns = job?.mediaExecutions?.filter(receipt => receipt.kind === 'image') ?? []
       const multipleOutputs = imageRuns.some(receipt => (receipt.outputCount ?? 0) > 1)
-        || imageRuns.reduce((count, receipt) => count + (receipt.outputCount ?? 0), 0) > (job?.shotId ? 1 : new Set(changes?.values()).size)
+        || imageRuns.reduce((count, receipt) => count + (receipt.outputCount ?? 0), 0) > (job?.shotId ? 1 : new Set([...(changes?.values() ?? [])].map(delta => delta.image).filter(Boolean)).size)
       if (!changes || multipleOutputs) continue
-      if ([...changes].some(([shotId, mediaId]) => shots.get(shotId)?.mediaId !== null || media.get(mediaId)?.kind !== 'image' || choices.get(shotId)?.size !== 1)) continue
+      if ([...changes].some(([shotId, delta]) => resolveVisualShotOutputs(shots.get(shotId)!, media).image !== null || Object.keys(delta).some(kind => kind !== 'image') || !delta.image || media.get(delta.image)?.kind !== 'image' || choices.get(shotId)?.size !== 1)) continue
       selected.push(candidate)
-      for (const [shotId, mediaId] of changes) outputs.set(shotId, mediaId)
+      for (const [shotId, delta] of changes) outputs.set(shotId, delta)
     }
     if (!selected.length) return false
     /** 提交前串行核验实际字节，损坏或缺失素材不能成为正式画面。 */
-    for (const mediaId of new Set(outputs.values())) this.mediaContent(snapshot, mediaId)
+    for (const mediaId of new Set([...outputs.values()].flatMap(delta => Object.values(delta)))) if (mediaId) this.mediaContent(snapshot, mediaId)
     for (const candidate of selected) candidate.status = 'adopted'
-    this.commit(snapshot, withShotOutputs(snapshot.document, outputs), true)
+    this.commit(snapshot, withShotOutputs(snapshot.document, outputs, media), true)
     for (const candidate of selected) candidate.adoptedRevision = snapshot.document.revision
     return true
   }
@@ -425,7 +439,9 @@ export class VisualProductionService {
         const assetIds = new Set(shots.flatMap(shot => shot.assetIds))
         /** 整作品任务可使用全部正式资产。 */
         const assets = job.shotId ? snapshot.document.assets.filter(asset => assetIds.has(asset.id)) : snapshot.document.assets
-        if (![...shots, ...assets].some(item => item.mediaId === command.input.mediaId)) throw new Error('媒体不属于任务正式参考范围')
+        /** 一次建立索引，正式参考校验保持线性。 */
+        const mediaById = new Map(snapshot.media.map(item => [item.id, item]))
+        if (!assets.some(item => item.mediaId === command.input.mediaId) && !shots.some(shot => Object.values(resolveVisualShotOutputs(shot, mediaById)).includes(command.input.mediaId))) throw new Error('媒体不属于任务正式参考范围')
         /** 内容寻址媒体与受管副本保持一致。 */
         const media = snapshot.media.find(item => item.id === command.input.mediaId)
         if (!media || !this.dependencies.registerReference) throw new Error('参考媒体服务未就绪')
@@ -447,9 +463,14 @@ export class VisualProductionService {
         if (!job.shotId || job.shotId !== command.input.shotId) throw new Error('单镜头任务目标不匹配')
         const shot = snapshot.document.shots.find(item => item.id === job.shotId)
         const mediaIds = [command.input.mediaId, ...(command.input.alternativeMediaIds ?? [])]
-        if (!shot || mediaIds.some(mediaId => mediaId === shot.mediaId)) throw new Error('镜头输出没有变化')
+        const media = new Map(snapshot.media.map(item => [item.id, item]))
+        if (!shot || mediaIds.some(mediaId => Object.values(resolveVisualShotOutputs(shot, media)).includes(mediaId))) throw new Error('镜头输出没有变化')
         /** 使用最新正式内容构造候选，旧基线兼容不能带回其他镜头的旧画面。 */
-        const drafts = mediaIds.map(mediaId => withShotOutputs(snapshot.document, new Map([[shot.id, mediaId]])))
+        const drafts = mediaIds.map(mediaId => {
+          const kind = media.get(mediaId)?.kind
+          if (!kind) throw new Error('媒体引用不属于当前影像作品')
+          return withShotOutputs(snapshot.document, new Map([[shot.id, { [kind]: mediaId }]]), media)
+        })
         const candidate = this.proposeCandidates(snapshot, job, drafts, command.input.summary)
         this.persist(snapshot, state)
         return candidate
@@ -462,14 +483,18 @@ export class VisualProductionService {
         return candidate
       }
       case 'adopt': {
+        const media = new Map(snapshot.media.map(item => [item.id, item]))
         const candidate = snapshot.candidates.find(item => item.id === command.input.candidateId)
         if (!candidate || candidate.status !== 'ready' || candidate.baseRevision !== snapshot.document.revision) throw new Error('候选已过期或不可采纳')
         for (const asset of snapshot.document.assets) if (asset.locked && !same(asset, candidate.draft.assets.find(item => item.id === asset.id))) throw new Error('候选不能修改锁定资产')
         /** 手工选择也仅合并本次输出；完整创作候选仍沿用严格的整作品提交。 */
-        const outputs = shotOutputChanges(snapshot.document, candidate.draft)
-        if (outputs) for (const mediaId of new Set(outputs.values())) this.mediaContent(snapshot, mediaId)
+        /** 兼容旧完整候选时也补齐未声明槽，设定变更不能悄悄删除画面或音频。 */
+        const currentShots = new Map(snapshot.document.shots.map(shot => [shot.id, shot]))
+        const draft = { ...candidate.draft, shots: candidate.draft.shots.map(shot => mergeLegacyVisualShotOutputs(shot, currentShots.get(shot.id), media)) }
+        const outputs = shotOutputChanges(snapshot.document, draft, media)
+        if (outputs) for (const mediaId of new Set([...outputs.values()].flatMap(delta => Object.values(delta)))) if (mediaId) this.mediaContent(snapshot, mediaId)
         candidate.status = 'adopted'
-        this.commit(snapshot, candidate.draft, outputs !== null)
+        this.commit(snapshot, outputs ? withShotOutputs(snapshot.document, outputs, media) : draft, outputs !== null)
         candidate.adoptedRevision = snapshot.document.revision
         break
       }

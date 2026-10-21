@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 由 DutyDeck 提供统一插件规范和脚手架，作者在其中开发模块、Skills、提示与所需资源，产出可通过本地文件、设置市场及团队私有源安装的独立插件包。
+**Goal:** 由 DutyDeck 提供统一插件规范和脚手架，作者在其中开发可执行业务模块、Agent 工具、右侧 Surface、受控服务、状态和提示，产出可通过本地文件、设置市场及团队私有源安装的独立插件包；项目/工作区已有 Skills 继续由现有 Skill 系统管理，插件只声明稳定引用。
 
-**Architecture:** 保留 Pi 与现有专业模块消息门禁；以统一清单和标准脚手架连接不可变版本包、可信资源、事务化管理与 Host SDK。先支持包内资源与设置管理，再在同一协议下迁出交互设计业务；市场与私有源复用同一安装器。
+**Architecture:** 保留 Pi 与现有专业模块消息门禁；以统一清单和标准脚手架连接不可变模块 runtime 包、Skill 引用、事务化管理与 Host SDK。先完成受信 runtime、工具和 Surface 的宿主闭环，再迁出交互设计业务；市场与私有源复用同一安装器。
 
 **Tech Stack:** Bun、TypeScript、Electron、React、Jotai、现有 Radix/shadcn、JSON/JSONL 与 safe-file。不新增数据库；现有 ZIP/签名实现须按安全与打包需求验证，新增运行依赖需单独说明。
 
@@ -12,7 +12,7 @@
 
 状态：2026-10-19 协作规划草案，所有实现任务均未开始。配套产品/数据合同见 `../specs/2026-10-19-plugin-ecosystem-design.md`。本文件定义交付责任、接口、文件边界和验收；它不是已执行结果，也不承诺具体开发工期。每个工作包由其负责人在冻结合同上拆成可逐项执行的实现步骤后开发，不能把合同未定部分交给不同模块各自猜测。
 
-首版执行入口为 [插件模块首版规划](2026-10-19-plugin-module-v1-plan.md)：W1–W6 的统一规范、脚手架、包内资源及外部作者发行验收先闭环；W6H、W7 的业务 runtime 和其它模块完整迁出随后进行。设计约束只是按需携带的包内资源，不另立安装类型；首版开放不依赖后面的业务迁出完成。
+首版执行入口为 [插件模块首版规划](2026-10-19-plugin-module-v1-plan.md)：W1–W6 的统一规范、模块 runtime 脚手架、Skill 引用及外部作者发行验收先闭环；W6H、W7 的完整业务 runtime 和其它模块迁出随后进行。设计约束只是按需携带的包内资源，不另立安装类型；首版开放不依赖后面的业务迁出完成。
 
 ## 1. 范围与优先级
 
@@ -20,7 +20,7 @@
 
 本轮不做支付、评分、排行榜、市场账号平台、任意原生插件和所有模块同时重写。私有源先用带认证的标准索引，不建设另一套 SaaS。
 
-现有相关事实不得丢失：浏览器/终端自动；专业模块按消息选中；独立用户 Skills 不强制插件化；共享媒体不隐式激活画布；用户作品/凭据不随卸载误删；开发版与安装版共享业务根。
+现有相关事实不得丢失：浏览器/终端自动；专业模块按消息选中；项目/工作区 Skills 不复制进插件；共享媒体不隐式激活画布；用户作品/凭据不随卸载误删；开发版与安装版共享业务根。
 
 ## 2. 并行开发职责与依赖
 
@@ -28,7 +28,7 @@
 | --- | --- | --- | --- |
 | A：合同/SDK 与集成负责人 | shared 合同、Host API、IPC 签名、版本策略、集成合并 | Schema、冻结 fixtures、SDK、公共错误码 | 无 |
 | B：包与生命周期 | 解包校验、信任、版本 store、事务、租约、升级/卸载 | 可复用安装器与故障测试 | A 的包/状态合同 |
-| C：Skills 与包内资源 | 资源身份、resolver、提示规范与编译、快照 | 资源闭环与业务示例 | A 的资源合同 |
+| C：Skill 引用与模块资源 | 引用 resolver、提示规范与编译、工具/Surface 快照 | Skill 解析闭环与业务示例 | A 的模块合同 |
 | D：设置与分发 | 设置插件中心、市场源客户端、私有源认证体验 | 统一管理 UI 与市场 | A 的 IPC DTO；B 的操作结果 |
 | E：业务试点 | 交互设计工具、服务、UI、数据适配迁出 | 独立官方业务插件 | A 的 SDK；B/C 基础闭环 |
 | 独立验收 | 契约测试、故障注入、跨实例、真实 Electron smoke | 阶段验收证据与阻断清单 | 各线交付，不代替作者自测 |
@@ -44,9 +44,9 @@ A 拥有 `packages/shared` 公共导出、IPC 常量、主 `ipc.ts`、preload、
 **文件：** 本规范/计划；现有 `docs/superpowers/plans/2026-10-18-agent-module-pluginization.md` 仅加指向新规范的变更说明，保留历史验收记录。
 
 - [ ] 将用户确认的“双分发：独立包 + 私有源”和消息显式选择列为约束。
-- [ ] 确认单一标准脚手架和包协议，content / trusted-runtime 仅表示分阶段的执行能力；固定 `.ddplugin` 推荐格式、设置一级插件页及安装后不自动选中。
+- [ ] 确认单一标准脚手架和包协议，`content` 仅作兼容、`module-runtime`/`trusted-runtime` 作为目标执行能力；固定 `.ddplugin` 推荐格式、设置一级插件页及安装后不自动选中。
 - [ ] 采集当前模块/队列/恢复/Skills/交互设计定向测试、类型检查、真实 Electron smoke 基线；记录失败，不推断所有失败无关。
-- [ ] 固定测试数据：两个同名 Skill 插件、同版本不同内容包、含可选设计约束的插件、不含设计资源的插件、缺依赖包、旧 V1 清单、旧用户自定义 Skill、含可恢复运行的项目副本。
+- [ ] 固定测试数据：两个同名模块、同版本不同包、引用同一项目 Skill 的插件、Skill 引用缺失/版本冲突、含可选设计约束的插件、不含设计资源的插件、缺依赖包、旧 V1 清单、含可恢复运行的项目副本。
 - [ ] 建立阶段验收记录，结论区分内容插件、可信业务插件和任意第三方代码能力。
 
 **交付门槛：** 每一项用户要求都有对应工作包与验收编号；产品歧义在公共合同中一次解决。
@@ -68,12 +68,12 @@ A 拥有 `packages/shared` 公共导出、IPC 常量、主 `ipc.ts`、preload、
 
 - [ ] 以统一 manifest 生成基础模块、含可选资源、不含设计资源等有效 fixture，加入无发布者、重复 ID、跨包私有引用、非法路径、未来必需能力、缺资源、错误归属和所属模块禁用等样本。
 - [ ] 固定脚手架的目录、提示章节与变量合同、UI 约定、开发命令和版本记录；可选资源按业务需要生成，升级说明不覆盖作者业务文件。
-- [ ] 编写并先运行失败测试；锁定显示名与资源身份分离、业务 Skill 只有一个所属模块、共享被动知识单独分类、`builtin.*` 保留、资源 hash 不由 frontmatter 自证。
+- [ ] 编写并先运行失败测试；锁定显示名与模块身份分离、业务 Skill 引用只绑定一个所属模块、共享被动知识单独分类、`builtin.*` 保留、Skill hash 不由插件 manifest 自证。
 - [ ] 实现单一解析/校验事实源，JSON Schema 与运行时解析由同一合同产生并用 fixture 对照，避免两套校验漂移。
 - [ ] SDK/CLI 分别生成无 workspace 依赖的发行物，内容作者验收提前到 W1–W6 完成后；仓库 scripts 仅为公开 CLI 转发。
 - [ ] 定义安装预览/确认、停用策略、目录快照、错误码、源查询 DTO；所有 mutation 包含请求身份与 expectedRevision，预览 token 绑定完整计划。
 - [ ] 定义 settingsSchema 的字段、校验、生效时机和 credentialRef；运行快照保留普通配置 revision，凭据只由宿主受控解析。
-- [ ] 发布支持矩阵：当前支持 content 的资源能力、trusted-runtime 的受信限制、V1 兼容范围；模板引用稳定 API 版本。
+- [ ] 发布支持矩阵：当前支持的 module-runtime 能力、trusted-runtime 的受信限制、Skill 引用作用域、V1 兼容范围；模板引用稳定 API 版本。
 - [ ] 冻结 fixtures 后允许 B/C/D 并行，接口变更须附迁移与兼容测试。
 
 **命令与期望：**
@@ -120,7 +120,7 @@ bun run plugin:verify /private/tmp/design-kit.ddplugin --development
 
 工具链实现后才执行新命令。示例未签名包仅开发验证通过，生产 verify 必须非零退出；使用注入的固定测试 signer/信任库验证 release 包生产验证通过。相同输入和 signer 两次打包输出字节一致；全部攻击 fixture 在活动目录写入前失败。依赖/外部清单变更后增加 `bun run electron:build`，确认打包版可用。
 
-## 6. W3：可信 Skill 归属、包内资源与运行快照
+## 6. W3：Skill 引用、模块资源与运行快照
 
 **责任：** C。
 
@@ -134,12 +134,12 @@ bun run plugin:verify /private/tmp/design-kit.ddplugin --development
 - `apps/electron/default-skills/interaction-design/SKILL.md`：迁移时调整专属选择说明，任何正文变化同步增加 version。
 
 - [ ] 固定真实请求装配的测试观察点，不仅断言字符串 helper；覆盖普通发送、queue-now、持久队列、Automation、内部受限任务和恢复。
-- [ ] 增加插件资源适配器，不复制包内 Skill 到通用工作区目录；建立旧内置 slug 的显式兼容映射并测试用户同名文件不被覆盖。
-- [ ] 显示“模块 · Skill”与真实来源；对可选/必需 Skill 分别实现关闭、缺失提示。
+- [ ] 增加 Skill 引用解析器，不复制 Skill 正文到插件目录；建立旧内置 slug 的显式兼容映射并测试用户同名 Skill 不被覆盖。
+- [ ] 显示“模块 · Skill 引用”与真实来源；对可选/必需 Skill 分别实现缺失、版本冲突和作用域阻断提示。
 - [ ] 实现提示用途、变量与输出合同；以设计模块的内部约束作为可选资源示例，保留项目真实视觉证据及用户明确要求的优先级，不要求其它模块提供设计资源。
-- [ ] 内置模块通过宿主虚拟包及 providerDigest 兼容自身 Skills/提示/资源，不要求先交付独立业务包；依赖解析禁止从市场替换 builtin 身份。
+- [ ] 内置模块通过宿主虚拟包及 providerDigest 兼容项目 Skill 引用、提示和 runtime 资源，不要求先交付独立业务包；依赖解析禁止从市场替换 builtin 身份。
 - [ ] 将模块及其实际使用的资源引用接入既有消息序列化，支持切会话、恢复草稿、失效资源提示；不新增通用风格选择器，不恢复输入框上方常驻模块行。
-- [ ] 实现分层提示装配和累计预算，包含结构化风格编译文本、覆盖和引用包装；补“说明短但 tokens/components 巨大”的回归。无模块选择时插件正文读取为零，必需资源超额在模型调用前阻断。
+- [ ] 实现分层提示装配和累计预算，包含 Skill 引用解析结果、结构化风格编译文本、覆盖和引用包装；补“说明短但 tokens/components 巨大”的回归。无模块选择时插件正文和 Skill 正文读取均为零，必需资源超额在模型调用前阻断。
 - [ ] 冻结 plugin/package/skill/style/权限/数据 schema 快照，用户覆盖按内容寻址存不可变 revision；测试运行后编辑覆盖，旧运行仍读原内容，新运行用新版。将摘要纳入审计与恢复核验，记录选中和实际加载的区别。
 - [ ] 以对照测试锁住“影像读取共享媒体且没有画布工具/提示”与“A 导出 B 的业务 Skill 仍需要 B 选择”；所有业务资源必须所属模块已选且引用有效。
 
@@ -271,7 +271,7 @@ bun run scripts/plugin-management-smoke.ts
 **修改范围：** `apps/electron/src/main/lib/interaction-design/`、renderer 交互设计组件目录、`agent-orchestrator.ts` 的模块装配、`agent-modules/builtin-plugin-adapters.ts`，以及当前 build/resources 规则。
 
 - [ ] 先列出原型存储、项目访问、工具、UI、素材、任务/候选/采纳与历史版本的所有权表，保留 pageId/revision/asset 等现有合同。
-- [ ] 把工作流 Skill、提示、默认风格与资产迁为包资源，去掉重复正文；保留旧资源身份映射，不覆盖用户自定义内容。
+- [ ] 把模块 runtime、工具、Surface、提示、默认风格与资产迁为包资源；保留项目 Skill 引用和旧身份映射，不复制或覆盖用户内容。
 - [ ] 用 Host SDK 注册实际工具与服务生命周期，把主 orchestrator 的业务直接 import 改为稳定贡献装配；host core 只知道公开能力类型。
 - [ ] UI 通过受限 surface bridge 接会话/独立工作台导航与产物句柄；保留设备预览、浏览器 Web、历史候选与页面 CAS。
 - [ ] 本阶段插件迁移只处理 `data/<pluginId>` 私有数据；交互设计作品保持现有项目布局和 schema，由插件兼容读取。未来必要的项目产物升级须另设宿主拥有的显式迁移与备份/CAS/回退，不混进安装事务。

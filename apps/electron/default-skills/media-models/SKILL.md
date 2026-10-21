@@ -2,7 +2,7 @@
 name: media-models
 description: 根据 DutyDeck 当前配置且可执行的媒体模型，生成或编辑图片、视频、语音、歌曲和音频；触发前先发现真实能力，不使用过期模型名、固定供应商或旧 Proma 生图 Skill。仅在本轮已选择画布模块时才转交 canvas-production。
 group: proma
-version: "1.0.1"
+version: "1.0.2"
 ---
 
 # 统一媒体模型
@@ -20,9 +20,9 @@ version: "1.0.1"
 
 ## 第一步：发现所有真实模型
 
-每次新的媒体任务都先调用 `media_list_models`，并按 `nextOffset` 分页直到返回 `nextOffset: null`。这个工具返回统一图片、音频和视频目录中的稳定 `ref`、`kind`、`capabilities`、`available`、`adapterId` 和不可用原因。
+每次新的媒体任务都先调用 `media_list_models`，并按 `nextOffset` 分页直到返回 `nextOffset: null`。这个工具返回统一图片、音频和视频目录中的稳定 `ref`、`kind`、`capabilities`、`available`、`adapterId` 、`parameters` 参数约束和不可用原因。
 
-为了覆盖历史 API 媒体目录，再调用 `media_list_api_models`，同样分页读完。它可能返回已经配置但仍是 `configuration-only` 的条目；这类条目只能用来说明配置缺口，不能执行。两个结果按稳定引用、供应商、配置 ID 和模型 ID 去重，不能因为显示名称相同就合并不同模型。
+普通对话直接使用统一目录；仅当本轮提供 `media_list_api_models` 且需要维护历史 API 配置时才查询该兼容入口，同样分页读完。它可能返回已经配置但仍是 `configuration-only` 的条目；这类条目只能用来说明配置缺口，不能执行。两个结果按稳定引用、供应商、配置 ID 和模型 ID 去重，不能因为显示名称相同就合并不同模型。
 
 统一生成链只把同时满足以下条件的条目作为执行候选：
 
@@ -50,7 +50,7 @@ version: "1.0.1"
 ## 选择规则
 
 1. 用户明确指定 `modelRef/ref`、供应商或模型名时，优先精确匹配当前目录；找不到就说明当前配置没有该模型，不猜测相似名称。
-2. 用户未指定模型时，在可执行候选中按能力精确匹配，再结合用户给出的质量、速度、成本、分辨率、音色和格式要求选择。没有足够信息时选择最直接且可执行的一项，并报告选择依据。
+2. 用户未指定模型时，优先使用当前模块已保存的绑定，再使用设置中实际存在的对应类别默认模型，否则只在唯一满足能力要求的可执行候选时自动选择。仍有多个候选时请用户选择，不能按目录顺序取第一项。
 3. `available: false`、`configuration-only`、缺凭据、停用或未接 adapter 的条目不可执行；它们只能作为诊断信息展示。
 4. 不使用 `proma-generate-image`、`proma-gpt-image-2`、固定 GPT/Gemini/Nano Banana 名称或旧 Proma Cloud 凭据。模型名称必须来自本次目录读取。
 5. 用户要求低成本或快速生成时仍先看真实能力和设置，不因 Skill 被触发就自动购买、切换供应商或扩大生成数量。
@@ -60,7 +60,7 @@ version: "1.0.1"
 对带统一 `ref` 的可执行模型严格使用以下顺序：
 
 ```text
-media_list_models / media_list_api_models
+media_list_models
 → media_prepare_generation
 → media_execute_generation
 → media_wait_generation 或 media_get_generation
@@ -69,7 +69,9 @@ media_list_models / media_list_api_models
 
 取消当前任务时使用 `media_cancel_generation`，并传入明确的 `cancelIntent: "explicit"`。准备成功只表示参数和配置通过，不表示供应商已经收到请求；必须等待并报告真实终态、`runId`、模型引用、能力和输出资产。
 
-执行前遵守当前媒体自主策略和付费审批。等待超时只代表当前状态未知或仍在运行，继续使用原 `runId` 查询，不重复提交同一付费任务。失败、取消、运行中和成功必须分开报告。
+普通对话无需先选择专业模块；收到 `MEDIA_PROJECT_REQUIRED` 时先提示为当前对话选择项目，收到 `MEDIA_SERVICE_UNAVAILABLE` 时说明服务尚未就绪。不要读取渠道配置、解密凭据或通过脚本绕过宿主；入口不可用不能推断密钥无效。
+
+执行前遵守当前媒体自主策略和付费审批。等待超时只代表当前状态未知或仍在运行，继续使用原 `runId` 查询，不重复提交同一付费任务。失败、取消、运行中、`unknown` 和成功必须分开报告；`unknown` 只查询原任务，不自动新建任务。取消只保证停止本地处理，不能声称供应商已经取消。
 
 ## 输入和资产安全
 

@@ -10,7 +10,19 @@ export interface MediaModelRef {
 }
 
 /** 统一媒体生成的生命周期；准备阶段不会产生供应商副作用。 */
-export type MediaGenerationPhase = 'prepared' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+export type MediaGenerationPhase = 'prepared' | 'queued' | 'running' | 'unknown' | 'succeeded' | 'failed' | 'cancelled'
+
+/** 执行器已实现的公开标量参数；不包含凭据、供应商地址或内部路由。 */
+export interface UnifiedMediaModelParameter {
+  name: string
+  type: 'string' | 'number'
+  description: string
+  defaultValue?: string | number
+  enum?: readonly (string | number)[]
+  /** 数值参数的已实现边界；组合约束另在描述中声明。 */
+  min?: number
+  max?: number
+}
 
 /** 目录公开的统一模型条目；不包含地址、凭据或模型原始响应。 */
 export interface UnifiedMediaModelOption {
@@ -23,6 +35,8 @@ export interface UnifiedMediaModelOption {
   capabilities: MediaApiModelCapability[]
   available: boolean
   adapterId?: string
+  /** 可用标量参数；旧快照可省略，当前目录始终返回数组。 */
+  parameters?: UnifiedMediaModelParameter[]
   unavailableReason?: string
 }
 

@@ -5,7 +5,7 @@ import 'react-mockframe/styles/mockframe.css'
 import { getPrototypeDevice } from './interaction-design-devices'
 import type { PrototypeDeviceId } from './interaction-design-devices'
 import type { PrototypeDraft } from '@dutydeck/shared'
-import { buildPrototypePreview, parsePrototypePreviewMessage } from '@dutydeck/shared'
+import { buildPrototypePreview, getPrototypeViewport, parsePrototypePreviewMessage } from '@dutydeck/shared'
 
 /** 预览只接受已冻结正文，所有消息仍需父页面校验来源与身份。 */
 export interface InteractionDesignPreviewProps {
@@ -17,6 +17,8 @@ export interface InteractionDesignPreviewProps {
   identity: string
   mode: 'play' | 'select'
   device: PrototypeDeviceId
+  /** 临时方向覆盖；缺省使用当前页面/状态的正式设计方向。 */
+  orientation?: 'portrait' | 'landscape'
   /** 用户选择的绝对比例；缺省自动适应。 */
   zoom?: number
   /** 更新当前项目的预览比例，undefined 恢复自动适应。 */
@@ -88,6 +90,14 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
   const [failed, setFailed] = React.useState(false)
   const callbacks = React.useRef(props)
   callbacks.current = props
+  /** 同页状态可独立沉浸；无显式合同的历史页不注入系统栏。 */
+  const currentPage = props.draft.pages.find(item => item.id === props.pageId)
+  const presentation = currentPage?.states?.find(state => state.id === props.stateId)?.presentation ?? currentPage?.presentation
+  const orientation = props.orientation ?? presentation?.orientation ?? 'portrait'
+  const device = getPrototypeDevice(props.device, 'mobile', orientation)
+  const { width, height, shellWidth, shellHeight } = device
+  /** 仅设备/方向变化才重新计算参数，不复制或重建iframe正文。 */
+  const viewport = React.useMemo(() => getPrototypeViewport(props.draft, presentation, props.device, orientation), [props.draft, presentation, props.device, orientation])
   /** 每个状态只等待自己的图片，正文扫描只随冻结的设计身份变化。 */
   const assetIds = React.useMemo(() => {
     /** 当前画板正文与引用身份，不扫描其他状态的大型 HTML。 */
@@ -100,15 +110,20 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
   React.useEffect(() => {
     if (!props.active || !loaded || waitingForAssets || html !== undefined) return
     setHtml(buildPrototypePreview(props.draft, props.pageId, {
-      mode: 'play', active: props.active, token, revision: props.revision, assets: props.assets, stateId: props.stateId,
+      mode: 'play', active: props.active, token, revision: props.revision, assets: props.assets, stateId: props.stateId, deviceId: props.device, orientation: props.orientation,
     }))
-  }, [props.active, loaded, waitingForAssets, html, props.draft, props.pageId, props.revision, props.assets, props.stateId, token])
+  }, [props.active, loaded, waitingForAssets, html, props.draft, props.pageId, props.revision, props.assets, props.stateId, props.device, props.orientation, token])
 
   /** 模式切换走父端受控消息，避免重建页面丢失表单与交互状态。 */
   const syncMode = React.useCallback((): void => {
     frameRef.current?.contentWindow?.postMessage({ type: 'prototype-mode', token, mode: callbacks.current.mode }, '*')
   }, [token])
   React.useEffect(() => { syncMode() }, [props.mode, syncMode])
+  /** 当前父端令牌验证后只更新几何和CSS变量，不重置表单、滚动或脚本状态。 */
+  const syncViewport = React.useCallback((): void => {
+    if (presentation) frameRef.current?.contentWindow?.postMessage({ type: 'prototype-viewport', token, viewport }, '*')
+  }, [presentation, token, viewport])
+  React.useLayoutEffect(() => { syncViewport() }, [syncViewport])
   /** 隐藏/恢复通过先行桥控制调度，不更换 srcDoc 或浏览上下文。 */
   const syncVisibility = React.useCallback((): void => {
     frameRef.current?.contentWindow?.postMessage({ type: 'prototype-visibility', token, active: callbacks.current.active }, '*')
@@ -140,10 +155,8 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
   }, [token, props.pageId, props.revision, props.stateId])
 
   /** 视口随设备改变，iframe 始终留在稳定的屏幕容器中，不随外壳内部结构卸载。 */
-  const device = getPrototypeDevice(props.device)
-  const { width, height, shellWidth, shellHeight } = device
   const frame = <div className="id-device-frame" aria-busy={loaded && !ready && !failed} style={{ width, height }}>
-    {html !== undefined && <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.pageId}:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts allow-forms" srcDoc={html} onLoad={() => { syncMode(); syncVisibility(); setReady(true) }} onError={() => setFailed(true)} style={{ width, height }} />}
+    {html !== undefined && <iframe key={`${props.identity}:${props.pageId}:${props.stateId ?? 'default'}`} ref={frameRef} name={`prototype-state:${props.pageId}:${props.stateId ?? ''}`} title={props.multiple ? `${props.stateName}预览` : '当前原型预览'} sandbox="allow-scripts allow-forms" srcDoc={html} onLoad={() => { syncMode(); syncVisibility(); syncViewport(); setReady(true) }} onError={() => setFailed(true)} style={{ width, height }} />}
     {!loaded ? <div className="id-state-placeholder">{props.stateName} · 滚动到此处加载</div> : failed ? <div className="id-preview-loading" role="alert">页面加载失败，请点击工具栏重新体验</div> : !ready && <div className="id-preview-loading" role="status" aria-label={`${props.stateName}加载中`}><LoaderCircle className="id-preview-spinner" size={22} aria-hidden="true" /><span>{waitingForAssets ? '正在加载图片…' : '正在加载页面…'}</span></div>}
   </div>
   /** 多状态平铺，单状态在可用区域内居中。 */
@@ -151,10 +164,10 @@ function StatePreview(props: StatePreviewProps): React.ReactElement {
   /** 外壳仅绘制硬件；统一父级缩放使外壳、屏幕和底座使用相同坐标系。 */
   const deviceFrame = <div className="id-preview-frame-slot" style={{ width: shellWidth * props.scale, height: shellHeight * props.scale }}>
     <div className="id-preview-model" data-device={device.id} style={{ width: shellWidth, height: shellHeight, transform: `scale(${props.scale})` }}>
-      {device.frame ? <MockFrame {...device.frame} width={width} height={height} className="id-preview-mockframe" aria-hidden="true" style={{ left: device.outsetX }} /> : <div className="id-browser-frame" aria-hidden="true">
+      {device.frame ? <MockFrame {...device.frame} width={device.frameWidth} height={device.frameHeight} className="id-preview-mockframe" aria-hidden="true" style={{ left: device.outsetX }} /> : <div className="id-browser-frame" aria-hidden="true">
         <div className="id-browser-toolbar"><span className="id-browser-window-dots"><i /><i /><i /></span><span className="id-browser-address"><Globe2 size={14} /><span>原型预览</span></span></div>
       </div>}
-      <div className={`id-preview-screen${device.homeIndicator ? ' id-preview-home-indicator' : ''}`} style={{ left: device.screenLeft, top: device.screenTop, width, height, borderRadius: device.radius }}>
+      <div className={`id-preview-screen${device.homeIndicator && !presentation ? ' id-preview-home-indicator' : ''}`} style={{ left: device.screenLeft, top: device.screenTop, width, height, borderRadius: device.radius }}>
         {frame}
       </div>
     </div>
@@ -177,8 +190,11 @@ export function InteractionDesignPreview(props: InteractionDesignPreviewProps): 
   const page = props.draft.pages.find(item => item.id === props.pageId)
   const multiple = Boolean(page?.states?.length)
   /** 预览完整机身及笔记本底座，内容宽高从所选设备统一派生。 */
-  const device = getPrototypeDevice(props.device)
-  const { shellWidth, shellHeight } = device
+  const device = getPrototypeDevice(props.device, 'mobile', props.orientation ?? page?.presentation?.orientation)
+  /** 状态可采用不同方向；统一比例按所有画板的最大外框计算，避免横屏被裁切。 */
+  const stateDevices = [device, ...(page?.states ?? []).map(state => getPrototypeDevice(props.device, 'mobile', props.orientation ?? state.presentation?.orientation ?? page?.presentation?.orientation))]
+  const shellWidth = Math.max(...stateDevices.map(item => item.shellWidth))
+  const shellHeight = Math.max(...stateDevices.map(item => item.shellHeight))
   /** 多状态保证可读尺寸，超出空间后滚动；不把十几个画板缩成缩略图。 */
   const availableWidth = Math.max(1, bounds.width - 32)
   /** 单台手机优先保持接近真实尺寸，只为完整机身保留很小的上下留白。 */
@@ -194,7 +210,7 @@ export function InteractionDesignPreview(props: InteractionDesignPreviewProps): 
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
-  React.useEffect(() => { spaceRef.current?.scrollTo(0, 0) }, [props.identity, props.pageId, props.device])
+  React.useEffect(() => { spaceRef.current?.scrollTo(0, 0) }, [props.identity, props.pageId, props.device, props.orientation])
   return <><div className="id-preview-viewport"><div className={`id-preview-space${multiple ? ' id-state-space' : ''}`} ref={spaceRef} aria-label={multiple ? '当前页面的状态画板' : '当前页面预览'}>
     <StatePreview {...props} key={`${props.identity}:${props.pageId}:default`} stateName={page?.defaultStateName ?? '默认状态'} scale={scale} multiple={multiple} />
     {page?.states?.map(state => <StatePreview {...props} key={`${props.identity}:${props.pageId}:state:${state.id}`} stateId={state.id} stateName={state.name} scale={scale} multiple={multiple} />)}

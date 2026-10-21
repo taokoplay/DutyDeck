@@ -207,7 +207,7 @@ test('Given 第三镜头任务 When 登记替换输出 Then 仅第三镜头候�
   await expect(service.invoke('proposeShot', { ...input, shotId: 'shot2' })).rejects.toThrow()
   await expect(service.invoke('proposeShot', { ...input, mediaId: media[1]!.id })).rejects.toThrow()
   const candidate = await service.invoke('proposeShot', input)
-  expect(candidate.draft).toEqual({ ...draft, shots: draft.shots.map(shot => shot.id === 'shot3' ? { ...shot, mediaId: media[3]!.id } : shot) })
+  expect(candidate.draft).toEqual({ ...draft, shots: draft.shots.map(shot => shot.id === 'shot3' ? { ...shot, mediaId: media[3]!.id, outputs: { image: media[3]!.id, video: null, audio: null } } : shot) })
   expect(editable((await service.invoke('load', target)).document)).toEqual(draft)
   const adopted = await service.invoke('adopt', { ...target, baseRevision: 2, candidateId: candidate.id })
   expect(adopted.document.shots).toEqual(candidate.draft.shots)

@@ -89,6 +89,8 @@ test('Given 多镜头作品 When 精确读取镜头 Then 只返回目标和已�
   snapshot.document.shots[2]!.assetIds = ['actor']
   snapshot.document.assets = [{ id: 'actor', name: '角色', type: '角色', locked: true, description: '固定外观', mediaId: null }, { id: 'other', name: '其他资产', type: '道具', locked: false, description: '不要读取', mediaId: null }]
   snapshot.assetVersions.actor = 2
+  snapshot.media = ['image', 'video', 'audio'].map(kind => ({ id: kind, kind: kind as 'image' | 'video' | 'audio', name: kind, mime: 'application/octet-stream', hash: 'a'.repeat(64), byteSize: 1, createdAt: 1 }))
+  snapshot.document.shots[2]!.outputs = { image: 'image', video: 'video', audio: 'audio' }
   const calls: unknown[] = []
   const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => { calls.push({ method, input }); return snapshot }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
   const tool = tools.find(item => item.name === 'visual_production_read_shot')
@@ -96,6 +98,7 @@ test('Given 多镜头作品 When 精确读取镜头 Then 只返回目标和已�
   const result = await tool!.execute('call', { productionId: 'production', shotId: 'shot2' }, undefined, undefined, {} as never)
   expect(calls).toEqual([{ method: 'load', input: { sessionId: 'session', productionId: 'production' } }])
   expect(result.details).toMatchObject({ productionId: 'production', revision: 1, shot: { id: 'shot2' }, assets: [{ id: 'actor', version: 2, locked: true }] })
+  expect((result.details as { media: Array<{ id: string }> }).media.map(item => item.id)).toEqual(['image', 'video', 'audio'])
   expect(JSON.stringify(result.details)).not.toContain('无关镜头正文')
   expect(JSON.stringify(result.details)).not.toContain('不要读取')
   await expect(tool!.execute('call', { productionId: 'production', shotId: 'absent' }, undefined, undefined, {} as never)).rejects.toThrow('镜头不存在')

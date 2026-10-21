@@ -10,6 +10,7 @@ import type { AgentSendInput, AgentSessionMeta } from '@dutydeck/shared'
 import type { CanvasToolRunContext } from '../src/main/lib/design/canvas-tool-provider'
 import { createMediaToolRun, type MediaToolProviderDependencies } from '../src/main/lib/media/media-tool-provider'
 import { isEligibleProjectAgent } from '../src/main/lib/agent-session-visibility'
+import { registerMediaToolProviderRuntime } from '../src/main/lib/media/media-tool-runtime'
 
 /** 禁止准备流程访问真实存储、生成服务或未声明的运行生命周期。 */
 function forbidden(): never { throw new Error('离线装配测试禁止调用外部能力') }
@@ -42,6 +43,7 @@ isolate('agent-queue-coordinator', { AgentQueueCoordinator: InertRuntime })
 isolate('agent-session-manager', { getAgentSessionMeta: () => session, isAgentSessionDeleting: () => false,
   markAgentSessionDeleting: forbidden, listAgentSessions: forbidden, updateAgentSessionMeta: forbidden })
 isolate('agent-workspace-manager', { getAgentWorkspace: forbidden, getAgentWorkspaceBySlug: forbidden,
+  getWorkspaceSkills: forbidden,
   getLocalProjectRootStatus: forbidden, getProjectFilesPath: forbidden, getWorkspaceAttachedDirectories: forbidden,
   getWorkspaceAttachedFiles: forbidden })
 isolate('config-paths', { getAgentSessionWorkspacePath: forbidden })
@@ -59,6 +61,11 @@ isolate('design/canvas-document-ipc', { getCanvasToolProviderRuntime: () => ({
     return createMediaToolRun(mediaDependencies, context)
   },
 }) })
+/** 共享媒体入口独立注册；Canvas 仅提供自己的专业入口。 */
+const disposeMedia = registerMediaToolProviderRuntime({ createRun: (context) => {
+  contexts.push(context)
+  return createMediaToolRun(mediaDependencies, context)
+} })
 /** 导入生产入口而不是重写其分支逻辑。 */
 const { prepareAgentRun } = await import('../src/main/lib/agent-service')
 /** 每个场景从独立的权威普通会话开始，输入只影响当前轮次。 */
@@ -71,7 +78,7 @@ async function prepare(input: Partial<AgentSendInput> = {}, metadata: Partial<Ag
 /** 检查仅媒体能力进入生产准备结果，并验证权限上下文未丢失。 */
 const selected = await prepare()
 assert.equal(contexts.length, 1)
-assert.deepEqual(contexts[0], { mediaOnly: true, projectId: 'project-local', sessionId: 'session-local',
+assert.deepEqual(contexts[0], { mediaOnly: true, mediaToolScope: 'generation', projectId: 'project-local', sessionId: 'session-local',
   runStartedAt: 123, explicitReferences: [], permissionCeiling: 'execute', dialogOwnerWebContentsId: 42 })
 /** Provider 实际产生的工具名，用来防止空扩展或专业模块权限泄漏。 */
 const names = selected.extensions.piCustomTools?.map(tool => tool.name) ?? []
@@ -80,17 +87,18 @@ assert(names.includes('media_execute_generation'))
 assert(selected.extensions.allowedToolNames?.includes('media_prepare_generation'))
 assert(selected.extensions.allowedToolNames?.includes('media_execute_generation'))
 assert(selected.extensions.toolApprovalPolicy, '媒体审批策略必须随工具传入运行')
+assert(!names.includes('media_discover_workflows'), '普通对话不装配工作流管理')
 assert(!names.some(name => name.startsWith('canvas_') || name.startsWith('visual_production_')))
 for (const refs of [undefined, [], ['invalid-model-ref']]) {
   await prepare({ mentionedMediaModelRefs: refs })
-  assert.equal(contexts.length, 0, '无选择或无效引用不能开启工具')
+  assert.equal(contexts.length, 1, '无选择或无效引用仍保留普通对话媒体入口')
 }
 await prepare({}, { explorationParentSessionId: 'parent-local' })
 assert.equal(contexts.length, Number(isEligibleProjectAgent(session, 'project-local')), '模型选择不能绕过既有探索分支准入规则')
-for (const metadata of [{ workspaceId: undefined }, { archived: true }, { sourceAutomationId: 'automation' },
+for (const metadata of [{ archived: true }, { sourceAutomationId: 'automation' },
   { parentSessionId: 'parent', sourceDelegationId: 'delegation' }]) {
   await prepare({}, metadata)
-  assert.equal(contexts.length, 0, '无项目、归档和内部运行不得扩权')
+  assert.equal(contexts.length, 0, '归档和内部运行不得扩权')
 }
 await prepare({ triggeredBy: 'automation' })
 assert.equal(contexts.length, 0)
@@ -106,4 +114,16 @@ await prepare({ mentionedMediaModelRefs: [], moduleIds: ['canvas'] })
 assert.equal(contexts[0]?.mediaOnly, false, '显式画布选择仍传递完整模式')
 await prepare({ mentionedMediaModelRefs: [], moduleIds: ['visual-production'] })
 assert.equal(contexts[0]?.mediaOnly, true, '显式影像选择仍使用媒体模式')
+assert.equal(contexts[0]?.mediaToolScope, undefined, '影像保留专业媒体工具')
+/** 无项目对话收到可操作诊断，不能进入实际服务。 */
+const unbound = await prepare({}, { workspaceId: undefined })
+assert.equal(contexts.length, 0)
+assert.deepEqual(unbound.extensions.allowedToolNames, ['media_list_models'])
+assert(unbound.extensions.systemPromptAppend?.includes('选择项目'))
+/** 独立媒体服务未就绪不能悄悄借用Canvas运行或声称密钥无效。 */
+disposeMedia()
+const unavailable = await prepare()
+assert.equal(contexts.length, 0)
+assert.deepEqual(unavailable.extensions.allowedToolNames, ['media_list_models'])
+assert(unavailable.extensions.systemPromptAppend?.includes('尚未就绪'))
 console.log('PASS: prepareAgentRun 真实入口与媒体 Provider 离线装配，全部场景通过')

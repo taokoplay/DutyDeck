@@ -56,7 +56,7 @@ describe('空镜头唯一图片自动采用', () => {
     expect(candidate.status).toBe('adopted')
     expect(candidate.adoptedRevision).toBe(3)
     const saved = await f.service.invoke('load', f.target)
-    expect(saved.document.shots[0]).toEqual({ ...f.snapshot.document.shots[0]!, mediaId: f.media[1]!.id })
+    expect(saved.document.shots[0]).toEqual({ ...f.snapshot.document.shots[0]!, mediaId: f.media[1]!.id, outputs: { image: f.media[1]!.id, video: null, audio: null } })
     expect(saved.document.shots[1]).toEqual(f.snapshot.document.shots[1]!)
     expect(saved.document.assets).toEqual(f.snapshot.document.assets)
     expect(saved.assetVersions).toEqual(f.snapshot.assetVersions)

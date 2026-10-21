@@ -15,7 +15,7 @@ test('Given 统一媒体 Skill When 校验模型发现 Then 覆盖全部目录�
 
   expect(skill).toMatch(/^name: media-models$/m)
   expect(skill).toMatch(/^group: proma$/m)
-  expect(skill).toMatch(/^version: "1\.0\.0"$/m)
+  expect(skill).toMatch(/^version: "1\.0\.2"$/m)
   for (const rule of [
     'media_list_models',
     'media_list_api_models',

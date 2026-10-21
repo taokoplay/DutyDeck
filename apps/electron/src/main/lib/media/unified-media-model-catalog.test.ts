@@ -100,3 +100,43 @@ describe('即梦统一图片目录', () => {
     expect(dreaminaCatalog(models, false).list('project')[0]?.available).toBe(false)
   })
 })
+
+describe('统一目录公开参数', () => {
+  test('Given OpenAI图片和音频模型 When 列目录 Then 返回与执行器一致的真实参数', () => {
+    /** 使用真实目录投影，防止仅参数工具正确但API未接线。 */
+    const catalog = new UnifiedMediaModelCatalog({
+      readImageCatalog: () => ({ ...imageCatalog, profiles: [{ ...imageCatalog.profiles[0]!, provider: 'openai-images', baseUrl: 'https://api.example.test/v1', models: [{ id: 'gpt-image-1', capabilities: ['text-to-image'] }] }] }),
+      readAudioCatalog: () => audioCatalog,
+      resolveImageApiKey: () => 'secret', resolveAudioApiKey: () => 'secret',
+    })
+    /** 图片公开尺寸、音频公开音色和唯一已支持的MP3格式。 */
+    const models = catalog.list('project')
+    expect(models[0]?.parameters).toEqual([{ name: 'size', type: 'string', description: '输出图片尺寸', defaultValue: '1024x1024', enum: ['1024x1024', '1536x1024', '1024x1536', 'auto'] }])
+    expect(models[1]?.parameters?.map(parameter => parameter.name)).toEqual(['voice', 'format'])
+    expect(models[1]?.parameters?.find(parameter => parameter.name === 'format')?.enum).toEqual(['mp3'])
+  })
+  test('Given 未接入协议或未实现标量参数 When 列目录 Then 不虚构尺寸或时长', () => {
+    /** MiniMax图片和视频当前只支持提示词与参考图，放大模型无执行器。 */
+    const catalog = new UnifiedMediaModelCatalog({
+      readImageCatalog: () => ({ ...imageCatalog, profiles: [{ ...imageCatalog.profiles[0]!, models: [...imageCatalog.profiles[0]!.models, { id: 'upscale', capabilities: ['upscale'] }] }] }),
+      readAudioCatalog: () => ({ ...audioCatalog, profiles: [] }),
+      resolveImageApiKey: () => 'secret', resolveAudioApiKey: () => 'secret',
+    })
+    expect(catalog.list('project').map(model => model.parameters)).toEqual([[], [], []])
+  })
+})
+
+describe('即梦公开参数合同', () => {
+  for (const [modelId, resolutions] of [['3.0', ['1k', '2k']], ['4.7', ['2k', '4k']], ['5.0Pro', ['1.5k', '2k', '4k']]] as const) {
+    test(`Given 即梦${modelId} When 列目录 Then 公开真实五参数且不伪报配置默认分辨率`, () => {
+      /** 配置可覆盖默认分辨率，因此目录不声明通用默认值。 */
+      const parameters = dreaminaCatalog([{ id: modelId, capabilities: ['text-to-image'], params: { resolution_type: '4k' } }]).list('project')[0]!.parameters!
+      expect(parameters.map(parameter => parameter.name)).toEqual(['ratio', 'count', 'resolution_type', 'width', 'height'])
+      expect(parameters.find(parameter => parameter.name === 'resolution_type')).toEqual({ name: 'resolution_type', type: 'string', description: '图片分辨率；省略时使用模型配置的默认值', enum: resolutions })
+      expect(parameters.find(parameter => parameter.name === 'count')).toMatchObject({ type: 'number', defaultValue: 1, min: 1, max: 4 })
+      expect(parameters.find(parameter => parameter.name === 'ratio')?.enum).toContain('16:9')
+      expect(parameters.find(parameter => parameter.name === 'width')?.description).toContain('成对')
+      expect(parameters.find(parameter => parameter.name === 'height')?.description).toContain('互斥')
+    })
+  }
+})

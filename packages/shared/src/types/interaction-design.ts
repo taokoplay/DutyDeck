@@ -24,8 +24,34 @@ export interface PrototypeSource {
   kind: 'html' | 'code'
 }
 
+/** 原型固定设备环境；切换预览设备不会自动重写目标平台。 */
+export interface PrototypeEnvironment {
+  /** 环境合同版本。 */
+  schemaVersion: 1
+  /** 系统栏语义所属平台。 */
+  target: 'ios' | 'android' | 'web'
+  /** 受支持设备的稳定名称。 */
+  deviceId: string
+}
+
+/** 页面显示合同；状态缺省时继承页面，页面缺省时保持旧版布局。 */
+export interface PrototypePresentation {
+  /** 布局合同版本。 */
+  schemaVersion: 1
+  /** 安全区内布局或允许画面延伸到屏幕边缘。 */
+  contentLayout: 'safe' | 'edge-to-edge'
+  /** 系统状态栏文字配色；hidden 不消除硬件遮挡。 */
+  statusBar: 'dark' | 'light' | 'hidden'
+  /** 应用导航由页面绘制，可占位、浮层或省略。 */
+  navigation: 'inline' | 'overlay' | 'none'
+  /** 页面方向，允许全屏状态覆盖默认方向。 */
+  orientation: 'portrait' | 'landscape'
+}
+
 /** 同一业务页面的附加视觉状态；默认状态正文保留在页面 html 中。 */
 export interface PrototypePageState {
+  /** 此状态独立布局；省略继承页面。 */
+  presentation?: PrototypePresentation
   /** 当前页面内稳定且唯一的状态身份。 */
   id: string
   /** 可读状态名称，例如无数据、加载失败。 */
@@ -36,6 +62,8 @@ export interface PrototypePageState {
 
 /** 独立页面正文；持久化服务将 HTML 转成不可变内容对象。 */
 export interface PrototypePage {
+  /** 显式启用统一系统区域，旧页面省略时保留原布局。 */
+  presentation?: PrototypePresentation
   /** 原型内稳定页面身份。 */
   id: string
   /** 所属目录分组。 */
@@ -72,6 +100,8 @@ export interface PrototypeFlow {
 
 /** 可编辑内容；不包含演示中的表单值、当前页和焦点状态。 */
 export interface PrototypeDraft {
+  /** 固定设计环境；旧文档不自动补齐。 */
+  environment?: PrototypeEnvironment
   /** 原型名称。 */
   name: string
   /** 默认设备展示方式。 */
@@ -188,8 +218,8 @@ export interface PrototypePageComparison {
   prototypeId: string
   pageId: string
   /** 左右两侧的版本元信息和目标页正文。 */
-  left: { kind: 'version' | 'candidate'; id: string; globalRevision: number; pageRevision: number; name: string; html: string; states?: PrototypePageState[] }
-  right: { kind: 'version' | 'candidate'; id: string; globalRevision: number; pageRevision: number; name: string; html: string; states?: PrototypePageState[] }
+  left: { kind: 'version' | 'candidate'; id: string; globalRevision: number; pageRevision: number; name: string; html: string; states?: PrototypePageState[]; presentation?: PrototypePresentation }
+  right: { kind: 'version' | 'candidate'; id: string; globalRevision: number; pageRevision: number; name: string; html: string; states?: PrototypePageState[]; presentation?: PrototypePresentation }
   /** 默认 HTML 的结构化差异。 */
   defaultHtml: { changed: boolean; before: string; after: string; addedLines: string[]; removedLines: string[] }
   /** 附加状态增删改。 */
@@ -339,6 +369,8 @@ export interface PrototypeCheck {
 
 /** 固定版本交给生产开发时使用的视口与视觉约束。 */
 export interface PrototypeVisualContract {
+  /** 设计基准设备与目标系统。 */
+  environment?: PrototypeEnvironment
   /** 设计验收时使用的固定预览尺寸。 */
   viewport: { width: number; height: number }
   /** 开发必须优先保持的视觉事实。 */
@@ -357,8 +389,18 @@ export interface PrototypeHandoffGroup {
   path: string
 }
 
+/** 新版页面及状态的实际布局摘要，供开发逐状态验收。 */
+export interface PrototypeHandoffPresentation {
+  /** 有效布局；状态已解析继承。 */
+  presentation?: PrototypePresentation
+  /** 当前方向下的设计尺寸。 */
+  viewport?: { width: number; height: number }
+  /** 四边安全区 CSS 像素，背景可覆盖而控件应避让。 */
+  safeArea?: { top: number; right: number; bottom: number; left: number }
+}
+
 /** 交接包中的页面摘要；正文仍可通过 prototype_read_version 读取。 */
-export interface PrototypeHandoffPage {
+export interface PrototypeHandoffPage extends PrototypeHandoffPresentation {
   /** 稳定页面身份。 */
   id: string
   /** 页面显示名称。 */
@@ -370,7 +412,7 @@ export interface PrototypeHandoffPage {
   /** 页面 HTML 中声明的稳定元素身份。 */
   elementIds: string[]
   /** 同页状态摘要；默认状态省略 id，旧单状态交接包省略整个字段。 */
-  states?: Array<{
+  states?: Array<PrototypeHandoffPresentation & {
     /** 附加状态身份，默认状态不提供。 */
     id?: string
     /** 可读状态名称。 */

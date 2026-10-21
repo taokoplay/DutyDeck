@@ -17,6 +17,20 @@ function createAudioProfile() {
 }
 
 describe('媒体 preload 合同', () => {
+  test('Given 对话产物预览 When 读取和释放 Then 只透传消息会话与任务定位到固定通道', async () => {
+    /** 记录桥接参数，不触碰真实文件或 Electron。 */
+    const calls: Array<{ channel: string; input: unknown }> = []
+    const api = createMediaPreloadApi(async (channel, input) => { calls.push({ channel, input }) }, () => () => undefined)
+    const target = { sessionId: 'session', runId: 'run', outputKey: 'output' }
+    const release = { sessionId: 'session', leaseId: 'lease' }
+    await api.mediaGenerationReadPreview(target)
+    await api.mediaGenerationReleasePreview(release)
+    expect(calls).toEqual([
+      { channel: MEDIA_IPC_CHANNELS.READ_GENERATION_PREVIEW, input: target },
+      { channel: MEDIA_IPC_CHANNELS.RELEASE_GENERATION_PREVIEW, input: release },
+    ])
+  })
+
   test('Given Agent 输入框读取模型 When 通过 preload Then 只调用统一目录只读通道', async () => {
     const calls: Array<{ channel: string; input: unknown }> = []
     const api = createMediaPreloadApi(

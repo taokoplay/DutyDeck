@@ -1,3 +1,4 @@
+import { resolveVisualShotOutputs } from '@dutydeck/shared'
 import type { VisualMedia, VisualProductionSnapshot } from '@dutydeck/shared'
 
 /** 一份素材在正式作品中的使用位置，供导出页定位来源。 */
@@ -45,11 +46,18 @@ export function buildVisualDelivery(snapshot: Pick<VisualProductionSnapshot, 'do
     /** 镜头序号在每集独立计算，包含待制作镜头的位置。 */
     const position = (episodePositions.get(shot.episodeId) ?? 0) + 1
     episodePositions.set(shot.episodeId, position)
-    if (!shot.mediaId) { result.unmadeShots++; continue }
+    /** 旧文档缺媒体元数据时仍保留引用，避免交付清单悄悄遗漏。 */
+    const outputs = resolveVisualShotOutputs(shot, mediaById)
+    const outputIds = [...new Set(Object.values(outputs).filter((id): id is string => !!id))]
+    /** 独立音频可交付，但缺少视觉的镜头仍待制作；旧引用缺元数据不改变历史计数。 */
+    const legacyVisual = !shot.outputs && shot.mediaId && !mediaById.has(shot.mediaId)
+    if (!outputs.image && !outputs.video && !legacyVisual) result.unmadeShots++
+    if (!outputIds.length && shot.mediaId) outputIds.push(shot.mediaId)
+    if (!outputIds.length) continue
     const unit = `${snapshot.document.kind === 'image' ? '图片' : '镜头'} ${position}`
     const title = shot.title.trim() || unit
     const label = `${episodesById.get(shot.episodeId) || '未命名集数'} · ${unit}${title === unit ? '' : ` · ${title}`}`
-    add(shot.mediaId, title, { kind: 'shot', id: shot.id, episodeId: shot.episodeId, label }, !!snapshot.shotStates[shot.id]?.needsUpdate)
+    for (const outputId of outputIds) add(outputId, title, { kind: 'shot', id: shot.id, episodeId: shot.episodeId, label }, !!snapshot.shotStates[shot.id]?.needsUpdate)
   }
   for (const asset of snapshot.document.assets) {
     if (!asset.mediaId) { result.unmadeAssets++; continue }

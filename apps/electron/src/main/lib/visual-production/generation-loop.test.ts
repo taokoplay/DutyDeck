@@ -148,8 +148,8 @@ describe('影像制作真实组件闭环（仅 HTTP 使用 fixture）', () => {
     expect(after.document.shots.slice(0, 2)).toEqual(f.baseline.document.shots.slice(0, 2))
     expect(after.shotStates.shot1).toEqual(f.baseline.shotStates.shot1)
     expect(after.shotStates.shot2).toEqual(f.baseline.shotStates.shot2)
-    expect(after.document.shots[2]).toEqual({ ...f.baseline.document.shots[2]!, mediaId: media.id })
-    expect(editable(after.document)).toEqual({ ...editable(f.baseline.document), shots: f.baseline.document.shots.map(shot => shot.id === 'shot3' ? { ...shot, mediaId: media.id } : shot) })
+    expect(after.document.shots[2]).toEqual({ ...f.baseline.document.shots[2]!, mediaId: media.id, outputs: { image: media.id, video: null, audio: null } })
+    expect(editable(after.document)).toEqual({ ...editable(f.baseline.document), shots: f.baseline.document.shots.map(shot => shot.id === 'shot3' ? { ...shot, mediaId: media.id, outputs: { image: media.id, video: null, audio: null } } : shot) })
     expect(after.shotStates.shot3!.outputVersion).toBe(f.baseline.shotStates.shot3!.outputVersion + 1)
     expect(after.document.revision).toBe(flow.base.baseRevision + 1)
   })
@@ -165,11 +165,12 @@ describe('影像制作真实组件闭环（仅 HTTP 使用 fixture）', () => {
     expect((await f.ui.execute('load', f.target)).document).toEqual(f.baseline.document)
   })
 
-  test('Given 上游HTTP失败 When 执行并记录失败 Then 没有候选、输出或正式变更', async () => {
+  test('Given 上游HTTP503且远端结果未知 When 记录影像任务失败 Then 没有候选、输出或正式变更', async () => {
     const f = await fixture(true)
     const flow = await begin(f)
     const done = await f.generate('agent', flow.reference)
-    expect(done.phase).toBe('failed')
+    /** 统一媒体服务将可能已消费的 503 保存为 unknown，影像模块不得伪造确定失败或结果。 */
+    expect(done.phase).toBe('unknown')
     expect(done.outputs).toEqual([])
     await flow.agent.call('fail_job', { productionId: flow.base.productionId, jobId: flow.job.id, message: '供应商 HTTP 503' })
     const after = await f.ui.execute('load', f.target)

@@ -1,4 +1,5 @@
-import type { InteractionDesignCommand, InteractionDesignInputs, InteractionDesignMethod, PrototypeDraft, PrototypeJobMode, PrototypePageComparisonRef, PrototypePageManifestItem, PrototypePlan, PrototypePlanEvidence, PrototypePlanPage, PrototypePlanState } from './interaction-design'
+import { getPrototypeDeviceProfile } from '../utils/interaction-design-device-profile'
+import type { InteractionDesignCommand, InteractionDesignInputs, InteractionDesignMethod, PrototypeDraft, PrototypeEnvironment, PrototypePresentation, PrototypeJobMode, PrototypePageComparisonRef, PrototypePageManifestItem, PrototypePlan, PrototypePlanEvidence, PrototypePlanPage, PrototypePlanState } from './interaction-design'
 
 /** 页面数量与正文预算避免不可信 IPC 触发无界复制。 */
 export const PROTOTYPE_LIMITS = { pages: 200, statesPerPage: 12, groups: 100, flows: 2000, planEvidencePerPage: 24, planUnresolved: 100, pageChars: 512 * 1024, totalChars: 8 * 1024 * 1024 } as const
@@ -165,6 +166,27 @@ export function parsePrototypePlan(value: unknown): PrototypePlan {
   return { schemaVersion: 1, summary: string(plan.summary, '规划说明', 4000, true), groups, pages, entryPageId, flows, unresolved }
 }
 
+/** 验证完整显示合同；不对缺失字段猜测，返回白名单字段。 */
+export function parsePrototypePresentation(value: unknown): PrototypePresentation {
+  const layout = record(value, '页面布局')
+  if (layout.schemaVersion !== 1) invalid('页面布局版本')
+  if (layout.contentLayout !== 'safe' && layout.contentLayout !== 'edge-to-edge') invalid('内容布局')
+  if (layout.statusBar !== 'dark' && layout.statusBar !== 'light' && layout.statusBar !== 'hidden') invalid('状态栏')
+  if (layout.navigation !== 'inline' && layout.navigation !== 'overlay' && layout.navigation !== 'none') invalid('导航布局')
+  if (layout.orientation !== 'portrait' && layout.orientation !== 'landscape') invalid('页面方向')
+  return { schemaVersion: 1, contentLayout: layout.contentLayout, statusBar: layout.statusBar, navigation: layout.navigation, orientation: layout.orientation }
+}
+
+/** 验证设计设备；未知设备不能进入持久化或静默降级。 */
+function parseEnvironment(value: unknown): PrototypeEnvironment {
+  const environment = record(value, '设备环境')
+  if (environment.schemaVersion !== 1) invalid('设备环境版本')
+  if (environment.target !== 'ios' && environment.target !== 'android' && environment.target !== 'web') invalid('目标系统')
+  const deviceId = string(environment.deviceId, '设备名称')
+  try { getPrototypeDeviceProfile(deviceId) } catch { invalid('不支持的设备') }
+  return { schemaVersion: 1, target: environment.target, deviceId }
+}
+
 /**
  * 解析原型完整内容并丢弃派生/权限字段。
  * @param value 用户或模型提供的原型正文。
@@ -200,7 +222,7 @@ export function parsePrototypeDraft(value: unknown): PrototypeDraft {
     const states = page.states === undefined ? undefined : array(page.states, '页面状态集合', PROTOTYPE_LIMITS.statesPerPage).map(value => {
       /** 状态只接受身份、名称和正文白名单。 */
       const state = record(value, '页面状态')
-      return { id: id(state.id), name: string(state.name, '状态名称', 120), html: string(state.html, '状态 HTML', PROTOTYPE_LIMITS.pageChars, true) }
+      return { id: id(state.id), name: string(state.name, '状态名称', 120), html: string(state.html, '状态 HTML', PROTOTYPE_LIMITS.pageChars, true), ...(state.presentation === undefined ? {} : { presentation: parsePrototypePresentation(state.presentation) }) }
     })
     if (states) unique(states.map(state => state.id), '页面状态身份重复')
     totalChars += html.length + (states?.reduce((size, state) => size + state.html.length, 0) ?? 0)
@@ -215,6 +237,7 @@ export function parsePrototypeDraft(value: unknown): PrototypeDraft {
     return {
       id: id(page.id), groupId, name: string(page.name, '页面名称', 120), html,
       ...(page.defaultStateName === undefined ? {} : { defaultStateName: string(page.defaultStateName, '默认状态名称', 120) }),
+      ...(page.presentation === undefined ? {} : { presentation: parsePrototypePresentation(page.presentation) }),
       ...(states === undefined ? {} : { states }),
       ...(source ? { source: { path: parsePrototypeRelativePath(source.path), hash: source.hash as string, kind: source.kind as 'html' | 'code' } } : {}),
       ...(pageRevision === undefined ? {} : { pageRevision }),
@@ -235,7 +258,7 @@ export function parsePrototypeDraft(value: unknown): PrototypeDraft {
   })
   unique(flows.map((flow) => flow.id), '连接身份重复')
   unique(flows.map((flow) => `${flow.fromPageId}:${flow.elementId}`), '同一元素存在多个跳转目标')
-  return { name: string(draft.name, '原型名称', 120), platform, brief: string(draft.brief, '原型说明', 16000, true), groups, pages, entryPageId, flows }
+  return { name: string(draft.name, '原型名称', 120), platform, brief: string(draft.brief, '原型说明', 16000, true), groups, pages, entryPageId, flows, ...(draft.environment === undefined ? {} : { environment: parseEnvironment(draft.environment) }) }
 }
 
 /** 识别项目还原中不应冒充业务页面的导览、来源参考和完整 App 页面。 */

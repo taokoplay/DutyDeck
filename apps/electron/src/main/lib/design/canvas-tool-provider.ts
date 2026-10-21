@@ -550,6 +550,8 @@ export type CanvasToolPermissionCeiling = 'plan' | 'execute'
 export interface CanvasToolRunContext {
   /** Host 根据本条消息模块选择签发；影像运行仅装配共享媒体能力，不读取画布。 */
   mediaOnly?: boolean
+  /** 普通对话只装配统一生成及素材工具；专业模块保留完整工作流工具。 */
+  mediaToolScope?: 'generation'
   projectId: string
   sessionId: string
   runStartedAt: number

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { DeviceNames, DeviceOptions } from 'react-mockframe'
+import { getPrototypeDeviceProfile } from '@dutydeck/shared'
 import { getPrototypeDevice, isPrototypeDevice, PROTOTYPE_DEVICES } from './interaction-design-devices'
 
 describe('预览设备目录', () => {
@@ -7,9 +8,20 @@ describe('预览设备目录', () => {
     expect(PROTOTYPE_DEVICES.flatMap(device => device.frame ? [device.frame.device] : []).sort()).toEqual([...DeviceNames].sort())
     for (const device of PROTOTYPE_DEVICES) {
       if (device.frame) expect([device.width, device.height]).toEqual([DeviceOptions[device.frame.device].width, DeviceOptions[device.frame.device].height])
+      expect(getPrototypeDeviceProfile(device.id)).toMatchObject({ width: device.width, height: device.height })
       expect(device.screenLeft + device.width).toBeLessThan(device.shellWidth)
       expect(device.screenTop + device.height).toBeLessThan(device.shellHeight)
     }
+  })
+
+  test('Given 手机横屏 When 计算外壳几何 Then 屏幕和机身一起换向且不改变原设备基准', () => {
+    /** 经典机型的上下大边框在横屏时必须转到左右。 */
+    const rotated = getPrototypeDevice('iPhone 8', 'mobile', 'landscape')
+    expect([rotated.width, rotated.height]).toEqual([667, 375])
+    expect([rotated.screenLeft, rotated.screenTop]).toEqual([105, 24])
+    expect(rotated.shellWidth).toBe(877)
+    expect(getPrototypeDevice('iPhone 8').width).toBe(375)
+    expect(getPrototypeDevice('MacBook Pro', 'desktop', 'landscape').width).toBe(960)
   })
 
   test('Given 浏览器 Web When 选择预览 Then 使用桌面视口且顶栏不占用网页高度', () => {

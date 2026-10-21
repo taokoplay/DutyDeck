@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, Film, ImageIcon, ImageOff, Music2 } from 'lucide-react'
+import { ChevronDown, Film, ImageOff, Music2 } from 'lucide-react'
 import type { VisualAsset, VisualMedia, VisualShot, VisualShotState } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -48,17 +48,8 @@ export function VisualShotDetails({ sessionId, productionId, shot, assets, media
   /** 当前作品媒体与资产按身份索引，后台刷新无需对每个引用重复扫描整库。 */
   const mediaById = React.useMemo(() => new Map(media.map(item => [item.id, item])), [media])
   const assetsById = React.useMemo(() => new Map(assets.map(item => [item.id, item])), [assets])
-  /** 只展示该镜头实际采用的素材；未采用候选仍由制作记录承接。 */
-  const output = shot.mediaId ? mediaById.get(shot.mediaId) : undefined
   return <div className="vp-shot-details">
-    <section className="vp-shot-output" aria-label="当前画面素材">
-      <div className="vp-shot-output-icon" aria-hidden="true">{output?.kind === 'video' ? <Film size={18} /> : <ImageIcon size={18} />}</div>
-      <div className="min-w-0 flex-1">
-        <h4>画面素材<span className="vp-muted">{output ? ` · ${MEDIA_LABELS[output.kind]} · 版本 ${state?.outputVersion ?? 0}` : ''}</span></h4>
-        <p className="truncate vp-muted" title={output?.name}>{output?.name || (shot.mediaId ? '引用素材不可用' : '尚未采用画面')}</p>
-      </div>
-      <span className="vp-badge shrink-0">{!output ? shot.mediaId ? '素材缺失' : '待制作' : state?.needsUpdate ? '待更新' : '已采用'}</span>
-    </section>
+    <p className="vp-muted">设定修订 {state?.revision ?? 0} · 素材版本 {state?.outputVersion ?? 0}{state?.needsUpdate && shot.mediaId ? ' · 设定已变化，请检查画面与影片' : ''}</p>
     <div className="vp-shot-detail-columns">
       <section className="vp-shot-assets" aria-label="镜头引用资产">
         <div className="vp-shot-section-heading"><h4>引用资产</h4><span className="vp-muted">{shot.assetIds.length} 项</span></div>

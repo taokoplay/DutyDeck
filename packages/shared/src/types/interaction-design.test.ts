@@ -144,3 +144,19 @@ test('Given 历史记录命令 When 类型或身份不合法 Then 拒绝且读�
   expect(() => parseInteractionDesignCommand({ method: 'deleteHistory', input: { ...input, baseRevision: undefined } })).toThrow()
   expect(parseInteractionDesignCommand({ method: 'getCandidateImpact', input: { ...input, candidateId: 'candidate-1' } }).input).toEqual({ sessionId: 'session', prototypeId: 'prototype-1', candidateId: 'candidate-1' })
 })
+
+/** 布局合同明确 opt-in；旧稿不得补默认字段改变历史 hash。 */
+describe('移动端布局合同', () => {
+  test('Given 页面和全屏状态 When 解析 Then 保留独立布局与设备基线', () => {
+    const presentation = { schemaVersion: 1, contentLayout: 'safe', statusBar: 'dark', navigation: 'inline', orientation: 'portrait' } as const
+    const value = { ...draft(), environment: { schemaVersion: 1, target: 'ios', deviceId: 'iPhone 17' }, pages: [{ ...draft().pages[0], presentation, states: [{ id: 'full', name: '全屏', html: '<main>游戏</main>', presentation: { ...presentation, contentLayout: 'edge-to-edge', statusBar: 'hidden', navigation: 'none', orientation: 'landscape' } }] }] , flows: [] }
+    expect(JSON.stringify(parsePrototypeDraft(value))).toContain('"orientation":"landscape"')
+    expect(parsePrototypeDraft(value).environment).toEqual({ schemaVersion: 1, target: 'ios', deviceId: 'iPhone 17' })
+    expect(parsePrototypeDraft(draft())).not.toHaveProperty('environment')
+    expect(parsePrototypeDraft(draft()).pages[0]).not.toHaveProperty('presentation')
+  })
+  test('Given 非法布局枚举或设备 When 解析 Then 拒绝不完整合同', () => {
+    expect(() => parsePrototypeDraft({ ...draft(), environment: { schemaVersion: 1, target: 'ios', deviceId: 'unknown' } })).toThrow()
+    expect(() => parsePrototypeDraft({ ...draft(), pages: [{ ...draft().pages[0], presentation: { schemaVersion: 1, contentLayout: 'fullscreen' } }], flows: [] })).toThrow()
+  })
+})

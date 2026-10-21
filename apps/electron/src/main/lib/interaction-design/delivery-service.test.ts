@@ -30,3 +30,34 @@ test('Given 仅附加状态引用素材与token When 导出交接 Then 包含状
     expect(handoff.pages[0]!.states).toEqual([{ name: '有数据', elementIds: [] }, { id: 'empty', name: '无数据', elementIds: ['empty-image'] }])
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
+
+test('Given 设备基线与横屏游戏状态 When 开发交接 Then 尺寸安全区与状态继承一致且旧稿不变', () => {
+  /** 交接仅写入本测试临时目录。 */
+  const directory = mkdtempSync(join(tmpdir(), 'prototype-layout-delivery-'))
+  const document: PrototypeDocument = { schemaVersion: 1, id: 'p', revision: 1, createdAt: 1, updatedAt: 1, name: '测试', platform: 'mobile', brief: '', groups: [{ id: 'g', name: '页面' }], entryPageId: 'home', flows: [], pages: [{ id: 'home', groupId: 'g', name: '首页', html: '<main>首页</main>' }] }
+  const assets = { list: () => [] } as unknown as InteractionAssetService
+  try {
+    const legacy = createInteractionHandoff(document, assets, directory)
+    expect(legacy.visualContract.viewport).toEqual({ width: 390, height: 844 })
+    expect(legacy.pages[0]).not.toHaveProperty('presentation')
+    document.environment = { schemaVersion: 1, target: 'ios', deviceId: 'iPhone 17' }
+    document.pages[0]!.presentation = { schemaVersion: 1, contentLayout: 'safe', statusBar: 'dark', navigation: 'inline', orientation: 'portrait' }
+    document.pages[0]!.states = [{ id: 'game', name: '游戏', html: '<main>游戏</main>', presentation: { schemaVersion: 1, contentLayout: 'edge-to-edge', statusBar: 'hidden', navigation: 'none', orientation: 'landscape' } }, { id: 'empty', name: '空态', html: '<main>空态</main>' }]
+    const result = createInteractionHandoff(document, assets, directory)
+    expect(result.visualContract.environment).toEqual(document.environment)
+    expect(result.visualContract.viewport).toEqual({ width: 402, height: 874 })
+    expect(result.pages[0]!.states![1]!.viewport).toEqual({ width: 874, height: 402 })
+    expect(result.pages[0]!.states![1]!.safeArea!.left).toBeGreaterThan(0)
+    expect(result.pages[0]!.states![1]!.safeArea!.top).toBe(0)
+    expect(result.pages[0]!.states![2]!.presentation).toEqual(document.pages[0]!.presentation)
+    expect(result.manifestHash).not.toBe(legacy.manifestHash)
+    /** 横屏仍显示状态栏的页面，交接必须包含与运行时相同的24px顶部占位。 */
+    for (const statusBar of ['dark', 'light'] as const) {
+      document.pages[0]!.presentation = { ...document.pages[0]!.presentation, orientation: 'landscape', statusBar }
+      const landscape = createInteractionHandoff(document, assets, directory)
+      expect(landscape.pages[0]!.safeArea!.top).toBe(24)
+      expect(landscape.pages[0]!.states![2]!.safeArea!.top).toBe(24)
+      expect(landscape.pages[0]!.states![1]!.safeArea!.top).toBe(0)
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }) }
+})

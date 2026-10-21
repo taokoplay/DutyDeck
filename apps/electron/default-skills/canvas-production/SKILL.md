@@ -2,7 +2,7 @@
 name: canvas-production
 description: DutyDeck 画布生产与 Agent 编排 Skill。仅在用户本轮明确要求使用画布、引用或继续已有画布产物，或业务确需多个可关联且持续复用的画布产物时使用，例如产品套图、整套交互视觉稿、漫剧分镜或多镜头视频。通过 DutyDeck 内置 canvas_* 工具制作与评审；普通代码修改、一次性 HTML 原型、文本回答或不需要长期产物图的任务不要强行转入画布。
 group: proma
-version: "1.0.42"
+version: "1.0.43"
 ---
 
 # 画布生产
@@ -245,7 +245,7 @@ WebView 创建后即可预览，文档和 WebView 不需要单独运行；保存
 生成授权以 `media_list_workflows` / `media_discover_workflows` 回执中的 `authorizationMode` 为准：`ask` 表示每次确认；`automatic` 表示用户已将当前任务的媒体生产交给 Agent，可连续选型、配置、生成、检查与采用合适候选后继续，不对已授权的常规步骤反复询问。自主模式也允许在确认远端无适用工作流后，按服务器实际资源新建并保存本地；它不允许超出当前任务和预算、忽略停止要求、重复提交未知结果的任务或虚构内容验收。未读取策略时先查询，不能仅凭会话的完全自动模式推断媒体授权。
 
 1. 用 `media_list_api_models` 查询当前画布允许的可执行 API 模型，用 `media_list_workflows(canvasId)` 读取画布默认绑定、本次有效 ComfyUI 服务和本地工作流。普通 Agent 传入当前画布 ID，画布 Agent 自动使用固定画布。`selectedConnection` / `connectionStatus` 只表示用户默认绑定，查询与配置应同时看 `effectiveConnection` 和 `connectionSource`：未绑定且仅一台启用服务器时，Host 返回 `single-enabled`，直接发现工作流即可，不必让用户手动绑定，也不写入画布默认绑定。已有绑定失效、没有启用服务器或多台候选且用户未明确选择时，再让用户在画布顶部选择或修复；不能按目录顺序猜第一台。显式 `connectionId` 优先于默认绑定，已有节点与已准备任务继续使用固定的原连接。API 模型列表为空不表示 ComfyUI 没有工作流。
-2. 新任务优先查看绑定 ComfyUI 服务器的工作流，除用户明确指定本地模板或恢复原任务外，先调用 `media_discover_workflows`，提供输出 `mediaKind` 和实际素材 `inputKinds`（例如首尾两帧为两项 image），按页检查候选。目录与正文复用资源快照，只有明确需要更新时使用 `refresh=true`。结合节点标题、输入、连接及输出核实首尾帧等语义角色，数量匹配不能替代语义判断。UI 格式先尝试已有转换器；无法转换时报告具体节点、控件或连接问题。选定候选后原样传入 `descriptor`、`contentHash` 到 `media_use_remote_workflow` 直接使用，Host 自动保存内部执行快照，无需用户导入、创建或发布本地模板，也不要另存项目草稿。内容变化时重新发现与核查。需要深入检查时使用 `media_read_remote_workflow` / `media_get_node_schema`。
+2. 用户明确选择或节点已绑定 API 模型时，先核对统一媒体目录与参数，沿用画布模型执行入口，不强制发现 ComfyUI。选择 ComfyUI 的任务先查看绑定服务器的工作流，除用户明确指定本地模板或恢复原任务外，先调用 `media_discover_workflows`，提供输出 `mediaKind` 和实际素材 `inputKinds`（例如首尾两帧为两项 image），按页检查候选。目录与正文复用资源快照，只有明确需要更新时使用 `refresh=true`。结合节点标题、输入、连接及输出核实首尾帧等语义角色，数量匹配不能替代语义判断。UI 格式先尝试已有转换器；无法转换时报告具体节点、控件或连接问题。选定候选后原样传入 `descriptor`、`contentHash` 到 `media_use_remote_workflow` 直接使用，Host 自动保存内部执行快照，无需用户导入、创建或发布本地模板，也不要另存项目草稿。内容变化时重新发现与核查。需要深入检查时使用 `media_read_remote_workflow` / `media_get_node_schema`。
    完整目录仍无匹配时说明缺口：`ask` 模式先询问是否根据当前服务器已有模型和节点生成工作流并保存本地，等待明确同意后传 `creationIntent=user-confirmed`；`automatic` 模式可直接新建，传 `creationIntent=automatic-policy`，Host 会复核最新设置，无需再次询问。分页未完成、名称筛选无结果、读取失败、同步失败、转换失败均不能当作服务器没有匹配；继续分页、清除筛选或报告具体问题。两种模式都用 `media_list_resources` 查询实际 `models`/`nodes`，用 `media_get_node_schema`、`media_inspect_workflow` 校验真实接口、模型枚举、连线及输出，最后调用 `media_save_local_workflow` 保存可跨项目复用的本地模板。不得虚构模型或节点，保存不等于生成成功。
 3. 用 `media_inspect_workflow` 检查缺失参数，用 `media_match_assets` 匹配项目素材。用户附件通过 `media_list_sources` / `media_import_assets` 导入，本地 Shell/Skill 的明确产物通过 `media_import_local_file` 导入。上传和远端素材标识填充由 prepare 链路完成，不猜测远端文件名。
 4. 图片通过 `canvas_update_image_config` 固定服务器执行快照或本地模板版本、连接和输入；音视频通过 `canvas_update_media_config` 固定 typed 输入与输出。根据真实 `nodeId + input` 绑定填入已知参数、默认值和稳定素材引用；缺少的字段先省略，立即保存待配置草稿，让用户在原卡片查看和补齐。不要猜测素材或把未知映射当成可执行字段。已有任务保留准备时的连接，不能因为画布默认连接改变而改派。只有字段完整并符合用户生成意图时调用 `canvas_run_nodes`；普通画布任务不得直接调用独立 `media_prepare_run`。无 Canvas 目标的媒体任务与父编排 handoff 仍可使用准备入口。

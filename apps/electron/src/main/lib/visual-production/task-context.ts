@@ -1,3 +1,4 @@
+import { resolveVisualShotOutputs } from '@dutydeck/shared'
 import { createHash, randomUUID } from 'node:crypto'
 import type { VisualMedia, VisualProductionSnapshot } from '@dutydeck/shared'
 import type { VisualProductionExecutor } from './access'
@@ -103,12 +104,14 @@ function resolveMedia(snapshot: VisualProductionSnapshot, input: VisualTaskConte
   if (snapshot.document.id !== input.productionId || snapshot.document.revision !== input.productionRevision) throw new Error('VISUAL_CONTEXT_VERSION_CHANGED: 请重新读取正式作品')
   /** 正式绑定才构成素材授权，连续性必须显式声明。 */
   const selected = new Set<string>()
+  /** 单次索引仅解析当前范围内的正式或显式候选输出。 */
+  const mediaById = new Map(snapshot.media.map(item => [item.id, item]))
   const add = (id: string | null | undefined): void => { if (id) selected.add(id) }
   const assets = new Map(snapshot.document.assets.map(asset => [asset.id, asset]))
   const addShot = (shotId: string): void => {
     const shot = snapshot.document.shots.find(item => item.id === shotId)
     if (!shot) throw new Error('VISUAL_CONTEXT_TARGET_MISSING')
-    add(shot.mediaId)
+    Object.values(resolveVisualShotOutputs(shot, mediaById)).forEach(add)
     for (const assetId of shot.assetIds) {
       const asset = assets.get(assetId)
       if (!asset) throw new Error('VISUAL_CONTEXT_TARGET_MISSING')
@@ -133,7 +136,7 @@ function resolveMedia(snapshot: VisualProductionSnapshot, input: VisualTaskConte
       if (job.shotId && job.shotId !== targetId) throw new Error('VISUAL_CONTEXT_OUT_OF_SCOPE')
       const shot = candidate.draft.shots.find(item => item.id === targetId)
       if (!shot) throw new Error('VISUAL_CONTEXT_TARGET_MISSING')
-      add(shot.mediaId)
+      Object.values(resolveVisualShotOutputs(shot, mediaById)).forEach(add)
     } else if (input.target.kind === 'asset') {
       if (job.shotId) throw new Error('VISUAL_CONTEXT_OUT_OF_SCOPE')
       const targetId = input.target.assetId

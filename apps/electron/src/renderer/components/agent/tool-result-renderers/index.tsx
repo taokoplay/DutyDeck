@@ -18,6 +18,7 @@ import { TaskGetResultRenderer } from './task-get-result'
 import { TaskListResultRenderer } from './task-list-result'
 import { DefaultResultRenderer } from './default-result'
 import { ApiRunResultRenderer } from './ApiRunResultRenderer'
+import { MediaGenerationResultRenderer } from './MediaGenerationResultRenderer'
 
 export interface ToolResultRendererProps {
   toolName: string
@@ -50,6 +51,12 @@ export function ToolResultRenderer({ toolName, input, result, isError, basePath,
       return <TaskGetResultRenderer result={result} isError={isError} />
     case 'TaskList':
       return <TaskListResultRenderer result={result} isError={isError} />
+    case 'media_prepare_generation':
+    case 'media_execute_generation':
+    case 'media_get_generation':
+    case 'media_wait_generation':
+    case 'media_cancel_generation':
+      return <MediaGenerationResultRenderer result={result} isError={isError} sessionId={sessionId} />
     case 'api_send_request':
       return <ApiRunResultRenderer result={result} isError={isError} sessionId={sessionId} />
     default:

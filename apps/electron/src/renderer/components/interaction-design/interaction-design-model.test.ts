@@ -63,3 +63,13 @@ describe('交互设计 renderer 身份与编辑边界', () => {
     expect(prompt).toContain('prototype_read_version'); expect(prompt).toContain('"revision": 7'); expect(prompt).toContain('"width": 390'); expect(prompt).toContain('submit'); expect(prompt).toContain('--gap')
   })
 })
+
+test('Given 新版设备环境 When 目录编辑复制草稿 Then 深拷贝环境且旧稿保持缺省', () => {
+  /** 固定设计基线必须跨目录编辑保留，且不能共享可变对象。 */
+  const source: PrototypeDocument = { ...document, environment: { schemaVersion: 1, target: 'ios', deviceId: 'iPhone 17' } }
+  const copied = copyPrototypeDraft(source)
+  expect(copied.environment).toEqual(source.environment)
+  copied.environment!.deviceId = 'iPhone X'
+  expect(source.environment!.deviceId).toBe('iPhone 17')
+  expect(copyPrototypeDraft(document)).not.toHaveProperty('environment')
+})

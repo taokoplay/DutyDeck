@@ -1,3 +1,4 @@
+import { getUnifiedMediaModelParameters } from './unified-media-model-parameters'
 import type {
   AudioGenerationPublicCatalog,
   ImageGenerationMediaKind,
@@ -64,6 +65,7 @@ export class UnifiedMediaModelCatalog {
           profileId: profile.id,
           modelId: model.id,
           capabilities,
+          parameters: adapterId ? getUnifiedMediaModelParameters(adapterId, model.id) : [],
           available,
           ...(adapterId ? { adapterId } : {}),
           ...(available ? {} : { unavailableReason: !profile.enabled ? '模型已停用' : profile.provider === 'dreamina' ? kind === 'video' ? '即梦视频执行器尚未接入' : '当前即梦图片模型或能力尚未接入' : !profile.credentialConfigured ? '凭据未配置' : '执行器尚未接入' }),
@@ -80,6 +82,7 @@ export class UnifiedMediaModelCatalog {
           name: `${profile.name} · ${model.name ?? model.id}`,
           kind: 'audio', provider: profile.provider, profileId: profile.id, modelId: model.id,
           capabilities, available, adapterId,
+          parameters: getUnifiedMediaModelParameters(adapterId, model.id),
           ...(available ? {} : { unavailableReason: !profile.enabled ? '模型已停用' : '凭据未配置' }),
         })
       }

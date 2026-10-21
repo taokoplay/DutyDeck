@@ -197,3 +197,16 @@ test('Given 页面版本 When Agent 请求对比 Then 只调用只读comparePage
   expect(calls).toContainEqual({ method: 'comparePage', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', pageId: 'home', left: { revision: 2 }, right: { candidateId: 'candidate-1' } }, signal: undefined })
   expect(permissions.at(-1)).toBe(false)
 })
+
+test('Given 全屏状态布局 When 单页候选提交 Then 只覆盖指定状态并保留页面正文', async () => {
+  /** 使用真实工具边界核验字段不会被 schema 或投影丢弃。 */
+  const { tools, document, calls } = pageFixture()
+  const presentation = { schemaVersion: 1, contentLayout: 'edge-to-edge', statusBar: 'hidden', navigation: 'none', orientation: 'landscape' } as const
+  const tool = tools.find(item => item.name === 'prototype_propose_page')!
+  await tool.execute('fullscreen', { prototypeId: 'prototype-1', baseRevision: 3, jobId: 'job-1', pageId: 'home', stateId: 'empty', html: '<main>游戏</main>', summary: '沉浸状态', presentation }, undefined, undefined, {} as never)
+  const proposed = calls[1]!.input as { draft: import('@dutydeck/shared').PrototypeDraft }
+  expect(proposed.draft.pages[0]!.states![0]!.presentation).toEqual(presentation)
+  expect(proposed.draft.pages[0]!.html).toBe(document.pages[0]!.html)
+  expect(proposed.draft.pages[0]!.presentation).toBeUndefined()
+  expect(proposed.draft.pages[1]).toEqual(document.pages[1])
+})
