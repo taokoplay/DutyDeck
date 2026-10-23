@@ -1,14 +1,14 @@
 import { createHash, createPublicKey, sign, verify } from 'node:crypto'
 import type { KeyObject } from 'node:crypto'
-import { parsePluginManifest, validatePluginResources } from '@dutydeck/plugin-sdk'
-import type { PluginPackageManifest, ValidatedPluginResources } from '@dutydeck/plugin-sdk'
+import { parsePluginManifest, parsePluginManifestV3, validatePluginResources } from '@dutydeck/plugin-sdk'
+import type { PluginPackageManifest, PluginV3Manifest, ValidatedPluginResources, ValidatedPluginResource } from '@dutydeck/plugin-sdk'
 import { createPluginArchive, readPluginArchive } from './archive.js'
 
 /** 发布者证明只确认签名，是否信任由宿主或独立信任库决定。 */
 export interface PluginSigner { keyId: string; publicKey: string }
 /** 已验证数学完整性的安装候选，不能据此跳过用户来源信任。 */
 export interface InspectedPluginPackage {
-  manifest: PluginPackageManifest
+  manifest: PluginPackageManifest | PluginV3Manifest
   files: Map<string, Uint8Array>
   resources: ValidatedPluginResources
   packageHash: string
@@ -19,8 +19,15 @@ export interface InspectedPluginPackage {
 interface IntegrityFile { path: string; bytes: number; sha256: string }
 /** 包工具实际允许交付的根文件。 */
 const ROOT_FILES = new Set(['plugin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md'])
-/** 可携带资源的目录及静态扩展；可执行入口不属于本版协议。 */
+/** V2 content 可携带的静态资源目录。 */
 const RESOURCE_FILE = /^(skills|prompts|styles|resources|assets)\/.*\.(md|txt|json|png|jpg|jpeg|webp|gif|svg)$/i
+/** V3 runtime 只允许自包含 ESM bundle；Surface 允许构建后静态资源。 */
+const V3_RUNTIME_FILE = /^runtime\/.*\.mjs$/i
+const V3_SURFACE_FILE = /^surfaces\/.*\.(html|js|css|png|jpg|jpeg|webp|gif|svg|woff2)$/i
+/** 判断路径是否属于当前插件格式允许的载荷。 */
+function isPayloadPath(path: string, v3: boolean): boolean {
+  return ROOT_FILES.has(path) || RESOURCE_FILE.test(path) || (v3 && (V3_RUNTIME_FILE.test(path) || V3_SURFACE_FILE.test(path)))
+}
 
 /** 返回 SHA-256 十六进制摘要；只描述字节一致性。 */
 export function hashPluginBytes(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex') }
@@ -34,9 +41,52 @@ function readJson(files: ReadonlyMap<string, Uint8Array>, path: string): unknown
 }
 
 /** 校验纯清单与正文，复用公开 SDK 的唯一合同。 */
-function validatePayload(files: ReadonlyMap<string, Uint8Array>): { manifest: PluginPackageManifest; resources: ValidatedPluginResources } {
+function validateV3Payload(manifest: PluginV3Manifest, files: ReadonlyMap<string, Uint8Array>): ValidatedPluginResources {
+  const resources: ValidatedPluginResource[] = []
+  if (!files.get(manifest.runtime.entry)?.byteLength) throw new Error('PLUGIN_RUNTIME_ENTRY_MISSING')
+  for (const surface of manifest.surfaces) {
+    if (!files.get(surface.entry)?.byteLength) throw new Error(`PLUGIN_SURFACE_ENTRY_MISSING:${surface.id}`)
+  }
+  let promptBytes = 0
+  for (const prompt of manifest.prompts) {
+    const bytes = files.get(prompt.path)
+    if (!bytes?.byteLength) throw new Error(`PLUGIN_PROMPT_MISSING:${prompt.id}`)
+    if (bytes.byteLength > 16 * 1024) throw new Error(`PLUGIN_PROMPT_TOO_LARGE:${prompt.id}`)
+    let content: string
+    try {
+      content = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    } catch {
+      throw new Error(`PLUGIN_PROMPT_INVALID_UTF8:${prompt.id}`)
+    }
+    promptBytes += bytes.byteLength
+    if (promptBytes > 64 * 1024) throw new Error('PLUGIN_PROMPT_BUDGET_EXCEEDED')
+    const owners = manifest.modules.filter(module => module.promptRefs.includes(prompt.id)).map(module => module.id)
+    resources.push({
+      id: `${manifest.id}/prompts/${prompt.id}`,
+      kind: 'prompt',
+      ownerModuleIds: owners,
+      path: prompt.path,
+      version: prompt.version,
+      content,
+      byteLength: bytes.byteLength,
+    })
+  }
+  return { pluginId: manifest.id, trust: 'unverified', resources }
+}
+
+/** 根据清单格式校验载荷，V2 与 V3 不共享可执行字段。 */
+function validatePayload(files: ReadonlyMap<string, Uint8Array>): { manifest: PluginPackageManifest | PluginV3Manifest; resources: ValidatedPluginResources } {
   for (const path of ROOT_FILES) if (!files.get(path)?.byteLength) throw new Error(`PLUGIN_REQUIRED_FILE_MISSING:${path}`)
-  const parsed = parsePluginManifest(readJson(files, 'plugin.json'))
+  const input = readJson(files, 'plugin.json')
+  const formatVersion = input && typeof input === 'object' && !Array.isArray(input)
+    ? (input as Record<string, unknown>).formatVersion
+    : undefined
+  if (formatVersion === 3) {
+    const parsed = parsePluginManifestV3(input)
+    if (!parsed.ok) throw new Error(parsed.issues.map(issue => `${issue.file}:${issue.field}:${issue.message}`).join('\n'))
+    return { manifest: parsed.value, resources: validateV3Payload(parsed.value, files) }
+  }
+  const parsed = parsePluginManifest(input)
   if (!parsed.ok) throw new Error(parsed.issues.map(issue => `${issue.file}:${issue.field}:${issue.message}`).join('\n'))
   const resources = validatePluginResources(parsed.value, files)
   if (!resources.ok) throw new Error(resources.issues.map(issue => `${issue.file}:${issue.field}:${issue.message}`).join('\n'))
@@ -50,8 +100,11 @@ function validatePayload(files: ReadonlyMap<string, Uint8Array>): { manifest: Pl
  * @returns 确定性安装包字节。
  */
 export function createPluginPackage(source: ReadonlyMap<string, Uint8Array>, signingKey?: KeyObject): Buffer {
+  const input = readJson(source, 'plugin.json')
+  const v3 = Boolean(input && typeof input === 'object' && !Array.isArray(input)
+    && (input as Record<string, unknown>).formatVersion === 3)
   /** 按明确载荷白名单收录，额外开发文件不能进入最终包。 */
-  const files = new Map([...source].filter(([path]) => ROOT_FILES.has(path) || RESOURCE_FILE.test(path)))
+  const files = new Map([...source].filter(([path]) => isPayloadPath(path, v3)))
   validatePayload(files)
   const entries: IntegrityFile[] = [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     .map(([path, bytes]) => ({ path, bytes: bytes.byteLength, sha256: hashPluginBytes(bytes) }))
@@ -72,6 +125,9 @@ export function createPluginPackage(source: ReadonlyMap<string, Uint8Array>, sig
  */
 export function inspectPluginPackage(bytes: Uint8Array): InspectedPluginPackage {
   const files = readPluginArchive(bytes)
+  const manifestInput = readJson(files, 'plugin.json')
+  const v3 = Boolean(manifestInput && typeof manifestInput === 'object' && !Array.isArray(manifestInput)
+    && (manifestInput as Record<string, unknown>).formatVersion === 3)
   const raw = readJson(files, 'integrity.json')
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('PLUGIN_INTEGRITY_INVALID')
   const integrity = raw as Record<string, unknown>
@@ -81,7 +137,7 @@ export function inspectPluginPackage(bytes: Uint8Array): InspectedPluginPackage 
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PLUGIN_INTEGRITY_INVALID')
     const entry = value as Record<string, unknown>
     if (Object.keys(entry).sort().join() !== 'bytes,path,sha256' || typeof entry.path !== 'string' || listed.has(entry.path)
-      || (!ROOT_FILES.has(entry.path) && !RESOURCE_FILE.test(entry.path))) throw new Error('PLUGIN_INTEGRITY_INVALID')
+      || !isPayloadPath(entry.path, v3)) throw new Error('PLUGIN_INTEGRITY_INVALID')
     const payload = files.get(entry.path)
     if (!payload || payload.byteLength !== entry.bytes || hashPluginBytes(payload) !== entry.sha256) throw new Error(`PLUGIN_INTEGRITY_MISMATCH:${entry.path}`)
     listed.add(entry.path)

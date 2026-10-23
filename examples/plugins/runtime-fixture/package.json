@@ -1,0 +1,11 @@
+{
+  "name": "acme.runtime-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "dutydeck-plugin build .",
+    "validate": "dutydeck-plugin validate .",
+    "test": "dutydeck-plugin test ."
+  }
+}

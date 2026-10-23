@@ -32,11 +32,11 @@ function check(value: unknown, schema: SchemaNode, field: string, file: string, 
         fail(`缺少字段 ${key}`);
     for (const [key, entry] of Object.entries(value)) {
       const child = schema.properties && Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined;
-      if (!child)
+      if (!child && schema.additionalProperties !== true)
         issues.push({
           code: 'schema', message: `未知字段 ${key}`, file, field: `${field}.${key}`
         });
-      else
+      else if (child)
         check(entry, child, `${field}.${key}`, file, issues);
     }
   } else if (schema.type === 'array') {
@@ -81,6 +81,23 @@ function check(value: unknown, schema: SchemaNode, field: string, file: string, 
       fail('字符串不符合合同格式');
   } else if (schema.type && typeof value !== schema.type)
     fail(`必须是 ${schema.type}`);
+}
+
+/**
+ * 使用 SDK 支持的 JSON Schema 子集校验任意值。
+ * @param value 待校验的未知数据。
+ * @param schema 与解析器同源的结构合同。
+ * @param file 错误定位使用的包内文件。
+ * @returns 字段级校验问题，空数组表示结构有效。
+ */
+export function collectSchemaIssues(
+  value: unknown,
+  schema: SchemaNode,
+  file = 'plugin.json',
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  check(value, schema, '$', file, issues)
+  return issues
 }
 /** 检查跨平台路径，ASCII 限制消除 Unicode 归一化混淆。 */
 export function isPortableResourcePath(path: string): boolean {

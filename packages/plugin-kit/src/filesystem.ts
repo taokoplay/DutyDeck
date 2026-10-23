@@ -4,8 +4,8 @@ import { isPluginResourcePath } from '@dutydeck/plugin-sdk'
 
 /** 文件系统读取预算与包协议一致，避免先读入无界作者文件。 */
 const FILE_LIMIT = 16 * 1024 * 1024
-/** 打包只进入这五个资源目录，其他开发目录完全不读取。 */
-const DIRECTORIES = new Set(['skills', 'prompts', 'styles', 'resources', 'assets'])
+/** 打包只进入声明资源、构建后 runtime 与 Surface 目录，其他开发目录完全不读取。 */
+const DIRECTORIES = new Set(['skills', 'prompts', 'styles', 'resources', 'assets', 'runtime', 'surfaces'])
 /** 必需的根资源文件白名单。 */
 const ROOT_FILES = ['plugin.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md']
 
@@ -61,7 +61,7 @@ export function collectPluginSource(directory: string): Map<string, Uint8Array> 
         const child = `${path}/${entry.name}`
         if (entry.isSymbolicLink()) throw new Error(`PLUGIN_SOURCE_SYMLINK:${child}`)
         if (entry.isDirectory()) visit(child, depth + 1)
-        else if (/\.(md|txt|json|png|jpg|jpeg|webp|gif|svg)$/i.test(entry.name)) add(child)
+        else if (/\.(md|txt|json|png|jpg|jpeg|webp|gif|svg|mjs|js|css|html|woff2)$/i.test(entry.name)) add(child)
       }
     } finally { handle.closeSync() }
   }

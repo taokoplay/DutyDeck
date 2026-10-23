@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { SettingsSection, SettingsCard } from './primitives'
 import { confirmedPluginKey, contentPluginErrorMessage, mergeContentPluginSnapshot } from './PluginSettings.logic'
 import { BuiltinPluginSettings } from './BuiltinPluginSettings'
+import { ModuleRuntimePluginSettings } from './ModuleRuntimePluginSettings'
 
 /** 插件管理只缓存摘要；页面间共享修订号，不缓存可执行提示正文。 */
 export const contentPluginsAtom = atom<ContentPluginSnapshot | null>(null)
@@ -169,6 +170,7 @@ export function ContentPluginManagerView({ mode = 'installed', pluginFilter = nu
 export function PluginSettings(): React.ReactElement {
   return <SettingsSection title="插件管理" description="管理内置模块和已安装插件；发送消息时明确选择模块，决定本轮是否接入模型。">
     <BuiltinPluginSettings />
+    <ModuleRuntimePluginSettings />
     <ContentPluginManager />
   </SettingsSection>
 }

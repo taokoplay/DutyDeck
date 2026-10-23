@@ -2,12 +2,14 @@ import * as React from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { Blocks, Brain, CalendarDays, Clock, FolderOpen, Globe, ListTodo, Plug, SquareTerminal } from 'lucide-react'
 import { getAgentModuleIcon } from '@/components/agent/module-icons'
+import { parsePluginRuntimeSurfaceId } from '@dutydeck/shared'
 import { WorkspaceToolRail } from './WorkspaceToolRail'
 import type { WorkspaceToolRailItem } from './WorkspaceToolRail'
 import { ObsidianIcon } from '@/components/obsidian/obsidian-brand'
 import { activeWorkspaceToolAtom, openWorkspaceToolAtom, workspaceProjectAtom, workspaceToolAvailabilityAtom, workspaceToolsExpandedAtom, type WorkspaceToolId } from '@/atoms/workspace-tools'
-import { agentSessionInputStreamStateAtomFamily, agentWorkspacesAtom, currentAgentSessionIdAtom, workspaceCapabilitiesVersionAtom } from '@/atoms/agent-atoms'
+import { agentDiffPanelTabAtom, agentSessionInputStreamStateAtomFamily, agentWorkspacesAtom, currentAgentSessionIdAtom, currentSessionSidePanelOpenAtom, workspaceCapabilitiesVersionAtom } from '@/atoms/agent-atoms'
 import { agentSessionModuleCatalogAtomFamily } from '@/atoms/agent-module-atoms'
+import { pluginSurfaceInstancesAtom, rememberPluginSurface } from '@/atoms/plugin-surface-atoms'
 import { attachAgentModule, detachAgentModule, loadAgentModuleCatalog, loadAgentSessionModuleCatalog } from '@/components/agent/agent-module-loader'
 import { automationsAtom } from '@/atoms/automation-atoms'
 import { settingsOpenAtom, settingsTabAtom } from '@/atoms/settings-tab'
@@ -54,6 +56,9 @@ export function WorkspaceTools(): React.ReactElement {
   const sessionStreamState = useAtomValue(agentSessionInputStreamStateAtomFamily(sessionId ?? '__none__'))
   const moduleCatalog = useAtomValue(agentSessionModuleCatalogAtomFamily(sessionId ?? '__none__'))
   const store = useStore()
+  const setPluginSurfaces = useSetAtom(pluginSurfaceInstancesAtom)
+  const setDiffPanelTabs = useSetAtom(agentDiffPanelTabAtom)
+  const setSidePanelOpen = useSetAtom(currentSessionSidePanelOpenAtom)
   const workspaceSlug = workspaces.find((workspace) => workspace.id === projectId)?.slug
   /** 只保留当前项目的更新提示，异步读取不能覆盖已切换的项目。 */
   const [skillsHaveUpdate, setSkillsHaveUpdate] = React.useState(false)
@@ -64,7 +69,14 @@ export function WorkspaceTools(): React.ReactElement {
       void loadAgentModuleCatalog(store, window.electronAPI, true)
       if (sessionId) void loadAgentSessionModuleCatalog(store, window.electronAPI, sessionId, true)
     })
-    return unsubscribe
+    const unsubscribeRuntime = window.electronAPI.moduleRuntimePlugin.onChanged(() => {
+      void loadAgentModuleCatalog(store, window.electronAPI, true)
+      if (sessionId) void loadAgentSessionModuleCatalog(store, window.electronAPI, sessionId, true)
+    })
+    return () => {
+      unsubscribe()
+      unsubscribeRuntime()
+    }
   }, [sessionId, store])
 
   React.useEffect(() => {
@@ -117,6 +129,41 @@ export function WorkspaceTools(): React.ReactElement {
       return
     }
     if (module.state === 'unavailable') return
+    const pluginSurface = parsePluginRuntimeSurfaceId(module.surfaceId)
+    if (pluginSurface) {
+      const openPluginSurface = async (): Promise<void> => {
+        const catalog = module.state === 'attached'
+          ? moduleCatalog
+          : await attachAgentModule(store, window.electronAPI, sessionId, module.id)
+        if (!catalog) return
+        const opened = await window.electronAPI.moduleRuntimePlugin.openSurface({
+          sessionId,
+          moduleId: module.id,
+          surfaceId: pluginSurface.surfaceId,
+        })
+        const instance = {
+          sessionId,
+          moduleId: module.id,
+          tabId: module.surfaceId as `plugin:${string}`,
+          surfaceId: pluginSurface.surfaceId,
+          title: opened.title,
+          token: opened.token,
+          sourceUrl: opened.sourceUrl,
+          readOnly: opened.readOnly,
+        }
+        setPluginSurfaces(current => rememberPluginSurface(current, instance))
+        setDiffPanelTabs(previous => {
+          const next = new Map(previous)
+          next.set(sessionId, instance.tabId)
+          return next
+        })
+        setSidePanelOpen(true)
+      }
+      void openPluginSurface().catch((error: unknown) => {
+        console.error('[插件 Surface] 打开失败:', error)
+      })
+      return
+    }
     if (module.state === 'attached') {
       openTool(module.surfaceId as WorkspaceToolId)
       return

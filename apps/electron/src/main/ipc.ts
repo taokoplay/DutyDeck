@@ -523,6 +523,15 @@ import { AgentModuleCommandDispatcher } from './lib/agent-modules/module-command
 import { AgentPluginRegistry } from './lib/agent-modules/plugin-registry'
 import { AgentPluginHost } from './lib/agent-modules/plugin-host'
 import { createBuiltinAgentPluginRegistrations } from './lib/agent-modules/builtin-plugin-adapters'
+import { ModuleRuntimeManager } from './lib/agent-plugins/module-runtime-manager'
+import { ModuleRuntimePluginService } from './lib/agent-plugins/module-runtime-plugin-service'
+import { registerModuleRuntimePluginIpc } from './lib/agent-plugins/module-runtime-plugin-ipc'
+import { PluginRuntimeSupervisor } from './lib/agent-plugins/runtime-supervisor'
+import { setModuleRuntimeManager } from './lib/agent-plugins/module-runtime-bridge'
+import { CapabilityBroker, PluginCapabilityBrokerError } from './lib/agent-plugins/capability-broker'
+import { createCoreCapabilityProviders } from './lib/agent-plugins/core-capability-providers'
+import { PluginStateStore } from './lib/agent-plugins/plugin-state-store'
+import { isPluginCapabilityId } from '@dutydeck/plugin-sdk'
 import { AgentRunJournalStore } from './lib/agent-run-journal'
 import { registerAgentRunRecoveryIpc } from './lib/agent-run-recovery-ipc'
 import { buildAgentModuleRunAudits } from './lib/agent-modules/module-run-audit'
@@ -2308,6 +2317,10 @@ function getAgentCanvasBindingStore(): AgentCanvasBindingStore {
 /** 当前主进程唯一的内置 Plugin Host；第三方 manifest-only 插件不会进入生命周期。 */
 let agentPluginHost: AgentPluginHost | null = null
 let agentPluginHostStartPromise: Promise<void> | null = null
+/** V3 插件运行管理器；没有安装 V3 插件时保持空目录且不启动 utility。 */
+let agentModuleRuntimeManager: ModuleRuntimeManager | null = null
+/** V3 安装与持久目录服务。 */
+let agentModuleRuntimePluginService: ModuleRuntimePluginService | null = null
 
 /** 等待内置 Plugin Host 完成注册和启动。 */
 export async function startAgentPluginHost(): Promise<void> {
@@ -2317,6 +2330,12 @@ export async function startAgentPluginHost(): Promise<void> {
 /** 在应用退出时释放内置插件适配器。 */
 export async function disposeAgentPluginHost(): Promise<void> {
   await agentPluginHostStartPromise
+  if (agentModuleRuntimeManager) {
+    await agentModuleRuntimeManager.dispose()
+    setModuleRuntimeManager(undefined)
+    agentModuleRuntimeManager = null
+  }
+  agentModuleRuntimePluginService = null
   if (agentPluginHost) await agentPluginHost.dispose()
   agentPluginHostStartPromise = null
   agentPluginHost = null
@@ -7003,6 +7022,78 @@ export function registerIpcHandlers(): void {
   agentPluginRegistry.loadInstalledPlugins()
   /** UI 与执行解析共享同一目录快照，每轮对话不重复扫描插件目录。 */
   setAgentModuleRuntimeCatalog(agentPluginRegistry.listModules(), agentPluginRegistry.getPromptCatalog())
+  /**
+   * V3 manager 与 V1/V2 目录并存；目录为空时不会启动任何插件进程。
+   * 安装事务后续通过同一 manager 注册，renderer 不直接指定 runtime 路径。
+   */
+  agentModuleRuntimeManager = new ModuleRuntimeManager({
+    moduleRegistry: agentPluginRegistry,
+    createSupervisor: (plugin) => {
+      const broker = new CapabilityBroker({
+        providers: createCoreCapabilityProviders({
+          state: new PluginStateStore(join(getConfigDir(), 'agent-plugins', 'data')),
+          getSession: (sessionId) => {
+            const session = getAgentSessionMeta(sessionId)
+            return session ? { id: session.id, workspaceId: session.workspaceId, archived: session.archived === true } : undefined
+          },
+        }),
+      })
+      let supervisor: PluginRuntimeSupervisor
+      supervisor = new PluginRuntimeSupervisor({
+        onCapabilityRequest: async (request) => {
+          if (!isPluginCapabilityId(request.capability)) {
+            return { ok: false, code: 'PLUGIN_CAPABILITY_NOT_AVAILABLE', message: '宿主不支持该能力', retryable: false }
+          }
+          if (request.readOnly && ['project.files.write', 'plugin.state.write', 'artifact.write', 'job.runtime', 'agent.delegate', 'http.request', 'remote.execute', 'media.execute', 'media.export'].includes(request.capability)) {
+            return { ok: false, code: 'PLUGIN_CAPABILITY_READ_ONLY', message: '当前 Surface 为只读模式', retryable: false }
+          }
+          const caller = {
+            pluginId: request.pluginId,
+            pluginVersion: request.pluginVersion,
+            packageHash: request.packageHash,
+            moduleId: request.moduleId ?? plugin.manifest.modules[0]?.id ?? '',
+            sessionId: request.sessionId ?? '',
+            projectId: request.projectId,
+            runId: request.runId ?? 'plugin-instance',
+            invocationId: request.invocationId ?? 'plugin-instance',
+            grants: plugin.manifest.capabilities,
+            assertCurrent: () => {
+              const health = supervisor.listHealth()[0]
+              if (!health || health.state !== 'running') throw new Error('stale')
+            },
+          }
+          try {
+            return { ok: true, value: await broker.invoke(caller, { capability: request.capability, input: request.input }) }
+          } catch (error) {
+            return {
+              ok: false,
+              code: error instanceof PluginCapabilityBrokerError ? error.code : 'PLUGIN_CAPABILITY_FAILED',
+              message: '插件能力调用失败',
+              retryable: false,
+            }
+          }
+        },
+      })
+      return supervisor
+    },
+    onModulesChanged: (modules, prompts) => setAgentModuleRuntimeCatalog(modules, prompts),
+  })
+  setModuleRuntimeManager(agentModuleRuntimeManager)
+  agentModuleRuntimePluginService = new ModuleRuntimePluginService({
+    root: join(getConfigDir(), process.env.DUTYDECK_PLUGIN_RUNTIME_DEV === '1' ? 'plugin-runtime-v3-development' : 'plugin-runtime-v3'),
+    manager: agentModuleRuntimeManager,
+    development: process.env.DUTYDECK_PLUGIN_RUNTIME_DEV === '1',
+    isBusy: () => hasActiveAgentSessions() || hasActiveAgentDataWrites(),
+  })
+  registerModuleRuntimePluginIpc({
+    service: agentModuleRuntimePluginService,
+    manager: agentModuleRuntimeManager,
+    requireVisibleSession,
+    getSessionPolicy: getAgentSessionModulePolicy,
+  })
+  void agentModuleRuntimePluginService.initialize().catch((error) => {
+    console.warn('[插件] V3 插件目录不可用，请在插件设置中检查', error)
+  })
   registerAgentPluginManagementIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
   registerContentPluginIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
   const host = new AgentPluginHost()

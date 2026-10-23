@@ -32,6 +32,16 @@ describe('Session 模块右侧目录投影', () => {
     expect(entries).toEqual([])
   })
 
+  test('Given V3 动态 Surface When 投影目录 Then 保留 plugin 前缀供通用宿主渲染', () => {
+    expect(projectAgentSessionModuleEntries([
+      module({ id: 'acme.echo.assistant', surfaceIds: ['plugin:acme.echo:workspace'], source: 'installed', pluginId: 'acme.echo' }),
+    ], policy)).toEqual([expect.objectContaining({
+      id: 'acme.echo.assistant',
+      surfaceId: 'plugin:acme.echo:workspace',
+      group: '插件工具',
+    })])
+  })
+
   test('Given 旧清单缺少 session-toggle When 投影目录 Then 显示不可用并说明必须显式选择', () => {
     expect(projectAgentSessionModuleEntries([module({ id: 'legacy', activation: undefined })], policy)).toEqual([expect.objectContaining({
       state: 'unavailable', reason: '该模块仍需在消息中明确选择',

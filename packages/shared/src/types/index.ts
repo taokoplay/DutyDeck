@@ -156,3 +156,4 @@ export * from './visual-editing'
 export * from './agent-module-audit'
 
 export * from './content-plugin'
+export * from './module-runtime-plugin'

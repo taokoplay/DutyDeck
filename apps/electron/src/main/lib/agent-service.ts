@@ -139,6 +139,7 @@ import {
   type CanvasNodeReferenceResolver,
 } from './design/canvas-node-reference-resolver'
 import { getCanvasToolProviderRuntime } from './design/canvas-document-ipc'
+import { buildModuleRuntimeAgentTools } from './agent-plugins/module-runtime-bridge'
 import { createUnavailableMediaToolRun, getMediaToolProviderRuntime } from './media/media-tool-runtime'
 import type { CanvasToolRunContext } from './design/canvas-tool-provider'
 import { openAuthorizedAgentMediaSource } from './design/design-session-bridge'
@@ -252,6 +253,14 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
   /** 影像模块复用媒体能力，但不获得画布管理能力。 */
   const visualSelected = activeModuleIds.includes('visual-production')
   if (!sessionMeta || !isEligibleUserMediaAgent(sessionMeta) || !isInteractiveUserRun) return prepared
+  /** V3 runtime 只在当前普通运行确有激活模块时启动；其它来源保留原能力边界。 */
+  const moduleRuntimeTools = await buildModuleRuntimeAgentTools({
+    sdk: await import('@earendil-works/pi-coding-agent'),
+    moduleIds: activeModuleIds,
+    sessionId: input.sessionId,
+    projectId: sessionMeta.workspaceId ?? null,
+    runId: `${input.sessionId}:${'startedAt' in input && input.startedAt != null ? input.startedAt : Date.now()}`,
+  })
   /** 媒体能力独立于画布初始化；项目身份只取自主进程会话。 */
   const mediaRuntime = getMediaToolProviderRuntime()
   const toolContext: CanvasToolRunContext | undefined = sessionMeta.workspaceId ? {
@@ -278,8 +287,9 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
       systemPromptAppend: [prepared.extensions.systemPromptAppend, canvasRun.systemPromptAppend]
         .filter((section): section is string => Boolean(section?.trim()))
         .join('\n\n'),
-      piCustomTools: [...(prepared.extensions.piCustomTools ?? []), ...canvasRun.piCustomTools],
-      allowedToolNames: [...(prepared.extensions.allowedToolNames ?? []), ...canvasRun.allowedToolNames],
+      /** V3 插件工具只由激活模块的签名贡献生成；未激活时不启动 runtime。 */
+      piCustomTools: [...(prepared.extensions.piCustomTools ?? []), ...moduleRuntimeTools, ...canvasRun.piCustomTools],
+      allowedToolNames: [...(prepared.extensions.allowedToolNames ?? []), ...moduleRuntimeTools.map(tool => tool.name), ...canvasRun.allowedToolNames],
       singleApprovalToolNames: [
         ...(prepared.extensions.singleApprovalToolNames ?? []),
         ...canvasRun.singleApprovalToolNames,

@@ -1,0 +1,100 @@
+{
+  "formatVersion": 3,
+  "apiVersion": "1.0.0",
+  "id": "acme.runtime-fixture",
+  "publisherId": "acme",
+  "version": "1.0.0",
+  "displayName": "运行底座示例",
+  "description": "验证 V3 插件工具、Surface、服务与能力授权的无业务副作用示例。",
+  "license": "MIT",
+  "profile": "module-runtime",
+  "compatibility": {
+    "hostApi": "^1.0.0",
+    "runtimeProtocol": 1,
+    "platforms": ["darwin", "win32", "linux"],
+    "architectures": ["arm64", "x64"]
+  },
+  "runtime": {
+    "entry": "runtime/main.mjs",
+    "format": "module-esm"
+  },
+  "modules": [
+    {
+      "id": "echo",
+      "displayName": "运行底座示例",
+      "description": "验证工具、Surface、服务与 capability 边界。",
+      "icon": "package",
+      "activation": "session-toggle",
+      "skillRefs": [],
+      "promptRefs": ["workflow"],
+      "tools": ["echo"],
+      "surfaces": ["workspace"],
+      "services": ["lifecycle"],
+      "artifacts": []
+    }
+  ],
+  "tools": [
+    {
+      "id": "echo",
+      "ownerModuleId": "echo",
+      "title": "回显",
+      "description": "返回输入文本，验证宿主到插件的工具调用链。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "required": ["message"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": true,
+        "destructive": false,
+        "idempotent": true,
+        "openWorld": false
+      },
+      "approval": "none",
+      "timeoutMs": 10000
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "workspace",
+      "ownerModuleId": "echo",
+      "title": "运行底座示例",
+      "entry": "surfaces/workspace/index.html",
+      "apiVersion": 1,
+      "defaultPlacement": "right-panel",
+      "methods": ["loadContext"]
+    }
+  ],
+  "services": [
+    {
+      "id": "lifecycle",
+      "title": "示例生命周期",
+      "start": "lazy",
+      "idleStopMs": 300000
+    }
+  ],
+  "artifacts": [],
+  "prompts": [
+    {
+      "id": "workflow",
+      "version": "1.0.0",
+      "kind": "workflow",
+      "path": "prompts/workflow.md"
+    }
+  ],
+  "settings": [],
+  "capabilities": [
+    "session.read",
+    "plugin.state.read",
+    "plugin.state.write",
+    "surface.emit"
+  ],
+  "dependencies": [],
+  "exports": []
+}

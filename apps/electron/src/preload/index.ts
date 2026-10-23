@@ -1,5 +1,5 @@
-import { CONTENT_PLUGIN_IPC_CHANNELS } from '@dutydeck/shared'
-import type { ContentPluginSnapshot, ContentPluginPreview } from '@dutydeck/shared'
+import { CONTENT_PLUGIN_IPC_CHANNELS, MODULE_RUNTIME_PLUGIN_IPC_CHANNELS } from '@dutydeck/shared'
+import type { ContentPluginSnapshot, ContentPluginPreview, ModuleRuntimePluginApi } from '@dutydeck/shared'
 import { MOBILE_MIRROR_CHANNELS } from '@dutydeck/shared'
 import type { MobileMirrorSessionInput, MobileMirrorCaptureInput, MobileMirrorActionInput, MobileMirrorOpenResult, MobileMirrorDevice, MobileMirrorFrame } from '@dutydeck/shared'
 import { createTokenUsagePreload } from './token-usage-preload'
@@ -366,6 +366,8 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   // ===== Linux 服务器运维资产 =====
   /** 接口工作台共享服务桥接，旧客户端缺失时由 UI 提示重启。 */
   apiWorkbench: ApiWorkbenchApi
+  /** V3 可执行插件目录与隔离 Surface bridge。 */
+  moduleRuntimePlugin: ModuleRuntimePluginApi
   /** 提示词编排工厂：界面侧可采纳 / 回滚 / 导出（人的动作），与 Agent 侧的方法集刻意不同。 */
   capabilityFactory: CapabilityFactoryApi
   /** 项目内页面原型、候选、资源和版本接口。 */
@@ -2488,6 +2490,21 @@ const electronAPI: ElectronAPI = {
     const listener = (): void => callback()
     ipcRenderer.on(CONTENT_PLUGIN_IPC_CHANNELS.CHANGED, listener)
     return () => ipcRenderer.removeListener(CONTENT_PLUGIN_IPC_CHANNELS.CHANGED, listener)
+  },
+  moduleRuntimePlugin: {
+    get: () => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.GET),
+    preview: () => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.PREVIEW),
+    install: (token, trustedKeyId) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.INSTALL, token, trustedKeyId),
+    setEnabled: (pluginId, enabled, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.SET_ENABLED, pluginId, enabled, expectedRevision),
+    uninstall: (pluginId, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.UNINSTALL, pluginId, expectedRevision),
+    openSurface: (input) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.OPEN_SURFACE, input),
+    invokeSurface: (input) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.INVOKE_SURFACE, input),
+    closeSurface: (input) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.CLOSE_SURFACE, input),
+    onChanged: (callback) => {
+      const listener = (): void => callback()
+      ipcRenderer.on(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.CHANGED, listener)
+      return () => ipcRenderer.removeListener(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.CHANGED, listener)
+    },
   },
   previewAgentPlugin: () => ipcRenderer.invoke(AGENT_IPC_CHANNELS.PREVIEW_AGENT_PLUGIN),
   installAgentPlugin: (token) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.INSTALL_AGENT_PLUGIN, token),

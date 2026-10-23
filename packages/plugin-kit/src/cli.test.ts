@@ -86,4 +86,27 @@ describe('独立插件作者 CLI', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('PLUGIN_SIGNER_PERMISSIONS_INVALID')
   })
+
+  test('Given module-runtime 类型 When init Then 生成 V3 清单和运行时模板', () => {
+    const root = temporary()
+    const result = run(root, 'init', 'plugin', '--id', 'acme.echo', '--name', '回显', '--profile', 'module-runtime')
+    expect(result.status).toBe(0)
+    const manifest = JSON.parse(readFileSync(join(root, 'plugin/plugin.json'), 'utf8')) as { formatVersion?: number; profile?: string }
+    expect(manifest.formatVersion).toBe(3)
+    expect(manifest.profile).toBe('module-runtime')
+    expect(() => statSync(join(root, 'plugin/src/runtime.ts'))).not.toThrow()
+    expect(() => statSync(join(root, 'plugin/src/surfaces/workspace/index.html'))).not.toThrow()
+  })
+
+  test('Given runtime 与 Surface 源码 When build Then 生成包内自包含入口', () => {
+    const root = temporary()
+    expect(run(root, 'init', 'plugin', '--id', 'acme.echo', '--name', '回显', '--profile', 'module-runtime').status).toBe(0)
+    writeFileSync(join(root, 'plugin/src/runtime.ts'), 'export default { activate() {} }\n')
+    writeFileSync(join(root, 'plugin/src/surfaces/workspace/main.ts'), 'document.body.dataset.ready = "yes"\n')
+    const result = run(root, 'build', 'plugin')
+    expect(result.status).toBe(0)
+    expect(readFileSync(join(root, 'plugin/runtime/main.mjs'), 'utf8')).toContain('activate')
+    expect(readFileSync(join(root, 'plugin/surfaces/workspace/main.js'), 'utf8')).toContain('dataset.ready')
+    expect(readFileSync(join(root, 'plugin/surfaces/workspace/index.html'), 'utf8')).toContain('main.js')
+  })
 })

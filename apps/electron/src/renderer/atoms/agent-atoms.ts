@@ -799,7 +799,7 @@ export function getDelegationTabLabel(title: string | null | undefined): string 
 
 export type AgentSidePanelBaseTab = 'files' | 'changes' | 'chat' | 'temporary-agent' | 'delegation' | 'canvas' | WorkspaceComponentTab
 /** 工作区组件、每个 Pi 探索分支、协作子 Agent、浏览器网页和文件预览都处于右侧工作区顶栏。 */
-export type AgentSidePanelTab = AgentSidePanelBaseTab | `exploration:${string}` | `browser:${string}` | `preview:${string}` | `terminal:${string}` | `canvas:${string}`
+export type AgentSidePanelTab = AgentSidePanelBaseTab | `exploration:${string}` | `browser:${string}` | `preview:${string}` | `terminal:${string}` | `canvas:${string}` | `plugin:${string}`
 
 /** 经过严格解析的具体 Canvas 工作区标签，不包含临时 launcher。 */
 export type AgentCanvasWorkspaceTab = `canvas:${string}`

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { generateKeyPairSync } from 'node:crypto'
 import { createPluginPackage, inspectPluginPackage } from './package'
-import { createStandardPluginFiles } from './scaffold'
+import { createModuleRuntimePluginFiles, createStandardPluginFiles } from './scaffold'
 import { createPluginArchive, readPluginArchive } from './archive'
 
 describe('标准脚手架与可交付插件包', () => {
@@ -41,5 +41,25 @@ describe('标准脚手架与可交付插件包', () => {
     const files = createStandardPluginFiles('acme.demo', '助手')
     files.delete('skills/assist/SKILL.md')
     expect(() => createPluginPackage(files)).toThrow()
+  })
+
+  test('Given V3 runtime 工程 When 打包 Then 收录 runtime 与 Surface 且排除源工程', () => {
+    const files = createModuleRuntimePluginFiles('acme.echo', '回显')
+    files.set('runtime/main.mjs', new TextEncoder().encode('export {}'))
+    files.set('surfaces/workspace/index.html', new TextEncoder().encode('<!doctype html><html></html>'))
+    files.set('surfaces/workspace/main.js', new TextEncoder().encode('console.log("surface")'))
+    files.set('src/runtime.ts', new TextEncoder().encode('export default {}'))
+    const inspected = inspectPluginPackage(createPluginPackage(files))
+    expect(inspected.manifest.formatVersion).toBe(3)
+    expect(inspected.files.has('runtime/main.mjs')).toBe(true)
+    expect(inspected.files.has('surfaces/workspace/index.html')).toBe(true)
+    expect(inspected.files.has('surfaces/workspace/main.js')).toBe(true)
+    expect(inspected.files.has('src/runtime.ts')).toBe(false)
+  })
+
+  test('Given V3 缺 runtime 入口 When 打包 Then 在写入包前拒绝', () => {
+    const files = createModuleRuntimePluginFiles('acme.echo', '回显')
+    files.set('surfaces/workspace/index.html', new TextEncoder().encode('<!doctype html><html></html>'))
+    expect(() => createPluginPackage(files)).toThrow('PLUGIN_RUNTIME_ENTRY_MISSING')
   })
 })

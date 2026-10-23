@@ -13,10 +13,18 @@ export class AgentPluginRegistry {
   private contentModules: AgentModuleManifest[] = []
   /** 已关闭的包仍占有身份，不能被旧清单趁停用覆盖。 */
   private reservedContentModules: AgentModuleManifest[] = []
+  /** V3 runtime 模块由独立 manager 注册，仍进入同一 Session 目录。 */
+  private runtimeModules: AgentModuleManifest[] = []
+  /** V3 runtime 提示只由对应模块在选中时解析，不读取包内任意文件。 */
+  private runtimePrompts: Record<string, string> = {}
 
   /** 校验与替换 V2 投影，既有内置/V1 身份不能被内容包覆盖。 */
   setContentModules(modules: readonly AgentModuleManifest[], reservedModules: readonly AgentModuleManifest[] = modules): void {
-    const occupied = new Set([...this.builtinModules.keys(), ...[...this.plugins.values()].flatMap(plugin => plugin.modules.map(module => module.id))])
+    const occupied = new Set([
+      ...this.builtinModules.keys(),
+      ...this.runtimeModules.map(module => module.id),
+      ...[...this.plugins.values()].flatMap(plugin => plugin.modules.map(module => module.id)),
+    ])
     for (const module of reservedModules) {
       if (occupied.has(module.id)) throw new Error('AGENT_PLUGIN_MODULE_ID_CONFLICT')
       occupied.add(module.id)
@@ -28,6 +36,36 @@ export class AgentPluginRegistry {
   /** V1 兼容入口也遵守 V2 已安装身份，包括当前关闭的模块。 */
   conflictsWithContentPlugin(pluginId: string, moduleIds: readonly string[]): boolean {
     return this.reservedContentModules.some(module => module.pluginId === pluginId || moduleIds.includes(module.id))
+      || this.runtimeModules.some(module => module.pluginId === pluginId || moduleIds.includes(module.id))
+  }
+
+  /**
+   * 发布 V3 runtime 模块投影；完整替换前验证所有保留身份。
+   * @param modules 已由签名 manifest 投影的模块。
+   * @param prompts 只属于这些模块的提示正文目录。
+   */
+  setRuntimeModules(modules: readonly AgentModuleManifest[], prompts: Readonly<Record<string, string>>): void {
+    const occupied = new Set([
+      ...this.builtinModules.keys(),
+      ...[...this.plugins.values()].flatMap(plugin => plugin.modules.map(module => module.id)),
+      ...this.reservedContentModules.map(module => module.id),
+    ])
+    const occupiedPluginIds = new Set([
+      ...[...this.plugins.values()].map(plugin => plugin.id),
+      ...this.contentModules.map(module => module.pluginId).filter((id): id is string => Boolean(id)),
+    ])
+    const promptIds = new Set(Object.keys(this.getContentPromptCatalog()))
+    for (const module of modules) {
+      if (occupied.has(module.id) || !module.pluginId) throw new Error('AGENT_PLUGIN_MODULE_ID_CONFLICT')
+      if (occupiedPluginIds.has(module.pluginId) || module.pluginId.startsWith('builtin.')) throw new Error('AGENT_PLUGIN_ID_CONFLICT')
+      occupied.add(module.id)
+    }
+    for (const id of Object.keys(prompts)) {
+      if (promptIds.has(id)) throw new Error('AGENT_PLUGIN_PROMPT_ID_CONFLICT')
+      promptIds.add(id)
+    }
+    this.runtimeModules = modules.map(cloneModule)
+    this.runtimePrompts = { ...prompts }
   }
 
   /** 注册内置模块，调用顺序固定且可重复。 */
@@ -80,7 +118,7 @@ export class AgentPluginRegistry {
     for (const plugin of [...this.plugins.values()].sort((left, right) => left.id.localeCompare(right.id))) {
       modules.push(...plugin.modules.map((module) => ({ ...cloneModule(module), source: 'installed' as const, pluginId: plugin.id })))
     }
-    return [...modules, ...this.contentModules.map(cloneModule)]
+    return [...modules, ...this.contentModules.map(cloneModule), ...this.runtimeModules.map(cloneModule)]
   }
 
   /** 根据模块 ID查找宿主已注册模块，供命令总线复用。 */
@@ -91,6 +129,13 @@ export class AgentPluginRegistry {
 
   /** 只发布已接纳插件声明的提示副本；拒绝或冲突插件不贡献内容。 */
   getPromptCatalog(): Record<string, string> {
+    const prompts: Record<string, string> = this.getContentPromptCatalog()
+    Object.assign(prompts, this.runtimePrompts)
+    return prompts
+  }
+
+  /** 内容与旧清单提示目录；V3 发布时用于检查命名空间冲突。 */
+  private getContentPromptCatalog(): Record<string, string> {
     const prompts: Record<string, string> = {}
     for (const plugin of this.plugins.values()) Object.assign(prompts, plugin.prompts ?? {})
     return prompts

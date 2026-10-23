@@ -1,5 +1,9 @@
 # MEMORY.md
 
+- 2026-10-23（插件模块能力底座首版已实施）：V3 `module-runtime` 已从设计落到可运行实现，同时保持五个业务模块未迁移。新增公开 V3 manifest/Schema、runtime API/RPC、`definePlugin`、工具/Surface/服务/状态贡献、CLI module-runtime 模板和 build；宿主新增 V3 安装服务、签名信任、不可变包展开、Session 模块投影、utility runtime supervisor、Capability Broker、Contribution Registry、动态工具代理、插件私有状态、sandboxed Surface、CSP 自定义协议、设置安装入口和右侧动态 Pane。当前生产 capability provider 仅 `session.read` 与 `plugin.state.read/write`，项目文件、网络、远程运维、媒体、导出、Agent 委派 provider 仍待通过同一 Broker 接入。真实 Electron smoke 已通过 V3 包安装、utility MessagePort 握手、echo 工具、Surface 方法调用与释放；定向回归 261 项、全仓 typecheck、完整 Electron build 通过（Swift/Clang 缓存需 `/private/tmp`）。已知边界：V3 跨实例完整 lease 未接、Surface/utility 不宣称恶意代码沙箱、设置页到真实安装的 BrowserWindow 自动化为后续。计划与实现状态见 `docs/superpowers/plans/2026-10-23-plugin-module-runtime-capability.md`；Nowledge 检索仍因本机服务拒绝未同步。
+
+- 2026-10-23（插件模块通用能力底座设计）：用户要求先不迁移接口工作台、影像创作、画布、服务器运维和交互设计，而是把插件系统改造成能通用支持这五类模块的开发者能力底座。设计确定为 V3 `module-runtime` 与 V1/V2 content 并存；插件在独立 utility runtime 中执行，工具、Surface、受控服务、状态和宿主能力由 manifest/SDK 声明，Agent 通过宿主生成的工具闭包调用，Surface 通过隔离文档和受限 bridge 通信。Capability Broker 统一管理项目、状态、持久任务、网络、凭据引用、远程操作、媒体和导出能力；每次运行冻结插件版本/hash、模块、权限、设置和 Skill 引用。首期只支持签名且经用户信任的开发者插件，utility 进程是故障隔离而非恶意代码沙箱；未签名包仅能在隔离开发根运行。V3 包、工具/Surface/服务贡献、外部 SDK/CLI 闭环和 echo fixture 是验收重点，五模块业务路径保持不变。设计见 `docs/superpowers/specs/2026-10-23-plugin-module-runtime-capability-design.md`；Nowledge 检索仍因本机服务连接拒绝未同步。
+
 - 2026-10-21（分镜主预览布局）：用户要求分镜主窗口优先显示影片，画面移到下方，音频保持独立试听位。影片候选也可进入主预览，但仍标记为待采用，不自动写入正式镜头绑定；连续预演与主窗口当前预览保持一致。
 
 - 2026-10-21（分镜音画独立交付）：用户要求音频独立设计，并让画面、影片各有可见位置。分镜改为三类输出独立保存和预览；空素材位可直接预览最新待采用结果，但必须明确标注，不能当成正式采用。采用影片或音频应保留其他素材，旧完整候选即使同时修改设定也须遵守；只有显式槽位清空才删除引用。预览保持单一播放焦点，切镜、弹窗和隐藏面板停止背景媒体。新建粗剪优先影片并对齐独立音频，既有时间线不自动重建；导出沿用仅混合独立音轨、不自动带入视频原声的边界。本轮修改源码与隔离测试，未更改真实作品或替换安装版；Nowledge 检索连接拒绝，未同步。

@@ -6,6 +6,9 @@ import { MobileMirrorPanel } from '@/components/mobile-mirror/MobileMirrorPanel'
 import { InteractionDesignWorkspace } from '@/components/interaction-design/InteractionDesignWorkspace'
 import { VisualProductionWorkspace } from '@/components/visual-production/VisualProductionWorkspace'
 import { Film, MousePointer2 } from 'lucide-react'
+import { parsePluginRuntimeSurfaceId } from '@dutydeck/shared'
+import { PluginSurfaceHost } from '@/components/plugins/PluginSurfaceHost'
+import { forgetPluginSurface, pluginSurfaceInstancesAtom } from '@/atoms/plugin-surface-atoms'
 /**
  * SidePanel — Agent 侧面板容器
  *
@@ -552,6 +555,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
   const workspaceToolStore = useStore()
   const pendingWorkspaceTool = useAtomValue(pendingWorkspaceToolRequestAtom(sessionId))
   const [isOpen, setIsOpen] = useAtom(currentSessionSidePanelOpenAtom)
+  const [pluginSurfaces, setPluginSurfaces] = useAtom(pluginSurfaceInstancesAtom)
   /** 面板关闭或整个 Agent 页面隐藏时停止截图，不受分屏焦点影响。 */
   const activeView = useAtomValue(activeViewAtom)
   const appMode = useAtomValue(appModeAtom)
@@ -1792,6 +1796,11 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
   }, [activeBrowserTabId, browserState?.tabs, returnToPreviousTabAfterClose])
 
   const showBrowserActivity = Boolean(browserState?.activity && browserState.executionSource !== 'user')
+  /** 当前 Session 已打开的插件 Surface；实例 token 只由 main 创建。 */
+  const currentPluginSurfaces = React.useMemo(
+    () => Object.values(pluginSurfaces).filter(instance => instance.sessionId === sessionId),
+    [pluginSurfaces, sessionId],
+  )
   React.useEffect(() => {
     if (activeTab !== 'todos' && activeTab !== 'calendar' && activeTab !== 'vault') return
     if (!isWorkspaceComponentEnabled(activeTab)) onTabChange('files')
@@ -1814,6 +1823,12 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
       icon: <Workflow className="size-3.5" />,
       closable: true,
       activity: isAgentCanvasActivityUnread(canvas),
+    })),
+    ...currentPluginSurfaces.map((surface) => ({
+      id: surface.tabId,
+      label: surface.title,
+      icon: <Blocks className="size-3.5" />,
+      closable: true,
     })),
     /** 接口工作台对不适用的会话不列在「添加标签」里，避免点开才发现不可用。 */
     ...workspaceComponentTabs.filter((component) => component !== 'api-workbench' || apiWorkbenchDenial === null).map((component) => {
@@ -1868,7 +1883,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
       closable: true,
       activity: showBrowserActivity && activeBrowserTabId !== tab.tabId && browserState.activeTabId === tab.tabId,
     })) ?? []),
-  ], [activeBrowserTabId, browserState, canvasRegistry.binding, canvasRegistry.bindingReady, canvasRegistry.sessions, canvasWorkspaceState.canvasLauncherOpen, canvasWorkspaceTabs, currentWorkspaceId, effectiveActiveTab, previewFiles, selectedDelegationSession, selectedDelegationStatus, sessions, sessionId, showBrowserActivity, sideChatConversationId, sideTemporaryAgents, terminalTabs, workspaceComponentTabs])
+  ], [activeBrowserTabId, browserState, canvasRegistry.binding, canvasRegistry.bindingReady, canvasRegistry.sessions, canvasWorkspaceState.canvasLauncherOpen, canvasWorkspaceTabs, currentPluginSurfaces, currentWorkspaceId, effectiveActiveTab, previewFiles, selectedDelegationSession, selectedDelegationStatus, sessions, sessionId, showBrowserActivity, sideChatConversationId, sideTemporaryAgents, terminalTabs, workspaceComponentTabs])
   workspaceTabsRef.current = workspaceTabs
 
   React.useEffect(() => {
@@ -1894,6 +1909,15 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
     // 关闭任意标签都撤销旧请求的焦点权限，包括活动标签值保持不变的情况。
     workspaceToolStore.set(clearWorkspaceToolRequestAtom, sessionId)
     if (exitSplitInsteadOfClosingBoundTab(tab)) return
+    const pluginSurface = pluginSurfaces[tab]
+    if (pluginSurface) {
+      void window.electronAPI.moduleRuntimePlugin.closeSurface({ sessionId, token: pluginSurface.token })
+        .finally(() => {
+          setPluginSurfaces(current => forgetPluginSurface(current, tab))
+          returnToPreviousTabAfterClose(tab)
+        })
+      return
+    }
     if (tab === 'canvas') {
       forgetOpenedCanvasWorkspaceTab(tab)
       returnToPreviousTabAfterClose(tab)
@@ -1947,7 +1971,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
     if (tab === 'delegation') { handleCloseDelegationTab(); return }
     const browserTabId = getBrowserTabIdFromSidePanelTab(tab)
     if (browserTabId) void handleCloseBrowserTab(browserTabId)
-  }, [canvasRegistry, exitSplitInsteadOfClosingBoundTab, forgetOpenedCanvasWorkspaceTab, handleCloseBrowserTab, handleCloseChatTab, handleCloseDelegationTab, handleCloseExplorationTab, handleClosePreviewTab, returnToPreviousTabAfterClose, sessionId, setTerminalTabsMap, setWorkspaceComponentTabs, transferLeave.requestLeave, workspaceToolStore])
+  }, [canvasRegistry, exitSplitInsteadOfClosingBoundTab, forgetOpenedCanvasWorkspaceTab, handleCloseBrowserTab, handleCloseChatTab, handleCloseDelegationTab, handleCloseExplorationTab, handleClosePreviewTab, pluginSurfaces, returnToPreviousTabAfterClose, sessionId, setPluginSurfaces, setTerminalTabsMap, setWorkspaceComponentTabs, transferLeave.requestLeave, workspaceToolStore])
 
   React.useEffect(() => {
     const handleCloseActiveWorkspaceTab = (event: Event) => {
@@ -2141,6 +2165,23 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
     ]
     const hasVisibleSessionAttachedItems = showSessionFiles && hasSessionAttachedItems
     const hasVisibleWorkspaceAttachedItems = showProjectFiles && hasWorkspaceAttachedItems
+    const pluginSurface = pluginSurfaces[paneTab]
+
+    if (pluginSurface && parsePluginRuntimeSurfaceId(paneTab)) {
+      return (
+        <PluginSurfaceHost
+          key={`${pluginSurface.token}:${pane ?? 'single'}`}
+          title={pluginSurface.title}
+          sourceUrl={pluginSurface.sourceUrl}
+          onBridgeRequest={async (request) => window.electronAPI.moduleRuntimePlugin.invokeSurface({
+            sessionId,
+            token: pluginSurface.token,
+            method: request.method,
+            input: request.input,
+          })}
+        />
+      )
+    }
 
     if (paneTab === 'canvas' && currentWorkspaceId) {
       return (

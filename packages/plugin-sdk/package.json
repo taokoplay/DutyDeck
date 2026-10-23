@@ -11,11 +11,13 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./schema": "./plugin-manifest.schema.json"
+    "./schema": "./plugin-manifest.schema.json",
+    "./schema-v3": "./plugin-manifest-v3.schema.json"
   },
   "files": [
     "dist",
-    "plugin-manifest.schema.json"
+    "plugin-manifest.schema.json",
+    "plugin-manifest-v3.schema.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && bun scripts/generate-schema.ts",

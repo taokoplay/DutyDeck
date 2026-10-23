@@ -11,6 +11,7 @@ import {
   resolveLegacyDevUserDataDirectoryName,
 } from './lib/app-identity'
 import { resolveUserDataPath } from './lib/user-data-path'
+import { registerPluginSurfaceProtocol } from './lib/agent-plugins/plugin-surface-protocol'
 import {
   SAFE_STORAGE_MIGRATION_HELPER_ARG,
   SAFE_STORAGE_MIGRATION_RESULT_PREFIX,
@@ -72,6 +73,7 @@ function registerProtocolsAndHandlers(): void {
   // 用于内联预览本地文件（renderer 用 iframe 加载 proma-file:// 资源）
   protocol.registerSchemesAsPrivileged([
     { scheme: 'proma-file', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+    { scheme: 'dutydeck-plugin', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false, stream: true } },
   ])
 
   // Windows: 禁用 LCD 次像素抗锯齿（ClearType），改用灰度 AA。
@@ -1082,6 +1084,7 @@ async function bootstrap(): Promise<void> {
   // 注册自定义协议 proma-file:// 用于内联预览本地文件。
   // 协议只接受主进程签发的 opaque token，不解析 renderer 提供的绝对路径。
   protocol.handle('proma-file', handlePromaFileRequest)
+  registerPluginSurfaceProtocol()
 
   // 初始化运行时环境。Node.js 仅由 npx / npm 型 MCP 在实际连接时使用，
   // 或由用户从设置手动检测；启动时不应将其作为 Agent 的前置要求。

@@ -1,0 +1,710 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dutydeck.app/schemas/plugin-manifest-v3.json",
+  "type": "object",
+  "properties": {
+    "formatVersion": {
+      "const": 3
+    },
+    "apiVersion": {
+      "const": "1.0.0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 129
+    },
+    "publisherId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "profile": {
+      "const": "module-runtime"
+    },
+    "compatibility": {
+      "type": "object",
+      "properties": {
+        "hostApi": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "runtimeProtocol": {
+          "const": 1
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "darwin",
+              "win32",
+              "linux"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "architectures": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "arm64",
+              "x64"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "hostApi",
+        "runtimeProtocol",
+        "platforms",
+        "architectures"
+      ],
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "entry": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "format": {
+          "const": "module-esm"
+        }
+      },
+      "required": [
+        "entry",
+        "format"
+      ],
+      "additionalProperties": false
+    },
+    "modules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "icon": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "scope": {
+            "enum": [
+              "session",
+              "project",
+              "global"
+            ]
+          },
+          "activation": {
+            "enum": [
+              "message-explicit",
+              "session-toggle"
+            ]
+          },
+          "skillRefs": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "scope": {
+                  "enum": [
+                    "project",
+                    "workspace",
+                    "builtin"
+                  ]
+                },
+                "versionRange": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "scope",
+                "required"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "promptRefs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          },
+          "surfaces": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "description",
+          "icon",
+          "activation",
+          "skillRefs",
+          "promptRefs",
+          "tools",
+          "surfaces",
+          "services",
+          "artifacts"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tools": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "ownerModuleId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "agentName": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "annotations": {
+            "type": "object",
+            "properties": {
+              "readOnly": {
+                "type": "boolean"
+              },
+              "destructive": {
+                "type": "boolean"
+              },
+              "idempotent": {
+                "type": "boolean"
+              },
+              "openWorld": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "readOnly",
+              "destructive",
+              "idempotent",
+              "openWorld"
+            ],
+            "additionalProperties": false
+          },
+          "approval": {
+            "enum": [
+              "none",
+              "per-call",
+              "write"
+            ]
+          },
+          "timeoutMs": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 900000
+          },
+          "concurrencyKey": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "id",
+          "ownerModuleId",
+          "title",
+          "description",
+          "inputSchema",
+          "annotations",
+          "approval",
+          "timeoutMs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "surfaces": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "ownerModuleId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "entry": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "apiVersion": {
+            "const": 1
+          },
+          "defaultPlacement": {
+            "const": "right-panel"
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "ownerModuleId",
+          "title",
+          "entry",
+          "apiVersion",
+          "defaultPlacement",
+          "methods"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "services": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "start": {
+            "const": "lazy"
+          },
+          "idleStopMs": {
+            "type": "number",
+            "minimum": 1000,
+            "maximum": 86400000
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "start",
+          "idleStopMs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "ownerModuleId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "schemaVersion": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "mimeTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          },
+          "retention": {
+            "enum": [
+              "project",
+              "plugin"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "ownerModuleId",
+          "title",
+          "schemaVersion",
+          "mimeTypes",
+          "retention"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "prompts": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+          },
+          "kind": {
+            "enum": [
+              "workflow",
+              "output-contract",
+              "style-guidance"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "kind",
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "settings": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "apply": {
+            "enum": [
+              "next-run",
+              "restart-runtime"
+            ]
+          },
+          "type": {
+            "enum": [
+              "boolean",
+              "integer",
+              "text",
+              "enum",
+              "credentialRef"
+            ]
+          },
+          "defaultValue": {},
+          "minimum": {
+            "type": "number"
+          },
+          "maximum": {
+            "type": "number"
+          },
+          "maxLength": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 65536
+          },
+          "enumValues": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "minItems": 0,
+            "maxItems": 64,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "label",
+          "apply"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "session.read",
+          "project.files.read",
+          "project.files.write",
+          "project.changes.subscribe",
+          "plugin.state.read",
+          "plugin.state.write",
+          "artifact.read",
+          "artifact.write",
+          "job.runtime",
+          "agent.progress",
+          "agent.delegate",
+          "surface.emit",
+          "http.request",
+          "remote.execute",
+          "media.catalog",
+          "media.execute",
+          "media.export"
+        ]
+      },
+      "maxItems": 17,
+      "uniqueItems": true
+    },
+    "dependencies": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "properties": {
+          "pluginId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "versionRange": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pluginId",
+          "versionRange",
+          "required"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "exports": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "properties": {
+          "resourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "kind": {
+            "enum": [
+              "artifact",
+              "tool",
+              "surface"
+            ]
+          },
+          "apiVersion": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "visibility": {}
+        },
+        "required": [
+          "resourceId",
+          "kind",
+          "apiVersion",
+          "visibility"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "formatVersion",
+    "apiVersion",
+    "id",
+    "publisherId",
+    "version",
+    "displayName",
+    "description",
+    "license",
+    "profile",
+    "compatibility",
+    "runtime",
+    "modules",
+    "tools",
+    "surfaces",
+    "services",
+    "artifacts",
+    "prompts",
+    "settings",
+    "capabilities",
+    "dependencies",
+    "exports"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,23 @@
+:root {
+  color: var(--dutydeck-foreground, #1f2937);
+  background: var(--dutydeck-background, #ffffff);
+  font-family: var(--dutydeck-font-sans, system-ui, sans-serif);
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  padding: 24px;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+p {
+  color: var(--dutydeck-muted-foreground, #6b7280);
+  font-size: 13px;
+}

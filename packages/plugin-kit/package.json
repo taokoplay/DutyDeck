@@ -8,7 +8,8 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./package": { "types": "./dist/package.d.ts", "import": "./dist/package.js" }
+    "./package": { "types": "./dist/package.d.ts", "import": "./dist/package.js" },
+    "./filesystem": { "types": "./dist/filesystem.d.ts", "import": "./dist/filesystem.js" }
   },
   "bin": { "dutydeck-plugin": "./dist/cli.js" },
   "files": ["dist", "templates"],

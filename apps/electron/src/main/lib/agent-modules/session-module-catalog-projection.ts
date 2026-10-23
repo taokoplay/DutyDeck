@@ -4,6 +4,7 @@ import type {
   AgentSessionModulePolicy,
   WorkspaceToolEntry,
 } from '@dutydeck/shared'
+import { isPluginRuntimeSurfaceId } from '@dutydeck/shared'
 
 /** 右侧菜单可直接打开的宿主面板；未知 surface 不进入 UI，避免伪造面板能力。 */
 const HOST_SURFACES = new Set([
@@ -17,7 +18,7 @@ const HOST_SURFACES = new Set([
 
 /** 判断宿主是否实现了模块声明的面板 surface。 */
 export function isHostWorkspaceSurface(surfaceId: string): boolean {
-  return HOST_SURFACES.has(surfaceId)
+  return HOST_SURFACES.has(surfaceId) || isPluginRuntimeSurfaceId(surfaceId)
 }
 
 /** 读取模块在当前 Session 中的接入状态。 */
@@ -42,7 +43,7 @@ export function projectAgentSessionModuleEntries(
 ): WorkspaceToolEntry[] {
   return modules
     .flatMap((module) => {
-      const surfaceId = module.surfaceIds.find((surface) => HOST_SURFACES.has(surface))
+      const surfaceId = module.surfaceIds.find(isHostWorkspaceSurface)
       if (!surfaceId) return []
       const { state, reason } = resolveEntryState(module, policy)
       return [{

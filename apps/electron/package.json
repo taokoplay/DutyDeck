@@ -15,7 +15,7 @@
     "dev:split": "bash scripts/dev-split.sh",
     "dev:vite": "vite dev",
     "dev:kill": "bun run scripts/dev-kill.ts",
-    "dev:electron": "bun run build:plugins && bun run dev:kill && bun run sync:runtime-deps:dev && bun run rebuild:node-pty && bun run build:native-helpers && bun run prepare:officecli && bun run build:resources && bun run scripts/dev-bundle-readiness.ts --prepare && concurrently -k -n main,agent-runtime,terminal-runtime,server-ops-runtime,api-runtime,preload,app -c yellow,red,blue,green,white,magenta,cyan \"bun run watch:main\" \"bun run watch:agent-runtime\" \"bun run watch:terminal-runtime\" \"bun run watch:server-ops-runtime\" \"bun run watch:api-workbench-runtime\" \"bun run watch:preload\" \"bun run scripts/dev-bundle-readiness.ts --wait && bunx electronmon .\"",
+    "dev:electron": "bun run build:plugins && bun run dev:kill && bun run sync:runtime-deps:dev && bun run rebuild:node-pty && bun run build:native-helpers && bun run prepare:officecli && bun run build:resources && bun run scripts/dev-bundle-readiness.ts --prepare && concurrently -k -n main,agent-runtime,terminal-runtime,server-ops-runtime,api-runtime,plugin-runtime,preload,app -c yellow,red,blue,green,white,magenta,cyan,white \"bun run watch:main\" \"bun run watch:agent-runtime\" \"bun run watch:terminal-runtime\" \"bun run watch:server-ops-runtime\" \"bun run watch:api-workbench-runtime\" \"bun run watch:plugin-runtime\" \"bun run watch:preload\" \"bun run scripts/dev-bundle-readiness.ts --wait && bunx electronmon .\"",
     "build:main": "bun run build:plugins && esbuild src/main/index.ts --bundle --platform=node --format=cjs --outfile=dist/main.cjs --external:electron --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-agent-core --external:@earendil-works/pi-ai --external:sharp",
     "build:agent-runtime": "bun run build:plugins && esbuild src/utility/agent-runtime.ts --bundle --platform=node --format=cjs --outfile=dist/agent-runtime.cjs --external:electron --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-agent-core --external:@earendil-works/pi-ai --external:sharp",
     "build:terminal-runtime": "esbuild src/utility/terminal-runtime.ts --bundle --platform=node --format=cjs --outfile=dist/terminal-runtime.cjs --external:electron --external:node-pty",
@@ -40,7 +40,7 @@
     "prepare:officecli": "bun run scripts/prepare-officecli.ts",
     "sync:runtime-deps": "bun run scripts/sync-runtime-deps.ts",
     "sync:runtime-deps:dev": "bun run scripts/sync-runtime-deps.ts --no-clean",
-    "build": "bun run prepare:officecli && bun run build:main && bun run build:agent-runtime && bun run build:terminal-runtime && bun run build:server-ops-runtime && bun run build:api-workbench-runtime && bun run build:preload && bun run build:renderer && bun run build:cli && bun run build:native-helpers && bun run build:resources",
+    "build": "bun run prepare:officecli && bun run build:main && bun run build:agent-runtime && bun run build:terminal-runtime && bun run build:server-ops-runtime && bun run build:api-workbench-runtime && bun run build:plugin-runtime && bun run build:preload && bun run build:renderer && bun run build:cli && bun run build:native-helpers && bun run build:resources",
     "rebuild:node-pty": "electron-rebuild -f -w node-pty && bun run ensure:node-pty-helper",
     "ensure:node-pty-helper": "bun run scripts/ensure-node-pty-helper-executable.ts",
     "package:prepare": "bun run build && bun run build:mobile && bun run rebuild:node-pty && bun run sync:runtime-deps",
@@ -61,9 +61,12 @@
     "agent-module-plugin-smoke": "bun run scripts/agent-module-plugin-smoke.ts",
     "build:api-workbench-runtime": "esbuild src/utility/api-workbench-runtime.ts --bundle --platform=node --format=cjs --outfile=dist/api-workbench-runtime.cjs --external:electron",
     "watch:api-workbench-runtime": "esbuild src/utility/api-workbench-runtime.ts --bundle --platform=node --format=cjs --outfile=dist/api-workbench-runtime.cjs --external:electron --watch=forever",
+    "build:plugin-runtime": "bun run build:plugins && esbuild src/utility/plugin-runtime.ts --bundle --platform=node --format=cjs --outfile=dist/plugin-runtime.cjs --external:electron",
+    "watch:plugin-runtime": "bun run build:plugins && esbuild src/utility/plugin-runtime.ts --bundle --platform=node --format=cjs --outfile=dist/plugin-runtime.cjs --external:electron --watch=forever",
     "prepare:local-model-engine": "bun run scripts/prepare-local-model-engine.ts",
     "build:plugins": "bun run --cwd ../../packages/plugin-sdk build && bun run --cwd ../../packages/plugin-kit build",
-    "content-plugin-smoke": "bun run build:plugins && bun run scripts/content-plugin-smoke.ts"
+    "content-plugin-smoke": "bun run build:plugins && bun run scripts/content-plugin-smoke.ts",
+    "plugin-runtime-smoke": "bun run build:plugins && bun run build:plugin-runtime && bun run scripts/plugin-runtime-smoke.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",
@@ -213,7 +216,8 @@
       "dist/server-ops-runtime.cjs",
       "dist/preload.cjs",
       "dist/path-management-preload.cjs",
-      "dist/api-workbench-runtime.cjs"
+      "dist/api-workbench-runtime.cjs",
+      "dist/plugin-runtime.cjs"
     ],
     "logLevel": "verbose"
   },

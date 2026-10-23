@@ -1,0 +1,100 @@
+{
+  "formatVersion": 3,
+  "apiVersion": "1.0.0",
+  "id": "__PLUGIN_ID__",
+  "publisherId": "__PUBLISHER_ID__",
+  "version": "1.0.0",
+  "displayName": "__PLUGIN_NAME__",
+  "description": "可执行插件模块的最小运行示例。",
+  "license": "MIT",
+  "profile": "module-runtime",
+  "compatibility": {
+    "hostApi": "^1.0.0",
+    "runtimeProtocol": 1,
+    "platforms": ["darwin", "win32", "linux"],
+    "architectures": ["arm64", "x64"]
+  },
+  "runtime": {
+    "entry": "runtime/main.mjs",
+    "format": "module-esm"
+  },
+  "modules": [
+    {
+      "id": "assistant",
+      "displayName": "__PLUGIN_NAME__",
+      "description": "演示 Agent 工具与右侧 Surface 的最小模块。",
+      "icon": "package",
+      "activation": "session-toggle",
+      "skillRefs": [],
+      "promptRefs": ["workflow"],
+      "tools": ["echo"],
+      "surfaces": ["workspace"],
+      "services": ["example-service"],
+      "artifacts": []
+    }
+  ],
+  "tools": [
+    {
+      "id": "echo",
+      "ownerModuleId": "assistant",
+      "title": "回显输入",
+      "description": "返回 Agent 提供的文本，用于验证运行时、权限和调用链。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "required": ["message"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": true,
+        "destructive": false,
+        "idempotent": true,
+        "openWorld": false
+      },
+      "approval": "none",
+      "timeoutMs": 10000
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "workspace",
+      "ownerModuleId": "assistant",
+      "title": "__PLUGIN_NAME__",
+      "entry": "surfaces/workspace/index.html",
+      "apiVersion": 1,
+      "defaultPlacement": "right-panel",
+      "methods": ["load"]
+    }
+  ],
+  "services": [
+    {
+      "id": "example-service",
+      "title": "示例服务",
+      "start": "lazy",
+      "idleStopMs": 300000
+    }
+  ],
+  "artifacts": [],
+  "prompts": [
+    {
+      "id": "workflow",
+      "version": "1.0.0",
+      "kind": "workflow",
+      "path": "prompts/workflow.md"
+    }
+  ],
+  "settings": [],
+  "capabilities": [
+    "session.read",
+    "plugin.state.read",
+    "plugin.state.write",
+    "surface.emit"
+  ],
+  "dependencies": [],
+  "exports": []
+}

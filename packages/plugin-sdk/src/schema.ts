@@ -6,6 +6,8 @@ export interface SchemaNode {
   pattern?: string;
   minLength?: number;
   maxLength?: number;
+  minimum?: number;
+  maximum?: number;
   minItems?: number;
   maxItems?: number;
   uniqueItems?: boolean;

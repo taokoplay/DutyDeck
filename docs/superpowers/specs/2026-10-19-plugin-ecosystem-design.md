@@ -10,6 +10,8 @@
 
 首版范围和优先顺序以 [插件模块首版规划](../plans/2026-10-19-plugin-module-v1-plan.md) 为准：先完成模块 runtime 脚手架、Skill 引用解析、插件中心、私有源和独立作者工具，不等待六个内置业务模块全部迁出。
 
+2026-10-23 能力底座细化：可执行模块 runtime、Capability Broker、动态工具/Surface、运行快照和开发者 SDK 的详细合同以 [插件模块通用运行时与能力底座设计](./2026-10-23-plugin-module-runtime-capability-design.md) 为准。该设计将执行型包明确为 `formatVersion: 3`，V1/V2 content 包继续兼容；本文关于模块身份、Skill 所有权、安装事务和安全边界的原则继续有效。
+
 本规范覆盖旧计划 `../plans/2026-10-18-agent-module-pluginization.md` 中“会话长期启用/固定”“目录只留在 Skills 页”等过时产品方向，保留已有实现与验证记录。当前消息显式选择专业模块、浏览器/终端自动按需调用的约定继续有效。
 
 ## 1. 结论与现状差距

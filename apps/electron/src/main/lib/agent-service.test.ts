@@ -102,6 +102,14 @@ describe('Agent service 迁移准入', () => {
     expect(source).toContain('runtime?.createRun(')
   })
 
+  test('Given 激活 V3 插件模块 When 准备运行 Then 插件工具与 Canvas 工具在同一单轮扩展中装配', () => {
+    const source = readFileSync(join(import.meta.dir, 'agent-service.ts'), 'utf8')
+    expect(source).toContain('buildModuleRuntimeAgentTools')
+    expect(source).toContain('moduleIds: activeModuleIds')
+    expect(source).toContain('...moduleRuntimeTools')
+    expect(source).toContain('...moduleRuntimeTools.map(tool => tool.name)')
+  })
+
   test('Given 内部、委派、归档或损坏来源会话 When 生产 eligibility 判断 Then 仅用户探索分支保留 Canvas 工具', () => {
     /** 普通顶层项目 Agent 的最小权威元数据。 */
     const base = {

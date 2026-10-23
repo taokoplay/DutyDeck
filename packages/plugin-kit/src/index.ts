@@ -1,3 +1,5 @@
 export * from './archive.js'
+export * from './build.js'
+export * from './filesystem.js'
 export * from './package.js'
 export * from './scaffold.js'

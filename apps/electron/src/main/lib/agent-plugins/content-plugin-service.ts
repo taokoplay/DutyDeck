@@ -137,6 +137,7 @@ export class ContentPluginService {
     const bytes = readBounded(path, MAX_PACKAGE_BYTES);
     if ([...this.previews.values()].reduce((total, entry) => total + entry.bytes.byteLength, bytes.byteLength) > MAX_PACKAGE_BYTES) throw new Error('插件预览缓存超过预算');
     const inspected = inspectPluginPackage(bytes);
+    if (inspected.manifest.formatVersion !== 2) throw new Error('PLUGIN_CONTENT_REQUIRED');
     this.checkCompatibility(inspected.manifest);
     if (!inspected.signatureVerified && !this.options.development) throw new Error('生产环境只允许已签名插件');
     const previous = state.plugins.find(entry => entry.manifest.id === inspected.manifest.id);
@@ -151,6 +152,7 @@ export class ContentPluginService {
     const result = this.mutate(pending.preview.revision, state => {
       const inspected = inspectPluginPackage(pending.bytes);
       if (inspected.packageHash !== pending.preview.packageHash || hash(pending.bytes) !== inspected.packageHash) throw new Error('插件预览字节已变化');
+      if (inspected.manifest.formatVersion !== 2) throw new Error('PLUGIN_CONTENT_REQUIRED');
       this.checkCompatibility(inspected.manifest);
       const keyId = inspected.signer?.keyId;
       const previous = state.plugins.find(entry => entry.manifest.id === inspected.manifest.id);
@@ -203,6 +205,7 @@ export class ContentPluginService {
       const bytes = readBounded(this.packagePath(plugin), MAX_PACKAGE_BYTES - packageBytes);
       packageBytes += bytes.byteLength;
       const inspected = inspectPluginPackage(bytes);
+      if (inspected.manifest.formatVersion !== 2) throw new Error('PLUGIN_CONTENT_REQUIRED');
       if (hash(bytes) !== plugin.packageHash || inspected.packageHash !== plugin.packageHash || JSON.stringify(inspected.manifest) !== JSON.stringify(plugin.manifest) || inspected.signer?.keyId !== plugin.keyId || (!inspected.signatureVerified && !this.options.development)) throw new Error('插件包身份或签名校验失败');
       this.checkCompatibility(inspected.manifest);
       /** 正文必须与持久化摘要完全一致，防止人为缩小摘要绕过预检。 */
