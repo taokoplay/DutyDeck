@@ -158,6 +158,10 @@ test('Release 工作流构建并发布 Linux x64 安装包', () => {
   expect(linuxJob?.['runs-on']).toBe('ubuntu-latest')
   expect(linuxJob?.steps).toEqual(expect.arrayContaining([
     expect.objectContaining({
+      uses: 'actions/setup-node@v4',
+      with: expect.objectContaining({ 'node-version': 22 }),
+    }),
+    expect.objectContaining({
       uses: 'actions/upload-artifact@v4',
       with: expect.objectContaining({ name: 'linux-x64' }),
     }),

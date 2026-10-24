@@ -1,6 +1,6 @@
 {
   "name": "@dutydeck/electron",
-  "version": "0.20.12",
+  "version": "0.20.13",
   "description": "DutyDeck，为专业用户设计的 Agent - Electron App",
   "homepage": "https://github.com/taokoplay/DutyDeck",
   "main": "dist/main.cjs",
@@ -66,7 +66,8 @@
     "prepare:local-model-engine": "bun run scripts/prepare-local-model-engine.ts",
     "build:plugins": "bun run --cwd ../../packages/plugin-sdk build && bun run --cwd ../../packages/plugin-kit build",
     "content-plugin-smoke": "bun run build:plugins && bun run scripts/content-plugin-smoke.ts",
-    "plugin-runtime-smoke": "bun run build:plugins && bun run build:plugin-runtime && bun run scripts/plugin-runtime-smoke.ts"
+    "plugin-runtime-smoke": "bun run build:plugins && bun run build:plugin-runtime && bun run scripts/plugin-runtime-smoke.ts",
+    "interaction-design-pilot-smoke": "bun run build:plugins && bun run build:plugin-runtime && bun run scripts/interaction-design-pilot-smoke.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",
