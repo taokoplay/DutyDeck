@@ -314,6 +314,9 @@ jobs:
         with:
           bun-version: 1.3.14
 
+      - name: 安装 node-gyp
+        run: npm install --global node-gyp@12.4.0
+
       - name: 验证构建工具
         run: |
           node --version

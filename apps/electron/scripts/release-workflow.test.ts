@@ -157,7 +157,7 @@ test('Release 工作流构建并发布 Linux x64 安装包', () => {
   expect(source.match(/^  build-linux-x64:$/gm)).toHaveLength(1)
   expect(linuxJob?.['runs-on']).toBe('ubuntu-latest')
   /** Linux 必须依次准备 Node、Bun、工具检查和依赖安装。 */
-  const linuxPreparationIndexes = ['actions/setup-node@v4', 'oven-sh/setup-bun@v2', '验证构建工具', '安装依赖'].map(step =>
+  const linuxPreparationIndexes = ['actions/setup-node@v4', 'oven-sh/setup-bun@v2', '安装 node-gyp', '验证构建工具', '安装依赖'].map(step =>
     linuxJob?.steps?.findIndex(candidate => candidate.uses === step || candidate.name === step) ?? -1)
   expect(linuxPreparationIndexes.every(index => index >= 0)).toBe(true)
   for (let index = 1; index < linuxPreparationIndexes.length; index++) expect(linuxPreparationIndexes[index - 1]).toBeLessThan(linuxPreparationIndexes[index]!)
@@ -165,6 +165,10 @@ test('Release 工作流构建并发布 Linux x64 安装包', () => {
     expect.objectContaining({
       uses: 'actions/setup-node@v4',
       with: expect.objectContaining({ 'node-version': 22 }),
+    }),
+    expect.objectContaining({
+      name: '安装 node-gyp',
+      run: 'npm install --global node-gyp@12.4.0',
     }),
     expect.objectContaining({
       uses: 'actions/upload-artifact@v4',
