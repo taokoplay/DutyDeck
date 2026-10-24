@@ -94,6 +94,49 @@ describe('Agent 项目知识接入', () => {
     expect(calls).toEqual(['status', 'plan', 'outline', 'document', 'asset'])
   })
 
+  test('Given 已批准范围内新增主题 When 使用状态短引用 Then 单项新增只解析目标流程与来源', async () => {
+    const { options } = fixture()
+    /** 已批准计划与大綱返回的单项来源。 */
+    const workflowStatus = {
+      initialized: true, revision: 1, paused: false, offset: 0, flowRef: 'ignored',
+      approved: { id: 'plan', revision: 2, title: '计划', groupCount: 1, groups: [] },
+      outline: { revision: 3, planRevision: 2, relativePath: '索引.md', itemCount: 1,
+        statusCounts: { pending: 1, partial: 0, ready: 0, missing: 0 },
+        items: [{ id: 'existing', groupId: 'product', title: '已有', relativePath: '产品/已有.md', summary: '已有',
+          sections: ['范围'], sources: [{ entryId: 'source-1', revision: 'revision-1' }], status: 'pending' as const }] },
+    }
+    /** 检查 facade 最终交给维护器的真实身份。 */
+    const writes: unknown[] = []
+    const facade = createProjectKnowledgeAgent({
+      ...options,
+      maintenance: {
+        next: async () => ({ refs: [], remaining: 0 }), observeRead: () => undefined,
+        submit: async () => ({ status: 'unchanged', published: 0, refreshed: 0, skipped: 0, processedSources: 0, entryIds: [] }),
+        status: async () => workflowStatus,
+        proposePlan: async () => workflowStatus,
+        saveOutline: async () => workflowStatus,
+        addOutlineItem: async (input) => { writes.push(input); return workflowStatus },
+        writeDocument: async () => workflowStatus,
+        copyAsset: async () => ({ relativePath: 'a', documentRelativePath: 'a', contentRevision: 'r', byteSize: 1 }),
+      },
+    })!
+    const status = await facade.getWorkflowStatus!()
+    const sourceRef = status.outline!.items[0]!.sources![0]!.sourceRef!
+    await facade.addKnowledgeOutlineItem!({
+      flowRef: status.flowRef,
+      item: {
+        id: 'parking-coordinate', groupId: 'product', title: '停车坐标边界', relativePath: '产品/停车坐标边界.md',
+        summary: '记录坐标口径', sections: ['口径'], dependencyState: 'known',
+        sources: [{ sourceRef }],
+      },
+    })
+    expect(writes[0]).toMatchObject({
+      planRevision: 2,
+      expectedRevision: 3,
+      item: { id: 'parking-coordinate', sources: [{ entryId: 'source-1', revision: 'revision-1' }] },
+    })
+  })
+
   test('Given 最新快照含待确认proposal和已批准大纲 When 构建上下文 Then Agent获得真实版本与itemId', async () => {
     const { options } = fixture()
     const facade = createProjectKnowledgeAgent({ ...options, service: {
@@ -431,7 +474,8 @@ describe('Agent 本轮短引用与有效进展', () => {
     const state = { initialized: true, revision: 9, paused: false, offset: 0,
       approved: { id: 'plan', revision: 3, title: '计划', groupCount: 0, groups: [] },
       outline: { revision: 4, planRevision: 3, relativePath: '索引.md', itemCount: 5, statusCounts: { pending: 5, partial: 0, ready: 0, missing: 0 },
-        items: [{ id: 'fifth', groupId: 'g', title: '第五项', relativePath: '第五项.md', summary: '用途', sections: [], status: 'pending' as const }] },
+        items: [{ id: 'fifth', groupId: 'g', title: '第五项', relativePath: '第五项.md', summary: '用途', sections: [],
+          sources: [{ entryId: 'source-1', revision: 'r1' }], status: 'pending' as const }] },
     }
     let written: unknown
     const agent = createProjectKnowledgeAgent({ ...options, maintenance: {
@@ -445,6 +489,7 @@ describe('Agent 本轮短引用与有效进展', () => {
     const status = await agent.getWorkflowStatus!(4)
     expect(offsets).toEqual([4])
     expect(status.flowRef).toStartWith('flow_')
+    expect(status.outline!.items[0]!.sources![0]!.sourceRef).toStartWith('src_')
     await agent.writeKnowledgeDocument!({ targetRef: status.outline!.items[0]!.targetRef, content: '# 内容', summary: '概要', complete: false, evidence: [], userQuote: '原话' })
     expect(written).toMatchObject({ planRevision: 3, outlineRevision: 4, itemId: 'fifth', expectedRevision: null })
   })

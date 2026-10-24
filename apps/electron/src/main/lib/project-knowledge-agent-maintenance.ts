@@ -9,6 +9,7 @@ import type {
   KnowledgeKind,
   KnowledgeImportMode,
   KnowledgeOutlineInput,
+  KnowledgeOutlineItemAddInput,
   KnowledgePlanSource,
   KnowledgePlanProposalInput,
   KnowledgeReadInput,
@@ -100,6 +101,8 @@ export interface ProjectKnowledgeAgentWorkflowPorts {
   getSnapshot(workspaceId: string): Promise<KnowledgeSnapshot>
   proposePlan(input: KnowledgePlanProposalInput): Promise<KnowledgeSnapshot>
   saveOutline(input: KnowledgeOutlineInput): Promise<KnowledgeSnapshot>
+  /** 单篇新增只变更目标大纲项，不要求回传其他历史项。 */
+  addOutlineItem?(input: KnowledgeOutlineItemAddInput): Promise<KnowledgeSnapshot>
   writeDocument(input: KnowledgeDocumentWriteInput): Promise<KnowledgeSnapshot>
   copyAsset(input: KnowledgeAssetCopyInput): Promise<KnowledgeAssetCopyResult>
   /** 只刷新已登记来源，禁止扫描扩大授权范围。 */
@@ -110,6 +113,8 @@ export interface ProjectKnowledgeAgentWorkflowPorts {
 export type KnowledgeAgentPlanInput = Omit<KnowledgePlanProposalInput, 'workspaceId'>
 /** 模型输入不包含由当前回合闭包固定的工作区身份。 */
 export type KnowledgeAgentOutlineInput = Omit<KnowledgeOutlineInput, 'workspaceId'>
+/** 模型新增单篇大纲项时只提供目标项，不携带整份历史大纲。 */
+export type KnowledgeAgentOutlineItemAddInput = Omit<KnowledgeOutlineItemAddInput, 'workspaceId'>
 /** 模型输入不包含由当前回合闭包固定的工作区身份。 */
 export type KnowledgeAgentDocumentInput = Omit<KnowledgeDocumentWriteInput, 'workspaceId' | 'userEvidence'> & { userEvidenceId?: string }
 /** 模型输入不包含由当前回合闭包固定的工作区身份。 */
@@ -166,6 +171,8 @@ export interface KnowledgeAgentWorkflowStatus {
       /** 状态只展示依赖摘要，完整大纲仍保留所有依赖。 */
       sourceCount?: number
       sourcesTruncated?: boolean
+      /** 摘要页内最多四项来源及其当轮短引用。 */
+      sources?: Array<KnowledgePlanSource & { sourceRef?: string }>
       targetRef?: string
       status: 'pending' | 'partial' | 'ready' | 'missing'
     }>
@@ -314,10 +321,12 @@ export interface ProjectKnowledgeAgentMaintenance {
   submit(input: KnowledgeAgentMaintenanceSubmitInput): Promise<KnowledgeAgentMaintenanceSubmitResult>
   /** 读取最新 proposal、approved 版本和大纲进度。 */
   status?: (offset?: number, itemId?: string, sourceOffset?: number, groupId?: string) => Promise<KnowledgeAgentWorkflowStatus>
-  /** 提交等待用户确认的自由分组清单。 */
+  /** 提交等待宿主自动接管的自由分组清单。 */
   proposePlan?: (input: KnowledgeAgentPlanInput) => Promise<KnowledgeAgentWorkflowStatus>
   /** 只在核心服务确认存在 approved 版本后保存大纲。 */
   saveOutline?: (input: KnowledgeAgentOutlineInput) => Promise<KnowledgeAgentWorkflowStatus>
+  /** 在已确认分组内增量新增一篇待写文档。 */
+  addOutlineItem?: (input: KnowledgeAgentOutlineItemAddInput) => Promise<KnowledgeAgentWorkflowStatus>
   /** 用本轮真实来源页或当前用户原话发布大纲项正文。 */
   writeDocument?: (input: KnowledgeAgentDocumentInput) => Promise<KnowledgeAgentWorkflowStatus>
   /** 复制扫描登记的原格式资产，并返回正文可用的相对链接。 */
@@ -676,7 +685,15 @@ export function createProjectKnowledgeAgentMaintenance(
     options.assertCurrent()
     const snapshot = await options.workflow!.getSnapshot(options.workspaceId)
     options.assertCurrent()
-    return compactKnowledgeWorkflowStatus(snapshot, offset, itemId, sourceOffset, groupId)
+    const value = compactKnowledgeWorkflowStatus(snapshot, offset, itemId, sourceOffset, groupId)
+    /**
+     * 另一会话遗留的自动续接额度不是当前用户回合的全局锁。
+     * 只有当前会话持有该任务时才把执行状态交给模型，避免普通“记录知识库”
+     * 被别处的 budget_exhausted 误判为不可写入。
+     */
+    return snapshot.workflow?.execution && snapshot.workflow.execution.sessionId !== options.sessionId
+      ? { ...value, execution: undefined }
+      : value
   }
   /** 提案只引用扫描元数据；发现来源不要求先读取正文。 */
   const proposePlan = async (input: KnowledgeAgentPlanInput): Promise<KnowledgeAgentWorkflowStatus> => compactKnowledgeWorkflowStatus(
@@ -694,6 +711,13 @@ export function createProjectKnowledgeAgentMaintenance(
   /** approved 版本与大纲版本的并发控制由核心事务最终裁决。 */
   const saveOutline = async (input: KnowledgeAgentOutlineInput): Promise<KnowledgeAgentWorkflowStatus> => compactKnowledgeWorkflowStatus(
     await runWorkflowWrite((workflow) => workflow.saveOutline({ ...input, workspaceId: options.workspaceId })),
+  )
+  /** 单篇新增直接落到当前大纲，保留其他条目的旧版本依赖与正文身份。 */
+  const addOutlineItem = async (input: KnowledgeAgentOutlineItemAddInput): Promise<KnowledgeAgentWorkflowStatus> => compactKnowledgeWorkflowStatus(
+    await runWorkflowWrite((workflow) => {
+      if (!workflow.addOutlineItem) throw new Error('当前运行不支持增量新增知识大纲项')
+      return workflow.addOutlineItem({ ...input, workspaceId: options.workspaceId })
+    }),
   )
   /** 发布前复验本轮逐字证据，并在取得租约后重新读取真实来源。 */
   const writeDocument = async (input: KnowledgeAgentDocumentInput): Promise<KnowledgeAgentWorkflowStatus> => {
@@ -773,5 +797,5 @@ export function createProjectKnowledgeAgentMaintenance(
   const importSources = options.workflow.importSources
     ? (mode: KnowledgeImportMode, signal?: AbortSignal) => runWorkflowWrite((workflow) => workflow.importSources!(options.workspaceId, mode, signal))
     : undefined
-  return { next, observeRead, submit, status, proposePlan, saveOutline, writeDocument, copyAsset, refreshSources, observeUserEvidence, scanSources, importSources }
+  return { next, observeRead, submit, status, proposePlan, saveOutline, addOutlineItem, writeDocument, copyAsset, refreshSources, observeUserEvidence, scanSources, importSources }
 }

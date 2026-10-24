@@ -1,7 +1,7 @@
 ---
 name: knowledge-maintenance
 description: 由当前 Agent 提炼 DutyDeck 项目知识库并维护长期协作知识。用户更新知识库、项目存在未处理文档、当前对话出现稳定偏好/决策/纠错，或用户说“记住”“以后这样做”“你又忘了”时使用。使用知识工具按需读取与受控提交，不另配模型、不把文件索引当知识。项目地图与记忆保持各自所有权；历史会话仅在用户明确授权后分批补证据。
-version: "1.0.13"
+version: "1.0.15"
 ---
 
 # 知识维护
@@ -32,10 +32,10 @@ version: "1.0.13"
 
 ## 当前 Agent 的两步流程
 
-1. 先调用 `proma_knowledge_status`。它返回等待确认的 proposal、当前 approved 版本、暂停状态、outline revision 与 itemId；每次继续维护都以最新状态为准。
-2. 没有 approved 计划时，根据扫描结果与来源元数据提出自由分组，调用 `proma_knowledge_plan`。分组不套固定七类；说明范围、来源、缺口和预计文档。proposal 只等待用户在界面确认，你没有确认工具，也不能把 proposal 冒充 approved。
-3. 用户确认后，再以准确的 approved plan revision 调用 `proma_knowledge_outline`。每个 item 给出稳定 id、所属 groupId、真实 Markdown 相对路径、用途和章节；不得给未生成正文伪造 entryId 或完成状态。
-4. 按 outline item 处理正文。先用 `proma_knowledge_search` 查找来源，再用 `proma_knowledge_read` 按 `nextOffset` 分页读取必要页面。调用 `proma_knowledge_document` 时只引用本轮实际读到页面中的逐字 quote，或当前用户消息中的真实 `userQuote`；同时提交最新 plan/outline revision、itemId 与目标正文版本。
+1. 先调用 `proma_knowledge_status`。它返回等待宿主自动接管的 proposal、当前 approved 版本、暂停状态、outline revision 与 itemId；每次继续维护都以最新状态为准。
+2. 没有 approved 计划时，根据扫描结果与来源元数据提出自由分组，调用 `proma_knowledge_plan`。分组不套固定七类；说明范围、来源、缺口和预计文档。提交后结束本回合，宿主会自动确认完整范围并转交后续生成；不要等待用户逐组确认，也不要重复提交同一提案。你没有确认工具，不能把 proposal 冒充 approved。
+3. 宿主自动确认后，首次以准确的 approved plan revision 调用 `proma_knowledge_outline` 建立完整结构。后续在当前范围新增一篇主题时使用 `proma_knowledge_outline_add`，只提交该篇；不要为新增一篇而回传并重写整份历史大纲。每个 item 给出稳定 id、所属 groupId、真实 Markdown 相对路径、用途和章节；不得给未生成正文伪造 entryId 或完成状态。
+4. 按 outline item 处理正文。先用 `proma_knowledge_search` 查找来源，再用 `proma_knowledge_read` 按 `nextOffset` 分页读取必要页面。调用 `proma_knowledge_document` 时只引用本轮实际读到页面中的逐字 quote，或当前用户消息中的真实 `userQuote`；同时提交最新 plan/outline revision、itemId 与目标正文版本。向已有长文补充一节时使用 `editMode: "append"`，由宿主保留原正文；只有确实重写整篇时才使用默认 `replace`。
 5. 宿主在同一工作区写租约内重新核验运行状态、写权限、来源页、用户原话和目标版本。来源变化时重新读取，禁止修改引用绕过校验。只有文档工具返回成功快照后才能说明已更新。
 6. 未处理来源继续留在 pending/partial 项，下一回合从最新状态续接。来源截断、未读、仅元数据、暂停、取消或失败都不能标成完成；不要为了补全结构编造事实。
 7. approved 范围内持续更新同一大纲文档。协作记忆按自身规则独立维护；需要关联时只写相对引用，不复制知识库整篇正文。不直接修改 `.proma/knowledge` 清单或版本文件，不另开维护 Agent，不递归触发维护。
@@ -83,7 +83,7 @@ version: "1.0.13"
 
 ## 可靠引用与逐篇产出
 
-- 优先使用搜索回执的 `sourceRef` 读取来源，使用读取回执的 `pageRef` 加逐字 `quote` 提交证据；大纲使用状态回执的 `flowRef`，正文使用该项的 `targetRef`。引用仅属于当前运行；下一轮重新查询并读取必要页面。不要抄写长哈希，不得把短引用与旧 ID/版本参数混用，也不能拿来源引用冒充已读页。
+- 优先使用搜索回执的 `sourceRef` 读取来源，使用读取回执的 `pageRef` 加逐字 `quote` 提交证据；大纲使用状态回执的 `flowRef`，新增单篇使用 `proma_knowledge_outline_add`，正文使用该项的 `targetRef`。引用仅属于当前运行；下一轮重新查询并读取必要页面。不要抄写长哈希，不得把短引用与旧 ID/版本参数混用，也不能拿来源引用冒充已读页。
 - 沿 `proma_knowledge_status.nextOffset` 获取后续大纲项。尚未建立大纲时，用 `groupId` 查询分组完整来源、预期产物及缺口，沿 `groupDetails.nextSourceOffset` 分页；`groupId` 与 `itemId` 不可混用。单项依赖、章节或缺口超过摘要上限时，传 `itemId` 并沿 `itemDetails.nextSourceOffset` 传 `sourceOffset` 获取完整详情；不能把截断摘要当成全部依赖。每项明确用途、适用范围、章节、来源和缺口。`sources` 只登记该篇实际依赖，`dependencyState` 不清楚时为 `unknown`；不能把整个分组所有资料一律算作每篇强依赖。
 - 读一篇所需资料后立即提交一篇并检查真实回执，然后处理下一篇。单来源失败先保留受影响项与具体原因，继续无依赖的其他项，不能因为一项失败就停止所有正文。
 - `invalid_parameters` 是参数格式错误，不代表文件变化。真实来源变化时，仅对已登记的受影响来源调用 `proma_knowledge_refresh_sources`（每批至多四个），再重新读取；刷新不会赋予已读资格。同一来源版本最多自动恢复一次，达到上限后保留阻塞并继续无依赖的项，不能换参数或会话绕过额度。人工修改目标时停止覆盖该项，不能改成最新版本强行重试。

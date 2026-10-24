@@ -10,6 +10,7 @@ import type {
   KnowledgeAgentMaintenanceSubmitInput,
   KnowledgeAgentMaintenanceSubmitResult,
   KnowledgeAgentOutlineInput,
+  KnowledgeAgentOutlineItemAddInput,
   KnowledgeAgentPlanInput,
   KnowledgeAgentWorkflowStatus,
   ProjectKnowledgeAgentMaintenance,
@@ -27,6 +28,13 @@ export interface KnowledgeAgentReferencedOutlineInput extends Omit<KnowledgeAgen
   planRevision?: number
   expectedRevision?: number
   items: Array<Omit<KnowledgeAgentOutlineInput['items'][number], 'sources'> & { sources?: KnowledgeSourceReferenceInput[] }>
+}
+/** 单篇新增允许使用同一运行的流程短引用和来源短引用。 */
+export interface KnowledgeAgentReferencedOutlineItemAddInput extends Omit<KnowledgeAgentOutlineItemAddInput, 'planRevision' | 'expectedRevision' | 'item'> {
+  flowRef?: string
+  planRevision?: number
+  expectedRevision?: number
+  item: Omit<KnowledgeAgentOutlineItemAddInput['item'], 'sources'> & { sources?: KnowledgeSourceReferenceInput[] }
 }
 /** 正文引用可由宿主恢复准确身份；未提供短引用时保留旧合同。 */
 export interface KnowledgeAgentReferencedDocumentInput extends Omit<KnowledgeAgentDocumentInput, 'planRevision' | 'outlineRevision' | 'itemId' | 'expectedRevision' | 'evidence'> {
@@ -101,10 +109,12 @@ export interface ProjectKnowledgeAgent {
   submitMaintenance?: (input: KnowledgeAgentMaintenanceSubmitInput) => Promise<KnowledgeAgentMaintenanceSubmitResult>
   /** 读取最新两步流程状态，不允许模型指定工作区。 */
   getWorkflowStatus?: ProjectKnowledgeAgentMaintenance['status']
-  /** 提交等待用户确认的知识分组清单。 */
+  /** 提交由系统自动接管的知识分组清单。 */
   proposeKnowledgePlan?: (input: KnowledgeAgentReferencedPlanInput) => Promise<KnowledgeAgentWorkflowStatus>
   /** 为当前已批准清单保存可读大纲。 */
   saveKnowledgeOutline?: (input: KnowledgeAgentReferencedOutlineInput) => Promise<KnowledgeAgentWorkflowStatus>
+  /** 在已确认分组内新增单篇文档，不重写历史大纲。 */
+  addKnowledgeOutlineItem?: (input: KnowledgeAgentReferencedOutlineItemAddInput) => Promise<KnowledgeAgentWorkflowStatus>
   /** 发布一个有本轮证据的大纲项正文。 */
   writeKnowledgeDocument?: (input: KnowledgeAgentReferencedDocumentInput) => Promise<KnowledgeAgentWorkflowStatus>
   /** 复制已扫描二进制资产，不代表模型已解析其内容。 */
@@ -240,6 +250,8 @@ export function createProjectKnowledgeAgent(options: ProjectKnowledgeAgentOption
     return { ...detailedStatus, flowRef,
       outline: status.outline ? { ...status.outline, items: status.outline.items.map((item) => ({
       ...item,
+      /** 摘要页也发放来源短引用，模型无需再猜 entryId 与 revision 的组合。 */
+      sources: item.sources?.map((source) => ({ ...source, sourceRef: references.source(source) })),
       targetRef: references.target({ planRevision: status.approved!.revision, outlineRevision: status.outline!.revision, itemId: item.id, expectedRevision: item.documentRevision ?? null }),
     })) } : undefined }
   }
@@ -286,6 +298,16 @@ export function createProjectKnowledgeAgent(options: ProjectKnowledgeAgentOption
       saveKnowledgeOutline: async (input: KnowledgeAgentReferencedOutlineInput) => referenceStatus(await maintenance!.saveOutline!({ ...input, ...references.resolveFlow(input),
         items: input.items.map((item) => ({ ...item, sources: item.sources?.map((source) => references.resolveSource(source)) })),
       })),
+      ...(maintenance?.addOutlineItem ? {
+        addKnowledgeOutlineItem: async (input: KnowledgeAgentReferencedOutlineItemAddInput) => referenceStatus(await maintenance.addOutlineItem!({
+          ...input,
+          ...references.resolveFlow(input),
+          item: {
+            ...input.item,
+            sources: input.item.sources?.map((source) => references.resolveSource(source)),
+          },
+        })),
+      } : {}),
       writeKnowledgeDocument: async (input: KnowledgeAgentReferencedDocumentInput) => {
         let target: ReturnType<KnowledgeRunReferences['resolveTarget']>
         try {
@@ -335,7 +357,7 @@ export function createProjectKnowledgeAgent(options: ProjectKnowledgeAgentOption
       if (!snapshot.initialized) {
         if (!maintenanceAvailable) return ''
         return workflowEnabled
-          ? '<project_knowledge>\n项目知识库尚未初始化。不要用旧提交入口直接发布零散知识；按 knowledge-maintenance Skill 调用 proma_knowledge_status 读取状态，并在扫描来源元数据可用后用 proma_knowledge_plan 提案，等待用户确认后再建立大纲与正文。\n</project_knowledge>'
+          ? '<project_knowledge>\n项目知识库尚未初始化。不要用旧提交入口直接发布零散知识；按 knowledge-maintenance Skill 调用 proma_knowledge_status 读取状态，并在扫描来源元数据可用后用 proma_knowledge_plan 提案。提交后结束本回合，系统会自动确认范围并转交大纲与正文生成。\n</project_knowledge>'
           : '<project_knowledge>\n项目知识库尚未初始化。不要扫描或加载项目文件；仅当当前用户消息包含值得长期保留的明确事实、决定、偏好或规则时，按 knowledge-maintenance Skill 调用 proma_knowledge_submit 提交逐字引用。\n</project_knowledge>'
       }
       /** 旧后台状态已退役，待提炼数量必须从当前维护器的来源水位实时取得。 */

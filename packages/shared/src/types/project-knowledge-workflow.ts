@@ -31,7 +31,7 @@ export interface KnowledgePlanGroup {
   outputs: string[]
 }
 
-/** 一版分组清单；只有宿主收到 UI 确认后才转入 approved。 */
+/** 一版分组清单；只有宿主控制系统完成确认后才转入 approved。 */
 export interface KnowledgePlan {
   /** 清单身份，防止跨清单确认。 */
   id: string
@@ -45,7 +45,7 @@ export interface KnowledgePlan {
   groups: KnowledgePlanGroup[]
   /** 提案时间。 */
   createdAt: number
-  /** 仅由用户确认端口产生。 */
+  /** 仅由宿主确认端口产生。 */
   confirmedAt?: number
 }
 
@@ -99,7 +99,7 @@ export interface KnowledgeWorkflow {
   execution?: KnowledgeExecution
   /** 在规划时精确登记的真实用户事实，不包含界面控制提示。 */
   userEvidence?: KnowledgeUserEvidenceIdentity[]
-  /** 尚待用户确认的最新清单，不能自行成为已确认范围。 */
+  /** 尚待宿主自动接管的最新清单，不能自行成为已确认范围。 */
   proposal?: KnowledgePlan
   /** 当前可维护的范围；新提案不撤销原范围。 */
   approved?: KnowledgePlan
@@ -121,7 +121,7 @@ export interface KnowledgePlanProposalInput {
   groups: KnowledgePlanGroup[]
 }
 
-/** UI 对用户实际看到的版本做部分或全部确认。 */
+/** 宿主对 Agent 当前提出的精确版本做完整确认。 */
 export interface KnowledgePlanConfirmInput {
   /** 当前用户选择的项目。 */
   workspaceId: string
@@ -143,6 +143,18 @@ export interface KnowledgeOutlineInput {
   expectedRevision: number
   /** 模型不能伪造 entryId 和完成状态。 */
   items: Array<Omit<KnowledgeOutlineItem, 'entryId' | 'status'>>
+}
+
+/** Agent 在已确认分组内新增单篇文档，不要求回传整份历史大纲。 */
+export interface KnowledgeOutlineItemAddInput {
+  /** 宿主绑定的项目。 */
+  workspaceId: string
+  /** 当前已确认计划版本。 */
+  planRevision: number
+  /** Agent 读取的最新大纲版本，用于阻止迟到新增。 */
+  expectedRevision: number
+  /** 新文档主题；正文身份只能由宿主在首次发布后补充。 */
+  item: Omit<KnowledgeOutlineItem, 'entryId' | 'status'>
 }
 
 /** 当前主题正文在可读目录中的定位及内容版本。 */
@@ -173,7 +185,9 @@ export interface KnowledgeDocumentWriteInput {
   itemId: string
   /** 新文件为 null，否则为已读取条目版本。 */
   expectedRevision: string | null
-  /** 自包含的 Markdown 正文。 */
+  /** 正文编辑方式；追加时 content 只包含新增片段，默认整篇替换。 */
+  editMode?: 'replace' | 'append'
+  /** 默认是完整 Markdown 正文；追加模式只包含新增尾部片段。 */
   content: string
   /** 有界检索摘要。 */
   summary: string

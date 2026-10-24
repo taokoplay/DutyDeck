@@ -12,12 +12,11 @@ import {
   buildKnowledgeGenerationPendingPrompt,
   dispatchScannedKnowledge,
   buildKnowledgeMaintenancePendingPrompt,
-  buildKnowledgePlanAdjustmentPendingPrompt,
   ProjectKnowledgeResourcesView,
   ProjectKnowledgeTabShell,
   selectKnowledgeMaintenanceSession,
 } from './ProjectKnowledgeTab'
-import { buildKnowledgePlanSelection, KnowledgeWorkflowPanel, KnowledgeWorkflowDialog } from './KnowledgeWorkflowPanel'
+import { buildAutomaticKnowledgePlanSelection, KnowledgeWorkflowPanel, KnowledgeWorkflowDialog } from './KnowledgeWorkflowPanel'
 
 /** 创建固定知识条目，测试只覆盖用户可观察的目录信息。 */
 function createEntry(overrides: Partial<KnowledgeEntry> = {}): KnowledgeEntry {
@@ -117,14 +116,16 @@ describe('项目知识库 Agent 提炼', () => {
       mentionedSkills: ['knowledge-maintenance'],
     }))
     expect(prompt.message).toContain('提交分组 proposal')
-    expect(prompt.message).toContain('停下来等待用户确认')
+    expect(prompt.message).toContain('系统会自动确认范围')
+    expect(prompt.message).toContain('不要等待用户逐组确认')
     expect(prompt.message).toContain('不要保存大纲')
   })
 
-  test('Given 用户已确认分组 When 构造生成任务 Then 复用原会话并一次完成大纲和真实文件', () => {
+  test('Given 系统自动确认分组 When 构造生成任务 Then 复用原会话并一次完成大纲和真实文件', () => {
     const prompt = buildKnowledgeGenerationPendingPrompt('agent-1', 4)
     expect(prompt).toEqual(expect.objectContaining({ sessionId: 'agent-1', autoSend: true }))
     expect(prompt.message).toContain('approved')
+    expect(prompt.message).toContain('系统已自动确认')
     expect(prompt.message).toContain('保存 outline')
     expect(prompt.message).toContain('逐项读取必要来源并写入真实 Markdown 文件')
     expect(prompt.message).toContain('无需逐篇等待审批')
@@ -144,7 +145,7 @@ describe('项目知识库 Agent 提炼', () => {
     expect(dispatches).toBe(1)
   })
 
-  test('Given 仍有待确认提案 When 更新知识库扫描完成 Then 仅派发普通规划而不启动正文执行', async () => {
+  test('Given 仍有待自动接管提案 When 更新知识库扫描完成 Then 仅派发普通规划而不启动正文执行', async () => {
     const plan = { id: 'proposal-1', revision: 8, title: '知识库', rootRelativePath: '知识库', groups: [], createdAt: 1 }
     const snapshot = createSnapshot({ workflow: { paused: false, approved: { ...plan, revision: 7 }, proposal: plan } })
     await dispatchScannedKnowledge(snapshot, async (createPrompt, _isCurrent, sessionMode, execution) => {
@@ -160,15 +161,6 @@ describe('项目知识库 Agent 提炼', () => {
     expect(dispatches).toBe(0)
   })
 
-  test('Given 用户要求调整清单 When 构造任务 Then 绑定当前版本并要求重新提案而不自动确认', () => {
-    const prompt = buildKnowledgePlanAdjustmentPendingPrompt('agent-1', 'plan-1', 2, '合并产品与上线分组，并把根目录改为 docs/handbook')
-    expect(prompt).toEqual(expect.objectContaining({ sessionId: 'agent-1', autoSend: true }))
-    expect(prompt.message).toContain('plan-1')
-    expect(prompt.message).toContain('版本 2')
-    expect(prompt.message).toContain('合并产品与上线分组')
-    expect(prompt.message).toContain('重新提交 proposal')
-    expect(prompt.message).toContain('不要确认计划')
-  })
 })
 
 describe('项目知识库两步工作流', () => {
@@ -191,7 +183,7 @@ describe('项目知识库两步工作流', () => {
     /** 进度详情在用户打开弹窗后展示，阅读首页不包含大纲正文。 */
     const html = renderToStaticMarkup(<KnowledgeWorkflowDialog
       workflow={createWorkflow({ proposal: undefined, approved: { ...createWorkflow().proposal!, confirmedAt: 2 } })}
-      entries={[]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onSelectEntryId={noop} onRequestAdjustment={noop}
+      entries={[]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onSelectEntryId={noop}
     />)
     expect(html).toContain('整理进度')
     expect(html).toContain('aria-haspopup="dialog"')
@@ -199,16 +191,15 @@ describe('项目知识库两步工作流', () => {
     expect(html).not.toContain('暂停生成')
   })
 
-  test('Given 用户取消一个分组并修改另一个名称 When 构造确认选择 Then 只提交选中分组和新名称', () => {
+  test('Given Agent 提交多个分组 When 构造自动接管载荷 Then 原样提交全部分组', () => {
     const proposal = createWorkflow().proposal!
-    expect(buildKnowledgePlanSelection(
-      proposal,
-      new Set(['group-b']),
-      { 'group-b': '发布运行手册' },
-    )).toEqual([{ id: 'group-b', title: '发布运行手册' }])
+    expect(buildAutomaticKnowledgePlanSelection(proposal)).toEqual([
+      { id: 'group-a', title: '产品规则' },
+      { id: 'group-b', title: '上线手册' },
+    ])
   })
 
-  test('Given Agent 已提交 proposal When 展示工作流 Then 显示具体来源、保守核对状态和调整入口', () => {
+  test('Given Agent 已提交 proposal When 展示工作流 Then 默认简洁摘要且范围明细为只读展开项', () => {
     let confirmCalls = 0
     const html = renderToStaticMarkup(<KnowledgeWorkflowPanel
       workflow={createWorkflow()}
@@ -222,21 +213,27 @@ describe('项目知识库两步工作流', () => {
       onConfirm={() => { confirmCalls += 1 }}
       onPause={noop}
       onSelectEntryId={noop}
-      onRequestAdjustment={noop}
     />)
-    expect(html).toContain('确认知识库范围')
+    expect(html).toContain('Agent 已规划好整理范围，正在自动继续')
+    expect(html).toContain('2 个分组')
+    expect(html).toContain('1 份来源')
+    expect(html).toContain('1 个信息缺口')
+    expect(html).toContain('2 份预计产出')
+    expect(html).toContain('查看 Agent 选定的范围明细')
+    expect(html).toContain('让 Agent 直接整理')
+    expect(html).not.toContain('确认知识库范围')
+    expect(html).not.toContain('调整清单')
+    expect(html).not.toContain('选择分组')
+    expect(html).not.toContain('分组名称')
+    expect(html).toContain('<details')
     expect(html).toContain('产品规则')
     expect(html).toContain('整理产品规则和边界')
     expect(html).toContain('产品说明')
     expect(html).toContain('docs/product.md')
     expect(html).toContain('未核对')
-    expect(html).toContain('这是一份待确认的整理计划，还不是最终知识库内容')
-    expect(html).toContain('点击“确认所选范围”后，才会继续生成大纲和 Markdown 正文')
-    expect(html).toContain('调整清单')
     expect(html).toContain('缺少退款说明')
     expect(html).toContain('产品规则.md')
     expect(html).toContain('知识库')
-    expect(html).not.toContain('<details')
     expect(confirmCalls).toBe(0)
   })
 
@@ -256,7 +253,7 @@ describe('项目知识库两步工作流', () => {
         ],
       },
     })
-    const html = renderToStaticMarkup(<KnowledgeWorkflowPanel workflow={workflow} entries={[readyEntry]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onSelectEntryId={noop} onRequestAdjustment={noop} />)
+    const html = renderToStaticMarkup(<KnowledgeWorkflowPanel workflow={workflow} entries={[readyEntry]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onSelectEntryId={noop} />)
     expect(html).toContain('产品')
     expect(html).toContain('运维')
     expect(html).toContain('等待生成')
@@ -288,7 +285,7 @@ describe('项目知识库两步工作流', () => {
       turnStartProgress: 0, failures: {}, userEvidence: [], updatedAt: 1,
       reason: status === 'blocked' ? 'budget_exhausted' : status === 'interrupted' ? 'process_restarted' : undefined,
     } })
-    const html = renderToStaticMarkup(<KnowledgeWorkflowPanel workflow={workflow} entries={[]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onSelectEntryId={noop} onRequestAdjustment={noop} />)
+    const html = renderToStaticMarkup(<KnowledgeWorkflowPanel workflow={workflow} entries={[]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onSelectEntryId={noop} />)
     expect(html).toContain(label)
     expect(html).toContain(action)
     if (status === 'blocked') expect(html).toContain('本段额度已用完')
@@ -306,7 +303,7 @@ describe('项目知识库两步工作流', () => {
     const workflow = createWorkflow({ proposal: undefined, approved: { ...createWorkflow().proposal!, confirmedAt: 2 }, outline: {
       revision: 1, planRevision: 2, relativePath: '知识库/大纲.md', items: [{ id: 'item-1', groupId: 'group-a', title: '会员规则', relativePath: '规则.md', summary: '指导购买决策', sections: ['适用权益'], gaps: ['尚缺退款规则'], status: 'ready', entryId: entry.id }],
     } })
-    const html = renderToStaticMarkup(<KnowledgeWorkflowPanel workflow={workflow} entries={[entry]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onRetryItem={noop} onSelectEntryId={noop} onRequestAdjustment={noop} />)
+    const html = renderToStaticMarkup(<KnowledgeWorkflowPanel workflow={workflow} entries={[entry]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onRetryItem={noop} onSelectEntryId={noop} />)
     for (const text of ['内容性质：业务规则', '重要程度：重要', '月度与永久权益尚未核对', '已保存 1/1 篇', '待补依据', '付费口径冲突', '指导购买决策', '适用权益', '尚缺退款规则', '仅重试此项', '打开会员规则']) expect(html).toContain(text)
     expect(html).toContain('内容达标 0 篇')
   })
@@ -320,7 +317,6 @@ describe('项目知识库两步工作流', () => {
       onConfirm={noop}
       onPause={noop}
       onSelectEntryId={noop}
-      onRequestAdjustment={noop}
     />)
     expect(html).toContain('暂不支持')
   })
@@ -340,7 +336,6 @@ describe('项目知识库两步工作流', () => {
       onConfirm={noop}
       onPause={noop}
       onSelectEntryId={noop}
-      onRequestAdjustment={noop}
     />)
     expect(html).toContain('已读相关页')
   })

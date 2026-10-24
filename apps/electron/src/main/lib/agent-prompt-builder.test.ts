@@ -19,7 +19,7 @@ test('Given 当前 Agent 可维护知识 When 构建提示词 Then 遵循proposa
   const prompt = buildSystemPrompt({ ...context, projectKnowledgeAvailable: true })
   expect(prompt).toContain('当前回合加载 `knowledge-maintenance` Skill')
   expect(prompt).toContain('proma_knowledge_plan')
-  expect(prompt).toContain('等待用户在界面确认')
+  expect(prompt).toContain('系统会自动确认范围')
   expect(prompt).toContain('proma_knowledge_outline')
   expect(prompt).toContain('proma_knowledge_document')
   expect(prompt).toContain('未处理来源')

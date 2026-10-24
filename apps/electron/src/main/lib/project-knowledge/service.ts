@@ -12,6 +12,7 @@ import type {
   KnowledgePlanProposalInput,
   KnowledgePlanConfirmInput,
   KnowledgeOutlineInput,
+  KnowledgeOutlineItemAddInput,
   KnowledgeDocumentWriteInput,
   KnowledgeWorkflowPauseInput,
   KnowledgeAssetCopyInput,
@@ -138,12 +139,14 @@ export interface KnowledgeScanGuard {
 export interface ProjectKnowledgeService {
   /** 将已登记资产复制进已确认资料库，返回可移植相对链接。 */
   copyAsset: (input: KnowledgeAssetCopyInput) => Promise<KnowledgeAssetCopyResult>
-  /** 保存待用户确认的分组提案，不生成正式正文。 */
+  /** 保存待宿主自动接管的分组提案，不生成正式正文。 */
   proposePlan: (input: KnowledgePlanProposalInput, assertCurrent?: () => void) => Promise<KnowledgeSnapshot>
   /** 仅由宿主 UI 确认用户所见版本和选中分组。 */
   confirmPlan: (input: KnowledgePlanConfirmInput) => Promise<KnowledgeSnapshot>
   /** 在已确认范围内保存真实文件大纲。 */
   saveOutline: (input: KnowledgeOutlineInput, assertCurrent?: () => void) => Promise<KnowledgeSnapshot>
+  /** 在已确认分组内增量新增单篇文档。 */
+  addOutlineItem: (input: KnowledgeOutlineItemAddInput, assertCurrent?: () => void) => Promise<KnowledgeSnapshot>
   /** 依据大纲及磁盘版本保存自包含正文。 */
   writeDocument: (input: KnowledgeDocumentWriteInput, assertCurrent?: () => void) => Promise<KnowledgeSnapshot>
   /** 用户暂停或恢复已确认范围的维护。 */
@@ -584,7 +587,7 @@ export function createProjectKnowledgeService(
     return snapshot
   }
 
-  /** 提案只更新工作流，返回最新权威清单供 Agent 等待用户确认。 */
+  /** 提案只更新工作流，返回最新权威清单供宿主自动接管。 */
   async function proposePlan(input: KnowledgePlanProposalInput, assertCurrent?: () => void): Promise<KnowledgeSnapshot> {
     await vault.proposePlan(input, assertCurrent)
     return getSnapshot(input.workspaceId)
@@ -599,6 +602,12 @@ export function createProjectKnowledgeService(
   /** 大纲先于正文落盘，待补项保持无正文身份。 */
   async function saveOutline(input: KnowledgeOutlineInput, assertCurrent?: () => void): Promise<KnowledgeSnapshot> {
     await vault.saveOutline(input, assertCurrent)
+    return getSnapshot(input.workspaceId)
+  }
+
+  /** 单项大纲新增不要求调用方回传其他历史条目。 */
+  async function addOutlineItem(input: KnowledgeOutlineItemAddInput, assertCurrent?: () => void): Promise<KnowledgeSnapshot> {
+    await vault.addOutlineItem(input, assertCurrent)
     return getSnapshot(input.workspaceId)
   }
 
@@ -1034,6 +1043,7 @@ export function createProjectKnowledgeService(
     copyAsset: (input) => copyKnowledgeAsset(dependencies, store, input),
     confirmPlan,
     saveOutline,
+    addOutlineItem,
     writeDocument,
     pauseWorkflow,
     getSnapshot,

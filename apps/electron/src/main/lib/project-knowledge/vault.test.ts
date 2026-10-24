@@ -89,6 +89,76 @@ describe('项目知识资料库文件流程', () => {
     await expect(fixture.vault.saveOutline({ ...base, items: [{ ...item, userEvidenceIds: ['invented'] }] })).rejects.toThrow('宿主登记')
   })
 
+  test('Given 历史来源版本过期 When 新增单项或重存未改动大纲 Then 无关历史依赖不阻断当前工作', async () => {
+    const fixture = createFixture()
+    await prepareOutline(fixture)
+    /** 一份可阅读原始来源。 */
+    const source: KnowledgeEntry = {
+      id: '1'.repeat(32), revision: '2'.repeat(64), title: '原始依据', category: 'source', kind: 'document',
+      state: 'indexed', freshness: 'current', summary: '来源',
+      source: { kind: 'project-file', id: 'source:readme', relativePath: 'README.md', revision: 'disk-v1' },
+      byteSize: 1, indexedBytes: 1, truncated: false, metadataOnly: false, updatedAt: 1,
+    }
+    await fixture.store.transact(fixture.project, 'workspace-1', () => ({ commits: [{ entry: source }] }))
+    let workflow = fixture.store.readManifest(fixture.project)!.workflow!
+    await fixture.vault.saveOutline({
+      workspaceId: 'workspace-1', planRevision: workflow.approved!.revision,
+      expectedRevision: workflow.outline!.revision,
+      items: [{
+        id: 'topic-a', groupId: 'group-a', title: '运行架构', relativePath: '架构/运行架构.md',
+        summary: '说明运行架构', sections: ['边界'], dependencyState: 'known',
+        sources: [{ entryId: source.id, revision: source.revision }],
+      }],
+    })
+    /** 模拟来源后来重新索引，历史大纲仍固定引用旧版本。 */
+    await fixture.store.transact(fixture.project, 'workspace-1', () => ({
+      commits: [{ entry: { ...source, revision: '3'.repeat(64), updatedAt: 2 } }],
+    }))
+    workflow = fixture.store.readManifest(fixture.project)!.workflow!
+    await fixture.vault.addOutlineItem({
+      workspaceId: 'workspace-1', planRevision: workflow.approved!.revision,
+      expectedRevision: workflow.outline!.revision,
+      item: {
+        id: 'topic-b', groupId: 'group-a', title: '停车坐标边界', relativePath: '架构/停车坐标边界.md',
+        summary: '记录停车坐标数据边界', sections: ['口径', '验证'], dependencyState: 'unknown',
+      },
+    })
+    workflow = fixture.store.readManifest(fixture.project)!.workflow!
+    expect(workflow.outline!.items.map((item) => item.id)).toEqual(['topic-a', 'topic-b'])
+    expect(workflow.outline!.items[0]!.sources).toEqual([{ entryId: source.id, revision: source.revision }])
+    /** 全量回写相同历史项时也沿用旧依赖，不再因来源更新拒绝。 */
+    await fixture.vault.saveOutline({
+      workspaceId: 'workspace-1', planRevision: workflow.approved!.revision,
+      expectedRevision: workflow.outline!.revision,
+      items: workflow.outline!.items.map(({ entryId: _entryId, status: _status, ...item }) => item),
+    })
+    expect(readFileSync(join(fixture.projectRoot, 'docs/knowledge/索引.md'), 'utf8')).toContain('停车坐标边界')
+  })
+
+  test('Given 既有长正文 When 以追加模式提交新片段 Then 宿主保留原文并只推进目标版本', async () => {
+    const fixture = createFixture()
+    await prepareOutline(fixture)
+    let workflow = fixture.store.readManifest(fixture.project)!.workflow!
+    await fixture.vault.writeDocument({
+      workspaceId: 'workspace-1', planRevision: workflow.approved!.revision,
+      outlineRevision: workflow.outline!.revision, itemId: 'topic-a', expectedRevision: null,
+      content: '# 运行架构\n\n原有关键约束。', summary: '运行架构', complete: true, evidence: [],
+    })
+    workflow = fixture.store.readManifest(fixture.project)!.workflow!
+    const entry = fixture.store.readEntries(fixture.project, fixture.store.readManifest(fixture.project)!)
+      .find((candidate) => candidate.id === workflow.outline!.items[0]!.entryId)!
+    await fixture.vault.writeDocument({
+      workspaceId: 'workspace-1', planRevision: workflow.approved!.revision,
+      outlineRevision: workflow.outline!.revision, itemId: 'topic-a', expectedRevision: entry.revision,
+      editMode: 'append', content: '## 停车坐标\n\n保存和读取统一使用 GCJ-02。',
+      summary: '运行架构与停车坐标', complete: true, evidence: [],
+    })
+    const content = readFileSync(join(fixture.projectRoot, 'docs/knowledge/架构/运行架构.md'), 'utf8')
+    expect(content).toContain('原有关键约束。')
+    expect(content).toContain('## 停车坐标')
+    expect(content).toContain('保存和读取统一使用 GCJ-02。')
+  })
+
   test('Given 历史用户证据仍保留 When 新评估没有当轮重验却引用它 Then 拒绝继承背书', async () => {
     const fixture = createFixture()
     await prepareOutline(fixture)

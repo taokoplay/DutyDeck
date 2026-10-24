@@ -54,6 +54,7 @@ describe('Agent 项目知识工具注册', () => {
     })
     knowledge.proposeKnowledgePlan = async () => knowledge.getWorkflowStatus!()
     knowledge.saveKnowledgeOutline = async () => knowledge.getWorkflowStatus!()
+    knowledge.addKnowledgeOutlineItem = async () => knowledge.getWorkflowStatus!()
     knowledge.writeKnowledgeDocument = async () => knowledge.getWorkflowStatus!()
     knowledge.copyKnowledgeAsset = async (input) => ({
       relativePath: input.relativePath, documentRelativePath: `../${input.relativePath}`,
@@ -65,12 +66,17 @@ describe('Agent 项目知识工具注册', () => {
 
     expect(names).toEqual([
       'proma_knowledge_search', 'proma_knowledge_read', 'proma_knowledge_status',
-      'proma_knowledge_plan', 'proma_knowledge_outline', 'proma_knowledge_document', 'proma_knowledge_asset',
+      'proma_knowledge_plan', 'proma_knowledge_outline', 'proma_knowledge_outline_add',
+      'proma_knowledge_document', 'proma_knowledge_asset',
     ])
     expect(names.some((name) => name.includes('confirm'))).toBe(false)
     const schemas = tools.slice(2).map((tool) => JSON.stringify(tool.parameters))
     expect(schemas.every((schema) => !schema.includes('workspaceId'))).toBe(true)
     expect(schemas.join('\n')).not.toContain('overview","planning","business')
+    const documentSchema = tools.find((tool) => tool.name === 'proma_knowledge_document')!.parameters as unknown as {
+      properties: Record<string, unknown>
+    }
+    expect(Object.keys(documentSchema.properties)).toContain('editMode')
   })
 })
 

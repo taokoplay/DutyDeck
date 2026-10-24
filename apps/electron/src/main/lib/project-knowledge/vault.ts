@@ -17,6 +17,7 @@ import type {
   KnowledgeOutline,
   KnowledgeOutlineInput,
   KnowledgeOutlineItem,
+  KnowledgeOutlineItemAddInput,
   KnowledgePlan,
   KnowledgePlanConfirmInput,
   KnowledgePlanProposalInput,
@@ -56,6 +57,7 @@ export interface KnowledgeVault {
   proposePlan(input: KnowledgePlanProposalInput, assertCurrent?: () => void): Promise<void>
   confirmPlan(input: KnowledgePlanConfirmInput): Promise<void>
   saveOutline(input: KnowledgeOutlineInput, assertCurrent?: () => void): Promise<void>
+  addOutlineItem(input: KnowledgeOutlineItemAddInput, assertCurrent?: () => void): Promise<void>
   writeDocument(input: KnowledgeDocumentWriteInput, assertCurrent?: () => void): Promise<void>
   pauseWorkflow(input: KnowledgeWorkflowPauseInput): Promise<void>
   refresh(workspaceId: string): Promise<void>
@@ -482,7 +484,7 @@ export function createKnowledgeVault(
     })
   }
 
-  /** 用户按精确计划身份和版本确认已有分组，可只修改标题。 */
+  /** 宿主按精确计划身份和版本确认已有分组，可只修改标题。 */
   async function confirmPlan(input: KnowledgePlanConfirmInput): Promise<void> {
     assertSafePayload(input, '知识库确认', 256 * 1024)
     const project = resolveProject(input.workspaceId)
@@ -542,11 +544,25 @@ export function createKnowledgeVault(
             throw new Error('大纲文档路径非法或重复')
           }
           paths.add(relativePath)
+          /**
+           * 未改动的历史项沿用已登记依赖。
+           * 来源文件后来变化时，新增其他文档不应因此被迫重读并重写所有旧依赖。
+           */
+          const existingItem = workflow.outline?.items.find((candidate) => candidate.id === item.id)
+          const sameSources = existingItem
+            && JSON.stringify(item.sources ?? existingItem.sources ?? []) === JSON.stringify(existingItem.sources ?? [])
+          const sameUserEvidence = existingItem
+            && JSON.stringify(item.userEvidenceIds ?? existingItem.userEvidenceIds ?? []) === JSON.stringify(existingItem.userEvidenceIds ?? [])
+          const sources = item.sources === undefined || sameSources ? existingItem?.sources : item.sources
+          const userEvidenceIds = item.userEvidenceIds === undefined || sameUserEvidence ? existingItem?.userEvidenceIds : item.userEvidenceIds
+          const dependencyState = item.dependencyState ?? existingItem?.dependencyState
           /** 按项依赖只接受已登记、当前且未排除的原始来源。 */
-          if (item.dependencyState !== undefined && !['known', 'unknown'].includes(item.dependencyState)) throw new Error('大纲依赖状态非法')
-          if (item.sources !== undefined && (!Array.isArray(item.sources) || item.sources.length > 8)) throw new Error('大纲来源依赖非法')
+          if (dependencyState !== undefined && !['known', 'unknown'].includes(dependencyState)) throw new Error('大纲依赖状态非法')
+          if (sources !== undefined && (!Array.isArray(sources) || sources.length > 8)) throw new Error('大纲来源依赖非法')
           const sourceIds = new Set<string>()
-          for (const source of item.sources ?? []) {
+          /** 与历史已存依赖完全相同的内容无需重新验证当前来源版本，只用于保持原文档关系。 */
+          const changedSources = item.sources !== undefined && !sameSources
+          for (const source of changedSources ? item.sources ?? [] : []) {
             const entry = current.entries.find((candidate) => candidate.id === source.entryId)
             if (!entry || entry.revision !== source.revision || entry.document) throw new Error('大纲来源依赖版本或身份非法')
             if (entry.state === 'archived' || entry.freshness === 'unavailable'
@@ -554,12 +570,22 @@ export function createKnowledgeVault(
             if (sourceIds.has(source.entryId)) throw new Error('大纲来源依赖重复')
             sourceIds.add(source.entryId)
           }
-          if (item.userEvidenceIds !== undefined && (!Array.isArray(item.userEvidenceIds) || item.userEvidenceIds.length > 8)) throw new Error('大纲用户证据依赖非法')
-          for (const identity of item.userEvidenceIds ?? []) {
+          if (userEvidenceIds !== undefined && (!Array.isArray(userEvidenceIds) || userEvidenceIds.length > 8)) throw new Error('大纲用户证据依赖非法')
+          const changedUserEvidence = item.userEvidenceIds !== undefined && !sameUserEvidence
+          for (const identity of changedUserEvidence ? userEvidenceIds ?? [] : []) {
             if (!workflow.execution?.userEvidence.some((evidence) => evidence.id === identity)) throw new Error('大纲用户证据未经宿主登记')
           }
-          if (item.dependencyState === 'known' && sourceIds.size === 0 && !item.userEvidenceIds?.length) throw new Error('已确定大纲依赖不能为空')
-          return { ...item, relativePath, status: 'pending' }
+          /** 新提供的已确定依赖仍不能为空；遗留依赖沿用历史语义，避免结构操作被旧版本卡死。 */
+          if (dependencyState === 'known'
+            && !sources?.length && !userEvidenceIds?.length) throw new Error('已确定大纲依赖不能为空')
+          return {
+            ...item,
+            relativePath,
+            ...(sources === undefined ? { sources: undefined } : { sources }),
+            ...(userEvidenceIds === undefined ? { userEvidenceIds: undefined } : { userEvidenceIds }),
+            ...(dependencyState === undefined ? { dependencyState: undefined } : { dependencyState }),
+            status: 'pending',
+          }
         })
         /** 已有正文允许在精确大纲版本上重组，但不能从大纲中静默删除。 */
         const movedDocuments: Array<{
@@ -674,6 +700,88 @@ export function createKnowledgeVault(
     }
   }
 
+  /**
+   * 在已确认分组内新增一篇待写文档。
+   * 单项操作只增加大纲 revision，不要求 Agent 回传其他已有条目，避免历史来源
+   * 版本或正文身份变化阻断与本次新增无关的工作。
+   */
+  async function addOutlineItem(input: KnowledgeOutlineItemAddInput, assertCurrent?: () => void): Promise<void> {
+    assertSafePayload(input, '知识库大纲项', 512 * 1024)
+    assertCurrent?.()
+    const project = resolveProject(input.workspaceId)
+    let journal: VaultJournal | null = null
+    try {
+      await store.transact(project, input.workspaceId, (current) => {
+        assertCurrent?.()
+        recoverPendingJournal(project, current.manifest.vaultCommitId)
+        const workflow = currentWorkflow(current)
+        if (workflow.paused) throw new Error('知识库流程已暂停')
+        const approved = workflow.approved
+        const outline = workflow.outline
+        if (!approved || approved.revision !== input.planRevision) throw new Error('已确认计划版本冲突')
+        if (!outline || outline.revision !== input.expectedRevision) throw new Error('知识库大纲版本冲突')
+        const group = approved.groups.find((candidate) => candidate.id === input.item.groupId)
+        if (!group) throw new Error('大纲包含未确认分组')
+        if (!input.item.id || outline.items.some((item) => item.id === input.item.id)) throw new Error('大纲主题身份重复')
+        const relativePath = normalizeRelativePath(input.item.relativePath, '大纲文档路径')
+        if (!relativePath.toLowerCase().endsWith('.md') || relativePath === '索引.md'
+          || outline.items.some((item) => item.relativePath === relativePath)) {
+          throw new Error('大纲文档路径非法或重复')
+        }
+        if (input.item.dependencyState !== undefined && !['known', 'unknown'].includes(input.item.dependencyState)) {
+          throw new Error('大纲依赖状态非法')
+        }
+        if (input.item.sources !== undefined && (!Array.isArray(input.item.sources) || input.item.sources.length > 8)) {
+          throw new Error('大纲来源依赖非法')
+        }
+        const sourceIds = new Set<string>()
+        for (const source of input.item.sources ?? []) {
+          const entry = current.entries.find((candidate) => candidate.id === source.entryId)
+          if (!entry || entry.revision !== source.revision || entry.document) throw new Error('大纲来源依赖版本或身份非法')
+          if (entry.state === 'archived' || entry.freshness === 'unavailable'
+            || (current.manifest.excludedSources ?? []).includes(entry.source.id)) throw new Error('大纲来源依赖已排除或不可用')
+          if (sourceIds.has(source.entryId)) throw new Error('大纲来源依赖重复')
+          sourceIds.add(source.entryId)
+        }
+        if (input.item.userEvidenceIds !== undefined
+          && (!Array.isArray(input.item.userEvidenceIds) || input.item.userEvidenceIds.length > 8)) {
+          throw new Error('大纲用户证据依赖非法')
+        }
+        for (const identity of input.item.userEvidenceIds ?? []) {
+          if (!workflow.execution?.userEvidence.some((evidence) => evidence.id === identity)) {
+            throw new Error('大纲用户证据未经宿主登记')
+          }
+        }
+        if (input.item.dependencyState === 'known'
+          && sourceIds.size === 0 && !input.item.userEvidenceIds?.length) {
+          throw new Error('已确定大纲依赖不能为空')
+        }
+        const nextOutline: KnowledgeOutline = {
+          ...outline,
+          revision: outline.revision + 1,
+          items: [...outline.items, { ...input.item, relativePath, status: 'pending' }],
+        }
+        assertVaultRootAvailable(project, approved.rootRelativePath)
+        ensureSafeDirectory(project, approved.rootRelativePath)
+        const indexPath = prepareSafeFile(project, approved.rootRelativePath, outline.relativePath)
+        assertPublishedOutline(project.projectId, approved, outline, indexPath)
+        const nextIndexContent = renderOutline(project.projectId, approved, nextOutline)
+        nextOutline.publishedContentRevision = sha256(nextIndexContent)
+        const writeJournal = beginJournal(project, [{ path: indexPath, next: [nextIndexContent] }])
+        journal = writeJournal
+        writeTextFileAtomic(indexPath, nextIndexContent)
+        return {
+          workflow: { ...workflow, outline: nextOutline },
+          vaultCommitId: writeJournal.transactionId,
+          onCommitted: () => completeJournal(project),
+          onAborted: () => { if (journal) rollbackJournal(project, journal) },
+        }
+      })
+    } catch (error) {
+      throw error
+    }
+  }
+
   /** 在大纲定位内发布正文，并同步索引与不可变历史版本。 */
   async function writeDocument(input: KnowledgeDocumentWriteInput, assertCurrent?: () => void): Promise<void> {
     assertSafePayload(input.content, '知识库正文')
@@ -713,7 +821,17 @@ export function createKnowledgeVault(
         } else if (existsSync(documentPath)) {
           throw new Error('目标文档已存在，拒绝接管')
         }
-        const diskContent = withDocumentIdentity(input.content, { topicKey: item.id, entryId })
+        /** 追加模式只让 Agent 提交新增片段，宿主在磁盘正文末尾组合，避免整篇重写旧内容。 */
+        let nextContent = input.content
+        if ((input.editMode ?? 'replace') === 'append') {
+          if (!existing?.document || !existsSync(documentPath)) throw new Error('追加正文要求目标文档已经存在')
+          /** 去掉内部身份注释后作为真实正文前缀。 */
+          const currentContent = stripDocumentIdentity(readSafeMarkdown(documentPath)).trimEnd()
+          nextContent = `${currentContent}\n\n${input.content.trim()}\n`
+        } else if (input.editMode !== undefined && input.editMode !== 'replace') {
+          throw new Error('知识正文编辑方式非法')
+        }
+        const diskContent = withDocumentIdentity(nextContent, { topicKey: item.id, entryId })
         /** 评估、历史正文和字节统计统一使用实际写盘的正文，避免末尾换行使哈希失效。 */
         const savedContent = stripDocumentIdentity(diskContent)
         const expectedStatus = input.complete ? 'ready' : 'partial'
@@ -1101,7 +1219,7 @@ export function createKnowledgeVault(
     return task
   }
 
-  return { proposePlan, confirmPlan, saveOutline, writeDocument, pauseWorkflow, refresh, previewIndex, rebuildIndex }
+  return { proposePlan, confirmPlan, saveOutline, addOutlineItem, writeDocument, pauseWorkflow, refresh, previewIndex, rebuildIndex }
 }
 
 /** 从当前磁盘读取权威资料库正文；来源失效不隐藏仍存在的本地正文。 */

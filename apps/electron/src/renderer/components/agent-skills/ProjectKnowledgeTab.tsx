@@ -54,7 +54,7 @@ interface KnowledgeWorkflowDispatch {
 
 /**
  * 根据扫描后的权威工作流选择规划或正文执行。
- * @param snapshot 已结束扫描的快照；新提案存在时仍须先规划确认。
+ * @param snapshot 已结束扫描的快照；新提案存在时先派发规划，再由界面自动接管。
  * @param dispatch 统一会话选择与宿主派发入口。
  * @param isCurrent 当前项目和操作代次检查。
  */
@@ -184,14 +184,14 @@ export function buildKnowledgeMaintenancePendingPrompt(
     mentionedSkills: ['knowledge-maintenance'],
     message: `请使用 knowledge-maintenance Skill 为当前项目规划知识库。
 
-先读取刚完成的来源索引，再按需读取相关原文，依据项目实际内容提出自由分组；不要套用固定业务分类或固定目录数量。请提交分组 proposal，说明每组的摘要、已读取来源、信息缺口、预计产出和拟使用的知识库根目录。提交 proposal 后停下来等待用户确认，不要保存大纲，也不要提前写知识正文。${scanNotice}`,
+先读取刚完成的来源索引，再按需读取相关原文，依据项目实际内容提出自由分组；不要套用固定业务分类或固定目录数量。请提交分组 proposal，说明每组的摘要、已读取来源、信息缺口、预计产出和拟使用的知识库根目录。提交 proposal 后结束本回合，系统会自动确认范围并转交你继续生成；不要等待用户逐组确认，不要保存大纲，也不要提前写知识正文。${scanNotice}`,
   }
 }
 
 /**
- * 构造用户确认后的知识文件生成任务。
+ * 构造宿主自动确认后的知识文件生成任务。
  * @param sessionId 承接首次规划任务的同项目普通 Agent 会话 ID。
- * @param planRevision 用户已经确认的计划版本。
+ * @param planRevision 宿主已经自动确认的计划版本。
  * @returns 自动发送到原会话的生成提示词。
  */
 export function buildKnowledgeGenerationPendingPrompt(
@@ -202,31 +202,9 @@ export function buildKnowledgeGenerationPendingPrompt(
     sessionId,
     autoSend: true,
     mentionedSkills: ['knowledge-maintenance'],
-    message: `请继续使用 knowledge-maintenance Skill 完成当前项目知识库。用户已确认 approved 计划版本 ${planRevision}。
+    message: `请继续使用 knowledge-maintenance Skill 完成当前项目知识库。系统已自动确认 approved 计划版本 ${planRevision}。
 
 先读取权威 workflow.approved；如果尚无 outline，按已确认分组保存 outline。随后按 outline 逐项读取必要来源并写入真实 Markdown 文件，保留可追溯证据和信息缺口。已确认范围内无需逐篇等待审批；遇到暂停、版本冲突或人工修改时立即停止覆盖并报告。完成后说明已生成、部分完成、缺少依据和仍待生成的文件。`,
-  }
-}
-
-/**
- * 构造用户对当前可见清单的自然语言调整任务。
- * @param sessionId 承接原规划任务的同项目普通 Agent 会话 ID。
- * @param planId 用户当前看到的计划身份。
- * @param planRevision 用户当前看到的计划版本。
- * @param instruction 用户要求修改的分组、顺序或目录说明。
- * @returns 只要求重新提案、不产生确认副作用的待处理提示词。
- */
-export function buildKnowledgePlanAdjustmentPendingPrompt(
-  sessionId: string,
-  planId: string,
-  planRevision: number,
-  instruction: string,
-): AgentPendingPrompt {
-  return {
-    sessionId,
-    autoSend: true,
-    mentionedSkills: ['knowledge-maintenance'],
-    message: `请继续使用 knowledge-maintenance Skill 调整当前项目知识库清单。用户正在查看计划 ${planId} 版本 ${planRevision}，调整要求如下：\n\n${instruction}\n\n请重新读取当前 workflow.proposal，在同一项目内修改分组、合并关系、顺序或根目录，并重新提交 proposal。不要确认计划，不要保存 outline，也不要写知识正文；提交新 proposal 后停下来等待用户确认。`,
   }
 }
 
@@ -1295,9 +1273,9 @@ export function ProjectKnowledgeTab({
     }
   }, [])
 
-  /** 确认用户实际选择的分组，并在成功后复用规划会话继续生成。 */
-  const handleConfirmKnowledgePlan = React.useCallback(async (groups: KnowledgePlanSelection[]): Promise<void> => {
-    if (!workspaceId || !snapshot?.workflow?.proposal) return
+  /** 自动确认 Agent 提出的全部分组，并在成功后复用规划会话继续生成。 */
+  const handleConfirmKnowledgePlan = React.useCallback(async (groups: KnowledgePlanSelection[]): Promise<boolean> => {
+    if (!workspaceId || !snapshot?.workflow?.proposal) return false
     const proposal = snapshot.workflow.proposal
     const generation = knowledgeActionGenerationRef.current + 1
     const nextSnapshot = await executeKnowledgeAction(
@@ -1310,7 +1288,7 @@ export function ProjectKnowledgeTab({
         groups,
       }),
     )
-    if (!nextSnapshot?.workflow?.approved || generation !== knowledgeActionGenerationRef.current) return
+    if (!nextSnapshot?.workflow?.approved || generation !== knowledgeActionGenerationRef.current) return false
     setKnowledgeActionPending('start-execution')
     try {
       const approvedRevision = nextSnapshot.workflow.approved.revision
@@ -1320,33 +1298,16 @@ export function ProjectKnowledgeTab({
         'continue',
         { planRevision: approvedRevision },
       )
+      return true
     } catch (nextError) {
       if (generation === knowledgeActionGenerationRef.current) {
         setKnowledgeActionError(knowledgeErrorMessage(nextError, '知识范围已确认，但提交生成任务失败'))
       }
+      return false
     } finally {
       if (generation === knowledgeActionGenerationRef.current) setKnowledgeActionPending(null)
     }
   }, [dispatchKnowledgeWorkflow, executeKnowledgeAction, snapshot?.workflow?.proposal, workspaceId])
-
-  /** 把用户调整要求交给同一项目 Agent，保持当前计划未确认。 */
-  const handleRequestKnowledgePlanAdjustment = React.useCallback(async (instruction: string): Promise<void> => {
-    const proposal = snapshot?.workflow?.proposal
-    if (!proposal || !instruction.trim()) return
-    const generation = ++knowledgeActionGenerationRef.current
-    setKnowledgeActionPending('adjust-plan')
-    setKnowledgeActionError(null)
-    try {
-      await dispatchKnowledgeWorkflow(
-        (targetSessionId) => buildKnowledgePlanAdjustmentPendingPrompt(targetSessionId, proposal.id, proposal.revision, instruction.trim()),
-        () => generation === knowledgeActionGenerationRef.current,
-      )
-    } catch (nextError) {
-      if (generation === knowledgeActionGenerationRef.current) setKnowledgeActionError(knowledgeErrorMessage(nextError, '提交清单调整失败'))
-    } finally {
-      if (generation === knowledgeActionGenerationRef.current) setKnowledgeActionPending(null)
-    }
-  }, [dispatchKnowledgeWorkflow, snapshot?.workflow?.proposal])
 
   /** 暂停或继续已确认工作流，以主进程返回状态为准。 */
   const handlePauseKnowledgeWorkflow = React.useCallback(async (paused: boolean): Promise<void> => {
@@ -1434,11 +1395,10 @@ export function ProjectKnowledgeTab({
       entries={workflowEntries}
       pendingAction={combinedKnowledgeAction}
       error={knowledgeActionError}
-      onConfirm={(groups) => { void handleConfirmKnowledgePlan(groups) }}
+      onConfirm={(groups) => handleConfirmKnowledgePlan(groups)}
       onRetryItem={(itemId) => { void handleRetryKnowledgeItem(itemId) }}
       onPause={(paused) => { void handlePauseKnowledgeWorkflow(paused) }}
       onSelectEntryId={(entryId, expectedRevision) => { void handleSelectEntryById(entryId, expectedRevision) }}
-      onRequestAdjustment={(instruction) => { void handleRequestKnowledgePlanAdjustment(instruction) }}
     />
   ) : undefined
 

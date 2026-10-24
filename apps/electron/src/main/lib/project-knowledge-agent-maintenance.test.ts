@@ -118,6 +118,28 @@ function candidate(entry: KnowledgeEntry, content = '项目采用本地优先。
 }
 
 describe('当前 Agent 受控维护项目知识', () => {
+  test('Given 另一会话额度耗尽 When 当前用户请求记录知识 Then 不把跨会话任务状态当成全局阻塞', async () => {
+    const f = await fixture(true, true)
+    /** 另一会话遗留的阻塞任务。 */
+    const execution = {
+      id: 'task-1', generation: 1, sessionId: 'other-session', planRevision: 1, itemIds: [],
+      status: 'blocked' as const, reason: 'budget_exhausted', dispatchId: 'dispatch-1',
+      turns: 3, calls: 30, bytes: 1, activeMs: 1, readPages: [], progress: 0,
+      turnStartProgress: 0, failures: {}, userEvidence: [], updatedAt: 1,
+    }
+    await f.service.store.transact(f.project, 'w1', (current) => ({
+      workflow: { ...(current.manifest.workflow ?? { paused: false }), execution },
+    }))
+    const crossSession = await f.maintenance.status!()
+    expect(crossSession.execution).toBeUndefined()
+    /** 当前会话自己的任务仍保留真实阻塞状态供恢复判断。 */
+    await f.service.store.transact(f.project, 'w1', (current) => ({
+      workflow: { ...current.manifest.workflow!, execution: { ...execution, sessionId: 's1' } },
+    }))
+    const ownSession = await f.maintenance.status!()
+    expect(ownSession.execution).toMatchObject({ status: 'blocked', reason: 'budget_exhausted' })
+  })
+
   test('Given 新流程已启用且只有扫描元数据 When Agent提交自由分组清单 Then 无需伪装已读正文', async () => {
     const f = await fixture(true, true)
     const entry = sourceEntry('0'.repeat(32), '0'.repeat(64))

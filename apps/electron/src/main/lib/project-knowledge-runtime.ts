@@ -351,6 +351,7 @@ export function getProjectKnowledgeService(): ProjectKnowledgeRuntime {
           return service.getSnapshot(workspaceId)
         },
         saveOutline: (outline) => service.saveOutline(outline, assertMutable),
+        addOutlineItem: (item) => service.addOutlineItem(item, assertMutable),
         writeDocument: async (document) => {
           if (input.execution) {
             const task = service.store.readManifest(resolveProject(workspaceId))?.workflow?.execution
@@ -358,7 +359,8 @@ export function getProjectKnowledgeService(): ProjectKnowledgeRuntime {
           }
           /** 忽略运行短引用，以持久正文/证据版本识别同一失败输入。 */
           const signature = createHash('sha256').update(JSON.stringify({ itemId: document.itemId,
-            expectedRevision: document.expectedRevision, content: document.content, evidence: document.evidence,
+            expectedRevision: document.expectedRevision, editMode: document.editMode,
+            content: document.content, evidence: document.evidence,
             userEvidence: document.userEvidence, admission: document.admission })).digest('hex')
           input.execution?.assertDocumentAttempt(signature)
           try { return await service.writeDocument(document, assertMutable) }

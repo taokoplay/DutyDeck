@@ -84,7 +84,7 @@ export function buildProjectKnowledgeTools(sdk: PiSdk, knowledge: ProjectKnowled
     tools.push(
       sdk.defineTool({
         name: 'proma_knowledge_status', label: '查看知识库流程状态',
-        description: 'Read the latest proposal awaiting user confirmation, the approved plan, pause state, and outline item IDs/revisions. This tool never confirms a proposal.',
+        description: 'Read the latest proposal awaiting automatic handoff, the approved plan, pause state, and outline item IDs/revisions. This tool never confirms a proposal.',
         parameters: Type.Object({
           offset: Type.Optional(Type.Integer({ minimum: 0, description: 'Next offset returned by a previous status page.' })),
           itemId: Type.Optional(Type.String({ minLength: 1, maxLength: 96, description: 'Fetch one outline item detail page including full source references, sections and gaps.' })),
@@ -95,7 +95,7 @@ export function buildProjectKnowledgeTools(sdk: PiSdk, knowledge: ProjectKnowled
       }) as ToolDefinition,
       sdk.defineTool({
         name: 'proma_knowledge_plan', label: '提出知识库分组清单',
-        description: 'Propose free-form knowledge groups from scanned source metadata. The proposal waits for user confirmation and does not approve itself or publish documents.',
+        description: 'Propose free-form knowledge groups from scanned source metadata. The host automatically confirms the complete proposal and hands it back for generation; the agent must not approve itself, wait for per-group confirmation, or publish documents in this step.',
         parameters: Type.Object({
           title: Type.String({ minLength: 1, maxLength: 160 }),
           rootRelativePath: Type.String({ minLength: 1, maxLength: 240 }),
@@ -114,7 +114,7 @@ export function buildProjectKnowledgeTools(sdk: PiSdk, knowledge: ProjectKnowled
       }) as ToolDefinition,
       sdk.defineTool({
         name: 'proma_knowledge_outline', label: '保存已批准范围的大纲',
-        description: 'Create or revise the readable document outline for the currently approved plan. Prefer flowRef from status, or the exact approved plan revision and outline revision; never mix them.',
+        description: 'Create or revise the readable document outline for the currently approved plan. Prefer flowRef from status, or the exact approved plan revision and outline revision; never mix them. For adding one document inside the approved scope, use proma_knowledge_outline_add instead of resubmitting the whole outline.',
         parameters: Type.Object({
           flowRef: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
           planRevision: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -137,15 +137,43 @@ export function buildProjectKnowledgeTools(sdk: PiSdk, knowledge: ProjectKnowled
           return result(await knowledge.saveKnowledgeOutline!(input))
         },
       }) as ToolDefinition,
+      ...(knowledge.addKnowledgeOutlineItem ? [sdk.defineTool({
+        name: 'proma_knowledge_outline_add', label: '新增知识库大纲项',
+        description: 'Add one pending document inside an already approved group without resubmitting the rest of the outline. Prefer flowRef from status. Existing item identities, content and source dependencies stay untouched. Use this for a new topic discovered in the current user task.',
+        parameters: Type.Object({
+          flowRef: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+          planRevision: Type.Optional(Type.Integer({ minimum: 1 })),
+          expectedRevision: Type.Optional(Type.Integer({ minimum: 0 })),
+          item: Type.Object({
+            id: Type.String({ minLength: 1, maxLength: 96 }),
+            groupId: Type.String({ minLength: 1, maxLength: 96 }),
+            title: Type.String({ minLength: 1, maxLength: 160 }),
+            relativePath: Type.String({ minLength: 1, maxLength: 240 }),
+            summary: Type.String({ minLength: 1, maxLength: 2000 }),
+            sources: Type.Optional(Type.Array(planSource, { maxItems: 256 })),
+            dependencyState: Type.Optional(Type.Union([Type.Literal('known'), Type.Literal('unknown')])),
+            userEvidenceIds: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 32 })),
+            scope: Type.Optional(Type.String({ maxLength: 2000 })),
+            gaps: Type.Optional(Type.Array(Type.String({ maxLength: 1000 }), { maxItems: 64 })),
+            sections: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), { maxItems: 64 }),
+          }, { additionalProperties: false }),
+        }, { additionalProperties: false }),
+        async execute(_toolCallId: string, input: Parameters<NonNullable<ProjectKnowledgeAgent['addKnowledgeOutlineItem']>>[0]) {
+          return result(await knowledge.addKnowledgeOutlineItem!(input))
+        },
+      }) as ToolDefinition] : []),
       sdk.defineTool({
         name: 'proma_knowledge_document', label: '发布知识库大纲项正文',
-        description: 'Write one approved outline item. Prefer targetRef from status and pageRef/quote evidence from pages read in this run. Supply admission to assess reuse value, business completeness and evidence; saved does not mean eligible. User quotes must be current or host-issued task userEvidenceId. The host revalidates versions, permissions and quotes before the transaction.',
+        description: 'Write one approved outline item. Prefer targetRef from status and pageRef/quote evidence from pages read in this run. Use editMode append for an incremental section so the host preserves the existing document; use replace only when submitting the complete current body. Supply admission to assess reuse value, business completeness and evidence; saved does not mean eligible. User quotes must be current or host-issued task userEvidenceId. The host revalidates versions, permissions and quotes before the transaction.',
         parameters: Type.Object({
           targetRef: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
           planRevision: Type.Optional(Type.Integer({ minimum: 1 })),
           outlineRevision: Type.Optional(Type.Integer({ minimum: 1 })),
           itemId: Type.Optional(Type.String({ minLength: 1, maxLength: 96 })),
           expectedRevision: Type.Optional(Type.Union([Type.String({ minLength: 1, maxLength: 128 }), Type.Null()])),
+          editMode: Type.Optional(Type.Union([Type.Literal('replace'), Type.Literal('append')], {
+            description: 'Defaults to replace. append treats content as a new tail fragment and preserves the existing Markdown body.',
+          })),
           content: Type.String({ minLength: 1, maxLength: 256 * 1024 }),
           summary: Type.String({ minLength: 1, maxLength: 2000 }),
           complete: Type.Boolean(),

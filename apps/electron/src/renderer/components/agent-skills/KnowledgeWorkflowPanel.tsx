@@ -1,12 +1,11 @@
 import * as React from 'react'
-import { Check, FileText, Folder, Loader2, Pause, Play, Send } from 'lucide-react'
+import { Check, FileText, Folder, Loader2, Pause, Play } from 'lucide-react'
 import type { KnowledgeEntry, KnowledgePlan, KnowledgePlanSource, KnowledgeWorkflow } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
-/** 用户确认后提交的最小分组身份和名称。 */
+/** 自动接管时提交的最小分组身份和名称。 */
 export interface KnowledgePlanSelection {
   id: string
   title: string
@@ -18,67 +17,69 @@ export interface KnowledgeWorkflowPanelProps {
   entries: KnowledgeEntry[]
   pendingAction: string | null
   error: string | null
-  onConfirm: (groups: KnowledgePlanSelection[]) => void
+  /** 返回 false 表示自动接管失败，需要打开进度面板提供重试入口。 */
+  onConfirm: (groups: KnowledgePlanSelection[]) => Promise<boolean> | boolean | void
   onPause: (paused: boolean) => void
   /** 仅重新处理用户选中的大纲项。 */
   onRetryItem?: (itemId: string) => void
   onSelectEntryId: (entryId: string, expectedRevision?: string) => void
-  onRequestAdjustment: (instruction: string) => void
 }
 
-/** 当前提案的编辑草稿，由弹窗外的所有者保存，关闭弹窗不会丢失未提交修改。 */
-interface KnowledgePlanDraft {
-  selectedIds: Set<string>
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
-  titles: Record<string, string>
-  setTitles: React.Dispatch<React.SetStateAction<Record<string, string>>>
-  adjustment: string
-  setAdjustment: React.Dispatch<React.SetStateAction<string>>
+/**
+ * 把 Agent 已经提出的范围原样交给自动执行流程。
+ * @param proposal 当前待确认的权威范围提案。
+ * @returns 包含全部分组身份和名称的确认载荷。
+ */
+export function buildAutomaticKnowledgePlanSelection(proposal: KnowledgePlan): KnowledgePlanSelection[] {
+  return proposal.groups.flatMap((group) => {
+    const title = group.title.trim()
+    return title ? [{ id: group.id, title }] : []
+  })
 }
 
-/** 以提案身份和版本作为重置边界；普通工作流刷新和弹窗开关不重置草稿。 */
-function useKnowledgePlanDraft(proposal: KnowledgePlan | undefined): KnowledgePlanDraft {
-  /** 当前 proposal 的默认选择是全部分组，用户可部分取消。 */
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(() => new Set(proposal?.groups.map((group) => group.id) ?? []))
-  /** 分组名称保持本地草稿，确认成功前不修改权威计划。 */
-  const [titles, setTitles] = React.useState<Record<string, string>>(() => Object.fromEntries(proposal?.groups.map((group) => [group.id, group.title]) ?? []))
-  /** 调整说明只在当前 proposal 版本内有效，重新提案后清空。 */
-  const [adjustment, setAdjustment] = React.useState('')
-
-  React.useEffect(() => {
-    setSelectedIds(new Set(proposal?.groups.map((group) => group.id) ?? []))
-    setTitles(Object.fromEntries(proposal?.groups.map((group) => [group.id, group.title]) ?? []))
-    setAdjustment('')
-  }, [proposal?.id, proposal?.revision])
-
-  return { selectedIds, setSelectedIds, titles, setTitles, adjustment, setAdjustment }
-}
-
-/** 整理流程放入独立弹窗，主页面只保留入口，不占据文件树与正文的阅读空间。 */
+/** 整理流程放入独立弹窗；新提案会直接接管，不再要求用户逐组勾选和改名。 */
 export function KnowledgeWorkflowDialog(props: KnowledgeWorkflowPanelProps): React.ReactElement | null {
-  /** 所有者持续挂载，Radix 卸载弹窗正文时保留草稿。 */
-  const draft = useKnowledgePlanDraft(props.workflow.proposal)
-  /** 每份新提案自动提示一次；关闭仅收起弹窗，不确认或暂停生成。 */
+  /** 用户主动查看进度时打开，自动接管不会抢先弹出复杂表单。 */
   const [open, setOpen] = React.useState(false)
+  /** 同一提案版本只自动尝试一次，避免轮询快照重复触发确认。 */
+  const attemptedProposalRef = React.useRef(new Set<string>())
+  /** 异步接管结果只在组件仍挂载时更新弹窗。 */
+  const mountedRef = React.useRef(true)
   React.useEffect(() => {
-    if (props.workflow.proposal) setOpen(true)
-  }, [props.workflow.proposal?.id, props.workflow.proposal?.revision])
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  React.useEffect(() => {
+    const proposal = props.workflow.proposal
+    if (!proposal || proposal.groups.length === 0 || props.pendingAction !== null) return
+    const proposalKey = `${proposal.id}:${proposal.revision}`
+    if (attemptedProposalRef.current.has(proposalKey)) return
+    attemptedProposalRef.current.add(proposalKey)
+    /** 自动确认后同一调用链会提交生成任务；失败时打开可审计的简化进度面板。 */
+    void Promise.resolve(props.onConfirm(buildAutomaticKnowledgePlanSelection(proposal)))
+      .then((succeeded) => {
+        if (mountedRef.current && succeeded === false) setOpen(true)
+      })
+      .catch(() => {
+        if (mountedRef.current) setOpen(true)
+      })
+  }, [props.onConfirm, props.pendingAction, props.workflow.proposal?.id, props.workflow.proposal?.revision])
 
   if (!props.workflow.proposal && !props.workflow.approved) return null
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" size="sm" variant="outline">
-          {props.workflow.proposal ? '确认分组' : props.workflow.paused ? '整理已暂停' : '整理进度'}
+          {props.workflow.proposal ? 'Agent 接管中' : props.workflow.paused ? '整理已暂停' : '整理进度'}
         </Button>
       </DialogTrigger>
       <DialogContent className="flex max-h-[85dvh] w-[calc(100%-2rem)] max-w-2xl flex-col overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-5 pr-12">
-          <DialogTitle>{props.workflow.proposal ? '确认知识库范围' : '知识库整理进度'}</DialogTitle>
-          <DialogDescription>确认整理范围、查看生成进度；已保存的文档可随时回到目录阅读。</DialogDescription>
+          <DialogTitle>知识库整理</DialogTitle>
+          <DialogDescription>Agent 会自动确认整理范围并继续生成；这里只展示进度，需要时再查看明细。</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 overflow-y-auto scrollbar-thin">
-          <KnowledgeWorkflowPanelView {...props} draft={draft} onSelectEntryId={(entryId, revision) => {
+          <KnowledgeWorkflowPanelView {...props} onSelectEntryId={(entryId, revision) => {
             props.onSelectEntryId(entryId, revision)
             setOpen(false)
           }} />
@@ -99,38 +100,18 @@ function describePlanSource(source: KnowledgePlanSource, entries: KnowledgeEntry
   return { label, status: '未核对' }
 }
 
-/** 根据用户勾选与编辑结果构造确认载荷，不增加 proposal 中不存在的分组。 */
-export function buildKnowledgePlanSelection(
-  proposal: KnowledgePlan,
-  selectedIds: ReadonlySet<string>,
-  titles: Readonly<Record<string, string>>,
-): KnowledgePlanSelection[] {
-  return proposal.groups.flatMap((group) => {
-    if (!selectedIds.has(group.id)) return []
-    const title = (titles[group.id] ?? group.title).trim()
-    return title ? [{ id: group.id, title }] : []
-  })
-}
-
 /** 返回大纲路径的父文件夹；根目录文件归入“根目录”。 */
 function outlineFolder(relativePath: string): string {
   const segments = relativePath.split('/').filter(Boolean)
   return segments.length > 1 ? segments.slice(0, -1).join('/') : '根目录'
 }
 
-/** 独立面板也使用相同草稿生命周期；弹窗版本由外层所有者保存草稿。 */
+/** 独立面板保留只读摘要和进度，便于嵌入其他宿主。 */
 export function KnowledgeWorkflowPanel(props: KnowledgeWorkflowPanelProps): React.ReactElement {
-  /** 独立嵌入时由面板本身持有编辑草稿。 */
-  const draft = useKnowledgePlanDraft(props.workflow.proposal)
-  return <KnowledgeWorkflowPanelView {...props} draft={draft} />
+  return <KnowledgeWorkflowPanelView {...props} />
 }
 
-/** 受控视图只渲染草稿，不因弹窗正文重新挂载而初始化编辑内容。 */
-interface KnowledgeWorkflowPanelViewProps extends KnowledgeWorkflowPanelProps {
-  draft: KnowledgePlanDraft
-}
-
-/** 展示待确认分组、已确认大纲和暂停状态，不为未生成文件制造链接。 */
+/** 展示自动接管摘要、已确认大纲和暂停状态，不为未生成文件制造链接。 */
 function KnowledgeWorkflowPanelView({
   workflow,
   entries,
@@ -140,12 +121,8 @@ function KnowledgeWorkflowPanelView({
   onPause,
   onRetryItem,
   onSelectEntryId,
-  onRequestAdjustment,
-  draft,
-}: KnowledgeWorkflowPanelViewProps): React.ReactElement {
+}: KnowledgeWorkflowPanelProps): React.ReactElement {
   const proposal = workflow.proposal
-  /** 使用所有者提供的草稿与更新入口，不在可卸载正文中另建编辑状态。 */
-  const { selectedIds, setSelectedIds, titles, setTitles, adjustment, setAdjustment } = draft
 
   /** 按文件夹聚合大纲，保持 Agent 规划的自由目录结构。 */
   const outlineGroups = React.useMemo(() => {
@@ -156,7 +133,7 @@ function KnowledgeWorkflowPanelView({
     }
     return [...groups.entries()]
   }, [workflow.outline])
-  const selectedGroups = proposal ? buildKnowledgePlanSelection(proposal, selectedIds, titles) : []
+  const automaticGroups = proposal ? buildAutomaticKnowledgePlanSelection(proposal) : []
   const busy = pendingAction !== null
   /** 只有宿主确认排队或运行时才允许显示暂停动作。 */
   const running = workflow.execution?.status === 'running' || workflow.execution?.status === 'queued'
@@ -196,53 +173,42 @@ function KnowledgeWorkflowPanelView({
       unassessed: statuses.filter((status) => status !== 'eligible' && status !== 'needs_evidence').length,
     }
   }, [workflow.outline, entries])
+  /** 自动接管前只展示聚合规模，避免把每个来源都变成用户需要处理的控件。 */
+  const proposalSummary = React.useMemo(() => ({
+    sourceCount: proposal?.groups.reduce((total, group) => total + group.sources.length, 0) ?? 0,
+    gapCount: proposal?.groups.reduce((total, group) => total + group.gaps.length, 0) ?? 0,
+    outputCount: proposal?.groups.reduce((total, group) => total + group.outputs.length, 0) ?? 0,
+  }), [proposal])
 
   return (
     <section className="space-y-3 border-b border-border bg-muted/10 px-3 py-3" aria-label="知识库生成流程">
       {proposal && (
         <div className="space-y-3 rounded-md border border-border bg-background p-3">
           <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs leading-5">
-            <p className="font-medium text-foreground">这是一份待确认的整理计划，还不是最终知识库内容</p>
+            <p className="font-medium text-foreground">Agent 已规划好整理范围，正在自动继续</p>
             <p className="mt-1 text-muted-foreground">
-              Agent 先根据项目资料提出分组。请勾选要保留的分组，也可以改名；点击“确认所选范围”后，才会继续生成大纲和 Markdown 正文。
+              范围确认和后续大纲、正文生成由同一个 Agent 连续完成，不需要逐组设置。原始来源、缺口和产出仍保留在下方明细中。
             </p>
-            <p className="mt-1 text-muted-foreground">
-              “已读相关页”表示已读取该来源的相关内容；“未核对”表示只登记了来源，尚未读取正文；“缺口”表示当前依据不足，后续仍需补充。
-            </p>
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-sm font-medium text-foreground">确认知识库范围</h3>
-            <p className="text-xs text-muted-foreground">{proposal.title} · 拟使用目录 {proposal.rootRelativePath}</p>
           </div>
           <div className="space-y-2">
-            {proposal.groups.map((group) => {
-              const checked = selectedIds.has(group.id)
-              return (
-                <div key={group.id} className="space-y-2 rounded-md border border-border/70 p-2.5">
-                  <div className="flex items-start gap-2">
-                    <input
-                      type="checkbox"
-                      className="mt-2 size-3.5 accent-primary"
-                      checked={checked}
-                      aria-label={`选择分组 ${group.title}`}
-                      disabled={busy}
-                      onChange={(event) => {
-                        setSelectedIds((current) => {
-                          const next = new Set(current)
-                          if (event.target.checked) next.add(group.id)
-                          else next.delete(group.id)
-                          return next
-                        })
-                      }}
-                    />
-                    <Input
-                      value={titles[group.id] ?? group.title}
-                      aria-label={`分组名称 ${group.title}`}
-                      disabled={busy || !checked}
-                      onChange={(event) => setTitles((current) => ({ ...current, [group.id]: event.target.value }))}
-                    />
+            <h3 className="text-sm font-medium text-foreground">本次整理范围</h3>
+            <p className="text-xs text-muted-foreground">{proposal.title} · 拟使用目录 {proposal.rootRelativePath}</p>
+            <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+              <Badge variant="secondary">{proposal.groups.length} 个分组</Badge>
+              <Badge variant="outline">{proposalSummary.sourceCount} 份来源</Badge>
+              <Badge variant="outline">{proposalSummary.gapCount} 个信息缺口</Badge>
+              <Badge variant="outline">{proposalSummary.outputCount} 份预计产出</Badge>
+            </div>
+          </div>
+          <details className="rounded-md border border-border/70">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-foreground">查看 Agent 选定的范围明细</summary>
+            <div className="space-y-2 border-t border-border/70 p-2.5">
+              {proposal.groups.map((group) => (
+                <div key={group.id} className="space-y-2 rounded-md bg-muted/20 p-2.5">
+                  <div>
+                    <p className="text-xs font-medium text-foreground">{group.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{group.summary}</p>
                   </div>
-                  <p className="text-xs leading-5 text-muted-foreground">{group.summary}</p>
                   {group.sources.length > 0 && (
                     <div className="space-y-1" aria-label={`${group.title} 来源`}>
                       {group.sources.map((source) => {
@@ -257,22 +223,15 @@ function KnowledgeWorkflowPanelView({
                     {group.outputs.map((output, index) => <Badge key={`${index}:${output}`} variant="outline">产出：{output}</Badge>)}
                   </div>
                 </div>
-              )
-            })}
-          </div>
-          <div className="space-y-2">
-            <label className="block text-xs font-medium text-foreground" htmlFor="knowledge-plan-adjustment">调整清单</label>
-            <textarea id="knowledge-plan-adjustment" value={adjustment} disabled={busy} rows={3} maxLength={2000} placeholder="例如：合并两个分组、调整顺序或修改知识库根目录" onChange={(event) => setAdjustment(event.target.value)} className="flex w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50" />
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={busy || !adjustment.trim()} onClick={() => onRequestAdjustment(adjustment.trim())}>
-                {pendingAction === 'adjust-plan' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
-                提交调整
-              </Button>
-              <Button type="button" size="sm" disabled={busy || selectedGroups.length === 0} onClick={() => onConfirm(selectedGroups)}>
-                {pendingAction === 'confirm-plan' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
-                确认所选范围
-              </Button>
+              ))}
             </div>
+          </details>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">{busy ? '正在把范围交给 Agent 继续处理…' : '自动接管失败时，可在这里重新提交。'}</p>
+            <Button type="button" size="sm" disabled={busy || automaticGroups.length === 0} onClick={() => { void onConfirm(automaticGroups) }}>
+              {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+              让 Agent 直接整理
+            </Button>
           </div>
         </div>
       )}
