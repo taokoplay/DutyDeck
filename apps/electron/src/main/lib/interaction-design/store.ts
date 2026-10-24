@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, opendirSync, readdirSync } from 'node:fs'
 import { basename, join, posix } from 'node:path'
-import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypePage, PrototypePageComparison, PrototypePageVersionSummary, PrototypeSnapshot, PrototypeSummary, PrototypeVersion } from '@dutydeck/shared'
+import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypePage, PrototypePageComparison, PrototypePageVersionSummary, PrototypeReferenceProjection, PrototypeSnapshot, PrototypeSummary, PrototypeVersion } from '@dutydeck/shared'
 import { assertPrototypeDraft, createPrototypeBlankPage, inferPrototypeJobMode, isProjectRestoreInstruction, parsePrototypeDraft, parsePrototypePlan, parseInteractionDesignCommand, PROTOTYPE_LIMITS, validateProjectRestoreDraft, validatePrototypeStructure } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, removeFileAtomic, writeJsonFileAtomicSecure } from '../safe-file'
@@ -235,7 +235,28 @@ export class InteractionDesignService {
       if (!namedGroups.has(group.name)) { namedGroups.add(group.name); return group }
       return { ...group, name: `${sourceName} · ${group.name}` }
     })
-    const merged = { ...canonical, groups: [...canonical.groups, ...normalizedGroups], pages: [...canonical.pages, ...pages], flows: [...canonical.flows, ...flows] }
+    /** 历史模块的参考图也按新页面身份重写，资产相同则合并页面用途。 */
+    const references = structuredClone(canonical.references ?? [])
+    const usedReferences = new Set(references.map(reference => reference.id))
+    for (const reference of source.references ?? []) {
+      const usages = reference.usages.flatMap(usage => {
+        const pageId = pageIds.get(usage.pageId)
+        if (!pageId) return []
+        const flowId = usage.flowId ? flows.find(flow => flow.id === usage.flowId)?.id : undefined
+        return [{ pageId, ...(usage.stateId ? { stateId: usage.stateId } : {}), ...(flowId ? { flowId } : {}) }]
+      })
+      if (!usages.length) continue
+      const sameAsset = references.find(item => item.assetId === reference.assetId)
+      if (sameAsset) {
+        const existingUsages = new Set(sameAsset.usages.map(usage => JSON.stringify([usage.pageId, usage.stateId ?? '', usage.flowId ?? ''])))
+        sameAsset.usages.push(...usages.filter(usage => !existingUsages.has(JSON.stringify([usage.pageId, usage.stateId ?? '', usage.flowId ?? '']))))
+        continue
+      }
+      const id = usedReferences.has(reference.id) ? randomUUID() : reference.id
+      usedReferences.add(id)
+      references.push({ ...reference, id, usages })
+    }
+    const merged = { ...canonical, groups: [...canonical.groups, ...normalizedGroups], pages: [...canonical.pages, ...pages], flows: [...canonical.flows, ...flows], ...(references.length ? { references } : {}) }
     if (!merged.brief.trim() && source.brief.trim()) merged.brief = source.brief
     return merged
   }
@@ -326,7 +347,12 @@ export class InteractionDesignService {
         groupId = group.parentId
       }
         const pageContent = { id: page.id, groupId: page.groupId, name: page.name, html: page.html, ...(page.defaultStateName === undefined ? {} : { defaultStateName: page.defaultStateName }), ...(page.states === undefined ? {} : { states: page.states }), ...(page.source === undefined ? {} : { source: page.source }), ...(page.route === undefined ? {} : { route: page.route }), ...(page.role === undefined ? {} : { role: page.role }), ...(page.presentation === undefined ? {} : { presentation: page.presentation }) }
-        return [page.id, JSON.stringify([pageContent, groups, value.pages.filter(item => item.groupId === page.groupId).findIndex(item => item.id === page.id), value.flows.filter(flow => flow.fromPageId === page.id), value.entryPageId === page.id, ...(value.environment === undefined ? [] : [value.environment])])]
+        /** 页面直接关联的参考图也属于页面可见设计事实。 */
+        const pageReferences = (value.references ?? []).flatMap(reference => {
+          const usages = reference.usages.filter(usage => usage.pageId === page.id)
+          return usages.length ? [{ ...reference, usages }] : []
+        })
+        return [page.id, JSON.stringify([pageContent, groups, value.pages.filter(item => item.groupId === page.groupId).findIndex(item => item.id === page.id), value.flows.filter(flow => flow.fromPageId === page.id), pageReferences, value.entryPageId === page.id, ...(value.environment === undefined ? [] : [value.environment])])]
     }))
     /** 两份稿的页面签名，只遍历有限页面集。 */
     const before = signatures(baseline)
@@ -617,6 +643,9 @@ export class InteractionDesignService {
     if (issues.length) throw new Error(issues[0])
     /** 当前项目已知资产身份。 */
     const known = new Set(this.assets.list().map(asset => asset.id))
+    for (const reference of draft.references ?? []) {
+      if (!known.has(reference.assetId)) throw new Error(`参考图“${reference.title}”引用了不存在的项目素材`)
+    }
     for (const page of draft.pages) {
       for (const html of [page.html, ...(page.states?.map(state => state.html) ?? [])]) {
         for (const match of html.matchAll(/prototype-asset:([A-Za-z0-9_-]+)/g)) {
@@ -684,6 +713,28 @@ export class InteractionDesignService {
         })
       }
       case 'load': return this.snapshot((input as InteractionDesignInputs['load']).prototypeId)
+      case 'readReferences': {
+        /** 读取固定版本，避免当前 head 变化让 Agent 使用另一版参考图。 */
+        const request = input as InteractionDesignInputs['readReferences']
+        const document = this.version(request.prototypeId, request.revision)
+        if (request.pageId && !document.pages.some(page => page.id === request.pageId)) throw new Error('参考图过滤页面不存在')
+        const assets = new Map(this.assets.list().map(asset => [asset.id, asset]))
+        return (document.references ?? [])
+          .filter(reference => request.pageId === undefined || reference.usages.some(usage => usage.pageId === request.pageId))
+          .map(reference => {
+            const asset = assets.get(reference.assetId)
+            if (!asset) throw new Error(`参考图“${reference.title}”对应的项目素材不存在`)
+            return {
+              referenceId: reference.id,
+              assetId: reference.assetId,
+              title: reference.title,
+              role: reference.role,
+              ...(reference.source === undefined ? {} : { source: reference.source }),
+              usages: reference.usages,
+              asset,
+            } satisfies PrototypeReferenceProjection
+          })
+      }
       case 'save': {
         /** 已解析的保存参数。 */
         const request = input as InteractionDesignInputs['save']
@@ -906,6 +957,15 @@ export class InteractionDesignService {
         /** 在安全来源读取之后复制到独立资产库。 */
         const bytes = await this.sources.bytes(request.relativePath, MAX_INTERACTION_IMAGE_BYTES)
         return this.write(() => { this.head(request.prototypeId); return this.assets.import(bytes, basename(request.relativePath)) })
+      }
+      case 'importAssetData': {
+        /** 用户拖入的受限图片字节；renderer 不获得任意文件路径读取能力。 */
+        const request = input as InteractionDesignInputs['importAssetData']
+        this.head(request.prototypeId)
+        /** 规范 Base64 解码；解析器已限制长度和字符集。 */
+        const bytes = Buffer.from(request.dataBase64, 'base64')
+        if (!bytes.length || bytes.toString('base64') !== request.dataBase64) throw new Error('图片数据无效')
+        return this.write(() => { this.head(request.prototypeId); return this.assets.import(bytes, request.name) })
       }
       case 'importMediaAsset': {
         /** 可信媒体引用，不能接受 renderer 绝对路径。 */

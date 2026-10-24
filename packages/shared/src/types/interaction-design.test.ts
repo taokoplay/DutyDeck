@@ -102,6 +102,67 @@ describe('业务页面与附加状态合同', () => {
   })
 })
 
+describe('参考图合同', () => {
+  test('Given 页面和流程参考图 When 解析 Then 保留用途、来源与稳定关联', () => {
+    const value = {
+      ...draft(),
+      references: [
+        {
+          id: 'reference-1',
+          assetId: 'asset-detail',
+          title: '活动详情结构',
+          role: 'structure',
+          source: 'Figma',
+          usages: [
+            { pageId: 'detail' },
+            { pageId: 'home', flowId: 'next-link' },
+          ],
+        },
+      ],
+    }
+    const parsed = JSON.parse(JSON.stringify(parsePrototypeDraft(value))) as {
+      references?: Array<{ assetId: string; role: string; usages: Array<{ pageId: string; flowId?: string }> }>
+    }
+    expect(parsed.references?.[0]).toMatchObject({ assetId: 'asset-detail', role: 'structure' })
+    expect(parsed.references?.[0]?.usages[1]).toMatchObject({ pageId: 'home', flowId: 'next-link' })
+  })
+
+  test('Given 参考图关联不存在页面、状态或流程 When 解析 Then 拒绝混合版本', () => {
+    const value = draft()
+    value.pages[0]!.states = [{ id: 'empty', name: '无数据', html: '<p>暂无</p>' }]
+    const reference = { id: 'reference-1', assetId: 'asset-1', title: '结构', role: 'structure', usages: [{ pageId: 'home' }] }
+    expect(() => parsePrototypeDraft({ ...value, references: [{ ...reference, usages: [{ pageId: 'missing' }] }] })).toThrow('参考图')
+    expect(() => parsePrototypeDraft({ ...value, references: [{ ...reference, usages: [{ pageId: 'home', stateId: 'missing' }] }] })).toThrow('参考图')
+    expect(() => parsePrototypeDraft({ ...value, references: [{ ...reference, usages: [{ pageId: 'home', flowId: 'missing' }] }] })).toThrow('参考图')
+  })
+
+  test('Given 重复参考图身份或资产 When 解析 Then 拒绝模糊图库', () => {
+    const reference = { id: 'reference-1', assetId: 'asset-1', title: '结构', role: 'structure', usages: [{ pageId: 'home' }] }
+    expect(() => parsePrototypeDraft({ ...draft(), references: [reference, reference] })).toThrow('参考图')
+    expect(() => parsePrototypeDraft({ ...draft(), references: [reference, { ...reference, id: 'reference-2' }] })).toThrow('参考图')
+  })
+
+  test('Given 旧稿没有参考图 When 解析 Then 不新增字段改变历史内容', () => {
+    expect(parsePrototypeDraft(draft())).not.toHaveProperty('references')
+  })
+  test('Given 固定版本参考图读取 When 解析命令 Then 只保留版本和可选页面边界', () => {
+    expect(parseInteractionDesignCommand({
+      method: 'readReferences',
+      input: { sessionId: 'session-1', prototypeId: 'proto-1', revision: 3, pageId: 'home', ignored: true },
+    }).input).toEqual({ sessionId: 'session-1', prototypeId: 'proto-1', revision: 3, pageId: 'home' })
+    expect(() => parseInteractionDesignCommand({
+      method: 'readReferences',
+      input: { sessionId: 'session-1', prototypeId: 'proto-1' },
+    })).toThrow()
+  })
+  test('Given 用户拖入图片 When 解析命令 Then 只接受规范 Base64 和安全文件名', () => {
+    const input = { sessionId: 'session-1', prototypeId: 'proto-1', name: 'reference.png', dataBase64: 'iVBORw0KGgo=' }
+    expect(parseInteractionDesignCommand({ method: 'importAssetData', input }).input).toEqual(input)
+    expect(() => parseInteractionDesignCommand({ method: 'importAssetData', input: { ...input, name: '../reference.png' } })).toThrow()
+    expect(() => parseInteractionDesignCommand({ method: 'importAssetData', input: { ...input, dataBase64: 'not base64' } })).toThrow()
+  })
+})
+
 describe('项目还原任务合同', () => {
   test('Given 页面规划 When 开始项目还原任务 Then 保留分组状态和源码证据', () => {
     const plan = {

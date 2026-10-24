@@ -600,6 +600,54 @@ describe('交互设计版本与候选', () => {
 })
 
 describe('图片与授权来源', () => {
+  it('Given 页面参考图 When 读取固定版本 Then 返回用途与资产哈希且历史不被新版本覆盖', async () => {
+    /** 隔离项目与一张可登记图片。 */
+    const { root, service } = setup()
+    /** 1×1 PNG 只用于验证资产身份与读取链路。 */
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6n8AAAAASUVORK5CYII=', 'base64')
+    writeFileSync(join(root, 'reference.png'), png)
+    const first = await service.invoke('create', { sessionId, name: '参考图原型', platform: 'mobile' })
+    const asset = await service.invoke('importAsset', { sessionId, prototypeId: first.document.id, relativePath: 'reference.png' })
+    const pageId = first.document.pages[0]!.id
+    const reference = { id: 'reference-1', assetId: asset.id, title: '首页结构', role: 'structure' as const, source: 'Figma', usages: [{ pageId }] }
+    const second = await service.invoke('save', {
+      sessionId,
+      prototypeId: first.document.id,
+      baseRevision: 1,
+      draft: { ...first.document, references: [reference] },
+      summary: '添加参考图',
+    })
+    const third = await service.invoke('save', {
+      sessionId,
+      prototypeId: second.document.id,
+      baseRevision: 2,
+      draft: { ...second.document, references: [{ ...reference, title: '首页视觉参考', role: 'visual' }] },
+      summary: '更新参考图用途',
+    })
+    const revisionTwo = await service.invoke('readReferences', { sessionId, prototypeId: third.document.id, revision: 2, pageId })
+    expect(revisionTwo).toHaveLength(1)
+    expect(revisionTwo[0]).toMatchObject({ referenceId: 'reference-1', assetId: asset.id, role: 'structure', usages: [{ pageId }] })
+    expect(revisionTwo[0]?.asset.hash).toBe(asset.hash)
+    expect(revisionTwo[0]).not.toHaveProperty('dataUrl')
+    const revisionThree = await service.invoke('readReferences', { sessionId, prototypeId: third.document.id, revision: 3 })
+    expect(revisionThree[0]).toMatchObject({ title: '首页视觉参考', role: 'visual' })
+  })
+
+  it('Given 参考图指向不存在资产 When 保存 Then 拒绝失效资源引用', async () => {
+    const { service } = setup()
+    const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
+    await expect(service.invoke('save', {
+      sessionId,
+      prototypeId: first.document.id,
+      baseRevision: 1,
+      draft: {
+        ...first.document,
+        references: [{ id: 'reference-1', assetId: 'missing-asset', title: '结构', role: 'structure', usages: [{ pageId: first.document.pages[0]!.id }] }],
+      },
+      summary: '错误参考图',
+    })).rejects.toThrow('素材')
+  })
+
   it('Given 同一图片重复导入 When 源文件删除 Then 模块图片与历史仍可读取', async () => {
     /** 隔离图片。 */
     const { root, service } = setup()
@@ -613,6 +661,17 @@ describe('图片与授权来源', () => {
     rmSync(join(root, 'image.png'))
     expect((await service.invoke('assetContent', { sessionId, prototypeId: first.document.id, assetId: a.id })).dataUrl).toContain(png.toString('base64'))
     expect(readFileSync(join(root, '.proma', 'interaction-design', 'assets', 'blobs', 'sha256', a.hash.slice(0, 2), `${a.hash}.png`))).toEqual(png)
+  })
+  it('Given 用户拖入图片字节 When 导入 Then 复制到资产库并复用相同内容身份', async () => {
+    const { service } = setup()
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6n8AAAAASUVORK5CYII=', 'base64')
+    const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
+    const input = { sessionId, prototypeId: first.document.id, name: 'dragged.png', dataBase64: png.toString('base64') }
+    const a = await service.invoke('importAssetData', input)
+    const b = await service.invoke('importAssetData', input)
+    expect(a.id).toBe(b.id)
+    expect(a).toMatchObject({ name: 'dragged.png', mime: 'image/png', byteSize: png.length })
+    expect((await service.invoke('assetContent', { sessionId, prototypeId: first.document.id, assetId: a.id })).dataUrl).toContain(png.toString('base64'))
   })
   it('Given 项目秘密和越界路径 When 读取来源 Then 拒绝且不返回正文', async () => {
     /** 隔离来源服务。 */

@@ -72,7 +72,10 @@ export function createInteractionHandoff(document: PrototypeDocument, assets: In
     }
   }
   /** 只收集当前版本页面实际引用的素材，避免交接包带出无关资源。 */
-  const referencedAssetIds = new Set(document.pages.flatMap(page => [page.html, ...(page.states ?? []).map(state => state.html)].flatMap(html => [...html.matchAll(/prototype-asset:([A-Za-z0-9_-]+)/g)].map(match => match[1]!))))
+  const referencedAssetIds = new Set([
+    ...document.pages.flatMap(page => [page.html, ...(page.states ?? []).map(state => state.html)].flatMap(html => [...html.matchAll(/prototype-asset:([A-Za-z0-9_-]+)/g)].map(match => match[1]!))),
+    ...(document.references ?? []).map(reference => reference.assetId),
+  ])
   const knownAssets = assets.list()
   const referencedAssets = knownAssets.filter(asset => referencedAssetIds.has(asset.id))
   if (referencedAssets.length !== referencedAssetIds.size) throw new Error('原型引用了不存在的项目素材，无法生成开发交接包')
@@ -117,6 +120,7 @@ export function createInteractionHandoff(document: PrototypeDocument, assets: In
     pages,
     entryPageId: document.entryPageId,
     flows: document.flows,
+    ...(document.references === undefined ? {} : { references: document.references }),
     assets: referencedAssets,
     designTokens,
     visualContract,

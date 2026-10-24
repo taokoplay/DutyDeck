@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { constants, closeSync, existsSync, fstatSync, fsyncSync, lstatSync, openSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { PROTOTYPE_LIMITS } from '@dutydeck/shared'
 import type { PrototypeAsset } from '@dutydeck/shared'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import { assertInteractionId, interactionDirectory, readInteractionFile } from './paths'
 import { interactionHash } from './source-service'
 
 /** 图片最大字节数。 */
-export const MAX_INTERACTION_IMAGE_BYTES = 20 * 1024 * 1024
+export const MAX_INTERACTION_IMAGE_BYTES = PROTOTYPE_LIMITS.assetBytes
 /** 按魔数识别允许的被动图片格式，SVG 不准入。 */
 export function interactionImageMime(bytes: Buffer): string {
   if (bytes.length < 12) throw new Error('图片内容无效')

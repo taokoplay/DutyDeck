@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>交互设计 · 层级画布</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23191919'/%3E%3Cpath d='m9 8 8 15 2-6 6-2z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css?v=13">
+</head>
+<body>
+  <main class="module-shell" aria-label="交互设计模块">
+    <header class="module-header">
+      <div class="module-identity">
+        <span class="module-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m5 3 13 9-6 1.5L9 20z"/></svg>
+        </span>
+        <div class="module-title">
+          <div class="title-line">
+            <strong>交互设计</strong>
+            <span class="version-badge">v12</span>
+          </div>
+          <p>CyberParty · 活动报名 App <span class="saved-state"><i></i>已保存</span></p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button button-outline button-sm" id="directoryToggle" aria-controls="directory" aria-expanded="true">
+          <svg viewBox="0 0 24 24"><path d="M4 5h6v5H4zM14 5h6v5h-6zM4 14h6v5H4zM14 14h6v5h-6z"/></svg>
+          <span>页面</span>
+        </button>
+        <button class="button button-ghost button-sm" id="historyButton">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+          <span>版本</span>
+        </button>
+        <button class="button button-default button-sm" id="agentButton">
+          <svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg>
+          引用到主会话
+        </button>
+        <button class="icon-button" id="headerMoreButton" aria-label="更多原型操作" aria-haspopup="menu" data-tooltip="更多">
+          <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="module-tabs" role="tablist" aria-label="交互设计视图">
+      <button role="tab" id="previewTab" aria-controls="previewPanel" aria-selected="true" tabindex="0" data-view="preview">原型预览</button>
+      <button role="tab" id="canvasTab" aria-controls="canvasPanel" aria-selected="false" tabindex="-1" data-view="canvas">画布</button>
+      <button role="tab" id="referencesTab" aria-controls="referencesPanel" aria-selected="false" tabindex="-1" data-view="references">参考图 <span id="tabReferenceCount">6</span></button>
+    </nav>
+
+    <div class="workspace" id="workspace">
+      <button class="directory-backdrop" id="directoryBackdrop" aria-label="关闭页面列表" hidden></button>
+      <aside class="directory" id="directory" aria-label="项目页面">
+        <div class="directory-header">
+          <strong>页面 <span id="directoryPageCount">10</span></strong>
+          <div class="directory-actions">
+            <button class="icon-button icon-button-sm" id="newPageButton" aria-label="新建页面" data-tooltip="新建页面">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="icon-button icon-button-sm" id="newGroupButton" aria-label="新建分组" data-tooltip="新建分组">
+              <svg viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
+            </button>
+            <button class="icon-button icon-button-sm" id="closeDirectoryButton" aria-label="收起页面" data-tooltip="收起">
+              <svg viewBox="0 0 24 24"><path d="M14 6 8 12l6 6M19 5v14"/></svg>
+            </button>
+          </div>
+        </div>
+        <label class="search-field">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="pageSearch" type="search" placeholder="搜索页面" aria-label="搜索页面" autocomplete="off">
+          <kbd>⌘ K</kbd>
+        </label>
+        <div class="page-tree" id="pageTree" role="tree" aria-label="页面与分组">
+          <section class="tree-group" data-group="discover">
+            <button class="group-toggle" aria-expanded="true">
+              <svg class="chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              <span class="group-index">01</span>
+              <strong>发现与探索</strong>
+              <em>3</em>
+            </button>
+            <div class="group-pages" role="group">
+              <div class="page-row" role="treeitem" data-page-row="home">
+                <button class="page-select" data-page="home"><span class="page-glyph"></span><span class="page-copy"><strong>首页</strong><small>入口页</small></span><span class="badge">2 状态</span></button>
+                <button class="row-menu-button" data-page-menu="home" aria-label="首页页面操作" aria-haspopup="menu">•••</button>
+              </div>
+              <div class="page-row" role="treeitem" data-page-row="discover">
+                <button class="page-select" data-page="discover"><span class="page-glyph"></span><span class="page-copy"><strong>发现活动</strong><small>/discover</small></span></button>
+                <button class="row-menu-button" data-page-menu="discover" aria-label="发现活动页面操作" aria-haspopup="menu">•••</button>
+              </div>
+              <div class="page-row" role="treeitem" data-page-row="search">
+                <button class="page-select" data-page="search"><span class="page-glyph"></span><span class="page-copy"><strong>活动搜索</strong><small>/search</small></span></button>
+                <button class="row-menu-button" data-page-menu="search" aria-label="活动搜索页面操作" aria-haspopup="menu">•••</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="tree-group" data-group="decision">
+            <button class="group-toggle" aria-expanded="true">
+              <svg class="chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              <span class="group-index">02</span>
+              <strong>浏览与决策</strong>
+              <em>4</em>
+            </button>
+            <div class="group-pages" role="group">
+              <div class="page-row is-selected" role="treeitem" data-page-row="detail">
+                <button class="page-select" data-page="detail"><span class="page-glyph"></span><span class="page-copy"><strong>活动详情</strong><small>/events/:id</small></span><span class="badge">3 状态</span></button>
+                <button class="row-menu-button" data-page-menu="detail" aria-label="活动详情页面操作" aria-haspopup="menu">•••</button>
+              </div>
+              <div class="page-row" role="treeitem" data-page-row="speakers">
+                <button class="page-select" data-page="speakers"><span class="page-glyph"></span><span class="page-copy"><strong>嘉宾阵容</strong><small>详情子页</small></span></button>
+                <button class="row-menu-button" data-page-menu="speakers" aria-label="嘉宾阵容页面操作" aria-haspopup="menu">•••</button>
+              </div>
+              <div class="page-row" role="treeitem" data-page-row="ticket">
+                <button class="page-select" data-page="ticket"><span class="page-glyph"></span><span class="page-copy"><strong>选择票种</strong><small>/tickets</small></span></button>
+                <button class="row-menu-button" data-page-menu="ticket" aria-label="选择票种页面操作" aria-haspopup="menu">•••</button>
+              </div>
+              <div class="page-row" role="treeitem" data-page-row="signin">
+                <button class="page-select" data-page="signin"><span class="page-glyph"></span><span class="page-copy"><strong>登录确认</strong><small>无入站连接</small></span><span class="badge badge-danger">孤立</span></button>
+                <button class="row-menu-button" data-page-menu="signin" aria-label="登录确认页面操作" aria-haspopup="menu">•••</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="tree-group" data-group="complete">
+            <button class="group-toggle" aria-expanded="true">
+              <svg class="chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              <span class="group-index">03</span>
+              <strong>报名与完成</strong>
+              <em>3</em>
+            </button>
+            <div class="group-pages" role="group">
+              <div class="page-row" role="treeitem" data-page-row="confirm">
+                <button class="page-select" data-page="confirm"><span class="page-glyph"></span><span class="page-copy"><strong>订单确认</strong><small>/checkout</small></span></button>
+                <button class="row-menu-button" data-page-menu="confirm" aria-label="订单确认页面操作" aria-haspopup="menu">•••</button>
+              </div>
+              <div class="page-row" role="treeitem" data-page-row="success">
+                <button class="page-select" data-page="success"><span class="page-glyph"></span><span class="page-copy"><strong>报名成功</strong><small>3 状态</small></span><span class="badge">3 状态</span></button>
+                <button class="row-menu-button" data-page-menu="success" aria-label="报名成功页面操作" aria-haspopup="menu">•••</button>
+              </div>
+              <div class="page-row" role="treeitem" data-page-row="pass">
+                <button class="page-select" data-page="pass"><span class="page-glyph"></span><span class="page-copy"><strong>我的票夹</strong><small>/passes</small></span></button>
+                <button class="row-menu-button" data-page-menu="pass" aria-label="我的票夹页面操作" aria-haspopup="menu">•••</button>
+              </div>
+            </div>
+          </section>
+          <div class="tree-empty" id="pageSearchEmpty" hidden>
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <strong>没有匹配页面</strong>
+            <button class="button button-ghost button-sm" id="clearPageSearch">清除搜索</button>
+          </div>
+        </div>
+        <div class="directory-footer">
+          <span>拖拽页面可调整分组与顺序</span>
+          <button class="text-button" id="newRootGroup">+ 分组</button>
+        </div>
+      </aside>
+
+      <section class="main-column">
+        <section class="view-panel canvas-panel" id="canvasPanel" role="tabpanel" aria-labelledby="canvasTab" hidden>
+          <div class="canvas-toolbar">
+            <div class="segmented" role="group" aria-label="页面筛选">
+              <button class="segment is-active" data-canvas-filter="all">全部</button>
+              <button class="segment" data-canvas-filter="primary">主流程</button>
+              <button class="segment" data-canvas-filter="issues">待处理 <span>1</span></button>
+            </div>
+            <div class="toolbar-spacer"></div>
+            <button class="button button-ghost button-sm" id="autoLayoutButton">
+              <svg viewBox="0 0 24 24"><path d="M4 5h6v6H4zM14 13h6v6h-6zM10 8h2a2 2 0 0 1 2 2v3"/></svg>
+              自动排版
+            </button>
+            <span class="toolbar-separator"></span>
+            <button class="icon-button icon-button-sm" id="zoomOutButton" aria-label="缩小画布" data-tooltip="缩小">
+              <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
+            </button>
+            <button class="zoom-value" id="zoomResetButton" aria-label="恢复画布缩放">74%</button>
+            <button class="icon-button icon-button-sm" id="zoomInButton" aria-label="放大画布" data-tooltip="放大">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="icon-button icon-button-sm" id="fitCanvasButton" aria-label="适应全部节点" data-tooltip="适应画布">
+              <svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+            </button>
+          </div>
+
+          <div class="canvas-legend">
+            <span><i class="legend-line"></i>页面跳转</span>
+            <span><i class="legend-state"></i>同页状态</span>
+            <span><i class="legend-reference"></i>参考图关联</span>
+            <span class="legend-device" id="canvasDeviceBadge">iPhone 15 Pro · 393 × 852</span>
+            <span class="legend-total" id="canvasTotal">10 个页面 · 11 条交互</span>
+          </div>
+
+          <div class="canvas-surface" id="canvasSurface">
+            <div class="canvas-grid" aria-hidden="true"></div>
+            <div class="canvas-world" id="canvasWorld">
+              <svg class="flow-layer" id="flowLayer" aria-hidden="true">
+                <defs>
+                  <marker id="arrow-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z"/></marker>
+                  <marker id="arrow-primary" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z"/></marker>
+                </defs>
+                <g id="flowPaths"></g>
+              </svg>
+              <div class="flow-labels" id="flowLabels" aria-hidden="true"></div>
+
+              <article class="page-node node-home" data-node="home" data-group="discover" data-primary="true" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-home" role="img" aria-label="首页页面预览"></div>
+                <div class="node-top"><span class="node-index">01</span><strong>首页</strong><span class="node-entry">入口</span><button class="node-more" data-page-menu="home" aria-label="首页更多操作">•••</button></div>
+                <p>今日推荐与活动入口</p>
+                <div class="node-footer"><span class="state-indicator"><i></i><i></i></span><span>2 状态</span><span class="node-spacer"></span><span>3 跳转</span></div>
+              </article>
+
+              <article class="page-node node-discover" data-node="discover" data-group="discover" data-primary="true" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-discover" role="img" aria-label="发现活动页面预览"></div>
+                <div class="node-top"><span class="node-index">02</span><strong>发现活动</strong><button class="node-more" data-page-menu="discover" aria-label="发现活动更多操作">•••</button></div>
+                <p>活动卡片与专题入口</p>
+                <div class="node-footer"><span>默认状态</span><span class="node-spacer"></span><span>2 跳转</span></div>
+              </article>
+
+              <article class="page-node node-search" data-node="search" data-group="discover" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-search" role="img" aria-label="活动搜索页面预览"></div>
+                <div class="node-top"><span class="node-index">03</span><strong>活动搜索</strong><button class="node-more" data-page-menu="search" aria-label="活动搜索更多操作">•••</button></div>
+                <p>关键词、时间与类型筛选</p>
+                <div class="node-footer"><span>独立子流程</span><span class="node-spacer"></span><span>1 跳转</span></div>
+              </article>
+
+              <article class="page-node node-detail is-selected" data-node="detail" data-group="decision" data-primary="true" tabindex="0" aria-pressed="true">
+                <div class="node-thumbnail page-thumb-detail" role="img" aria-label="活动详情页面预览"></div>
+                <div class="node-top"><span class="node-index">04</span><strong>活动详情</strong><span class="issue-dot" title="有待整理状态"></span><button class="node-more" data-page-menu="detail" aria-label="活动详情更多操作">•••</button></div>
+                <p>主流程决策页面</p>
+                <div class="node-footer"><span class="state-indicator three"><i></i><i></i><i></i></span><span>3 状态</span><span class="node-spacer"></span><span>4 跳转</span></div>
+              </article>
+
+              <article class="page-node node-speakers" data-node="speakers" data-group="decision" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-speakers" role="img" aria-label="嘉宾阵容页面预览"></div>
+                <div class="node-top"><span class="node-index">05</span><strong>嘉宾阵容</strong><button class="node-more" data-page-menu="speakers" aria-label="嘉宾阵容更多操作">•••</button></div>
+                <p>详情页内子视图</p>
+                <div class="node-footer"><span>返回详情</span><span class="node-spacer"></span><span>1 跳转</span></div>
+              </article>
+
+              <article class="page-node node-ticket" data-node="ticket" data-group="decision" data-primary="true" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-ticket" role="img" aria-label="选择票种页面预览"></div>
+                <div class="node-top"><span class="node-index">06</span><strong>选择票种</strong><button class="node-more" data-page-menu="ticket" aria-label="选择票种更多操作">•••</button></div>
+                <p>库存、价格与实名信息</p>
+                <div class="node-footer"><span>默认状态</span><span class="node-spacer"></span><span>2 跳转</span></div>
+              </article>
+
+              <article class="page-node node-signin is-issue" data-node="signin" data-group="decision" data-issue="true" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-signin" role="img" aria-label="登录确认弹层页面预览"></div>
+                <div class="node-top"><span class="node-index">07</span><strong>登录确认</strong><span class="badge badge-danger">孤立</span><button class="node-more" data-page-menu="signin" aria-label="登录确认更多操作">•••</button></div>
+                <p>页面级弹层状态</p>
+                <div class="node-footer"><span>没有可达入口</span><span class="node-spacer"></span><span>0 跳转</span></div>
+              </article>
+
+              <article class="page-node node-confirm" data-node="confirm" data-group="complete" data-primary="true" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-confirm" role="img" aria-label="订单确认页面预览"></div>
+                <div class="node-top"><span class="node-index">08</span><strong>订单确认</strong><button class="node-more" data-page-menu="confirm" aria-label="订单确认更多操作">•••</button></div>
+                <p>实名信息与支付</p>
+                <div class="node-footer"><span>默认状态</span><span class="node-spacer"></span><span>2 跳转</span></div>
+              </article>
+
+              <article class="page-node node-success" data-node="success" data-group="complete" data-primary="true" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-success" role="img" aria-label="报名成功页面预览"></div>
+                <div class="node-top"><span class="node-index">09</span><strong>报名成功</strong><button class="node-more" data-page-menu="success" aria-label="报名成功更多操作">•••</button></div>
+                <p>完成、审核与失败反馈</p>
+                <div class="node-footer"><span class="state-indicator three"><i></i><i></i><i></i></span><span>3 状态</span><span class="node-spacer"></span><span>2 跳转</span></div>
+              </article>
+
+              <article class="page-node node-pass" data-node="pass" data-group="complete" data-primary="true" tabindex="0" aria-pressed="false">
+                <div class="node-thumbnail page-thumb-pass" role="img" aria-label="我的票夹页面预览"></div>
+                <div class="node-top"><span class="node-index">10</span><strong>我的票夹</strong><button class="node-more" data-page-menu="pass" aria-label="我的票夹更多操作">•••</button></div>
+                <p>入场凭证与活动回顾</p>
+                <div class="node-footer"><span>默认状态</span><span class="node-spacer"></span><span>1 跳转</span></div>
+              </article>
+
+              <button class="reference-pin" data-reference-pin="ref-structure" aria-label="活动详情关联 2 张参考图">
+                <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="m4 15 5-5 4 4 3-3 4 4"/></svg>
+                <span>2</span>
+              </button>
+            </div>
+            <div class="canvas-empty" id="canvasEmpty" hidden>
+              <svg viewBox="0 0 24 24"><path d="M3 5h18v14H3zM3 9h18M9 9v10"/></svg>
+              <strong>当前筛选没有页面</strong>
+              <p>清除筛选后可继续查看完整报名流程。</p>
+              <button class="button button-outline button-sm" id="resetCanvasFilter">显示全部页面</button>
+            </div>
+          </div>
+
+          <div class="canvas-selection" id="canvasSelection" aria-live="polite">
+            <span class="selection-thumbnail" aria-hidden="true"><i></i><i></i><i></i></span>
+            <div class="selection-copy"><strong id="canvasSelectionTitle">活动详情</strong><span id="canvasSelectionMeta">浏览与决策 · 3 个状态 · 4 条跳转 · 2 张参考图</span></div>
+            <button class="button button-outline button-sm" id="openSelectedPreview">打开预览</button>
+            <button class="button button-ghost button-sm" id="referenceSelectedPage">关联参考图</button>
+          </div>
+        </section>
+
+        <section class="view-panel preview-panel" id="previewPanel" role="tabpanel" aria-labelledby="previewTab">
+          <div class="preview-toolbar">
+            <div class="segmented" role="group" aria-label="预览模式">
+              <button class="segment is-active" data-preview-mode="play"><svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></svg>体验</button>
+              <button class="segment" data-preview-mode="select"><svg viewBox="0 0 24 24"><path d="m5 3 13 9-6 1.5L9 20z"/></svg>选择修改</button>
+            </div>
+            <label class="field-label field-label-inline"><span>设备</span><select id="previewDevice" class="select-control"><option value="iphone-15-pro">iPhone 15 Pro</option><option value="pixel-8">Pixel 8</option><option value="desktop">桌面浏览器</option></select></label>
+            <div class="toolbar-spacer"></div>
+            <button class="icon-button icon-button-sm" id="resetPreviewButton" aria-label="重新体验" data-tooltip="重新体验"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+            <button class="icon-button icon-button-sm" id="focusPreviewButton" aria-label="专注预览" aria-pressed="false" data-tooltip="专注预览"><svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg></button>
+          </div>
+          <div class="preview-stage">
+            <div class="phone-shell">
+              <div class="phone-island"></div>
+              <div class="phone-screen">
+                <div class="status-bar"><span>9:41</span><span>● ◒ ▰</span></div>
+                <div class="sample-nav"><button aria-label="返回">‹</button><span id="samplePageTitle">活动详情</span><button aria-label="分享">↗</button></div>
+                <div class="sample-poster"><div class="poster-rings"></div><strong>NEON<br>NIGHTS</strong><small>10.26 · SHANGHAI</small></div>
+                <div class="sample-content">
+                  <span class="sample-tag">音乐 · 夜间派对</span>
+                  <h2>霓虹夜航 · 电子音乐派对</h2>
+                  <p>在城市的夜色里，和 300 位同频的人一起进入声音构筑的未来空间。</p>
+                  <dl><div><dt>时间</dt><dd>10 月 26 日 · 20:00</dd></div><div><dt>地点</dt><dd>MAO Livehouse</dd></div></dl>
+                </div>
+                <button class="sample-cta" id="sampleCta">选择票种 · ¥168 起</button>
+              </div>
+            </div>
+            <aside class="preview-context">
+              <span class="section-kicker">当前页面</span>
+              <h2 id="previewPageTitle">活动详情</h2>
+              <div class="path-list">
+                <div><span>分组</span><strong id="previewGroup">浏览与决策</strong></div>
+                <div><span>页面</span><strong>活动详情</strong></div>
+                <div><span>状态</span><strong id="previewState">默认状态</strong></div>
+              </div>
+              <div class="context-section">
+                <strong>关联参考图</strong>
+                <div class="mini-reference-row" id="previewReferenceRow"></div>
+              </div>
+              <div class="context-note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><p>已满员时是否允许进入候补流程，需要在业务规则中确认。</p></div>
+            </aside>
+          </div>
+          <div class="preview-footer"><span>独立沙箱 · 不访问真实业务接口</span><span id="previewDeviceInfo">iPhone 15 Pro · 393 × 852</span></div>
+        </section>
+
+        <section class="view-panel references-panel" id="referencesPanel" role="tabpanel" aria-labelledby="referencesTab" hidden>
+          <div class="reference-toolbar">
+            <label class="search-field reference-search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              <input id="referenceSearch" type="search" placeholder="搜索参考图" aria-label="搜索参考图" autocomplete="off">
+            </label>
+            <select class="select-control reference-type-select" id="referenceType">
+              <option value="all">全部类型</option>
+              <option value="structure">结构参考</option>
+              <option value="visual">视觉参考</option>
+              <option value="copy">文案参考</option>
+            </select>
+            <span class="reference-summary" id="referenceSummary">6 张参考图 · 5 张已关联</span>
+            <button class="button button-default button-sm" id="addReferenceButton">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              添加参考图
+            </button>
+          </div>
+          <div class="reference-body">
+            <div class="reference-grid" id="referenceGrid"></div>
+            <div class="reference-empty" id="referenceEmpty" hidden>
+              <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="m4 15 5-5 4 4 3-3 4 4"/></svg>
+              <strong>没有匹配的参考图</strong>
+              <p>更换关键词或参考类型后再试。</p>
+              <button class="button button-outline button-sm" id="clearReferenceFilters">清除筛选</button>
+            </div>
+            <label class="drop-zone" id="referenceDropZone">
+              <input id="referenceUpload" type="file" accept="image/*" multiple hidden>
+              <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 15v4h16v-4"/></svg>
+              <strong>拖入参考图，或点击上传</strong>
+              <span>PNG / JPG / WebP，仅用于当前原型</span>
+            </label>
+          </div>
+        </section>
+      </section>
+
+      <aside class="inspector" id="inspector" aria-label="选中项详情">
+        <div id="inspectorBody"></div>
+      </aside>
+    </div>
+  </main>
+
+  <div class="menu" id="actionMenu" role="menu" hidden></div>
+
+  <dialog class="dialog" id="referenceDialog" aria-labelledby="referenceDialogTitle">
+    <div class="dialog-header">
+      <div><span class="section-kicker">参考图</span><h2 id="referenceDialogTitle">关联参考图</h2></div>
+      <button class="icon-button icon-button-sm" id="closeReferenceDialog" aria-label="关闭">×</button>
+    </div>
+    <p class="dialog-description">选择要关联到「<strong id="dialogPageName">活动详情</strong>」的参考图。关联不会自动修改页面或流程。</p>
+    <div class="dialog-reference-grid" id="dialogReferenceGrid"></div>
+    <div class="dialog-footer">
+      <button class="button button-ghost button-sm" id="cancelReferenceDialog">取消</button>
+      <button class="button button-default button-sm" id="confirmReferenceDialog">确认关联</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog reference-viewer-dialog" id="referenceViewerDialog" aria-labelledby="referenceViewerTitle">
+    <div class="dialog-header">
+      <div><span class="section-kicker">参考图预览</span><h2 id="referenceViewerTitle">参考图</h2></div>
+      <button class="icon-button icon-button-sm" id="closeReferenceViewer" aria-label="关闭大图">×</button>
+    </div>
+    <div class="reference-viewer-body">
+      <div class="reference-viewer-image" id="referenceViewerImage" role="img"></div>
+      <p id="referenceViewerMeta"></p>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js?v=13"></script>
+</body>
+</html>

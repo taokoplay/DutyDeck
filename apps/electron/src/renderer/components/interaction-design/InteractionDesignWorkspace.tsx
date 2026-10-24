@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { ChevronDown, ChevronRight, ClipboardCheck, Download, Expand, Folder, FolderPlus, Globe2, History, ListTree, Laptop, MoreHorizontal, MousePointer2, PanelLeftClose, Play, Plus, RefreshCw, RotateCw, Route, Search, Smartphone, Tablet, Workflow, X } from 'lucide-react'
-import type { PrototypeCandidate, PrototypeDraft, PrototypeFlow, PrototypePageComparison, PrototypeSnapshot } from '@dutydeck/shared'
+import { ChevronDown, ChevronRight, ClipboardCheck, Download, Expand, Folder, FolderPlus, Globe2, History, Images, ListTree, Laptop, MoreHorizontal, MousePointer2, PanelLeftClose, Play, Plus, RefreshCw, RotateCw, Route, Search, Smartphone, Tablet, Workflow, X } from 'lucide-react'
+import type { PrototypeAsset, PrototypeCandidate, PrototypeDraft, PrototypeFlow, PrototypePageComparison, PrototypeSnapshot } from '@dutydeck/shared'
 import { createPrototypeBlankPage } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,9 +13,14 @@ import { agentPendingPromptAtom } from '@/atoms/agent-atoms'
 import { interactionDesignViewsAtom } from '@/atoms/interaction-design-atoms'
 import { buildPrototypeGroupTree, buildPrototypeHandoffPrompt, buildPrototypePrompt, copyPrototypeDraft, deletePrototypeGroup, deletePrototypePage, movePrototypePage, PrototypeRequestGate, type PrototypeGroupTreeNode } from './interaction-design-model'
 import { InteractionDesignPreviewCache } from './InteractionDesignPreviewCache'
+import { InteractionDesignCanvas } from './InteractionDesignCanvas'
+import { InteractionDesignReferences } from './InteractionDesignReferences'
 import { InteractionDesignHistory } from './InteractionDesignHistory'
 import { collectPendingPrototypePages, type PrototypeHistoryEntry } from './interaction-design-history'
 import { getPrototypeDevice, isPrototypeDevice, PROTOTYPE_DEVICES } from './interaction-design-devices'
+import { createPrototypePreviewAssetReader } from './interaction-design-assets'
+import { addPrototypeAssetReferences } from './interaction-design-reference-model'
+import { fileToBase64 } from '@/lib/file-utils'
 import './interaction-design.css'
 
 /** 正式工作区只依赖经过 shell 验证的项目/会话身份。 */
@@ -38,7 +43,7 @@ interface CandidateImpactCache {
 export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = true }: InteractionDesignWorkspaceProps): React.ReactElement {
   /** 项目视图偏好与持久化正文分离。 */
   const [views, setViews] = useAtom(interactionDesignViewsAtom)
-  const view = views[projectId] ?? { prototypeId: null, pageId: null, device: 'mobile' as const, collapsedGroups: [] }
+  const view = views[projectId] ?? { prototypeId: null, pageId: null, device: 'mobile' as const, collapsedGroups: [], moduleTab: 'preview' as const }
   const setPrompt = useSetAtom(agentPendingPromptAtom)
   const [snapshot, setSnapshot] = React.useState<PrototypeSnapshot | null>(null)
   const [candidate, setCandidate] = React.useState<PrototypeCandidate | null>(null)
@@ -93,6 +98,18 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   }
   const document = snapshot?.document
   const draft = candidate?.draft ?? document
+  const moduleTab = view.moduleTab ?? 'preview'
+  /** 参考图读取复用同一会话和原型身份；组件不为每张图新建 IPC 客户端。 */
+  const readReferenceAsset = React.useMemo(() => createPrototypePreviewAssetReader(asset => {
+    if (!document) throw new Error('交互设计尚未加载')
+    return window.electronAPI.interactionDesign.invoke('assetContent', {
+      sessionId,
+      prototypeId: document.id,
+      assetId: asset.id,
+    })
+  }), [document, sessionId])
+  /** 单个参考图消费者以当前工作区可见性判断迟到结果是否仍可用。 */
+  const readActiveReferenceAsset = React.useCallback((asset: PrototypeAsset) => readReferenceAsset(asset, () => paneActive), [paneActive, readReferenceAsset])
   /** 红点代表仍可处理的候选，过期未采纳也需提醒。 */
   const hasPending = snapshot?.candidates.some(item => item.status === 'ready' || item.status === 'stale') ?? false
   /** 优先使用轻量摘要，旧记录仅合并当前模块的按需查询结果。 */
@@ -107,6 +124,15 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   const previewPageCount = draft?.pages.length ?? 0
   /** 预览消息绑定候选基线，避免候选基于旧版本时继续冒充当前版本。 */
   const previewRevision = candidate?.baseRevision ?? document?.revision ?? 0
+  /** 候选或正式正文投影为只读文档，供画布与参考图共享。 */
+  const previewDocument = draft && document ? {
+    ...draft,
+    schemaVersion: 1 as const,
+    id: document.id,
+    revision: previewRevision,
+    createdAt: document.createdAt,
+    updatedAt: document.updatedAt,
+  } : document
   const pageId = draft?.pages.some(page => page.id === view.pageId) ? view.pageId! : draft?.entryPageId ?? ''
   const page = draft?.pages.find(item => item.id === pageId)
   /** 未手动选设备时使用正式设计基线；旧原型继续按历史视图偏好展示。 */
@@ -260,6 +286,45 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
   function save(next: PrototypeDraft, summary: string, baseRevision = document?.revision): void {
     if (!document || baseRevision === undefined) return
     void run(() => window.electronAPI.interactionDesign.invoke('save', { sessionId, prototypeId: document.id, baseRevision, draft: next, summary }), result => { acceptSnapshot(result); setForm(null); setFlowDraft(null); setPanel(null) })
+  }
+
+  /**
+   * 将用户拖入的外部图片复制进模块资产库，并自动登记为当前页面的视觉参考。
+   * @param files 渲染层已检查格式和大小的 File 对象。
+   * @returns 无返回值；完成或错误由工作区统一状态承接。
+   */
+  function importDroppedReferences(files: File[]): void {
+    if (!document || candidate || !files.length) return
+    /** 冻结本次拖放的模块基线；文件读取期间发生版本变化时由 save CAS 拒绝覆盖。 */
+    const baseDocument = document
+    const targetPageId = baseDocument.pages.some(page => page.id === pageId) ? pageId : baseDocument.entryPageId
+    void run(async () => {
+      /** 已成功写入独立资产库的图片。 */
+      const importedAssets: PrototypeAsset[] = []
+      for (const file of files) {
+        const dataBase64 = await fileToBase64(file)
+        importedAssets.push(await window.electronAPI.interactionDesign.invoke('importAssetData', {
+          sessionId,
+          prototypeId: baseDocument.id,
+          name: file.name,
+          dataBase64,
+        }))
+      }
+      /** 多个文件一次保存，避免每张图都推进一次原型版本。 */
+      const next = addPrototypeAssetReferences(baseDocument, importedAssets, targetPageId)
+      if (!next) return { snapshot: null, addedCount: 0 }
+      const snapshot = await window.electronAPI.interactionDesign.invoke('save', {
+        sessionId,
+        prototypeId: baseDocument.id,
+        baseRevision: baseDocument.revision,
+        draft: next,
+        summary: `添加 ${importedAssets.length} 张拖入参考图`,
+      })
+      return { snapshot, addedCount: importedAssets.length }
+    }, result => {
+      if (result.snapshot) acceptSnapshot(result.snapshot)
+      showNotice(result.addedCount ? `已添加 ${result.addedCount} 张参考图` : '这些图片已经在参考图库中')
+    })
   }
 
   /** 输入对话框显式记录作用目标；后台版本变化不会切换该目标。 */
@@ -427,10 +492,25 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
         <Button size="sm" disabled={!document || busy} onClick={exportCurrent}><Download size={14} /><span>导出原型</span></Button>
       </div>
     </header>
+    {document && <nav className="id-module-tabs" role="tablist" aria-label="交互设计视图" onKeyDown={event => {
+      const order = ['preview', 'canvas', 'references'] as const
+      const index = order.indexOf(moduleTab)
+      const next = event.key === 'ArrowRight' ? order[(index + 1) % order.length] : event.key === 'ArrowLeft' ? order[(index - 1 + order.length) % order.length] : event.key === 'Home' ? order[0] : event.key === 'End' ? order[order.length - 1] : undefined
+      if (!next) return
+      event.preventDefault()
+      const nav = event.currentTarget
+      updateView({ moduleTab: next })
+      requestAnimationFrame(() => nav.querySelectorAll<HTMLButtonElement>('[role="tab"]')[order.indexOf(next)]?.focus())
+    }}>
+      <button role="tab" aria-selected={moduleTab === 'preview'} tabIndex={moduleTab === 'preview' ? 0 : -1} onClick={() => updateView({ moduleTab: 'preview' })}><Play size={13} />原型预览</button>
+      <button role="tab" aria-selected={moduleTab === 'canvas'} tabIndex={moduleTab === 'canvas' ? 0 : -1} onClick={() => updateView({ moduleTab: 'canvas' })}><Workflow size={13} />画布</button>
+      <button role="tab" aria-selected={moduleTab === 'references'} tabIndex={moduleTab === 'references' ? 0 : -1} onClick={() => updateView({ moduleTab: 'references' })}><Images size={13} />参考图 <small>{document.references?.length ?? 0}</small></button>
+    </nav>}
     {feedbackError && <div className="id-feedback id-error" role="alert">{feedbackError}<Button variant="ghost" size="sm" onClick={() => { setForm(null); setFlowDraft(null); setReset(value => value + 1); void load() }}>重新加载</Button></div>}
     {notice && <div className="id-feedback" role="status"><span>{notice}</span><div className="id-feedback-actions"><button aria-label="关闭提示" onClick={() => setNotice(null)}><X size={14} /></button></div></div>}
     {changed && <div className="id-feedback" role="status">外部设计已更新。当前编辑保留，重新加载后再提交。<Button size="sm" variant="ghost" onClick={() => { setForm(null); setFlowDraft(null); void load() }}>放弃编辑并加载</Button></div>}
     {!document ? <div className="id-empty"><MousePointer2 size={32} /><h2>{loading ? '正在加载交互模块' : '让想法变成可点击的页面'}</h2><p>打开“页面”列表创建页面；每个项目只有一个交互模块，页面可用多级分组组织。</p></div> : <>
+      {moduleTab === 'preview' && <>
       <div className="id-toolbar"><div className="id-mode"><button aria-pressed={mode === 'play'} onClick={() => { setMode('play'); setSelectedElement(null) }}><Play size={13} />体验</button><button aria-pressed={mode === 'select'} onClick={() => setMode('select')}><MousePointer2 size={13} />选择修改</button></div><span className="id-spacer" /><button className="id-version-button" aria-label="查看版本与候选" disabled={!document} onClick={() => setPanel('history')}><History size={14} /><span>v{document?.revision ?? 0}</span>{hasPending && <i className="id-pending-dot" role="img" aria-label="有未采纳候选" title="有未采纳候选" />}</button>
         {previewDevice.group !== '电脑' && <button aria-label={previewOrientation === 'portrait' ? '切换为横屏' : '切换为竖屏'} title="切换预览方向" onClick={() => updateView({ previewOrientation: previewOrientation === 'portrait' ? 'landscape' : 'portrait', zoom: undefined })}><RotateCw size={16} /></button>}
         <DropdownMenu><DropdownMenuTrigger asChild><button className="id-device-selector" aria-label="选择预览设备" title={`预览设备：${previewDevice.id}`}>
@@ -450,6 +530,32 @@ export function InteractionDesignWorkspace({ projectId, sessionId, paneActive = 
         {selectedElement && <aside className="id-selection"><div><strong>已选中元素</strong><button aria-label="清除元素选择" onClick={() => setSelectedElement(null)}><X size={14} /></button></div><p>{page?.name} / {selectedElement.stateId ? page?.states?.find(state => state.id === selectedElement.stateId)?.name : page?.defaultStateName ?? '默认状态'} / {selectedElement.elementId}</p><p>带着页面、元素与版本引用继续修改。</p>{selectedText !== null && <Button size="sm" variant="outline" className="mb-2 mr-2" onClick={() => openForm('element', '修改选中文字', selectedText, pageId)}>编辑文字</Button>}<Button size="sm" disabled={!!candidate} onClick={() => openForm('reference', '引用到主会话', '请只修改选中的元素，保留其他页面与交互不变。')}>引用到会话</Button>{candidate && <small>先返回当前版本或采纳候选后修改</small>}</aside>}
       </div>
       <footer className="id-footer"><span>本次体验 · {visited.length ? `${visited.length} 次页面访问` : '尚未记录跳转'}</span><span aria-label="当前预览设备" title="内容视口尺寸，单位为 CSS 像素">{previewDevice.id} · {previewDevice.width} × {previewDevice.height}</span></footer>
+      </>}
+      {moduleTab === 'canvas' && previewDocument && <InteractionDesignCanvas
+        document={previewDocument}
+        assets={snapshot.assets}
+        revision={previewRevision}
+        active={paneActive}
+        deviceId={previewDevice.id}
+        orientation={view.previewOrientation}
+        selectedPageId={pageId}
+        readAsset={readActiveReferenceAsset}
+        onSelectPage={targetPageId => updateView({ pageId: targetPageId })}
+        onOpenPage={targetPageId => { updateView({ pageId: targetPageId, moduleTab: 'preview' }); setVisited(previous => [...previous, targetPageId].slice(-200)); setSelectedElement(null) }}
+        onOpenReferences={targetPageId => updateView({ pageId: targetPageId, moduleTab: 'references' })}
+      />}
+      {moduleTab === 'references' && previewDocument && <InteractionDesignReferences
+        document={previewDocument}
+        assets={snapshot.assets}
+        active={paneActive}
+        readOnly={Boolean(candidate)}
+        selectedPageId={pageId}
+        readAsset={readActiveReferenceAsset}
+        onSave={save}
+        onImportAsset={() => openForm('asset', '导入项目图片')}
+        onImportFiles={importDroppedReferences}
+        onReference={referenceId => reference(`请将参考图 ${referenceId} 作为当前页面的设计依据；先读取关联与用途，再按需查看原图。`)}
+      />}
     </>}
     {directory && <><button className="id-directory-backdrop" aria-label="关闭页面列表" onClick={() => setDirectory(false)} /><aside className="id-directory" aria-label="项目页面">
       <header><strong>页面 {draft && <small>{draft.pages.length}</small>}</strong><div className="id-directory-header-actions"><button aria-label="新建页面" title="新建页面" disabled={busy || !!candidate} onClick={() => openForm('page', '新建页面', '', rootGroupId)}><Plus size={16} /></button>{document && <button aria-label="新建分组" title="新建分组" disabled={busy || !!candidate} onClick={() => openForm('group', '新建分组')}><FolderPlus size={16} /></button>}<button aria-label="收起页面列表" title="收起页面列表" onClick={() => setDirectory(false)}><PanelLeftClose size={16} /></button></div></header>

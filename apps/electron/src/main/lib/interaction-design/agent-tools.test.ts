@@ -90,6 +90,10 @@ function pageFixture(cancelOnRead?: AbortController) {
     name: '多页原型', platform: 'mobile' as const, brief: '说明', groups: [{ id: 'g', name: '分组' }], entryPageId: 'home',
     pages: [{ id: 'home', groupId: 'g', name: '首页', html: '<h1>原正文</h1>', states: [{ id: 'empty', name: '无数据', html: '<p>空态</p>' }] }, { id: 'other', groupId: 'g', name: '其他页', html: '<h1>OTHER_PAGE_BODY_NOT_FOR_CONTEXT</h1>', source: { path: 'src/other.html', hash: 'a'.repeat(64), kind: 'html' as const } }],
     flows: [{ id: 'next', fromPageId: 'home', elementId: 'go', targetPageId: 'other' }],
+    references: [
+      { id: 'reference-home', assetId: 'asset-home', title: '首页结构', role: 'structure' as const, usages: [{ pageId: 'home' }] },
+      { id: 'reference-other', assetId: 'asset-other', title: '其他页结构', role: 'visual' as const, usages: [{ pageId: 'other' }] },
+    ],
   }
   /** 记录真实领域命令和取消信号；返回固定快照模拟宿主读取。 */
   const calls: Array<{ method: string; input: unknown; signal?: AbortSignal }> = []
@@ -102,6 +106,7 @@ function pageFixture(cancelOnRead?: AbortController) {
       calls.push({ method, input, signal })
       if (method === 'getVersion') { cancelOnRead?.abort(new Error('读取后取消')); return document }
       if (method === 'getPageVersions') return [{ pageId: 'home', pageRevision: 3, globalRevision: 3, summary: '版本', createdAt: 3, contentHash: 'a'.repeat(64) }]
+      if (method === 'readReferences') return [{ referenceId: 'reference-1', assetId: 'asset-1', title: '首页结构', role: 'structure', usages: [{ pageId: 'home' }], asset: { id: 'asset-1', name: 'home.png', hash: 'b'.repeat(64), mime: 'image/png', byteSize: 10, createdAt: 2 } }]
       return { id: 'candidate-1', status: 'ready' }
     }) as Parameters<typeof buildInteractionDesignAgentTools>[0]['execute'],
   })
@@ -114,12 +119,30 @@ test('Given 多页原型 When 读取单页 Then 返回目录和目标正文而�
   const text = JSON.stringify(result)
   expect(text).toContain('原正文')
   expect(text).toContain('其他页')
+  expect(text).toContain('reference-home')
+  expect(text).not.toContain('reference-other')
   expect(text).not.toContain('OTHER_PAGE_BODY_NOT_FOR_CONTEXT')
   expect(calls).toEqual([
     { method: 'getVersion', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', revision: 3 }, signal: undefined },
     { method: 'getPageVersions', input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', pageId: 'home' }, signal: undefined },
   ])
   expect(INTERACTION_DESIGN_AGENT_READ_TOOL_NAMES as readonly string[]).toContain('prototype_read_page')
+})
+
+test('Given 固定版本参考图 When Agent 读取页面参考 Then 只调用只读投影且返回资产哈希', async () => {
+  const { tools, calls, permissions } = pageFixture()
+  const tool = tools.find(item => item.name === 'prototype_read_references')!
+  const result = await tool.execute('references', { prototypeId: 'prototype-1', revision: 3, pageId: 'home' }, undefined, undefined, {} as never)
+  const content = result.content[0]
+  expect(content && 'text' in content ? content.text : '').toContain('reference-1')
+  expect(content && 'text' in content ? content.text : '').toContain('b'.repeat(64))
+  expect(calls).toContainEqual({
+    method: 'readReferences',
+    input: { sessionId: 'session-fixed', prototypeId: 'prototype-1', revision: 3, pageId: 'home' },
+    signal: undefined,
+  })
+  expect(permissions.at(-1)).toBe(false)
+  expect(INTERACTION_DESIGN_AGENT_READ_TOOL_NAMES as readonly string[]).toContain('prototype_read_references')
 })
 
 test('Given 固定基线与单页修改 When 提交单页候选 Then 宿主仅替换目标正文且两阶段贯穿权限信号', async () => {

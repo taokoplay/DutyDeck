@@ -61,3 +61,21 @@ test('Given 设备基线与横屏游戏状态 When 开发交接 Then 尺寸安�
     }
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
+
+test('Given 页面引用未进入正文的参考图 When 开发交接 Then 保留参考关系并加入资产元数据', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'prototype-reference-delivery-'))
+  const document: PrototypeDocument = {
+    schemaVersion: 1, id: 'p', revision: 2, createdAt: 1, updatedAt: 2, name: '测试', platform: 'mobile', brief: '',
+    groups: [{ id: 'g', name: '页面' }], entryPageId: 'home', flows: [],
+    pages: [{ id: 'home', groupId: 'g', name: '首页', html: '<main>首页</main>' }],
+    references: [{ id: 'ref-1', assetId: 'asset-ref', title: '参考结构', role: 'structure', source: 'Figma', usages: [{ pageId: 'home' }] }],
+  }
+  const asset = { id: 'asset-ref', name: 'ref.png', hash: 'c'.repeat(64), mime: 'image/png', byteSize: 12, createdAt: 1 }
+  const assets = { list: () => [asset] } as unknown as InteractionAssetService
+  try {
+    const handoff = createInteractionHandoff(document, assets, directory)
+    expect(handoff.references).toEqual(document.references)
+    expect(handoff.assets).toEqual([asset])
+    expect(handoff.manifestHash).toHaveLength(64)
+  } finally { rmSync(directory, { recursive: true, force: true }) }
+})

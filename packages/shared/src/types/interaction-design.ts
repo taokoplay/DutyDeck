@@ -98,6 +98,35 @@ export interface PrototypeFlow {
   targetPageId: string
 }
 
+/** 参考图用途；结构、视觉和文案分别约束 Agent 如何使用图片。 */
+export type PrototypeReferenceRole = 'structure' | 'visual' | 'copy'
+
+/** 参考图与页面、状态或流程的稳定关联。 */
+export interface PrototypeReferenceUsage {
+  /** 关联页面身份。 */
+  pageId: string
+  /** 可选页面状态身份；状态必须属于 pageId。 */
+  stateId?: string
+  /** 可选流程身份；流程必须从当前页面发出或指向当前页面。 */
+  flowId?: string
+}
+
+/** 项目图片在原型中的业务参考身份，不复制图片字节。 */
+export interface PrototypeReference {
+  /** 原型内稳定参考图身份。 */
+  id: string
+  /** 独立资产库中的图片身份。 */
+  assetId: string
+  /** 用户可读标题。 */
+  title: string
+  /** 结构、视觉或文案用途。 */
+  role: PrototypeReferenceRole
+  /** 可选来源说明，不保存本机绝对路径。 */
+  source?: string
+  /** 页面、状态或流程关联。 */
+  usages: PrototypeReferenceUsage[]
+}
+
 /** 可编辑内容；不包含演示中的表单值、当前页和焦点状态。 */
 export interface PrototypeDraft {
   /** 固定设计环境；旧文档不自动补齐。 */
@@ -116,6 +145,8 @@ export interface PrototypeDraft {
   entryPageId: string
   /** 独立于目录排序的页面跳转关系。 */
   flows: PrototypeFlow[]
+  /** 版本化参考图及其页面关系；旧文档缺省时保持原内容身份。 */
+  references?: PrototypeReference[]
 }
 
 /** 当前完整版本，revision 由主进程分配。 */
@@ -450,6 +481,8 @@ export interface PrototypeHandoff {
   entryPageId: string
   /** 页面之间的交互连接。 */
   flows: PrototypeFlow[]
+  /** 当前版本的参考图及业务用途。 */
+  references?: PrototypeReference[]
   /** 当前版本实际引用的资源元数据。 */
   assets: PrototypeAsset[]
   /** 从页面样式中提取的 CSS 自定义属性。 */
@@ -476,6 +509,24 @@ export interface PrototypeSnapshot {
   checks: PrototypeCheck[]
 }
 
+/** Agent 读取的固定版本参考图投影，附带已登记资产元数据。 */
+export interface PrototypeReferenceProjection {
+  /** 原型内稳定参考图身份。 */
+  referenceId: string
+  /** 独立资产库中的图片身份。 */
+  assetId: string
+  /** 用户可读标题。 */
+  title: string
+  /** 结构、视觉或文案用途。 */
+  role: PrototypeReferenceRole
+  /** 可选来源说明。 */
+  source?: string
+  /** 页面、状态或流程关联。 */
+  usages: PrototypeReferenceUsage[]
+  /** 已校验的图片元数据；不包含图片字节。 */
+  asset: PrototypeAsset
+}
+
 /** 对现有项目的有界扫描结果，不代表已验证完整项目。 */
 export interface PrototypeProjectInspection {
   /** 项目名称，不包含绝对路径。 */
@@ -498,6 +549,8 @@ export interface InteractionDesignInputs {
   load: { sessionId: string; prototypeId: string }
   save: { sessionId: string; prototypeId: string; baseRevision: number; draft: PrototypeDraft; summary: string }
   getVersion: { sessionId: string; prototypeId: string; revision: number }
+  /** 读取固定版本的参考图关系和资产元数据，可按页面过滤。 */
+  readReferences: { sessionId: string; prototypeId: string; revision: number; pageId?: string }
   getPageVersions: { sessionId: string; prototypeId: string; pageId: string }
   restore: { sessionId: string; prototypeId: string; baseRevision: number; revision: number }
   deleteVersion: { sessionId: string; prototypeId: string; baseRevision: number; revision: number }
@@ -517,6 +570,8 @@ export interface InteractionDesignInputs {
   cancelJob: { sessionId: string; prototypeId: string; jobId: string }
   failJob: { sessionId: string; prototypeId: string; jobId: string; message: string }
   importAsset: { sessionId: string; prototypeId: string; relativePath: string }
+  /** 用户主动拖入的图片字节；只复制到独立资产库，不提供任意路径读取能力。 */
+  importAssetData: { sessionId: string; prototypeId: string; name: string; dataBase64: string }
   importMediaAsset: { sessionId: string; prototypeId: string; assetId: string; revision: number; hash: string }
   assetContent: { sessionId: string; prototypeId: string; assetId: string }
   inspectProject: { sessionId: string }
@@ -535,6 +590,7 @@ export interface InteractionDesignResults {
   load: PrototypeSnapshot
   save: PrototypeSnapshot
   getVersion: PrototypeDocument
+  readReferences: PrototypeReferenceProjection[]
   getPageVersions: PrototypePageVersionSummary[]
   restore: PrototypeSnapshot
   deleteVersion: PrototypeSnapshot
@@ -550,6 +606,7 @@ export interface InteractionDesignResults {
   cancelJob: PrototypeSnapshot
   failJob: PrototypeJob
   importAsset: PrototypeAsset
+  importAssetData: PrototypeAsset
   importMediaAsset: PrototypeAsset
   assetContent: { assetId: string; dataUrl: string }
   inspectProject: PrototypeProjectInspection

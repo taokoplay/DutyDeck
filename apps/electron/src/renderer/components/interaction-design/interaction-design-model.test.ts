@@ -45,6 +45,16 @@ describe('交互设计 renderer 身份与编辑边界', () => {
     const prompt = buildPrototypePrompt(document, '修改按钮文案', 'p2', 'submit')
     expect(prompt).toContain('prototypeId: prototype-a'); expect(prompt).toContain('baseRevision: 7'); expect(prompt).toContain('pageId: p2'); expect(prompt).toContain('elementId: submit'); expect(prompt).toContain('勿直接采纳')
   })
+  test('Given 目标页关联参考图 When 引用到主会话 Then 冻结参考图用途并要求读取原图元数据', () => {
+    const source: PrototypeDocument = {
+      ...document,
+      references: [{ id: 'ref-1', assetId: 'asset-1', title: '列表结构', role: 'structure', usages: [{ pageId: 'p2' }, { pageId: 'p2', flowId: 'f2' }] }],
+    }
+    const prompt = buildPrototypePrompt(source, '按参考图修改列表', 'p2')
+    expect(prompt).toContain('referenceIds: ref-1')
+    expect(prompt).toContain('prototype_read_references')
+    expect(prompt).toContain('prototype_asset_content')
+  })
   test('Given 同页不同状态共享元素 ID When 引用空态 Then 任务精确携带状态且默认态不冒用状态 ID', () => {
     /** 空数据与有数据的标题身份相同，但修改范围需可区分。 */
     const emptyPrompt = buildPrototypePrompt(document, '修改空态标题', 'p2', 'title', 'empty')
@@ -72,4 +82,14 @@ test('Given 新版设备环境 When 目录编辑复制草稿 Then 深拷贝环�
   copied.environment!.deviceId = 'iPhone X'
   expect(source.environment!.deviceId).toBe('iPhone 17')
   expect(copyPrototypeDraft(document)).not.toHaveProperty('environment')
+})
+
+test('Given 参考图关联 When 复制草稿 Then 参考图用途与原稿隔离', () => {
+  const source: PrototypeDocument = {
+    ...document,
+    references: [{ id: 'ref-1', assetId: 'asset-1', title: '入口结构', role: 'structure', usages: [{ pageId: 'p1' }] }],
+  }
+  const copied = copyPrototypeDraft(source)
+  copied.references![0]!.usages[0]!.pageId = 'p2'
+  expect(source.references?.[0]?.usages[0]?.pageId).toBe('p1')
 })

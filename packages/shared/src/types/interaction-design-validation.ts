@@ -1,11 +1,26 @@
 import { getPrototypeDeviceProfile } from '../utils/interaction-design-device-profile'
-import type { InteractionDesignCommand, InteractionDesignInputs, InteractionDesignMethod, PrototypeDraft, PrototypeEnvironment, PrototypePresentation, PrototypeJobMode, PrototypePageComparisonRef, PrototypePageManifestItem, PrototypePlan, PrototypePlanEvidence, PrototypePlanPage, PrototypePlanState } from './interaction-design'
+import type { InteractionDesignCommand, InteractionDesignInputs, InteractionDesignMethod, PrototypeDraft, PrototypeEnvironment, PrototypePresentation, PrototypeReference, PrototypeReferenceUsage, PrototypeJobMode, PrototypePageComparisonRef, PrototypePageManifestItem, PrototypePlan, PrototypePlanEvidence, PrototypePlanPage, PrototypePlanState } from './interaction-design'
 
-/** 页面数量与正文预算避免不可信 IPC 触发无界复制。 */
-export const PROTOTYPE_LIMITS = { pages: 200, statesPerPage: 12, groups: 100, flows: 2000, planEvidencePerPage: 24, planUnresolved: 100, pageChars: 512 * 1024, totalChars: 8 * 1024 * 1024 } as const
+/** 页面数量、正文和拖入图片预算避免不可信 IPC 触发无界复制。 */
+export const PROTOTYPE_LIMITS = {
+  pages: 200,
+  statesPerPage: 12,
+  groups: 100,
+  flows: 2000,
+  references: 200,
+  referenceUsages: 400,
+  planEvidencePerPage: 24,
+  planUnresolved: 100,
+  pageChars: 512 * 1024,
+  totalChars: 8 * 1024 * 1024,
+  /** 与主进程图片资产上限一致。 */
+  assetBytes: 20 * 1024 * 1024,
+  /** Base64 编码后的最大字符数，包含末组 padding。 */
+  assetDataBase64Chars: 4 * Math.ceil((20 * 1024 * 1024) / 3),
+} as const
 
 /** 读取操作不改变原型或生成可计费任务。 */
-export const INTERACTION_DESIGN_READ_METHODS: readonly InteractionDesignMethod[] = ['list', 'load', 'getVersion', 'getCandidate', 'getCandidateImpact', 'getPageVersions', 'comparePage', 'assetContent', 'inspectProject', 'readSource']
+export const INTERACTION_DESIGN_READ_METHODS: readonly InteractionDesignMethod[] = ['list', 'load', 'getVersion', 'readReferences', 'getCandidate', 'getCandidateImpact', 'getPageVersions', 'comparePage', 'assetContent', 'inspectProject', 'readSource']
 
 /** 稳定错误文案，不回显未经检查的输入。 */
 function invalid(field: string): never { throw new Error(`INTERACTION_DESIGN_INVALID: ${field}`) }
@@ -258,7 +273,42 @@ export function parsePrototypeDraft(value: unknown): PrototypeDraft {
   })
   unique(flows.map((flow) => flow.id), '连接身份重复')
   unique(flows.map((flow) => `${flow.fromPageId}:${flow.elementId}`), '同一元素存在多个跳转目标')
-  return { name: string(draft.name, '原型名称', 120), platform, brief: string(draft.brief, '原型说明', 16000, true), groups, pages, entryPageId, flows, ...(draft.environment === undefined ? {} : { environment: parseEnvironment(draft.environment) }) }
+  /** 流程身份用于确认参考图没有指向当前版本之外的交互。 */
+  const flowsById = new Map(flows.map(flow => [flow.id, flow]))
+  const references = draft.references === undefined ? undefined : array(draft.references, '参考图集合', PROTOTYPE_LIMITS.references).map(value => {
+    const reference = record(value, '参考图')
+    const role = reference.role
+    if (role !== 'structure' && role !== 'visual' && role !== 'copy') invalid('参考图用途')
+    const usages = array(reference.usages, '参考图关联', PROTOTYPE_LIMITS.referenceUsages).map(value => {
+      const usage = record(value, '参考图关联')
+      const pageId = id(usage.pageId)
+      const page = pages.find(item => item.id === pageId)
+      if (!page) invalid('参考图关联页面不存在')
+      const stateId = usage.stateId === undefined || usage.stateId === null ? undefined : id(usage.stateId)
+      const flowId = usage.flowId === undefined || usage.flowId === null ? undefined : id(usage.flowId)
+      if (stateId && flowId) invalid('参考图关联不能同时指向状态和流程')
+      if (stateId && !page.states?.some(state => state.id === stateId)) invalid('参考图关联状态不存在')
+      if (flowId) {
+        const flow = flowsById.get(flowId)
+        if (!flow || flow.fromPageId !== pageId && flow.targetPageId !== pageId) invalid('参考图关联流程不存在')
+      }
+      return { pageId, ...(stateId ? { stateId } : {}), ...(flowId ? { flowId } : {}) }
+    })
+    unique(usages.map(usage => JSON.stringify([usage.pageId, usage.stateId ?? '', usage.flowId ?? ''])), '参考图关联重复')
+    return {
+      id: id(reference.id),
+      assetId: id(reference.assetId),
+      title: string(reference.title, '参考图标题', 120),
+      role,
+      ...(reference.source === undefined ? {} : { source: string(reference.source, '参考图来源', 500, true) }),
+      usages,
+    } satisfies PrototypeReference
+  })
+  if (references) {
+    unique(references.map(reference => reference.id), '参考图身份重复')
+    unique(references.map(reference => reference.assetId), '参考图资产重复')
+  }
+  return { name: string(draft.name, '原型名称', 120), platform, brief: string(draft.brief, '原型说明', 16000, true), groups, pages, entryPageId, flows, ...(draft.environment === undefined ? {} : { environment: parseEnvironment(draft.environment) }), ...(references === undefined ? {} : { references }) }
 }
 
 /** 识别项目还原中不应冒充业务页面的导览、来源参考和完整 App 页面。 */
@@ -371,6 +421,7 @@ export function parseInteractionDesignCommand(value: unknown): InteractionDesign
   const base = { sessionId, prototypeId }
   switch (method) {
     case 'load': return result(method, base)
+    case 'readReferences': return result(method, { ...base, revision: revision(input.revision), ...(input.pageId === undefined ? {} : { pageId: id(input.pageId) }) })
     case 'save': return result(method, { ...base, baseRevision: revision(input.baseRevision), draft: parsePrototypeDraft(input.draft), summary: string(input.summary, '保存说明', 2000) })
     case 'getVersion': case 'validate': case 'exportHtml': case 'createHandoff': return result(method, { ...base, revision: revision(input.revision) })
     case 'getPageVersions': return result(method, { ...base, pageId: id(input.pageId) })
@@ -413,6 +464,15 @@ export function parseInteractionDesignCommand(value: unknown): InteractionDesign
     case 'cancelJob': return result(method, { ...base, jobId: id(input.jobId) })
     case 'failJob': return result(method, { ...base, jobId: id(input.jobId), message: string(input.message, '失败原因', 2000) })
     case 'importAsset': return result(method, { ...base, relativePath: parsePrototypeRelativePath(input.relativePath) })
+    case 'importAssetData': {
+      /** 文件名只用于资产展示，不能携带目录片段。 */
+      const name = string(input.name, '图片名称', 200)
+      if (/[\\/]/.test(name)) return invalid('图片名称')
+      /** 拖入图片使用规范 Base64，拒绝主进程解码器的宽松非法字符处理。 */
+      const dataBase64 = string(input.dataBase64, '图片数据', PROTOTYPE_LIMITS.assetDataBase64Chars)
+      if (dataBase64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(dataBase64)) return invalid('图片数据')
+      return result(method, { ...base, name, dataBase64 })
+    }
     case 'assetContent': return result(method, { ...base, assetId: id(input.assetId) })
     case 'importMediaAsset': {
       const hash = string(input.hash, '素材哈希', 64)

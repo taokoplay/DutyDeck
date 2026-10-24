@@ -8,7 +8,17 @@ export interface PrototypeGroupTreeNode {
 
 /** 冻结设计正文，避免候选/表单修改已采纳对象。 */
 export function copyPrototypeDraft(document: PrototypeDraft): PrototypeDraft {
-  return structuredClone({ name: document.name, platform: document.platform, brief: document.brief, groups: document.groups, pages: document.pages, entryPageId: document.entryPageId, flows: document.flows, ...(document.environment === undefined ? {} : { environment: document.environment }) })
+  return structuredClone({
+    name: document.name,
+    platform: document.platform,
+    brief: document.brief,
+    groups: document.groups,
+    pages: document.pages,
+    entryPageId: document.entryPageId,
+    flows: document.flows,
+    ...(document.environment === undefined ? {} : { environment: document.environment }),
+    ...(document.references === undefined ? {} : { references: document.references }),
+  })
 }
 
 /** 将扁平分组索引为稳定的多级目录树，保留正文数组顺序。 */
@@ -68,7 +78,11 @@ export function deletePrototypePage(draft: PrototypeDraft, pageId: string): Prot
 
 /** 引用冻结原型基线和选区；正文不会伪装成已经生成的回复。 */
 export function buildPrototypePrompt(document: PrototypeDocument, instruction: string, pageId?: string, elementId?: string, stateId?: string): string {
-  return `请使用交互设计工具处理以下任务，先读取当前原型，生成候选，勿直接采纳。\nprototypeId: ${document.id}\nbaseRevision: ${document.revision}${pageId ? `\npageId: ${pageId}` : ''}${elementId ? `\nelementId: ${elementId}` : ''}${stateId ? `\nstateId: ${stateId}` : pageId && elementId ? '\n状态：默认状态（page.html，工具调用不传 stateId）' : ''}\n\n${instruction}`
+  const relatedReferences = pageId ? (document.references ?? []).filter(reference => reference.usages.some(usage => usage.pageId === pageId && (stateId === undefined || usage.stateId === undefined || usage.stateId === stateId))) : []
+  const referenceContext = relatedReferences.length
+    ? `\nreferenceIds: ${relatedReferences.map(reference => `${reference.id} (${reference.role})`).join(', ')}\n参考图是设计依据，不代表已实现交互。使用 prototype_read_references 读取固定版本用途与 assetId/hash；需要查看原图时再调用 prototype_asset_content。`
+    : ''
+  return `请使用交互设计工具处理以下任务，先读取当前原型，生成候选，勿直接采纳。\nprototypeId: ${document.id}\nbaseRevision: ${document.revision}${pageId ? `\npageId: ${pageId}` : ''}${elementId ? `\nelementId: ${elementId}` : ''}${stateId ? `\nstateId: ${stateId}` : pageId && elementId ? '\n状态：默认状态（page.html，工具调用不传 stateId）' : ''}${referenceContext}\n\n${instruction}`
 }
 
 /** 将固定交接包压缩为主会话可读的开发约束，正文通过固定 revision 按需读取。 */
@@ -88,6 +102,7 @@ export function buildPrototypeHandoffPrompt(handoff: PrototypeHandoff): string {
     pages: handoff.pages,
     entryPageId: handoff.entryPageId,
     flows: handoff.flows,
+    ...(handoff.references === undefined ? {} : { references: handoff.references }),
     assets: handoff.assets.map(asset => ({ id: asset.id, name: asset.name, hash: asset.hash, mime: asset.mime, byteSize: asset.byteSize })),
     designTokens: handoff.designTokens,
   }
