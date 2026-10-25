@@ -81,6 +81,29 @@ describe('Agent Host 完成检查', () => {
     expect(continued).toEqual(['读取剩余节点并完成验收'])
   })
 
+  test('Given 长时媒体任务指定更高续行额度 When 超过通用额度 Then 仍继续等待同一任务', async () => {
+    const continued: string[] = []
+    const result = await applyAgentCompletionPolicy({
+      terminalResult: successResult(),
+      continuationCount: MAX_AGENT_COMPLETION_CONTINUATIONS,
+      signal: new AbortController().signal,
+      canContinue: true,
+      evaluateCompletion: async (): Promise<AgentCompletionEvaluation> => ({
+        action: 'continue',
+        message: '继续等待媒体运行',
+        continuationLimit: 10,
+      }),
+      continueTask: async (message) => { continued.push(message) },
+    })
+
+    expect(result).toEqual({
+      terminalResult: undefined,
+      continuationCount: MAX_AGENT_COMPLETION_CONTINUATIONS + 1,
+      continued: true,
+    })
+    expect(continued).toEqual(['继续等待媒体运行'])
+  })
+
   test.each([
     ['Host 阻断', async (): Promise<AgentCompletionEvaluation> => ({ action: 'blocked', message: '缺少可验证交付物' }), 'completion_blocked'],
     ['续行次数耗尽', async (): Promise<AgentCompletionEvaluation> => ({ action: 'continue', message: '继续' }), 'completion_continuation_limit'],

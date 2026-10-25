@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { buildVisualRetryPrompt, copyVisualDraft, groupVisualRecords, reorderVisualShot, VisualRequestGate, VisualScopeEpoch } from './model'
+import { buildVisualCandidateReviewPrompt, buildVisualRetryPrompt, copyVisualDraft, groupVisualRecords, reorderVisualShot, visualCandidateReviewState, VisualRequestGate, VisualScopeEpoch } from './model'
 import type { VisualCandidate, VisualJob, VisualProductionDraft, VisualShot } from '@dutydeck/shared'
 /** 最小镜头夹具用于验证跨集排序边界。 */
 const shot = (id: string, episodeId: string): VisualShot => ({ id, episodeId, title: id, duration: 3, scene: '', motion: '', dialogue: '', assetIds: [], mediaId: null })
@@ -79,4 +79,25 @@ describe('制作记录状态筛选', () => {
     expect(groupVisualRecords({ ...snapshot, candidates: snapshot.candidates.map(item => ({ ...item, status: 'adopted' as const })) })).toMatchObject({ counts: { all: 1, pending: 0, adopted: 1 }, records: [{ status: 'adopted' }] })
     expect(groupVisualRecords({ jobs: [], candidates: [] })).toMatchObject({ counts: { all: 0, running: 0, pending: 0, adopted: 0, failed: 0, stale: 0, closed: 0 }, records: [] })
   })
+  it('视频候选只有技术与内容审核完成后才可采用', () => {
+    const base = { ...candidate('review', 'ready'), reviewRequired: true }
+    expect(visualCandidateReviewState(base)).toBe('missing')
+    expect(visualCandidateReviewState({ ...base, review: { technical: 'passed', motion: 'passed', continuity: 'pending', conclusion: '', unchecked: [], issues: [], sessionId: 'session', reviewedAt: 1 } })).toBe('pending')
+    expect(visualCandidateReviewState({ ...base, review: { technical: 'failed', motion: 'pending', continuity: 'pending', conclusion: '', unchecked: [], issues: [{ gate: 'technical', severity: 'error', message: '损坏' }], sessionId: 'session', reviewedAt: 1 } })).toBe('failed')
+    expect(visualCandidateReviewState({ ...base, review: { technical: 'passed', motion: 'passed', continuity: 'warning', conclusion: '', unchecked: [], issues: [{ gate: 'continuity', severity: 'warning', message: '偏慢' }], sessionId: 'session', reviewedAt: 1 } })).toBe('ready')
+    expect(visualCandidateReviewState(candidate('legacy', 'ready'))).toBe('legacy')
+  })
+})
+
+it('需要审核的视频候选可生成明确的 Agent 审片要求', () => {
+  const document = { schemaVersion: 1 as const, id: 'production', revision: 4, createdAt: 1, updatedAt: 2, title: '作品', kind: 'film' as const, brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [{ id: 'one', title: '一' }], assets: [], shots: [shot('shot', 'one')] }
+  const job = { id: 'job', sessionId: 'session', baseRevision: 4, shotId: 'shot', instruction: '生成', status: 'candidate' as const, createdAt: 1 }
+  const draft: VisualProductionDraft = { title: '作品', kind: 'film', brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [], assets: [], shots: [] }
+  const candidate: VisualCandidate = { id: 'candidate', jobId: 'job', status: 'ready', baseRevision: 4, createdAt: 2, draft, summary: '视频结果', reviewRequired: true }
+  const prompt = buildVisualCandidateReviewPrompt(document, candidate, job)
+  expect(prompt).toContain('reviewCandidate')
+  expect(prompt).toContain('technical、motion、continuity')
+  expect(prompt).toContain('前后镜头')
+  expect(prompt).toContain('未检查范围')
+  expect(buildVisualCandidateReviewPrompt(document, { ...candidate, reviewRequired: undefined }, job)).toBeNull()
 })

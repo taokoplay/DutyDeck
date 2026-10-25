@@ -2,6 +2,18 @@ import { readFileSync, statSync } from 'node:fs'
 import { extname } from 'node:path'
 import { getModuleRuntimeManager } from './module-runtime-bridge'
 
+/** Surface 静态资源需要在 opaque sandbox origin 中加载 ESM，因此启用受控 CORS。 */
+export const PLUGIN_SURFACE_SCHEME_PRIVILEGES = {
+  scheme: 'dutydeck-plugin',
+  privileges: {
+    standard: true,
+    secure: true,
+    supportFetchAPI: true,
+    corsEnabled: true,
+    stream: true,
+  },
+} as const
+
 /** Surface 静态资源允许的响应类型，未知类型按二进制下载处理。 */
 const MIME_TYPES: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8',
@@ -66,6 +78,8 @@ export function handlePluginSurfaceRequest(request: Request): Response {
         'content-security-policy': SURFACE_CSP,
         'x-content-type-options': 'nosniff',
         'referrer-policy': 'no-referrer',
+        'access-control-allow-origin': '*',
+        'cross-origin-resource-policy': 'cross-origin',
         'cache-control': 'no-store',
       },
     })

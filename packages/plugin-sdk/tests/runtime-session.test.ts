@@ -149,4 +149,54 @@ describe('Given plugin runtime session', () => {
     await running
     expect(aborted).toBe(true)
   })
+
+  test('When Surface 能力被宿主拒绝 Then 保留稳定错误码供界面提示', async () => {
+    const port = transport()
+    const input = createInput(port)
+    input.definition = definePlugin({
+      activate(context) {
+        context.surfaces.handle('workspace', 'create', (_value, call) => (
+          call.capabilities.request('artifact.write', {})
+        ))
+      },
+    })
+    input.invokeCapability = async () => {
+      throw new Error('PLUGIN_CAPABILITY_READ_ONLY')
+    }
+    const session = await createPluginRuntimeSession(input)
+    await session.handleCommand({
+      protocolVersion: 1,
+      kind: 'request',
+      requestId: 'activate',
+      method: 'runtime.activate',
+      payload: { settingsRevision: 1, settings: {} },
+    })
+    await session.handleCommand({
+      protocolVersion: 1,
+      kind: 'request',
+      requestId: 'surface-create',
+      method: 'surface.invoke',
+      payload: {
+        invocationId: 'surface-invocation',
+        surfaceId: 'workspace',
+        method: 'create',
+        moduleId: 'acme.echo.assistant',
+        sessionId: 'session-1',
+        projectId: null,
+        runId: 'run-1',
+        readOnly: true,
+        settingsRevision: 1,
+        settings: {},
+        input: {},
+        deadline: Date.now() + 1000,
+      },
+    })
+    expect(port.messages.find(message => message.kind === 'response' && message.requestId === 'surface-create')).toEqual({
+      protocolVersion: 1,
+      kind: 'response',
+      requestId: 'surface-create',
+      ok: false,
+      error: { code: 'PLUGIN_CAPABILITY_READ_ONLY', message: '插件调用失败', retryable: false },
+    })
+  })
 })

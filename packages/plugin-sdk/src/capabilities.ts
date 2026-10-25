@@ -8,6 +8,7 @@ export const PLUGIN_CAPABILITY_IDS = [
   'plugin.state.write',
   'artifact.read',
   'artifact.write',
+  'artifact.migrate',
   'job.runtime',
   'agent.progress',
   'agent.delegate',

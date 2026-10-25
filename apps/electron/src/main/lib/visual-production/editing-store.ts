@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { resolveVisualShotOutputs, applyVisualEditingOperations, parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperations } from '@dutydeck/shared'
+import { resolveVisualShotOutputs, applyVisualEditingOperations, parseVisualEditingDocument, parseVisualEditingExportSettings, parseVisualEditingOperations, VISUAL_PRODUCTION_STORAGE_SEGMENTS } from '@dutydeck/shared'
 import type { VisualEditingClip, VisualEditingDocument, VisualEditingExportJob, VisualEditingExportSettings, VisualEditingOperation, VisualEditingTimelineCandidate, VisualEditingTimelineSnapshot, VisualProductionSnapshot, VisualMedia } from '@dutydeck/shared'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
@@ -34,7 +34,7 @@ export class VisualEditingStore {
 
   /** 返回作品剪辑目录；路径段来自已解析的影像身份。 */
   private directory(productionId: string, create = false): string {
-    return interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', productionId, 'editing'], create)
+    return interactionDirectory(this.dependencies.projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', productionId, 'editing'], create)
   }
 
   /** 返回指定集的 JSON 文件路径。 */
@@ -44,7 +44,7 @@ export class VisualEditingStore {
 
   /** 读取文件并验证持久化外壳，损坏内容不能静默当成空剪辑。 */
   private read(productionId: string, episodeId: string): { file: VisualEditingFile; state: AtomicFileState } | null {
-    const directory = join(this.dependencies.projectRoot, '.proma', 'visual-production', 'projects', productionId, 'editing')
+    const directory = join(this.dependencies.projectRoot, ...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', productionId, 'editing')
     if (!existsSync(directory)) return null
     const path = this.path(productionId, episodeId)
     const state = readAtomicFileState(path)
@@ -269,7 +269,7 @@ export class VisualEditingStore {
   private mediaContent(snapshot: VisualProductionSnapshot, id: string): { mediaId: string; bytes: Uint8Array; mime: string } {
     const media = snapshot.media.find(item => item.id === id)
     if (!media) throw new Error('媒体不属于当前作品')
-    const directory = interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', snapshot.document.id, 'media'])
+    const directory = interactionDirectory(this.dependencies.projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', snapshot.document.id, 'media'])
     const stored = JSON.parse(readInteractionFile(join(directory, `${media.hash}.json`), 32 * 1024 * 1024).toString()) as { hash: string; data: string }
     const bytes = Buffer.from(stored.data, 'base64')
     if (stored.hash !== media.hash || bytes.length !== media.byteSize) throw new Error('媒体副本损坏')

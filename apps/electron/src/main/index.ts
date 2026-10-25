@@ -11,7 +11,7 @@ import {
   resolveLegacyDevUserDataDirectoryName,
 } from './lib/app-identity'
 import { resolveUserDataPath } from './lib/user-data-path'
-import { registerPluginSurfaceProtocol } from './lib/agent-plugins/plugin-surface-protocol'
+import { PLUGIN_SURFACE_SCHEME_PRIVILEGES, registerPluginSurfaceProtocol } from './lib/agent-plugins/plugin-surface-protocol'
 import {
   SAFE_STORAGE_MIGRATION_HELPER_ARG,
   SAFE_STORAGE_MIGRATION_RESULT_PREFIX,
@@ -73,7 +73,7 @@ function registerProtocolsAndHandlers(): void {
   // 用于内联预览本地文件（renderer 用 iframe 加载 proma-file:// 资源）
   protocol.registerSchemesAsPrivileged([
     { scheme: 'proma-file', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
-    { scheme: 'dutydeck-plugin', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false, stream: true } },
+    PLUGIN_SURFACE_SCHEME_PRIVILEGES,
   ])
 
   // Windows: 禁用 LCD 次像素抗锯齿（ClearType），改用灰度 AA。

@@ -5,7 +5,7 @@ import { mergeLegacyVisualShotOutputs, resolveVisualShotOutputs } from '@dutydec
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { buildVisualRetryPrompt, groupVisualRecords, VISUAL_KIND_LABELS, type VisualProductionRecord, type VisualRecordTab } from './model'
+import { buildVisualRetryPrompt, groupVisualRecords, visualCandidateReviewState, VISUAL_KIND_LABELS, type VisualProductionRecord, type VisualRecordTab } from './model'
 import { VisualMediaView } from './VisualMediaView'
 import { SHOT_MEDIA_KINDS, SHOT_MEDIA_LABELS } from './shot-media-model'
 
@@ -33,6 +33,8 @@ interface VisualProductionRecordsProps {
   onCancel: (jobId: string) => void
   /** 将失败任务的要求引用到主 Agent 对话。 */
   onRetry: (job: VisualJob) => void
+  /** 将视频候选的审片要求引用到主 Agent，不自动发送。 */
+  onReview: (candidate: VisualCandidate) => void
 }
 /** 阶段来自真实制作任务，不推算供应商进度。 */
 const JOB_STAGE_LABELS = { preparing: '准备参考素材', generating: '生成媒体中', reviewing: '检查生成结果' }
@@ -42,13 +44,16 @@ const CANDIDATE_LABELS = { ready: '待采用', stale: '已过期', adopted: '已
 const RECORD_TAB_LABELS: Record<VisualRecordTab, string> = { all: '全部', running: '进行中', pending: '待采用', adopted: '已采用', failed: '失败/中断', stale: '已过期', closed: '已结束' }
 /** 媒体运行回执使用真实阶段，未知供应商阶段原样保留。 */
 const MEDIA_PHASE_LABELS: Record<string, string> = { prepared: '待执行', queued: '排队中', running: '生成中', completed: '已完成', succeeded: '已完成', failed: '失败', cancelled: '已取消', interrupted: '已中断' }
+/** 视频候选审核状态使用业务语言，不展示英文枚举。 */
+const REVIEW_STATUS_LABELS = { passed: '通过', warning: '有警告', failed: '未通过', pending: '未完成' } as const
+const REVIEW_GATE_LABELS = { technical: '技术', motion: '动作', continuity: '衔接' } as const
 /** 状态页签按固定顺序渲染，供键盘左右切换。 */
 const RECORD_TABS = Object.keys(RECORD_TAB_LABELS) as VisualRecordTab[]
 /** 空列表明确对应的状态范围，取消和丢弃不归为生成失败。 */
 const RECORD_EMPTY_LABELS: Record<VisualRecordTab, string> = { all: '暂无制作记录，向旁边的 Agent 描述制作要求即可开始。', running: '暂无进行中的任务', pending: '暂无待采用的结果', adopted: '暂无已采用的结果', failed: '暂无失败或中断的任务', stale: '暂无已过期的结果', closed: '暂无已结束的任务；已取消和已丢弃的记录会显示在这里。' }
 
 /** 顶部统一入口与单一弹窗，候选预览在弹窗内切换，不叠加第二层模态窗口。 */
-export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy, error, previewRequest, onOpenChange, onAdopt, onDiscard, onCancel, onRetry }: VisualProductionRecordsProps): React.ReactElement {
+export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy, error, previewRequest, onOpenChange, onAdopt, onDiscard, onCancel, onRetry, onReview }: VisualProductionRecordsProps): React.ReactElement {
   /** 弹窗关闭后只保留轻量入口，不挂载完整列表。 */
   const [open, setOpen] = React.useState(false)
   /** 候选身份为空时显示记录列表。 */
@@ -118,12 +123,30 @@ export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy,
     if (tab !== 'all' && record && record.status !== tab) setTab(record.status)
     setCandidateId(null)
   }
+  /** 计算单镜头候选实际替换的输出种类，避免把影片候选误标成泛化候选。 */
+  const changedMediaKinds = (item: VisualCandidate): Array<typeof SHOT_MEDIA_KINDS[number]> => {
+    const shotId = snapshot.jobs.find(job => job.id === item.jobId)?.shotId
+    const currentShot = shotId ? snapshot.document.shots.find(shot => shot.id === shotId) : undefined
+    const proposedShot = shotId ? item.draft.shots.find(shot => shot.id === shotId) : undefined
+    if (!proposedShot) return []
+    const current = currentShot ? resolveVisualShotOutputs(currentShot, mediaById) : { image: null, video: null, audio: null }
+    const proposed = resolveVisualShotOutputs(mergeLegacyVisualShotOutputs(proposedShot, currentShot, mediaById), mediaById)
+    return SHOT_MEDIA_KINDS.filter(kind => current[kind] !== proposed[kind])
+  }
   /** 候选操作复用主工作台的受控写入；过期结果明确不可采用。 */
-  const candidateActions = (item: VisualCandidate, preview: boolean): React.ReactElement => <div className="vp-row vp-record-actions">
+  const candidateActions = (item: VisualCandidate, preview: boolean): React.ReactElement => {
+    const changedKinds = changedMediaKinds(item)
+    const reviewState = visualCandidateReviewState(item)
+    const reviewBlocked = reviewState === 'missing' || reviewState === 'pending' || reviewState === 'failed'
+    const adoptLabel = reviewState === 'missing' ? '待审核' : reviewState === 'pending' ? '审核未完成' : reviewState === 'failed' ? '审核未通过' : changedKinds.length === 1 ? `采用${SHOT_MEDIA_LABELS[changedKinds[0]!]}` : '采用候选'
+    return <div className="vp-row vp-record-actions">
     {preview && <Button variant="outline" size="sm" onClick={() => setCandidateId(item.id)}>预览</Button>}
-    {item.status === 'ready' && <Button size="sm" disabled={busy || item.baseRevision !== snapshot.document.revision} onClick={() => onAdopt(item.id)}>采用候选</Button>}
+    {item.status === 'ready' && item.reviewRequired && (reviewState === 'missing' || reviewState === 'pending') && <span className="vp-auto-review-state">Agent 审核步骤中</span>}
+    {item.status === 'ready' && item.reviewRequired && (reviewState === 'ready' || reviewState === 'failed') && <Button variant="outline" size="sm" disabled={busy} onClick={() => onReview(item)}>引用 Agent 复审</Button>}
+    {item.status === 'ready' && <Button size="sm" disabled={busy || reviewBlocked || item.baseRevision !== snapshot.document.revision} title={reviewBlocked ? '技术、动作与衔接审核通过后可采用' : undefined} onClick={() => onAdopt(item.id)}>{adoptLabel}</Button>}
     {(item.status === 'ready' || item.status === 'stale') && <Button variant="ghost" size="sm" disabled={busy} onClick={() => onDiscard(item.id)}>丢弃</Button>}
-  </div>
+    </div>
+  }
   /** 一条任务只渲染一张记录卡片，完整指令与失败信息由详情展开。 */
   const renderRecord = ({ job, candidates }: VisualProductionRecord): React.ReactElement => <article className="vp-record" key={job.id} data-job-id={job.id}>
     <div className="vp-record-heading">
@@ -138,6 +161,20 @@ export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy,
     {candidates.map(item => <div className="vp-record-candidate" key={item.id} data-candidate-id={item.id}>
       <div className="vp-record-heading">{candidates.length > 1 && <span className="vp-record-title">{item.summary}</span>}<span className="vp-badge">{CANDIDATE_LABELS[item.status]}</span><span className="vp-muted">基于版本 {item.baseRevision}</span></div>
       {item.status === 'stale' && <p className="vp-muted">作品已更新，此候选需基于最新版本重新制作。</p>}
+      {item.reviewRequired && <section className="vp-candidate-review" aria-label="视频候选审核">
+        <div className="vp-candidate-review-gates">
+          <span className="vp-candidate-review-title">视频审核</span>
+          {(['technical', 'motion', 'continuity'] as const).map(gate => {
+            /** 未有审核记录时三个门禁统一显示未完成，避免缺项被误认为通过。 */
+            const status = item.review?.[gate] ?? 'pending'
+            return <span key={gate} className="vp-candidate-review-gate" data-status={status}><b>{REVIEW_GATE_LABELS[gate]}</b>{REVIEW_STATUS_LABELS[status]}</span>
+          })}
+        </div>
+        {item.review?.conclusion && <p>{item.review.conclusion}</p>}
+        {!!item.review?.issues.length && <ul>{item.review.issues.map((issue, index) => <li key={`${issue.gate}:${issue.atSeconds ?? 'all'}:${index}`} data-severity={issue.severity}><span>{REVIEW_GATE_LABELS[issue.gate]}{issue.atSeconds === undefined ? '' : ` · ${issue.atSeconds.toFixed(1)}s`}</span>{issue.message}</li>)}</ul>}
+        {!item.review && <p className="vp-muted">Agent 将自动审核技术、动作和前后镜衔接，完成前不能采用。</p>}
+        {!!item.review?.unchecked.length && <p className="vp-muted">未检查：{item.review.unchecked.join('；')}</p>}
+      </section>}
       {candidateActions(item, true)}
     </div>)}
     <div className="vp-row vp-record-actions">
@@ -169,33 +206,27 @@ export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy,
           {!candidateShotId && <>
             <section className="vp-card"><h3>作品设定</h3><p>{candidate.draft.title} · {VISUAL_KIND_LABELS[candidate.draft.kind]} · {candidate.draft.ratio} · {candidate.draft.fps} fps</p><p className="vp-summary">{candidate.draft.brief || '未填写作品目标'}</p><p className="vp-muted">配音：{candidate.draft.voice || '未设置'} · 音乐：{candidate.draft.music || '未设置'}</p></section>
             <section className="vp-card"><h3>集数（{candidate.draft.episodes.length}）</h3>{candidate.draft.episodes.map(item => <p key={item.id}>{item.title}</p>)}</section>
+            {candidate.draft.episodes.some(item => item.script) && <section className="vp-card"><h3>结构化剧本</h3>{candidate.draft.episodes.filter(item => item.script).map(item => <div key={item.id} className="vp-card">
+              <strong>{item.title}</strong><p className="vp-summary">{item.script!.logline || '未填写一句话故事'}</p>
+              <p className="vp-muted">{item.script!.beats.length} 个叙事节拍 · 目标 {item.script!.targetDurationSeconds || 0}s · {new Set(item.script!.beats.flatMap(beat => beat.shotIds)).size} 个映射镜头</p>
+            </div>)}</section>}
             <section className="vp-card"><h3>资产（{candidate.draft.assets.length}）</h3>{candidate.draft.assets.map(item => <div key={item.id} className="vp-card"><strong>{item.name} · {item.type}{item.locked ? ' · 锁定' : ''}</strong><p className="vp-summary">{item.description}</p>{item.mediaId && <VisualMediaView active={paneActive} sessionId={sessionId} productionId={snapshot.document.id} media={snapshot.media.find(media => media.id === item.mediaId)} />}</div>)}</section>
           </>}
-          <h3>{candidateShotId ? '指定镜头候选输出' : `候选输出（${candidate.draft.shots.length} 个镜头）`}</h3>
-          {(() => {
-            /** 先按镜头计算正式输出与候选输出，后续按输出种类分组显示。 */
-            const comparisons = candidate.draft.shots.filter(item => !candidateShotId || item.id === candidateShotId).map(item => {
-              /** 旧候选只声明一个输出，其余素材在采用时保留；预览采用同样规则。 */
-              const currentShot = snapshot.document.shots.find(shot => shot.id === item.id)
-              const current = currentShot ? resolveVisualShotOutputs(currentShot, mediaById) : { image: null, video: null, audio: null }
-              const proposed = resolveVisualShotOutputs(mergeLegacyVisualShotOutputs(item, currentShot, mediaById), mediaById)
-              return { item, current, proposed }
-            })
-            /** 候选只进入真正变化的输出分组，防止影片候选被画面保留项稀释。 */
-            const groups = SHOT_MEDIA_KINDS.map(kind => ({ kind, entries: comparisons.filter(entry => entry.current[kind] !== entry.proposed[kind]) })).filter(group => group.entries.length)
-            if (!groups.length) return <p className="vp-muted vp-candidate-no-output">本候选没有替换画面、影片或音频输出，其他设定会沿用当前正式内容。</p>
-            return <div className="vp-candidate-output-groups">{groups.map(group => <section className="vp-candidate-output-group" data-candidate-group={group.kind} key={group.kind}>
-              <div className="vp-candidate-group-heading"><div><h3>{SHOT_MEDIA_LABELS[group.kind]}候选</h3><p className="vp-muted">只展示本候选对{SHOT_MEDIA_LABELS[group.kind]}的替换</p></div><span className="vp-badge">{group.entries.length} 个镜头</span></div>
-              {group.entries.map(({ item, current, proposed }) => <article className="vp-candidate-output" data-candidate-output={group.kind} key={`${item.id}:${group.kind}`}>
-                <div className="vp-candidate-output-title"><h4>{item.title}</h4><span className="vp-badge">更新{SHOT_MEDIA_LABELS[group.kind]}</span></div>
-                <div className="vp-grid">
-                  <figure><figcaption className="vp-muted">当前已采用</figcaption>{current[group.kind] ? <VisualMediaView controls active={paneActive && open} sessionId={sessionId} productionId={snapshot.document.id} media={mediaById.get(current[group.kind]!)} /> : <div className="vp-output-empty">尚未采用{SHOT_MEDIA_LABELS[group.kind]}</div>}</figure>
-                  <figure><figcaption className="vp-muted">本次{SHOT_MEDIA_LABELS[group.kind]}候选</figcaption>{proposed[group.kind] ? <VisualMediaView controls active={paneActive && open} sessionId={sessionId} productionId={snapshot.document.id} media={mediaById.get(proposed[group.kind]!)} /> : <div className="vp-output-empty">清空{SHOT_MEDIA_LABELS[group.kind]}</div>}</figure>
+          <h3>{candidateShotId ? '指定镜头对比' : `镜头（${candidate.draft.shots.length}）`}</h3>
+          {candidate.draft.shots.filter(item => !candidateShotId || item.id === candidateShotId).map(item => {
+            /** 旧候选只声明一个输出，其余素材在采用时保留；预览采用同样规则。 */
+            const currentShot = snapshot.document.shots.find(shot => shot.id === item.id)
+            const current = currentShot ? resolveVisualShotOutputs(currentShot, mediaById) : { image: null, video: null, audio: null }
+            const proposed = resolveVisualShotOutputs(mergeLegacyVisualShotOutputs(item, currentShot, mediaById), mediaById)
+            return <section className="vp-card" key={item.id}>
+              <h3>{item.title}</h3>{SHOT_MEDIA_KINDS.filter(kind => current[kind] || proposed[kind]).map(kind => <div key={kind} className="vp-candidate-output" data-candidate-output={kind}>
+                <h4>{SHOT_MEDIA_LABELS[kind]}{current[kind] === proposed[kind] ? ' · 保留' : ' · 更新'}</h4><div className="vp-grid">
+                  <figure><figcaption className="vp-muted">当前已采用</figcaption>{current[kind] ? <VisualMediaView controls active={paneActive && open} sessionId={sessionId} productionId={snapshot.document.id} media={mediaById.get(current[kind]!)} /> : <div className="vp-output-empty">尚未采用{SHOT_MEDIA_LABELS[kind]}</div>}</figure>
+                  <figure><figcaption className="vp-muted">本次候选</figcaption>{proposed[kind] ? <VisualMediaView controls active={paneActive && open} sessionId={sessionId} productionId={snapshot.document.id} media={mediaById.get(proposed[kind]!)} /> : <div className="vp-output-empty">清空{SHOT_MEDIA_LABELS[kind]}</div>}</figure>
                 </div>
-                <p className="vp-summary">{item.scene}</p>
-              </article>)}
-            </section>)}</div>
-          })()}
+              </div>)}<p className="vp-summary">{item.scene}</p>
+            </section>
+          })}
           {candidate.status === 'stale' && <p className="vp-muted">作品已更新，此候选需基于最新版本重新制作。</p>}
         </> : <TabsContent value={tab} className="vp-records-panel">{records.length ? records.map(renderRecord) : <p className="vp-records-empty">{RECORD_EMPTY_LABELS[tab]}</p>}</TabsContent>}
       </div>

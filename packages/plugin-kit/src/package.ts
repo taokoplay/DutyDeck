@@ -94,6 +94,44 @@ function validatePayload(files: ReadonlyMap<string, Uint8Array>): { manifest: Pl
 }
 
 /**
+ * 校验作者工程中的固定发布版本入口。
+ * 插件包自身只读取 plugin.json，但源码发布必须同时保持作者元数据和变更记录一致。
+ */
+function assertAuthorReleaseMetadata(
+  source: ReadonlyMap<string, Uint8Array>,
+  manifest: PluginPackageManifest | PluginV3Manifest,
+): void {
+  if (manifest.formatVersion !== 3) return
+  const packageBytes = source.get('package.json')
+  if (packageBytes) {
+    if (packageBytes.byteLength > 1024 * 1024) throw new Error('PLUGIN_AUTHOR_METADATA_INVALID:package.json')
+    let authorPackage: unknown
+    try {
+      authorPackage = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(packageBytes))
+    } catch {
+      throw new Error('PLUGIN_AUTHOR_METADATA_INVALID:package.json')
+    }
+    if (!authorPackage || typeof authorPackage !== 'object' || Array.isArray(authorPackage)
+      || (authorPackage as Record<string, unknown>).version !== manifest.version) {
+      throw new Error('PLUGIN_AUTHOR_VERSION_MISMATCH')
+    }
+  }
+  const changelogBytes = source.get('CHANGELOG.md')
+  if (!changelogBytes) throw new Error('PLUGIN_CHANGELOG_VERSION_MISSING')
+  if (changelogBytes.byteLength > 1024 * 1024) throw new Error('PLUGIN_AUTHOR_METADATA_INVALID:CHANGELOG.md')
+  let changelog: string
+  try {
+    changelog = new TextDecoder('utf-8', { fatal: true }).decode(changelogBytes)
+  } catch {
+    throw new Error('PLUGIN_AUTHOR_METADATA_INVALID:CHANGELOG.md')
+  }
+  const escapedVersion = manifest.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (!new RegExp(`^##\\s+(?:v)?${escapedVersion}(?:\\s|$)`, 'm').test(changelog)) {
+    throw new Error('PLUGIN_CHANGELOG_VERSION_MISSING')
+  }
+}
+
+/**
  * 从作者源文件生成可验证插件包；不执行脚本，不收录工具配置/密钥/测试。
  * @param source 源文件集合。
  * @param signingKey 可选作者 Ed25519 私钥；未提供时仅生成开发包。
@@ -105,7 +143,8 @@ export function createPluginPackage(source: ReadonlyMap<string, Uint8Array>, sig
     && (input as Record<string, unknown>).formatVersion === 3)
   /** 按明确载荷白名单收录，额外开发文件不能进入最终包。 */
   const files = new Map([...source].filter(([path]) => isPayloadPath(path, v3)))
-  validatePayload(files)
+  const validated = validatePayload(files)
+  assertAuthorReleaseMetadata(source, validated.manifest)
   const entries: IntegrityFile[] = [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     .map(([path, bytes]) => ({ path, bytes: bytes.byteLength, sha256: hashPluginBytes(bytes) }))
   const integrity = Buffer.from(`${JSON.stringify({ formatVersion: 1, files: entries })}\n`)

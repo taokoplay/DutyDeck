@@ -10,7 +10,7 @@ import { ModuleRuntimeManager } from './module-runtime-manager'
 import { ModuleRuntimePluginService } from './module-runtime-plugin-service'
 
 /** 创建隔离 service 和可观察 manager。 */
-function fixture() {
+function fixture(isBusy: () => boolean = () => false) {
   const root = mkdtempSync(join(tmpdir(), 'dutydeck-v3-services-'))
   const modules = new AgentPluginRegistry()
   const manager = new ModuleRuntimeManager({
@@ -21,13 +21,20 @@ function fixture() {
       stop: async () => undefined,
     }),
   })
-  const service = new ModuleRuntimePluginService({ root, manager, development: true })
+  const service = new ModuleRuntimePluginService({ root, manager, development: true, isBusy })
   return { root, modules, manager, service }
 }
 
 /** 创建可安装的开发包字节。 */
-function packageBytes(): Uint8Array {
+function packageBytes(version = '1.0.0'): Uint8Array {
   const files = createModuleRuntimePluginFiles('acme.echo', 'Echo')
+  const manifest = JSON.parse(new TextDecoder().decode(files.get('plugin.json'))) as { version: string }
+  manifest.version = version
+  files.set('plugin.json', new TextEncoder().encode(`${JSON.stringify(manifest)}\n`))
+  const authorPackage = JSON.parse(new TextDecoder().decode(files.get('package.json'))) as { version: string }
+  authorPackage.version = version
+  files.set('package.json', new TextEncoder().encode(`${JSON.stringify(authorPackage)}\n`))
+  files.set('CHANGELOG.md', new TextEncoder().encode(`# 版本记录\n\n## ${version}\n\n测试版本。\n`))
   files.set('runtime/main.mjs', new TextEncoder().encode('export default { activate() {} }'))
   files.set('surfaces/workspace/index.html', new TextEncoder().encode('<!doctype html><html></html>'))
   files.set('surfaces/workspace/main.js', new TextEncoder().encode('export {}'))
@@ -47,6 +54,41 @@ function signedPackageBytes(): { bytes: Uint8Array; keyId: string } {
 }
 
 describe('Given V3 plugin management service', () => {
+  test('When Agent 忙碌时同一预览等待后重试 Then 首次不写目录且预览仍可使用', async () => {
+    let busy = true
+    const first = fixture(() => busy)
+    try {
+      const preview = first.service.previewBytes(packageBytes())
+      await expect(first.service.install(preview.token)).rejects.toThrow('AGENT_BUSY')
+      expect(first.service.snapshot().plugins).toEqual([])
+      busy = false
+      await expect(first.service.install(preview.token)).resolves.toEqual(expect.objectContaining({
+        plugins: [expect.objectContaining({ manifest: expect.objectContaining({ id: 'acme.echo' }) })],
+      }))
+    } finally {
+      await first.service.dispose()
+      rmSync(first.root, { recursive: true, force: true })
+    }
+  })
+
+  test('When 插件 Host API 与当前宿主不兼容 Then 预览阶段拒绝', () => {
+    const first = fixture()
+    try {
+      const files = createModuleRuntimePluginFiles('acme.echo', 'Echo')
+      files.set('runtime/main.mjs', new TextEncoder().encode('export default { activate() {} }'))
+      files.set('surfaces/workspace/index.html', new TextEncoder().encode('<!doctype html><html></html>'))
+      const manifest = JSON.parse(new TextDecoder().decode(files.get('plugin.json'))) as {
+        compatibility: { hostApi: string }
+      }
+      manifest.compatibility.hostApi = '^2.0.0'
+      files.set('plugin.json', new TextEncoder().encode(`${JSON.stringify(manifest)}\n`))
+      expect(() => first.service.previewBytes(createPluginPackage(files))).toThrow('PLUGIN_HOST_API_UNSUPPORTED')
+    } finally {
+      void first.service.dispose()
+      rmSync(first.root, { recursive: true, force: true })
+    }
+  })
+
   test('When 开发包安装、重启、停用和卸载 Then 目录与运行注册同步', async () => {
     const first = fixture()
     try {
@@ -79,6 +121,25 @@ describe('Given V3 plugin management service', () => {
 
       const removed = await first.service.uninstall('acme.echo', disabled.revision)
       expect(removed.plugins).toEqual([])
+    } finally {
+      await first.service.dispose()
+      rmSync(first.root, { recursive: true, force: true })
+    }
+  })
+
+  test('When 安装新版本后显式回滚 Then 注册切回不可变历史包', async () => {
+    const first = fixture()
+    try {
+      const v1 = first.service.previewBytes(packageBytes('1.0.0'))
+      const installed = await first.service.install(v1.token)
+      const v2 = first.service.previewBytes(packageBytes('1.0.1'))
+      const updated = await first.service.install(v2.token)
+      expect(updated.plugins[0]?.manifest.version).toBe('1.0.1')
+      expect(first.service.listVersions('acme.echo').map(item => item.version)).toEqual(['1.0.1', '1.0.0'])
+      const rolledBack = await first.service.rollback('acme.echo', v1.packageHash, installed.revision + 1)
+      expect(rolledBack.plugins[0]?.manifest.version).toBe('1.0.0')
+      expect(rolledBack.plugins[0]?.packageHash).toBe(v1.packageHash)
+      expect(first.modules.getModule('acme.echo.assistant')?.version).toBe('1.0.0')
     } finally {
       await first.service.dispose()
       rmSync(first.root, { recursive: true, force: true })

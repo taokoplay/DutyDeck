@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>互作关系画布 · 交互设计</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2317191f'/%3E%3Cpath d='M9 9h8a7 7 0 1 1 0 14H9zm5 5v4h3a2 2 0 0 0 0-4z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 6.5h8.5a5.5 5.5 0 0 1 0 11H5z"/><path d="M9 10h4.5a2 2 0 0 1 0 4H9z"/></svg>
+        </span>
+        <div>
+          <div class="brand-line">
+            <strong>CyberParty</strong>
+            <span class="save-state"><i></i>已保存 v12</span>
+          </div>
+          <p>交互设计 · 活动报名 App</p>
+        </div>
+      </div>
+
+      <nav class="view-switcher" aria-label="交互设计视图">
+        <button class="view-tab is-active" data-view="canvas">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="6" height="6" rx="1.5"/><rect x="15" y="14" width="6" height="6" rx="1.5"/><path d="M9 7h3a3 3 0 0 1 3 3v4"/></svg>
+          结构画布
+        </button>
+        <button class="view-tab" data-view="preview">
+          <svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10 5.5h4M10.5 18.5h3"/></svg>
+          原型预览
+        </button>
+      </nav>
+
+      <div class="top-actions">
+        <button class="quiet-button" id="historyButton">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+          版本
+        </button>
+        <button class="quiet-button" id="agentButton">
+          <svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg>
+          引用到会话
+        </button>
+        <button class="primary-button" id="exportButton">
+          <svg viewBox="0 0 24 24"><path d="M12 3v11M8 10l4 4 4-4M5 18v2h14v-2"/></svg>
+          导出原型
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="library-panel" aria-label="设计资产与页面">
+        <div class="library-tabs" role="tablist" aria-label="设计与参考">
+          <button class="library-tab is-active" data-library="pages" role="tab" aria-selected="true">
+            页面 <span id="pageCount">10</span>
+          </button>
+          <button class="library-tab" data-library="references" role="tab" aria-selected="false">
+            参考图 <span id="referenceCount">06</span>
+          </button>
+        </div>
+
+        <section class="library-content pages-library" data-library-content="pages">
+          <label class="search-field">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <input id="pageSearch" type="search" placeholder="搜索页面..." autocomplete="off">
+            <kbd>⌘ K</kbd>
+          </label>
+
+          <div class="page-tree" id="pageTree">
+            <section class="tree-group" data-group="discover">
+              <button class="group-heading" aria-expanded="true">
+                <span class="chevron">⌄</span>
+                <span class="group-dot mint"></span>
+                <strong>发现与探索</strong>
+                <em>3</em>
+              </button>
+              <div class="group-pages">
+                <button class="page-row" data-page="home">
+                  <span class="page-icon home"></span>
+                  <span class="page-copy"><strong>首页</strong><small>入口页</small></span>
+                  <span class="page-badge">2 状态</span>
+                </button>
+                <button class="page-row" data-page="discover">
+                  <span class="page-icon discover"></span>
+                  <span class="page-copy"><strong>发现活动</strong><small>/discover</small></span>
+                </button>
+                <button class="page-row" data-page="search">
+                  <span class="page-icon search"></span>
+                  <span class="page-copy"><strong>活动搜索</strong><small>/search</small></span>
+                </button>
+              </div>
+            </section>
+
+            <section class="tree-group" data-group="decision">
+              <button class="group-heading" aria-expanded="true">
+                <span class="chevron">⌄</span>
+                <span class="group-dot violet"></span>
+                <strong>浏览与决策</strong>
+                <em>4</em>
+              </button>
+              <div class="group-pages">
+                <button class="page-row is-selected" data-page="detail">
+                  <span class="page-icon detail"></span>
+                  <span class="page-copy"><strong>活动详情</strong><small>/events/:id</small></span>
+                  <span class="page-badge unlinked">3 状态</span>
+                </button>
+                <button class="page-row" data-page="speakers">
+                  <span class="page-icon speakers"></span>
+                  <span class="page-copy"><strong>嘉宾阵容</strong><small>详情子页</small></span>
+                </button>
+                <button class="page-row" data-page="ticket">
+                  <span class="page-icon ticket"></span>
+                  <span class="page-copy"><strong>选择票种</strong><small>/tickets</small></span>
+                </button>
+                <button class="page-row" data-page="signin">
+                  <span class="page-icon signin"></span>
+                  <span class="page-copy"><strong>登录确认</strong><small>弹层状态</small></span>
+                </button>
+              </div>
+            </section>
+
+            <section class="tree-group" data-group="complete">
+              <button class="group-heading" aria-expanded="true">
+                <span class="chevron">⌄</span>
+                <span class="group-dot orange"></span>
+                <strong>报名与完成</strong>
+                <em>3</em>
+              </button>
+              <div class="group-pages">
+                <button class="page-row" data-page="confirm">
+                  <span class="page-icon confirm"></span>
+                  <span class="page-copy"><strong>订单确认</strong><small>/checkout</small></span>
+                </button>
+                <button class="page-row" data-page="success">
+                  <span class="page-icon success"></span>
+                  <span class="page-copy"><strong>报名成功</strong><small>3 状态</small></span>
+                </button>
+                <button class="page-row" data-page="pass">
+                  <span class="page-icon pass"></span>
+                  <span class="page-copy"><strong>我的票夹</strong><small>/passes</small></span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="library-content references-library" data-library-content="references" hidden>
+          <div class="reference-library-head">
+            <p>参考图只描述视觉与结构依据，不代表已实现的交互。</p>
+            <button class="icon-button" id="addReferenceButton" title="添加参考图" aria-label="添加参考图">+</button>
+          </div>
+          <div class="reference-filter-row" role="group" aria-label="参考图类型">
+            <button class="filter-chip is-active" data-ref-filter="all">全部</button>
+            <button class="filter-chip" data-ref-filter="structure">结构</button>
+            <button class="filter-chip" data-ref-filter="visual">视觉</button>
+            <button class="filter-chip" data-ref-filter="copy">文案</button>
+          </div>
+          <div class="reference-grid" id="referenceGrid"></div>
+          <label class="drop-zone" id="dropZone">
+            <input id="referenceUpload" type="file" accept="image/*" multiple hidden>
+            <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 15v4h16v-4"/></svg>
+            <span>拖入参考图，或点击上传</span>
+            <small>PNG / JPG / WebP · 仅保存在当前原型</small>
+          </label>
+        </section>
+
+        <footer class="library-footer">
+          <span><i class="status-dot"></i> 项目已同步</span>
+          <button id="newGroupButton">+ 分组</button>
+        </footer>
+      </aside>
+
+      <section class="center-stage">
+        <div class="canvas-header">
+          <div class="canvas-title">
+            <span class="eyebrow">INTERACTION MAP</span>
+            <h1>报名主流程</h1>
+            <p>分组表达信息架构，页面节点表达可体验页面，连线只表达实际跳转。</p>
+          </div>
+          <div class="canvas-summary">
+            <span><b id="visibleNodeCount">10</b> 页面</span>
+            <span><b id="flowCount">12</b> 跳转</span>
+            <span class="warn"><i></i><b>1</b> 未连接</span>
+          </div>
+        </div>
+
+        <div class="canvas-toolbar">
+          <div class="filter-switcher" role="group" aria-label="画布筛选">
+            <button class="canvas-filter is-active" data-filter="all">全部</button>
+            <button class="canvas-filter" data-filter="primary">主流程</button>
+            <button class="canvas-filter" data-filter="issues">待处理 <span>2</span></button>
+          </div>
+          <div class="toolbar-spacer"></div>
+          <button class="toolbar-button" id="autoLayoutButton">
+            <svg viewBox="0 0 24 24"><path d="M4 5h6v6H4zM14 13h6v6h-6zM10 8h2a2 2 0 0 1 2 2v3"/></svg>
+            自动排版
+          </button>
+          <span class="toolbar-divider"></span>
+          <button class="tool-button" id="zoomOut" aria-label="缩小">−</button>
+          <button class="zoom-label" id="zoomReset">86%</button>
+          <button class="tool-button" id="zoomIn" aria-label="放大">+</button>
+          <button class="tool-button" id="fitCanvas" aria-label="适应画布">
+            <svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+          </button>
+        </div>
+
+        <div class="canvas-viewport" id="canvasViewport">
+          <div class="canvas-grid"></div>
+          <div class="canvas-world" id="canvasWorld">
+            <div class="swimlane swimlane-discover">
+              <div class="swimlane-label">
+                <span class="lane-index">01</span>
+                <div><strong>发现与探索</strong><small>让用户找到想参加的活动</small></div>
+                <button aria-label="收起发现与探索分组">•••</button>
+              </div>
+            </div>
+            <div class="swimlane swimlane-decision">
+              <div class="swimlane-label">
+                <span class="lane-index">02</span>
+                <div><strong>浏览与决策</strong><small>理解活动并确认参与意愿</small></div>
+                <button aria-label="收起浏览与决策分组">•••</button>
+              </div>
+            </div>
+            <div class="swimlane swimlane-complete">
+              <div class="swimlane-label">
+                <span class="lane-index">03</span>
+                <div><strong>报名与完成</strong><small>完成报名并拿到入场凭证</small></div>
+                <button aria-label="收起报名与完成分组">•••</button>
+              </div>
+            </div>
+
+            <svg class="flow-layer" id="flowLayer" aria-hidden="true">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z"></path>
+                </marker>
+                <marker id="arrow-strong" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z"></path>
+                </marker>
+              </defs>
+              <g id="flowPaths"></g>
+            </svg>
+
+            <article class="page-node node-home" data-node="home" data-primary="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 01</span><span class="entry-pill">入口</span><button aria-label="更多首页操作">•••</button></div>
+              <div class="node-preview preview-home">
+                <div class="mini-camera"></div><div class="mini-orb"></div><div class="mini-title"></div><div class="mini-copy"></div><div class="mini-card-row"><i></i><i></i><i></i></div>
+              </div>
+              <div class="node-copy"><strong>首页</strong><span>今日推荐 · 2 个状态</span></div>
+              <div class="node-meta"><span class="state-stack"><i></i><i></i></span><span>2 状态</span><span class="node-spacer"></span><span class="connection-count">3 ↗</span></div>
+            </article>
+
+            <article class="page-node node-discover" data-node="discover" data-primary="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 02</span><button aria-label="更多发现活动操作">•••</button></div>
+              <div class="node-preview preview-discover">
+                <div class="mini-nav"></div><div class="mini-chip-row"><i></i><i></i><i></i></div><div class="mini-tile-grid"><i></i><i></i><i></i><i></i></div>
+              </div>
+              <div class="node-copy"><strong>发现活动</strong><span>活动卡片流</span></div>
+              <div class="node-meta"><span>默认状态</span><span class="node-spacer"></span><span class="connection-count">2 ↗</span></div>
+            </article>
+
+            <article class="page-node node-search" data-node="search" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 03</span><button aria-label="更多活动搜索操作">•••</button></div>
+              <div class="node-preview preview-search">
+                <div class="mini-search"></div><div class="mini-row"></div><div class="mini-row short"></div><div class="mini-row"></div>
+              </div>
+              <div class="node-copy"><strong>活动搜索</strong><span>筛选与历史记录</span></div>
+              <div class="node-meta"><span>独立子流程</span><span class="node-spacer"></span><span class="connection-count">1 ↗</span></div>
+            </article>
+
+            <article class="page-node node-detail is-selected" data-node="detail" data-primary="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 04</span><span class="attention-pill">待整理</span><button aria-label="更多活动详情操作">•••</button></div>
+              <div class="node-preview preview-detail">
+                <div class="mini-poster"></div><div class="mini-detail-copy"><i></i><i></i><i></i></div><div class="mini-action"></div>
+              </div>
+              <div class="node-copy"><strong>活动详情</strong><span>默认 · 已报名 · 已满员</span></div>
+              <div class="node-meta"><span class="state-stack three"><i></i><i></i><i></i></span><span>3 状态</span><span class="node-spacer"></span><span class="connection-count">4 ↗</span></div>
+            </article>
+
+            <article class="page-node node-speakers" data-node="speakers" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 05</span><button aria-label="更多嘉宾阵容操作">•••</button></div>
+              <div class="node-preview preview-speakers">
+                <div class="mini-avatar-row"><i></i><i></i><i></i></div><div class="mini-row"></div><div class="mini-row short"></div>
+              </div>
+              <div class="node-copy"><strong>嘉宾阵容</strong><span>详情页子视图</span></div>
+              <div class="node-meta"><span>返回详情</span><span class="node-spacer"></span><span class="connection-count">1 ↗</span></div>
+            </article>
+
+            <article class="page-node node-ticket" data-node="ticket" data-primary="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 06</span><button aria-label="更多选择票种操作">•••</button></div>
+              <div class="node-preview preview-ticket">
+                <div class="mini-ticket"></div><div class="mini-ticket selected"></div><div class="mini-action"></div>
+              </div>
+              <div class="node-copy"><strong>选择票种</strong><span>库存与价格决策</span></div>
+              <div class="node-meta"><span>默认状态</span><span class="node-spacer"></span><span class="connection-count">2 ↗</span></div>
+            </article>
+
+            <article class="page-node node-signin" data-node="signin" data-issue="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">STATE</span><span class="attention-pill">孤立</span><button aria-label="更多登录确认操作">•••</button></div>
+              <div class="node-preview preview-signin">
+                <div class="mini-sheet"></div>
+              </div>
+              <div class="node-copy"><strong>登录确认</strong><span>没有可达入口</span></div>
+              <div class="node-meta"><span>页面级弹层</span><span class="node-spacer"></span><span class="connection-count danger">0 ↗</span></div>
+            </article>
+
+            <article class="page-node node-confirm" data-node="confirm" data-primary="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 08</span><button aria-label="更多订单确认操作">•••</button></div>
+              <div class="node-preview preview-confirm">
+                <div class="mini-sheet-summary"></div><div class="mini-line"></div><div class="mini-line"></div><div class="mini-action"></div>
+              </div>
+              <div class="node-copy"><strong>订单确认</strong><span>实名信息与支付</span></div>
+              <div class="node-meta"><span>默认状态</span><span class="node-spacer"></span><span class="connection-count">2 ↗</span></div>
+            </article>
+
+            <article class="page-node node-success" data-node="success" data-primary="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 09</span><button aria-label="更多报名成功操作">•••</button></div>
+              <div class="node-preview preview-success">
+                <div class="mini-check">✓</div><div class="mini-row"></div><div class="mini-action"></div>
+              </div>
+              <div class="node-copy"><strong>报名成功</strong><span>成功 · 待审核 · 失败</span></div>
+              <div class="node-meta"><span class="state-stack three"><i></i><i></i><i></i></span><span>3 状态</span><span class="node-spacer"></span><span class="connection-count">2 ↗</span></div>
+            </article>
+
+            <article class="page-node node-pass" data-node="pass" data-primary="true" tabindex="0">
+              <div class="node-top"><span class="node-kicker">PAGE 10</span><button aria-label="更多我的票夹操作">•••</button></div>
+              <div class="node-preview preview-pass">
+                <div class="mini-passes"><i></i><i></i></div><div class="mini-line"></div>
+              </div>
+              <div class="node-copy"><strong>我的票夹</strong><span>入场凭证与回顾</span></div>
+              <div class="node-meta"><span>默认状态</span><span class="node-spacer"></span><span class="connection-count">1 ↗</span></div>
+            </article>
+
+            <div class="reference-pin pin-detail" data-ref-pin="ref-01" title="查看关联参考图">
+              <span class="pin-thumb ref-thumb-01"></span><b>2</b>
+            </div>
+          </div>
+
+          <div class="canvas-legend">
+            <span><i class="legend-flow"></i>实际跳转</span>
+            <span><i class="legend-state"></i>同页状态</span>
+            <span><i class="legend-reference"></i>参考图关联</span>
+            <span class="legend-tip">空格拖动画布 · ⌘ 点击多选</span>
+          </div>
+        </div>
+
+        <section class="preview-view" id="previewView" hidden>
+          <div class="preview-top">
+            <div>
+              <span class="eyebrow">LIVE PROTOTYPE</span>
+              <h2 id="previewTitle">活动详情</h2>
+            </div>
+            <div class="preview-actions">
+              <button class="filter-chip is-active" data-preview-state="default">默认</button>
+              <button class="filter-chip" data-preview-state="joined">已报名</button>
+              <button class="filter-chip" data-preview-state="full">已满员</button>
+              <span class="toolbar-divider"></span>
+              <button class="quiet-button">重新体验</button>
+            </div>
+          </div>
+          <div class="phone-stage">
+            <div class="phone-shell">
+              <div class="phone-island"></div>
+              <div class="phone-screen" id="phoneScreen">
+                <div class="app-status"><span>9:41</span><span>● ◒ ▰</span></div>
+                <div class="prototype-app">
+                  <div class="prototype-nav">
+                    <button aria-label="返回">‹</button>
+                    <span>活动详情</span>
+                    <button aria-label="分享">↗</button>
+                  </div>
+                  <div class="prototype-poster">
+                    <div class="poster-orbit"></div>
+                    <span>NEON<br>NIGHTS</span>
+                    <small>10.26 · SHANGHAI</small>
+                  </div>
+                  <div class="prototype-body">
+                    <span class="prototype-tag">音乐 · 夜间派对</span>
+                    <h3>霓虹夜航 · 电子音乐派对</h3>
+                    <p>在城市的夜色里，和 300 位同频的人一起进入声音构筑的未来空间。</p>
+                    <div class="prototype-info"><span>10 月 26 日 · 20:00</span><span>MAO Livehouse</span></div>
+                  </div>
+                  <div class="prototype-cta">选择票种 · ¥168 起</div>
+                </div>
+              </div>
+            </div>
+            <aside class="preview-notes">
+              <div class="notes-heading"><span>页面层级</span><em>活动流程 / 活动详情</em></div>
+              <div class="hierarchy-stack">
+                <div><span>01</span><strong>浏览与决策</strong><small>分组</small></div>
+                <div><span>02</span><strong>活动详情</strong><small>页面</small></div>
+                <div><span>03</span><strong>已报名</strong><small>状态</small></div>
+              </div>
+              <div class="notes-block"><strong>关联参考图</strong><div class="notes-refs"><span class="notes-ref ref-thumb-02"></span><span class="notes-ref ref-thumb-04"></span><button>+</button></div></div>
+              <div class="notes-block"><strong>待核对</strong><p>活动已满员时，是否仍允许用户进入候补流程？</p></div>
+            </aside>
+          </div>
+        </section>
+      </section>
+
+      <aside class="inspector" aria-label="选中项详情">
+        <div class="inspector-head">
+          <div>
+            <span class="eyebrow">SELECTED</span>
+            <h2 id="inspectorTitle">活动详情</h2>
+          </div>
+          <button class="icon-button" aria-label="关闭详情">×</button>
+        </div>
+
+        <div class="selection-breadcrumb" id="inspectorBreadcrumb">
+          <span>浏览与决策</span><i>/</i><strong>活动详情</strong><i>/</i><em>默认状态</em>
+        </div>
+
+        <section class="inspector-section">
+          <div class="section-heading"><span>层级关系</span><button>编辑</button></div>
+          <div class="hierarchy-card">
+            <div class="hierarchy-row"><span class="level-pill">分组</span><strong>浏览与决策</strong><em>3 页 · 12%</em></div>
+            <div class="hierarchy-line"></div>
+            <div class="hierarchy-row main"><span class="level-pill">页面</span><strong>活动详情</strong><em>PAGE 04</em></div>
+            <div class="hierarchy-line"></div>
+            <div class="hierarchy-row"><span class="level-pill">状态</span><strong>默认 · 已报名 · 已满员</strong><em>3 个</em></div>
+          </div>
+        </section>
+
+        <section class="inspector-section">
+          <div class="section-heading"><span>参考图 <b id="inspectorRefCount">2</b></span><button id="attachReferenceButton">关联</button></div>
+          <div class="inspector-reference-list" id="inspectorReferenceList">
+            <button class="inspector-ref" data-ref="ref-01">
+              <span class="ref-preview ref-thumb-01"></span>
+              <span class="ref-copy"><strong>活动详情页结构</strong><small>结构参考 · 来自 Figma</small></span>
+              <span class="ref-role">结构</span>
+            </button>
+            <button class="inspector-ref" data-ref="ref-02">
+              <span class="ref-preview ref-thumb-02"></span>
+              <span class="ref-copy"><strong>Neon Nights 视觉方向</strong><small>视觉参考 · 2 处引用</small></span>
+              <span class="ref-role visual">视觉</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="inspector-section">
+          <div class="section-heading"><span>跳转关系</span><button>＋</button></div>
+          <div class="flow-list">
+            <button class="flow-row"><span class="flow-icon">→</span><span><strong>选择票种</strong><small>点击「选择票种」</small></span><em>2 处入口</em></button>
+            <button class="flow-row"><span class="flow-icon back">↩</span><span><strong>发现活动</strong><small>点击返回</small></span><em>目标页</em></button>
+          </div>
+        </section>
+
+        <section class="inspector-section agent-section">
+          <div class="agent-callout">
+            <span class="agent-mark">✦</span>
+            <div><strong>让 Agent 整理这一组</strong><p>检查同名页面、遗漏状态与未连接动作，先生成候选。</p></div>
+          </div>
+          <button class="agent-action" id="agentInspectorButton">引用当前层级到主会话 <span>↗</span></button>
+        </section>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <dialog class="reference-dialog" id="referenceDialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">REFERENCE</span><h2>关联参考图</h2></div>
+        <button class="icon-button" id="closeDialogButton" aria-label="关闭">×</button>
+      </div>
+      <p>选择要关联到「<strong id="dialogTargetName">活动详情</strong>」的参考图。参考图不会自动改变页面或流程。</p>
+      <div class="dialog-ref-grid" id="dialogRefGrid"></div>
+      <div class="dialog-actions"><button class="quiet-button" id="cancelDialogButton">取消</button><button class="primary-button" id="confirmDialogButton">确认关联</button></div>
+    </dialog>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

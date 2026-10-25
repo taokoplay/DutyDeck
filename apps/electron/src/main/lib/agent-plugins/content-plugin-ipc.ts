@@ -15,7 +15,11 @@ export interface ContentPluginIpcDependencies {
 }
 
 /** 注册 V2 四层 IPC；renderer 无权指定读取路径，也不能打开未签名开发模式。 */
-export function registerContentPluginIpc(registry: AgentPluginRegistry, isBusy: () => boolean, dependencies: ContentPluginIpcDependencies = {}): void {
+export function registerContentPluginIpc(
+  registry: AgentPluginRegistry,
+  isBusy: () => boolean,
+  dependencies: ContentPluginIpcDependencies = {},
+): ContentPluginManager {
   const service = new ContentPluginService(dependencies.root ?? join(getConfigDir(), 'plugin-packages-v2'), isBusy)
   const manager = new ContentPluginManager(service, registry, () => {
     for (const window of BrowserWindow.getAllWindows()) {
@@ -64,4 +68,5 @@ export function registerContentPluginIpc(registry: AgentPluginRegistry, isBusy: 
     id(pluginId); revision(expectedRevision)
     return mutate(() => manager.uninstall(pluginId, expectedRevision))
   })
+  return manager
 }

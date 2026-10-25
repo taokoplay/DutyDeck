@@ -2173,6 +2173,7 @@ export function SidePanel({ sessionId, sessionPath, activeTab, onTabChange, widt
           key={`${pluginSurface.token}:${pane ?? 'single'}`}
           title={pluginSurface.title}
           sourceUrl={pluginSurface.sourceUrl}
+          readOnly={pluginSurface.readOnly}
           onBridgeRequest={async (request) => window.electronAPI.moduleRuntimePlugin.invokeSurface({
             sessionId,
             token: pluginSurface.token,

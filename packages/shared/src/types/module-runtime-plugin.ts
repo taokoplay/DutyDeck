@@ -6,6 +6,8 @@ export const MODULE_RUNTIME_PLUGIN_IPC_CHANNELS = {
   PREVIEW: 'module-runtime-plugin:preview',
   INSTALL: 'module-runtime-plugin:install',
   SET_ENABLED: 'module-runtime-plugin:set-enabled',
+  LIST_VERSIONS: 'module-runtime-plugin:list-versions',
+  ROLLBACK: 'module-runtime-plugin:rollback',
   UNINSTALL: 'module-runtime-plugin:uninstall',
   CHANGED: 'module-runtime-plugin:changed',
   OPEN_SURFACE: 'module-runtime-plugin:open-surface',
@@ -61,6 +63,14 @@ export interface ModuleRuntimePluginPreviewView {
   previousVersion?: string
 }
 
+/** renderer 可见的历史包摘要；不暴露归档路径和包正文。 */
+export interface ArchivedModuleRuntimePluginVersionView {
+  version: string
+  packageHash: string
+  signatureVerified: boolean
+  keyId?: string
+}
+
 /** 打开 Surface 后的 renderer 合同；sourceUrl 携带短期 token。 */
 export interface OpenModuleRuntimeSurfaceInput {
   sessionId: string
@@ -96,6 +106,8 @@ export interface ModuleRuntimePluginApi {
   preview(): Promise<ModuleRuntimePluginPreviewView | null>
   install(token: string, trustedKeyId?: string): Promise<ModuleRuntimePluginSnapshotView>
   setEnabled(pluginId: string, enabled: boolean, expectedRevision: number): Promise<ModuleRuntimePluginSnapshotView>
+  listVersions(pluginId: string): Promise<ArchivedModuleRuntimePluginVersionView[]>
+  rollback(pluginId: string, packageHash: string, expectedRevision: number): Promise<ModuleRuntimePluginSnapshotView>
   uninstall(pluginId: string, expectedRevision: number): Promise<ModuleRuntimePluginSnapshotView>
   openSurface(input: OpenModuleRuntimeSurfaceInput): Promise<OpenModuleRuntimeSurfaceResult>
   invokeSurface(input: InvokeModuleRuntimeSurfaceInput): Promise<unknown>

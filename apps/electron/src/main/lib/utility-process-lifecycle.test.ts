@@ -13,6 +13,8 @@ class FakeUtilityProcess implements UtilityProcessLifecycleTarget {
   killCalls = 0
   /** kill 后是否自动发出 exit。 */
   exitOnKill = false
+  /** 强制终止时是否模拟操作系统发出 exit。 */
+  exitOnForceKill = false
   /** spawn 一次性监听器。 */
   private spawnListener?: () => void
   /** exit 一次性监听器。 */
@@ -102,7 +104,7 @@ describe('utility process 可等待生命周期', () => {
     /** 不响应 kill 的测试进程。 */
     const process = new FakeUtilityProcess(404)
     /** 使用最短测试预算的生命周期。 */
-    const lifecycle = createUtilityProcessLifecycle(process, { exitTimeoutMs: 5 })
+    const lifecycle = createUtilityProcessLifecycle(process, { exitTimeoutMs: 5, forceKill: () => {} })
 
     await expect(lifecycle.stop()).rejects.toMatchObject({
       code: UTILITY_PROCESS_EXIT_TIMEOUT_CODE,
@@ -116,7 +118,7 @@ describe('utility process 可等待生命周期', () => {
     /** 首次停止预算内不退出的测试进程。 */
     const process = new FakeUtilityProcess(505)
     /** 使用最短测试预算的生命周期。 */
-    const lifecycle = createUtilityProcessLifecycle(process, { exitTimeoutMs: 5 })
+    const lifecycle = createUtilityProcessLifecycle(process, { exitTimeoutMs: 20, forceKillGraceMs: 30, forceKill: () => {} })
     await expect(lifecycle.stop()).rejects.toMatchObject({
       code: UTILITY_PROCESS_EXIT_TIMEOUT_CODE,
     })
@@ -125,5 +127,53 @@ describe('utility process 可等待生命周期', () => {
 
     await expect(lifecycle.stop()).resolves.toBeUndefined()
     expect(lifecycle.hasExited).toBe(true)
+  })
+
+  test('Given 优雅终止未生效 When 超过强杀宽限 Then 按已确认 PID 强制终止并等待 exit', async () => {
+    /** 首次 kill 不退出、强杀后才退出的测试进程。 */
+    const process = new FakeUtilityProcess(606)
+    process.exitOnForceKill = true
+    /** 收集强制终止收到的 PID。 */
+    const forcedPids: number[] = []
+    /** 被测生命周期使用短宽限验证升级路径。 */
+    const lifecycle = createUtilityProcessLifecycle(process, {
+      exitTimeoutMs: 50,
+      forceKillGraceMs: 5,
+      forceKill: (pid) => {
+        forcedPids.push(pid)
+        if (process.exitOnForceKill) queueMicrotask(() => process.emitExit(1))
+      },
+    })
+
+    await expect(lifecycle.stop()).resolves.toBeUndefined()
+
+    expect(process.killCalls).toBe(1)
+    expect(forcedPids).toEqual([606])
+    expect(lifecycle.hasExited).toBe(true)
+  })
+
+  test('Given stop 早于 spawn When spawn 后优雅终止仍不退出 Then 强杀使用真实 PID', async () => {
+    /** spawn 前发起停止的测试进程。 */
+    const process = new FakeUtilityProcess()
+    process.exitOnForceKill = true
+    /** 收集强杀时的真实 PID。 */
+    const forcedPids: number[] = []
+    /** 使用短宽限验证 spawn 后的升级路径。 */
+    const lifecycle = createUtilityProcessLifecycle(process, {
+      exitTimeoutMs: 50,
+      forceKillGraceMs: 5,
+      forceKill: (pid) => {
+        forcedPids.push(pid)
+        if (process.exitOnForceKill) queueMicrotask(() => process.emitExit(1))
+      },
+    })
+    /** spawn 前发起的停止请求。 */
+    const stopping = lifecycle.stop()
+
+    process.emitSpawn(707)
+
+    await expect(stopping).resolves.toBeUndefined()
+    expect(process.killCalls).toBe(1)
+    expect(forcedPids).toEqual([707])
   })
 })

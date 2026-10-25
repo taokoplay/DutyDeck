@@ -18,6 +18,12 @@ describe('内置 Agent 模块注册表', () => {
 
   test('Given 影像单选 When 读取 Skill 引用 Then 不附带整套画布指令且画布可共享媒体能力', () => {
     expect(getBuiltinAgentModule('visual-production')?.skillRefs).toEqual(['media-models'])
+    expect(getBuiltinAgentModule('visual-production')).toMatchObject({
+      surfaceIds: ['visual-production'],
+      promptRefs: ['visual-production.system.v1'],
+      toolRefs: ['visual.projects', 'visual.script', 'visual.storyboard', 'visual.media', 'visual.review', 'visual.edit', 'visual.deliver'],
+      artifactTypes: ['visual.production', 'visual.script', 'visual.storyboard', 'media.image', 'media.video', 'media.audio', 'visual.timeline', 'visual.final-master'],
+    })
     expect(getBuiltinAgentModule('canvas')?.skillRefs).toEqual(['canvas-production', 'media-models'])
   })
 

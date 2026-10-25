@@ -8,7 +8,7 @@ import { listBuiltinAgentModules } from '../../../main/lib/agent-modules/module-
 import { AgentPluginRegistry } from '../../../main/lib/agent-modules/plugin-registry'
 import { BuiltinPluginDetail, BuiltinPluginSettings } from './BuiltinPluginSettings'
 import { BUILTIN_MODULE_DOCUMENTATION, getBuiltinModuleDocumentation } from './builtin-module-documentation'
-import { ContentPluginManager } from './PluginSettings'
+import { PluginPackageImporter } from './PluginPackageImporter'
 import { PluginCenter } from './PluginCenter'
 import { PluginCreationGuide } from './PluginCreationGuide'
 
@@ -111,13 +111,20 @@ describe('插件中心', () => {
     expect(html).toContain('访问已授权的网络或远程资源')
   })
 
-  it('Given 市场尚未配置来源，When 打开市场内容，Then 显示真实空状态并保留本地安装入口', () => {
-    const html = renderToStaticMarkup(<Provider><ContentPluginManager mode="market" /></Provider>)
+  it('Given 市场尚未配置来源，When 打开市场内容，Then 提供拖放导入、格式和大小说明', () => {
+    const html = renderToStaticMarkup(<Provider><PluginPackageImporter catalog={{
+      snapshot: null,
+      loading: false,
+      readError: null,
+      refresh: async () => undefined,
+      accept: () => undefined,
+    }} /></Provider>)
 
-    expect(html).toContain('插件市场')
-    expect(html).toContain('市场目录尚未开放')
-    expect(html).toContain('从本地包安装 / 更新')
-    expect(html).toContain('当前不发起网络请求')
+    expect(html).toContain('拖动插件包到这里')
+    expect(html).toContain('.ddplugin')
+    expect(html).toContain('50 MB')
+    expect(html).toContain('内容插件和可执行模块插件')
+    expect(html).toContain('选择本地插件包')
     expect(html).not.toContain('官方推荐')
   })
 
@@ -126,10 +133,12 @@ describe('插件中心', () => {
 
     expect(html).toContain('创建你的第一个插件')
     expect(html).toContain('创建插件工程')
+    expect(html).toContain('Surface 主题与视觉规范')
+    expect(html).toContain('--dutydeck-foreground')
     expect(html).toContain('签名打包')
     expect(html).toContain('安装与使用')
-    expect(html).toContain('自定义可执行工具、独立 UI 和后台服务暂未开放')
     expect(html).toContain('dutydeck-plugin')
+    expect(html).toContain('--profile module-runtime')
   })
 
   it('Given 已安装目录，When 输入部分名称搜索，Then 只过滤右侧展示而不改变模块目录来源', () => {

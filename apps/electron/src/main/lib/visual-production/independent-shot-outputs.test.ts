@@ -27,6 +27,10 @@ async function fixture() {
   const saved = await service.invoke('save', { ...target, baseRevision: 1, draft })
   return { service, target, media, saved, draft }
 }
+/** 新影片候选在采用前完成最小技术与内容审核。 */
+async function reviewVideo(service: VisualProductionService, target: { sessionId: string; productionId: string }, baseRevision: number, candidateId: string): Promise<void> {
+  await service.invoke('reviewCandidate', { ...target, baseRevision, candidateId, review: { technical: 'passed', motion: 'passed', continuity: 'passed', conclusion: '测试影片审核通过', unchecked: ['未听完整音轨'], issues: [] } })
+}
 
 test('Given 旧图片和并行三种候选 When 依次采用影片音频画面 Then 独立合并且版本各增一次', async () => {
   const f = await fixture()
@@ -35,6 +39,7 @@ test('Given 旧图片和并行三种候选 When 依次采用影片音频画面 T
     const job = await f.service.invoke('beginJob', { ...f.target, baseRevision: 2, shotId: 'shot', instruction: '制作' })
     candidates.push(await f.service.invoke('proposeShot', { ...f.target, baseRevision: 2, jobId: job.id, shotId: 'shot', mediaId: f.media[index]!.id, summary: '候选' }))
   }
+  await reviewVideo(f.service, f.target, 2, candidates[0]!.id)
   for (let index = 0; index < candidates.length; index++) {
     const saved = await f.service.invoke('adopt', { ...f.target, baseRevision: 2 + index, candidateId: candidates[index]!.id })
     expect(saved.shotStates.shot!.outputVersion).toBe(2 + index)
@@ -49,6 +54,7 @@ test('Given 旧版完整影片候选 When 采用 Then 保留已有静态画面',
   const f = await fixture()
   const job = await f.service.invoke('beginJob', { ...f.target, baseRevision: 2, instruction: '影片' })
   const candidate = await f.service.invoke('propose', { ...f.target, baseRevision: 2, jobId: job.id, summary: '旧候选', draft: { ...f.draft, shots: f.draft.shots.map(shot => ({ ...shot, mediaId: f.media[1]!.id })) } })
+  await reviewVideo(f.service, f.target, 2, candidate.id)
   const result = await f.service.invoke('adopt', { ...f.target, baseRevision: 2, candidateId: candidate.id })
   expect(resolveVisualShotOutputs(result.document.shots[0]!, new Map(result.media.map(media => [media.id, media])))).toEqual({ image: f.media[0]!.id, video: f.media[1]!.id, audio: null })
 })
@@ -98,6 +104,7 @@ test('Given 正式三槽 When 旧完整候选同时改设定和影片 Then 保�
   const job = await f.service.invoke('beginJob', { ...f.target, baseRevision: 3, instruction: '调整设定' })
   const legacy = { ...f.draft.shots[0]!, title: '新标题', scene: '新设定', mediaId: f.media[1]!.id }
   const candidate = await f.service.invoke('propose', { ...f.target, baseRevision: 3, jobId: job.id, summary: '旧完整草稿', draft: { ...f.draft, shots: [legacy] } })
+  await reviewVideo(f.service, f.target, 3, candidate.id)
   const result = await f.service.invoke('adopt', { ...f.target, baseRevision: 3, candidateId: candidate.id })
   expect(result.document.shots[0]).toMatchObject({ title: '新标题', scene: '新设定', outputs: shot.outputs, mediaId: f.media[1]!.id })
 })

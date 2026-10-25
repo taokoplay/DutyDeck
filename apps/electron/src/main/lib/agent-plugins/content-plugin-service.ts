@@ -131,18 +131,23 @@ export class ContentPluginService {
   snapshot(): ContentPluginSnapshot { const state = this.readRegistry(); return { revision: state.revision, plugins: structuredClone(state.plugins) }; }
   /** 从原生 picker 授权路径冻结字节并校验，返回一次性信任确认 token。 */
   preview(path: string): ContentPluginPreview {
+    return this.previewBytes(readBounded(path, MAX_PACKAGE_BYTES));
+  }
+  /** 对拖放或选择器提供的精确字节做校验，不依赖可变的源路径。 */
+  previewBytes(bytes: Uint8Array): ContentPluginPreview {
+    if (bytes.byteLength > MAX_PACKAGE_BYTES) throw new Error('插件包超过大小限制');
     const state = this.readRegistry();
     for (const [token, pending] of this.previews) if (pending.expiresAt < Date.now()) this.previews.delete(token);
     if (this.previews.size >= 8) throw new Error('插件预览数量超过预算');
-    const bytes = readBounded(path, MAX_PACKAGE_BYTES);
+    const frozenBytes = Uint8Array.from(bytes);
     if ([...this.previews.values()].reduce((total, entry) => total + entry.bytes.byteLength, bytes.byteLength) > MAX_PACKAGE_BYTES) throw new Error('插件预览缓存超过预算');
-    const inspected = inspectPluginPackage(bytes);
+    const inspected = inspectPluginPackage(frozenBytes);
     if (inspected.manifest.formatVersion !== 2) throw new Error('PLUGIN_CONTENT_REQUIRED');
     this.checkCompatibility(inspected.manifest);
     if (!inspected.signatureVerified && !this.options.development) throw new Error('生产环境只允许已签名插件');
     const previous = state.plugins.find(entry => entry.manifest.id === inspected.manifest.id);
     const preview: ContentPluginPreview = { token: randomUUID(), revision: state.revision, operation: previous ? 'update' : 'install', ...(previous ? { previousVersion: previous.manifest.version } : {}), manifest: inspected.manifest, packageHash: inspected.packageHash, signatureVerified: inspected.signatureVerified, ...(inspected.signer ? { signer: inspected.signer } : {}), resources: summarize(inspected.resources.resources) };
-    this.previews.set(preview.token, { preview: structuredClone(preview), bytes, expiresAt: Date.now() + 10 * 60 * 1000 });
+    this.previews.set(preview.token, { preview: structuredClone(preview), bytes: frozenBytes, expiresAt: Date.now() + 10 * 60 * 1000 });
     return preview;
   }
   /** 安装精确预览版本；首次签名信任必须由 UI 明确传入匹配 keyId。 */

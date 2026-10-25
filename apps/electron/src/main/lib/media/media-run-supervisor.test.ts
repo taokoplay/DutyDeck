@@ -18,6 +18,12 @@ function harness() {
     for (const listener of listeners) listener(snapshot)
     return snapshot
   }
+  /** 模拟只更新 revision、阶段和进度均未变化的持久化通知。 */
+  const touch = (): MediaRunSnapshot => {
+    snapshot = { ...snapshot, revision: snapshot.revision + 1, updatedAt: snapshot.updatedAt + 1 }
+    for (const listener of listeners) listener(snapshot)
+    return snapshot
+  }
   const runs = {
     get: () => structuredClone(snapshot),
     advance: async () => { calls.advance += 1; return update('queued') },
@@ -32,10 +38,29 @@ function harness() {
   const supervisor = new MediaRunSupervisor({ runs, pollMs: 10, stream: { subscribe: (_input, listener) => {
     calls.subscribe += 1; eventListener = listener; return () => { calls.release += 1 }
   }, dispose: () => undefined } })
-  return { supervisor, calls, listeners, update, setComplete: () => { complete = true }, setCollectionFailures: (value: number) => { collectionFailures = value }, setOffline: (value: boolean) => { offline = value }, emit: (event: ComfyProgressEvent) => eventListener?.(event) }
+  return { supervisor, calls, listeners, update, touch, setComplete: () => { complete = true }, setCollectionFailures: (value: number) => { collectionFailures = value }, setOffline: (value: boolean) => { offline = value }, emit: (event: ComfyProgressEvent) => eventListener?.(event) }
 }
 
 describe('媒体后台运行监督', () => {
+  test('Given Host 等待运行终态 When 收到同阶段 revision 通知 Then 不提前返回，直到真实终态', async () => {
+    const fixture = harness()
+    try {
+      fixture.update('running')
+      let settled = false
+      const waiting = fixture.supervisor.waitForTerminal('project', 'run').then((value) => {
+        settled = true
+        return value
+      })
+      fixture.touch()
+      fixture.touch()
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      fixture.update('succeeded')
+      expect((await waiting).phase).toBe('succeeded')
+      expect((await fixture.supervisor.waitForTerminal('project', 'run')).phase).toBe('succeeded')
+    } finally { fixture.supervisor.dispose() }
+  })
+
   test('Given 产物连续三次下载失败 When 网络恢复 Then 继续退避补收原任务而不重新生成', async () => {
     const fixture = harness()
     try {

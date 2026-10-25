@@ -3,7 +3,12 @@ import type { SDKMessage } from '@dutydeck/shared'
 /** Host 对一次 Agent 成功终态的业务完成判断。 */
 export type AgentCompletionEvaluation =
   | { action: 'complete' }
-  | { action: 'continue'; message: string }
+  | {
+      action: 'continue'
+      message: string
+      /** 当前业务可用的最大自动续行次数；长时媒体任务可高于通用额度。 */
+      continuationLimit?: number
+    }
   | { action: 'blocked'; message: string }
 
 /** 无外部成功终态时最多允许三次 Host 驱动续行。 */
@@ -110,12 +115,13 @@ export async function applyAgentCompletionPolicy(
       continued: false,
     }
   }
-  if (input.continuationCount >= MAX_AGENT_COMPLETION_CONTINUATIONS) {
+  const continuationLimit = evaluation.continuationLimit ?? MAX_AGENT_COMPLETION_CONTINUATIONS
+  if (input.continuationCount >= continuationLimit) {
     return {
       terminalResult: createCompletionErrorResult(
         input.terminalResult,
         'completion_continuation_limit',
-        `任务自动续行已达上限（${MAX_AGENT_COMPLETION_CONTINUATIONS} 次），尚未确认交付完成。请检查当前状态后继续。`,
+        `任务自动续行已达上限（${continuationLimit} 次），尚未确认交付完成。请检查当前状态后继续。`,
       ),
       continuationCount: input.continuationCount,
       continued: false,

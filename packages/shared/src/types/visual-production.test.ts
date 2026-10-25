@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { parseVisualProductionCommand, parseVisualProductionDraft, parseVisualProductionRelativePath, parseVisualProductionMediaExecution, VISUAL_PRODUCTION_READ_METHODS } from './visual-production-validation'
-import type { VisualProductionDraft } from './visual-production'
+import type { VisualCandidateReviewInput, VisualProductionDraft } from './visual-production'
 
 /** 最小真实作品，供边界测试独立修改。 */
 const draft = (): VisualProductionDraft => ({ title: '第一支影片', kind: 'film', brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [{ id: 'ep1', title: '第一集' }], assets: [{ id: 'a1', name: '主角', type: '角色', description: '', locked: false, mediaId: null }], shots: [{ id: 's1', episodeId: 'ep1', title: '开场', duration: 5, scene: '', motion: '', dialogue: '', assetIds: ['a1'], mediaId: null }] })
@@ -121,4 +121,203 @@ it('Given 服务授权与精确工作流 When 校验授权 Then 单向允许同�
   expect(visualProductionMediaSourceAllows(connection, { ...workflow, connectionId: 'other' })).toBe(false)
   expect(() => parseVisualProductionMediaExecution({ runId: 'run', engine: 'workflow', name: '错误服务回执', kind: 'image', source: connection, parameters: {}, referenceAssets: [], phase: 'prepared', createdAt: 1 })).toThrow()
   expect(() => parseVisualProductionCommand({ method: 'resolveMediaWorkflow', input: { sessionId: 'session', productionId: 'production', source: connection, kind: 'image' } })).toThrow()
+})
+
+
+it('Given 新旧镜头 When 解析声音设计 Then 保留独立字段并拒绝无效或超长文本', () => {
+  /** 旧作品无字段时保持缺省，显式声音设计复制为独立对象。 */
+  const input = draft()
+  expect(parseVisualProductionDraft(input).shots[0]!.soundDesign).toBeUndefined()
+  input.shots[0]!.soundDesign = { effects: '雨声', music: '轻柔钢琴' }
+  expect(parseVisualProductionDraft(input).shots[0]!.soundDesign).toEqual(input.shots[0]!.soundDesign)
+  expect(parseVisualProductionDraft(input).shots[0]!.soundDesign).not.toBe(input.shots[0]!.soundDesign)
+  for (const soundDesign of [null, { effects: 1, music: '' }, { effects: '' }, { effects: '', music: '声'.repeat(8001) }, { effects: '', music: '', unknown: '' }]) {
+    expect(() => parseVisualProductionDraft({ ...input, shots: [{ ...input.shots[0], soundDesign }] })).toThrow()
+  }
+})
+
+it('Given Agent 已设计镜头生成方式 When 保存 Then 保留首尾帧和转场依据并兼容旧镜头', () => {
+  /** 旧镜头可以没有生成计划，避免打开旧作品时被迫补造制作决定。 */
+  const legacy = draft()
+  expect(parseVisualProductionDraft(legacy).shots[0]!.videoPlan).toBeUndefined()
+
+  /** 显式首尾帧计划引用镜头已经绑定的图片资产，并保留入场转场。 */
+  const planned = draft()
+  planned.shots[0]!.assetIds = ['a1', 'a2']
+  planned.assets.push({ id: 'a2', name: '尾帧', type: '场景', description: '', locked: false, mediaId: null })
+  planned.shots[0]!.videoPlan = {
+    mode: 'first-last-frame',
+    firstFrameAssetId: 'a1',
+    lastFrameAssetId: 'a2',
+    transitionIn: 'match-cut',
+    rationale: '连续动作在同一空间内完成，使用首尾帧约束终点。',
+  }
+  const parsed = parseVisualProductionDraft(planned)
+  expect(parsed.shots[0]!.videoPlan).toEqual(planned.shots[0]!.videoPlan)
+  expect(parsed.shots[0]!.videoPlan).not.toBe(planned.shots[0]!.videoPlan)
+
+  /** 图生视频可省略首帧身份，表示使用当前已采用画面。 */
+  const adoptedImage = draft()
+  adoptedImage.shots[0]!.videoPlan = {
+    mode: 'image-to-video',
+    firstFrameAssetId: null,
+    lastFrameAssetId: null,
+    transitionIn: 'hard-cut',
+    rationale: '当前已采用画面就是唯一起点。',
+  }
+  expect(parseVisualProductionDraft(adoptedImage).shots[0]!.videoPlan?.mode).toBe('image-to-video')
+})
+
+it('Given 镜头生成方式与素材或转场不一致 When 保存 Then 在生成前拒绝无效计划', () => {
+  const invalidPlans = [
+    { mode: 'first-last-frame', firstFrameAssetId: null, lastFrameAssetId: null, transitionIn: 'hard-cut', rationale: '缺少尾帧' },
+    { mode: 'position', firstFrameAssetId: null, lastFrameAssetId: null, transitionIn: 'hard-cut', rationale: '未知方式' },
+    { mode: 'text-to-video', firstFrameAssetId: 'a1', lastFrameAssetId: null, transitionIn: 'hard-cut', rationale: '文生视频不能带帧' },
+    { mode: 'image-to-video', firstFrameAssetId: 'a1', lastFrameAssetId: 'a1', transitionIn: 'hard-cut', rationale: '首尾相同' },
+    { mode: 'first-last-frame', firstFrameAssetId: 'a1', lastFrameAssetId: 'missing', transitionIn: 'hard-cut', rationale: '尾帧不存在' },
+    { mode: 'image-to-video', firstFrameAssetId: null, lastFrameAssetId: null, transitionIn: 'cut', rationale: '未知转场' },
+    { mode: 'image-to-video', firstFrameAssetId: null, lastFrameAssetId: null, transitionIn: 'hard-cut', rationale: '' },
+    { mode: 'image-to-video', firstFrameAssetId: null, lastFrameAssetId: null, transitionIn: 'hard-cut', rationale: '依据', extra: true },
+  ]
+  for (const videoPlan of invalidPlans) {
+    const input = draft()
+    input.shots[0]!.videoPlan = videoPlan as never
+    expect(() => parseVisualProductionDraft(input)).toThrow()
+  }
+
+  /** 首尾帧资产只有在镜头引用范围内才允许参与制作。 */
+  const unbound = draft()
+  unbound.assets.push({ id: 'a2', name: '未绑定尾帧', type: '场景', description: '', locked: false, mediaId: null })
+  unbound.shots[0]!.videoPlan = {
+    mode: 'first-last-frame',
+    firstFrameAssetId: null,
+    lastFrameAssetId: 'a2',
+    transitionIn: 'hard-cut',
+    rationale: '尾帧尚未加入镜头引用。',
+  }
+  expect(() => parseVisualProductionDraft(unbound)).toThrow()
+})
+
+it('Given 复杂动作需要中间锚点和声音接续 When 保存 Then 保留衔接合同并兼容旧镜头', () => {
+  /** 旧镜头没有衔接字段时仍可读取，生产门禁只在视频阶段要求补齐。 */
+  const legacy = draft()
+  expect(parseVisualProductionDraft(legacy).shots[0]!.continuityPlan).toBeUndefined()
+
+  /** 锚点只允许引用本镜资产；声音接续与画面生成方式分开保存。 */
+  const planned = draft()
+  planned.assets.push({ id: 'a2', name: '起身尾帧', type: '场景', description: '', locked: false, mediaId: null })
+  planned.shots[0]!.assetIds = ['a1', 'a2']
+  planned.shots[0]!.continuityPlan = {
+    entryState: '角色右手扶住桌沿',
+    exitState: '角色站直并保持持物',
+    anchors: [
+      { phase: 'start', state: '右手接触桌沿', assetId: 'a1' },
+      { phase: 'contact', state: '手掌承重', assetId: null },
+      { phase: 'exit', state: '人物完成起身', assetId: 'a2' },
+    ],
+    audioTransition: 'prelap',
+    rationale: '接触声先入，动作跨切点保持连续。',
+  }
+  const parsed = parseVisualProductionDraft(planned)
+  expect(parsed.shots[0]!.continuityPlan).toEqual(planned.shots[0]!.continuityPlan)
+  expect(parsed.shots[0]!.continuityPlan).not.toBe(planned.shots[0]!.continuityPlan)
+
+  const invalidPlans = [
+    { entryState: '', exitState: '终点', anchors: [], audioTransition: 'hard-cut', rationale: '依据' },
+    { entryState: '起点', exitState: '', anchors: [], audioTransition: 'hard-cut', rationale: '依据' },
+    { entryState: '起点', exitState: '终点', anchors: [], audioTransition: 'cut', rationale: '依据' },
+    { entryState: '起点', exitState: '终点', anchors: [{ phase: 'middle', state: '中间', assetId: null }], audioTransition: 'hard-cut', rationale: '依据' },
+    { entryState: '起点', exitState: '终点', anchors: [{ phase: 'contact', state: '接触', assetId: 'missing' }], audioTransition: 'hard-cut', rationale: '依据' },
+    { entryState: '起点', exitState: '终点', anchors: [{ phase: 'contact', state: '接触', assetId: null }, { phase: 'contact', state: '再次接触', assetId: null }], audioTransition: 'hard-cut', rationale: '依据' },
+    { entryState: '起点', exitState: '终点', anchors: [{ phase: 'contact', state: '接触', assetId: 'a1' }, { phase: 'result', state: '结果', assetId: 'a1' }], audioTransition: 'hard-cut', rationale: '依据' },
+  ]
+  for (const continuityPlan of invalidPlans) {
+    const input = draft()
+    input.shots[0]!.continuityPlan = continuityPlan as never
+    expect(() => parseVisualProductionDraft(input)).toThrow()
+  }
+})
+
+it('Given 视频候选审核 When 解析保存请求 Then 保留三项门禁、问题时间点和未检查范围', () => {
+  /** 审核记录由宿主补充会话和时间，调用方只提交有界结论。 */
+  const review: VisualCandidateReviewInput = {
+    technical: 'passed',
+    motion: 'warning',
+    continuity: 'pending',
+    conclusion: '动作主体完整，转场处仍有轻微方向偏差。',
+    unchecked: ['未听取完整音轨', '仅检查了抽帧'],
+    issues: [{ gate: 'motion', severity: 'warning', message: '切点前角色向左移动过多', atSeconds: 4.2 }],
+  }
+  const input = { sessionId: 'session', productionId: 'production', baseRevision: 1, candidateId: 'candidate', review }
+  const parsed = parseVisualProductionCommand({ method: 'reviewCandidate', input })
+  expect(parsed.method).toBe('reviewCandidate')
+  if (parsed.method !== 'reviewCandidate') throw new Error('错误命令')
+  expect(parsed.input.review).toEqual(review)
+
+  for (const invalid of [
+    { ...review, technical: 'unknown' },
+    { ...review, motion: 'excellent' },
+    { ...review, conclusion: '' },
+    { ...review, unchecked: Array.from({ length: 17 }, () => '未检查') },
+    { ...review, issues: [{ gate: 'audio', severity: 'warning', message: '错误门禁', atSeconds: 1 }] },
+    { ...review, issues: [{ gate: 'motion', severity: 'error', message: '', atSeconds: 1 }] },
+    { ...review, issues: [{ gate: 'motion', severity: 'warning', message: '越界时间', atSeconds: 601 }] },
+    { ...review, extra: true },
+  ]) expect(() => parseVisualProductionCommand({ method: 'reviewCandidate', input: { ...input, review: invalid } })).toThrow()
+})
+
+it('Given ComfyUI 视频任务 When 保存工作流发现结果 Then 保留扫描游标和精确选择身份', () => {
+  const base = { sessionId: 'session', productionId: 'production', baseRevision: 2, jobId: 'job' }
+  const scanned = parseVisualProductionCommand({ method: 'recordWorkflowDiscovery', input: { ...base, discovery: {
+    status: 'candidates', connectionId: 'comfy.local', mediaKind: 'video', candidateCount: 2, blockedCount: 0,
+    nextOffset: null, snapshotId: 'snapshot-1', checkedAt: 1,
+  } } })
+  expect(scanned.method).toBe('recordWorkflowDiscovery')
+  if (scanned.method === 'recordWorkflowDiscovery') expect(scanned.input.discovery).toMatchObject({ status: 'candidates', candidateCount: 2, nextOffset: null })
+
+  const selected = parseVisualProductionCommand({ method: 'recordWorkflowDiscovery', input: { ...base, discovery: {
+    status: 'selected', connectionId: 'comfy.local', mediaKind: 'video', candidateCount: 1, blockedCount: 0,
+    nextOffset: null, selectedWorkflow: { workflowId: 'workflow', workflowRevision: 2, contentHash: 'a'.repeat(64) },
+  } } })
+  expect(selected.method).toBe('recordWorkflowDiscovery')
+  if (selected.method === 'recordWorkflowDiscovery') expect(selected.input.discovery.selectedWorkflow?.contentHash).toBe('a'.repeat(64))
+
+  for (const discovery of [
+    { status: 'selected', connectionId: 'comfy.local', mediaKind: 'video', candidateCount: 0, blockedCount: 0, nextOffset: null },
+    { status: 'candidates', connectionId: '../bad', mediaKind: 'video', candidateCount: 1, blockedCount: 0, nextOffset: null },
+    { status: 'scanning', connectionId: 'comfy.local', mediaKind: 'video', candidateCount: 1, blockedCount: 0, nextOffset: -1 },
+    { status: 'candidates', connectionId: 'comfy.local', mediaKind: 'video', candidateCount: 1, blockedCount: 0, nextOffset: null, extra: true },
+  ]) expect(() => parseVisualProductionCommand({ method: 'recordWorkflowDiscovery', input: { ...base, discovery } })).toThrow()
+})
+
+it('Given 整集剧本与镜头映射 When 保存候选 Then 保留叙事节拍并拒绝跨集或额外字段', () => {
+  /** 剧本节拍只保存上游叙事意图，镜头字段继续负责逐帧制作。 */
+  const source = draft()
+  const script = {
+    logline: '刑警借证物复核争取重查。',
+    audiencePromise: '观众看到证据逻辑推翻草率定罪。',
+    hook: '刑场上醒来。',
+    turningPoint: '断刀与刀尖无法吻合。',
+    payoff: '县令暂停行刑并叫出沈警官。',
+    targetDurationSeconds: 5,
+    productionNotes: '全部镜头保持同一人物、空间与证物状态。',
+    beats: [{
+      id: 'beat-1', title: '开场钩子', purpose: 'hook', dramaticQuestion: '他为什么在刑场？',
+      synopsis: '沈砚在刑场醒来。', visualAction: '从眼部下摇到绑绳。', dialogue: '“这不是库房……”',
+      sound: '人群低语与木击。', continuity: '左颧骨浅擦伤，双腕绑于身前。', shotIds: ['s1'],
+    }],
+  }
+  const withScript = { ...source, episodes: [{ ...source.episodes[0]!, script }] }
+  expect(parseVisualProductionDraft(withScript).episodes[0]?.script?.beats[0]).toMatchObject({ purpose: 'hook', shotIds: ['s1'] })
+  const input = { sessionId: 'session', productionId: 'production', baseRevision: 1, jobId: 'job', episodeId: 'ep1', script, summary: '整理整集剧本' }
+  const parsed = parseVisualProductionCommand({ method: 'proposeScript', input })
+  expect(parsed.method).toBe('proposeScript')
+  expect(() => parseVisualProductionDraft({
+    ...withScript,
+    episodes: [
+      { ...withScript.episodes[0]!, script: { ...script, beats: [{ ...script.beats[0]!, shotIds: ['missing-shot'] }] } },
+      { id: 'ep2', title: '第二集' },
+    ],
+  })).toThrow('剧本节拍引用')
+  expect(() => parseVisualProductionCommand({ method: 'proposeScript', input: { ...input, script: { ...script, extra: true } } })).toThrow()
 })

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Type } from 'typebox'
@@ -13,9 +13,10 @@ import { bindVisualProductionMediaTools } from './media-tool-binding'
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 /** 配置目录和可信运行均用可审计 fixture，不调用供应商。 */
-async function fixture() {
+async function fixture(mediaKind: 'image' | 'video' = 'image') {
   const root = mkdtempSync(join(tmpdir(), 'visual-media-binding-')); roots.push(root)
-  const option: VisualProductionMediaOption = { id: 'model-one', name: '测试图片模型', kind: 'image', source: { type: 'model', modelRef: 'media:image:openai-images:profile:model' }, parameters: {}, available: true, constraints: { maxImageReferences: 1, parameters: [{ key: 'size', label: '尺寸', type: 'string', defaultValue: '1024x1024' }] } }
+  const modelRef = mediaKind === 'video' ? 'media:video:minimax-video:profile:video-model' : 'media:image:openai-images:profile:model'
+  const option: VisualProductionMediaOption = { id: 'model-one', name: mediaKind === 'video' ? '测试视频模型' : '测试图片模型', kind: mediaKind, source: { type: 'model', modelRef }, parameters: {}, available: true, constraints: { maxImageReferences: mediaKind === 'video' ? 2 : 1, parameters: mediaKind === 'video' ? [] : [{ key: 'size', label: '尺寸', type: 'string', defaultValue: '1024x1024' }] } }
   const receipts = new Map<string, VisualProductionMediaExecution>()
   const service = new VisualProductionService({ workspaceId: 'project', projectRoot: root, listMediaOptions: async () => [option], readMediaExecution: async (_session, id) => { const value = receipts.get(id); if (!value) throw new Error('missing'); return value } })
   const access = { workspaceId: 'project', assertCurrent() {}, execute: <M extends VisualProductionMethod>(method: M, input: VisualProductionInputs[M]): Promise<VisualProductionResults[M]> => service.invoke(method, input) }
@@ -26,16 +27,40 @@ async function fixture() {
   const tools: ToolDefinition[] = ['media_prepare_generation', 'media_execute_generation', 'media_get_generation'].map(name => ({ name, label: name, description: name, parameters: Type.Object({}), execute: async (_call, params) => {
     calls.push(params as Record<string, unknown>)
     const id = name === 'media_prepare_generation' ? `run-${calls.length}` : String((params as Record<string, unknown>).runId)
-    if (name === 'media_prepare_generation') receipts.set(id, { runId: id, engine: 'model', name: option.name, kind: 'image', source: { type: 'model', modelRef: 'media:image:openai-images:profile:model' }, parameters: Object.fromEntries(Object.entries((params as { inputs: Record<string, { value: string }> }).inputs).map(([key, value]) => [key, value.value])), referenceAssets: [], phase: 'prepared', createdAt: Date.now() })
-    return { content: [{ type: 'text' as const, text: '{}' }], details: { id, phase: name === 'media_execute_generation' ? 'running' : 'prepared' } }
+    if (name === 'media_prepare_generation') {
+      /** 回执参数只包含标量；图片输入属于参考素材，不能伪造为可编辑参数。 */
+      const inputs = (params as { inputs: Record<string, { kind: 'scalar'; value: string | number | boolean } | { kind: 'asset' }> }).inputs
+      receipts.set(id, {
+        runId: id, engine: 'model', name: option.name, kind: mediaKind, source: { type: 'model', modelRef },
+        parameters: Object.fromEntries(Object.entries(inputs).flatMap(([key, value]) => value.kind === 'scalar' ? [[key, value.value]] : [])),
+        referenceAssets: [], phase: 'prepared', createdAt: Date.now(),
+      })
+    }
+    const phase = name === 'media_execute_generation' ? 'running' : 'prepared'
+    return { content: [{ type: 'text' as const, text: '{}' }], details: {
+      id,
+      phase,
+      ...(name === 'media_execute_generation' ? { availableActions: ['media_wait_generation', 'media_cancel_generation'] } : {}),
+    } }
   } }))
   const wrapped = bindVisualProductionMediaTools(tools, { sessionId: 'session', access, jobs: () => run.mediaJobs() })
   async function call(name: string, params: Record<string, unknown>) { return wrapped.find(tool => tool.name === name)!.execute('call', params, undefined, undefined, {} as never) }
   async function begin() { return run.execute('beginJob', { ...target, baseRevision: 1, instruction: '生成镜头' }) }
-  return { option, target, access, run, calls, call, begin }
+  return { option, modelRef, root, created, target, access, run, calls, call, begin }
 }
 
 describe('影像任务绑定真实媒体工具', () => {
+  test('Given 模型启动媒体任务 When 返回下一动作 Then 由 Host 托管等待且不诱导重复轮询', async () => {
+    const f = await fixture()
+    await f.begin()
+    const prepared = await f.call('media_prepare_generation', { modelRef: f.modelRef, prompt: '场景', inputs: {} })
+    const runId = (prepared.details as { id: string }).id
+    const executed = await f.call('media_execute_generation', { runId, expectedRevision: 0 })
+
+    expect(executed.details).toMatchObject({ phase: 'running', availableActions: ['media_cancel_generation'], hostManagedWait: expect.stringContaining('Host 会等待') })
+    expect((executed.content[0] as { text: string }).text).not.toContain('media_wait_generation')
+  })
+
   test('Given 作品配置 When 准备 Then 合并默认参数并保存可信回执', async () => {
     const f = await fixture()
     await f.access.execute('saveMediaConfiguration', { ...f.target, expectedRevision: 0, entries: [{ ...f.option, parameters: { size: '1536x1024' } }].map(({ available: _a, constraints: _c, ...entry }) => entry), defaults: { image: f.option.id } })
@@ -67,10 +92,210 @@ describe('影像任务绑定真实媒体工具', () => {
     await expect(f.call('media_execute_generation', { runId: 'unbound', expectedRevision: 0 })).rejects.toThrow()
     expect(f.calls).toHaveLength(0)
   })
-  test('Given 无影像任务 When 通用媒体准备 Then 保持原参数', async () => {
+  test('Given 无影像任务 When 在影像模块准备媒体 Then 拒绝生成孤儿任务', async () => {
     const f = await fixture()
-    await f.call('media_prepare_generation', { modelRef: 'media:image:openai-images:profile:model', prompt: '场景', inputs: {} })
-    expect(f.calls[0]?.inputs).toEqual({})
+    await expect(f.call('media_prepare_generation', { modelRef: 'media:image:openai-images:profile:model', prompt: '场景', inputs: {} }))
+      .rejects.toThrow('VISUAL_MEDIA_JOB_REQUIRED')
+    await expect(f.call('media_prepare_generation', { modelRef: 'media:image:openai-images:profile:model', prompt: '场景', inputs: {} }))
+      .rejects.toThrow('不要只报告此错误')
+    expect(f.calls).toHaveLength(0)
+  })
+  test('Given Agent 设计为文生视频 When 准备仍带首帧 Then 生成前拒绝并保留零调用', async () => {
+    const f = await fixture('video')
+    /** 新作品为空，写入唯一镜头和明确文生视频计划；旧镜头不设置计划时不受此校验影响。 */
+    const shot = {
+      id: 'planned-shot',
+      episodeId: f.created.document.episodes[0]!.id,
+      title: '规划镜头',
+      duration: 4,
+      scene: '',
+      motion: '',
+      dialogue: '',
+      assetIds: [],
+      mediaId: null,
+      continuityPlan: {
+        entryState: '角色站在画面中央。',
+        exitState: '角色保持站位。',
+        anchors: [],
+        audioTransition: 'hard-cut' as const,
+        rationale: '本镜不需要跨切点声音承接。',
+      },
+      videoPlan: {
+        mode: 'text-to-video' as const,
+        firstFrameAssetId: null,
+        lastFrameAssetId: null,
+        transitionIn: 'hard-cut' as const,
+        rationale: 'Agent 判定本镜不继承前一镜画面。',
+      },
+    }
+    await f.access.execute('save', {
+      ...f.target,
+      baseRevision: 1,
+      draft: {
+        title: f.created.document.title,
+        kind: f.created.document.kind,
+        brief: f.created.document.brief,
+        ratio: f.created.document.ratio,
+        fps: f.created.document.fps,
+        voice: f.created.document.voice,
+        music: f.created.document.music,
+        episodes: f.created.document.episodes,
+        assets: f.created.document.assets,
+        shots: [shot],
+      },
+    })
+    await f.run.execute('beginJob', { ...f.target, baseRevision: 2, instruction: '按设计生成视频', shotId: shot.id })
+    await expect(f.call('media_prepare_generation', {
+      modelRef: f.modelRef,
+      prompt: '场景',
+      inputs: { reference: { kind: 'asset', asset: { assetId: 'image-output', revision: 1, hash: 'a'.repeat(64), mediaKind: 'image' } } },
+    })).rejects.toThrow('VIDEO_PLAN_INPUT_MISMATCH')
+    expect(f.calls).toHaveLength(0)
+  })
+  test('Given 只有视频生成方式但缺少衔接合同 When 准备视频 Then 在调用供应商前拒绝', async () => {
+    const f = await fixture('video')
+    const shot = {
+      id: 'continuity-required-shot',
+      episodeId: f.created.document.episodes[0]!.id,
+      title: '缺少衔接',
+      duration: 4,
+      scene: '人物抬头。',
+      motion: '从低头到抬头。',
+      dialogue: '',
+      assetIds: [],
+      mediaId: null,
+      videoPlan: {
+        mode: 'text-to-video' as const,
+        firstFrameAssetId: null,
+        lastFrameAssetId: null,
+        transitionIn: 'hard-cut' as const,
+        rationale: '文字直接生成。',
+      },
+    }
+    await f.access.execute('save', {
+      ...f.target,
+      baseRevision: 1,
+      draft: {
+        title: f.created.document.title,
+        kind: f.created.document.kind,
+        brief: f.created.document.brief,
+        ratio: f.created.document.ratio,
+        fps: f.created.document.fps,
+        voice: f.created.document.voice,
+        music: f.created.document.music,
+        episodes: f.created.document.episodes,
+        assets: f.created.document.assets,
+        shots: [shot],
+      },
+    })
+    await f.run.execute('beginJob', { ...f.target, baseRevision: 2, instruction: '按设计生成视频', shotId: shot.id })
+    await expect(f.call('media_prepare_generation', { modelRef: f.modelRef, prompt: '人物抬头', inputs: {} })).rejects.toThrow('CONTINUITY_PLAN_REQUIRED')
+    expect(f.calls).toHaveLength(0)
+  })
+  test('Given 动作锚点已引用但尚无图片媒体 When 准备视频 Then 拒绝静默忽略锚点', async () => {
+    const f = await fixture('video')
+    const shot = {
+      id: 'anchor-media-required-shot',
+      episodeId: f.created.document.episodes[0]!.id,
+      title: '锚点缺媒体',
+      duration: 4,
+      scene: '人物完成起身。',
+      motion: '扶住桌沿后站直。',
+      dialogue: '',
+      assetIds: ['anchor-asset'],
+      mediaId: null,
+      continuityPlan: {
+        entryState: '人物坐着。',
+        exitState: '人物站直。',
+        anchors: [{ phase: 'contact' as const, state: '手掌承重。', assetId: 'anchor-asset' }],
+        audioTransition: 'hard-cut' as const,
+        rationale: '中间接触状态必须可读。',
+      },
+      videoPlan: {
+        mode: 'text-to-video' as const,
+        firstFrameAssetId: null,
+        lastFrameAssetId: null,
+        transitionIn: 'hard-cut' as const,
+        rationale: '文字生成动作。',
+      },
+    }
+    await f.access.execute('save', {
+      ...f.target,
+      baseRevision: 1,
+      draft: {
+        title: f.created.document.title,
+        kind: f.created.document.kind,
+        brief: f.created.document.brief,
+        ratio: f.created.document.ratio,
+        fps: f.created.document.fps,
+        voice: f.created.document.voice,
+        music: f.created.document.music,
+        episodes: f.created.document.episodes,
+        assets: [{ id: 'anchor-asset', name: '接触锚点', type: '场景', description: '', locked: false, mediaId: null }],
+        shots: [shot],
+      },
+    })
+    await f.run.execute('beginJob', { ...f.target, baseRevision: 2, instruction: '按设计生成视频', shotId: shot.id })
+    await expect(f.call('media_prepare_generation', { modelRef: f.modelRef, prompt: '人物起身', inputs: {} })).rejects.toThrow('CONTINUITY_PLAN_ANCHOR_MEDIA_MISSING')
+    expect(f.calls).toHaveLength(0)
+  })
+  test('Given 单镜头视频尚未记录生成设计 When 准备 Then 要求先完成镜头设计', async () => {
+    const f = await fixture('video')
+    /** 只保存镜头资料，不伪造生成方式；准备阶段必须阻断并提示先设计。 */
+    const shot = { id: 'unplanned-shot', episodeId: f.created.document.episodes[0]!.id, title: '未设计镜头', duration: 4, scene: '', motion: '', dialogue: '', assetIds: [], mediaId: null }
+    await f.access.execute('save', {
+      ...f.target,
+      baseRevision: 1,
+      draft: { title: f.created.document.title, kind: f.created.document.kind, brief: '', ratio: f.created.document.ratio, fps: f.created.document.fps, voice: '', music: '', episodes: f.created.document.episodes, assets: [], shots: [shot] },
+    })
+    await f.run.execute('beginJob', { ...f.target, baseRevision: 2, instruction: '生成未设计视频', shotId: shot.id })
+    await expect(f.call('media_prepare_generation', { modelRef: f.modelRef, prompt: '场景', inputs: {} })).rejects.toThrow('VIDEO_PLAN_REQUIRED')
+    await expect(f.call('media_prepare_generation', { modelRef: f.modelRef, prompt: '场景', inputs: {} })).rejects.toThrow('visual_production_update_shot_plan')
+    expect(f.calls).toHaveLength(0)
+  })
+  test('Given Agent 原子写入首尾帧计划 When 准备视频 Then 新正式版本直接通过计划门禁', async () => {
+    const f = await fixture('video')
+    /** 先导入真实受管图片，再由单镜头计划工具登记尾帧并绑定目标镜头。 */
+    writeFileSync(join(f.root, 'first.png'), Buffer.from('89504e470d0a1a0a00000000', 'hex'))
+    writeFileSync(join(f.root, 'last.png'), Buffer.from('89504e470d0a1a0a00000001', 'hex'))
+    const first = await f.access.execute('importFile', { ...f.target, relativePath: 'first.png' })
+    const last = await f.access.execute('importFile', { ...f.target, relativePath: 'last.png' })
+    const shot = { id: 'planned-video', episodeId: f.created.document.episodes[0]!.id, title: '首尾帧', duration: 6, scene: '白光吞没。', motion: '手掌贴合镜面。', dialogue: '', assetIds: [], mediaId: first.id }
+    await f.access.execute('save', { ...f.target, baseRevision: 1, draft: { title: f.created.document.title, kind: f.created.document.kind, brief: '', ratio: f.created.document.ratio, fps: f.created.document.fps, voice: '', music: '', episodes: f.created.document.episodes, assets: [], shots: [shot] } })
+    const planned = await f.access.execute('updateShotPlan', {
+      ...f.target,
+      baseRevision: 2,
+      shotId: shot.id,
+      videoPlan: { mode: 'first-last-frame', firstFrameAssetId: null, lastFrameAssetId: 'tail', transitionIn: 'hard-cut', rationale: '尾帧约束全白切点。' },
+      continuityPlan: { entryState: '手掌贴合镜面。', exitState: '画面全白。', anchors: [], audioTransition: 'carry-over', rationale: '白光延续到下一镜。' },
+      references: [{ assetId: 'tail', mediaId: last.id, name: '全白尾帧', type: '场景', description: '最终过曝状态。' }],
+    })
+    await f.run.execute('beginJob', { ...f.target, baseRevision: planned.document.revision, instruction: '按首尾帧生成', shotId: shot.id, mediaKind: 'video' })
+    const reference = (media: typeof first) => ({ kind: 'asset' as const, asset: { assetId: media.id, revision: 1, hash: media.hash, mediaKind: 'image' as const } })
+    await f.call('media_prepare_generation', { modelRef: f.modelRef, prompt: '白光吞没人物', inputs: { first: reference(first), last: reference(last) } })
+    expect(f.calls).toHaveLength(1)
+  })
+  test('Given Agent 误传裸媒体引用 When 准备首尾帧视频 Then 宿主兼容包装并继续执行', async () => {
+    const f = await fixture('video')
+    /** 复现真实会话中的输入：图片值是裸 MediaAssetRef，而不是标准 MediaInputValue。 */
+    writeFileSync(join(f.root, 'first.png'), Buffer.from('89504e470d0a1a0a00000000', 'hex'))
+    writeFileSync(join(f.root, 'last.png'), Buffer.from('89504e470d0a1a0a00000001', 'hex'))
+    const first = await f.access.execute('importFile', { ...f.target, relativePath: 'first.png' })
+    const last = await f.access.execute('importFile', { ...f.target, relativePath: 'last.png' })
+    const shot = { id: 'raw-reference-video', episodeId: f.created.document.episodes[0]!.id, title: '裸引用', duration: 6, scene: '白光吞没。', motion: '手掌贴合镜面。', dialogue: '', assetIds: [], mediaId: first.id }
+    await f.access.execute('save', { ...f.target, baseRevision: 1, draft: { title: f.created.document.title, kind: f.created.document.kind, brief: '', ratio: f.created.document.ratio, fps: f.created.document.fps, voice: '', music: '', episodes: f.created.document.episodes, assets: [], shots: [shot] } })
+    const planned = await f.access.execute('updateShotPlan', {
+      ...f.target,
+      baseRevision: 2,
+      shotId: shot.id,
+      videoPlan: { mode: 'first-last-frame', firstFrameAssetId: null, lastFrameAssetId: 'tail', transitionIn: 'hard-cut', rationale: '尾帧约束全白切点。' },
+      continuityPlan: { entryState: '手掌贴合镜面。', exitState: '画面全白。', anchors: [], audioTransition: 'carry-over', rationale: '白光延续到下一镜。' },
+      references: [{ assetId: 'tail', mediaId: last.id, name: '全白尾帧', type: '场景', description: '最终过曝状态。' }],
+    })
+    await f.run.execute('beginJob', { ...f.target, baseRevision: planned.document.revision, instruction: '按首尾帧生成', shotId: shot.id, mediaKind: 'video' })
+    const rawReference = (media: typeof first) => ({ assetId: media.id, revision: 1, hash: media.hash, mediaKind: 'image' })
+    await f.call('media_prepare_generation', { modelRef: f.modelRef, prompt: '白光吞没人物', inputs: { first: rawReference(first), last: rawReference(last) } })
+    expect(f.calls).toHaveLength(1)
   })
 })
 
@@ -225,4 +450,47 @@ describe('ComfyUI 服务范围内由 Agent 选择工作流', () => {
     await expect(f.call('media_execute_run', { runId: 'chosen-run', expectedRevision: 0 })).rejects.toThrow('UNAVAILABLE')
     expect(f.calls).toEqual(['media_prepare_run'])
   })
+})
+
+test('Given 视频任务使用 ComfyUI When 未发现和选定工作流 Then 预检阻断，完成后才允许准备', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'visual-workflow-gate-')); roots.push(root)
+  const connection = { id: 'comfy-video', name: '芯火服务', kind: 'video' as const, source: { type: 'connection' as const, connectionId: 'comfy.local' }, parameters: {}, available: true, constraints: {} }
+  const workflow = { id: 'resolved-workflow', name: '工作流', kind: 'video' as const, source: { type: 'workflow' as const, connectionId: 'comfy.local', workflowId: 'workflow', workflowRevision: 2 }, parameters: {}, available: true, constraints: {} }
+  const service = new VisualProductionService({
+    workspaceId: 'project', projectRoot: root,
+    listMediaOptions: async () => [connection],
+    resolveMediaWorkflow: async source => ({ ...workflow, source }),
+    readMediaExecution: async (_session, runId, engine) => ({ runId, engine, name: '芯火工作流', kind: 'video', source: workflow.source, parameters: {}, referenceAssets: [], phase: 'prepared', createdAt: 1 }),
+  })
+  const access = { workspaceId: 'project', assertCurrent() {}, execute: <M extends VisualProductionMethod>(method: M, input: VisualProductionInputs[M]): Promise<VisualProductionResults[M]> => service.invoke(method, input) }
+  const run = createVisualProductionRun('session', access, access)
+  const created = await service.invoke('create', { sessionId: 'session', title: '视频任务', kind: 'film' })
+  const target = { sessionId: 'session', productionId: created.document.id }
+  await service.invoke('saveMediaConfiguration', { ...target, expectedRevision: 0,
+    entries: [{ id: connection.id, name: connection.name, kind: 'video', source: connection.source, parameters: {} }], defaults: { video: connection.id } })
+  await run.execute('beginJob', { ...target, baseRevision: 1, instruction: '制作视频', mediaKind: 'video' })
+  const calls: string[] = []
+  const tools: ToolDefinition[] = [
+    { name: 'media_discover_workflows', label: '发现', description: '', parameters: Type.Object({}), execute: async () => {
+      calls.push('discover')
+      return { content: [{ type: 'text' as const, text: '{}' }], details: { items: [], discovery: { status: 'candidates', candidateCount: 1 }, connectionId: 'comfy.local', snapshotId: 'snapshot-1', checkedAt: 10, nextOffset: null, total: 0 } }
+    } },
+    { name: 'media_use_remote_workflow', label: '选择', description: '', parameters: Type.Object({}), execute: async () => {
+      calls.push('select')
+      return { content: [{ type: 'text' as const, text: '{}' }], details: { id: 'workflow', revision: 2, hash: 'b'.repeat(64), contentHash: 'a'.repeat(64), connectionId: 'comfy.local', source: 'comfyui-server' } }
+    } },
+    { name: 'media_prepare_run', label: '准备', description: '', parameters: Type.Object({}), execute: async () => {
+      calls.push('prepare')
+      return { content: [{ type: 'text' as const, text: '{}' }], details: { id: 'run-1' } }
+    } },
+  ]
+  const wrapped = bindVisualProductionMediaTools(tools, { sessionId: 'session', access, jobs: () => run.mediaJobs() })
+  const call = (name: string, params: Record<string, unknown>) => wrapped.find(tool => tool.name === name)!.execute('call', params, undefined, undefined, {} as never)
+  const prepare = { connectionId: 'comfy.local', workflowId: 'workflow', workflowRevision: 2, mediaKind: 'video', inputs: {} }
+  await expect(call('media_prepare_run', prepare)).rejects.toThrow('WORKFLOW_DISCOVERY_REQUIRED')
+  expect(calls).toEqual([])
+  await call('media_discover_workflows', { connectionId: 'comfy.local', mediaKind: 'video', inputKinds: ['image', 'image'] })
+  await call('media_use_remote_workflow', { descriptor: { id: 'workflow' }, contentHash: 'a'.repeat(64) })
+  await call('media_prepare_run', prepare)
+  expect(calls).toEqual(['discover', 'select', 'prepare'])
 })

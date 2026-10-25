@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, opendirSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { mergeLegacyVisualShotOutputs, resolveVisualShotOutputs, visualProductionMediaSourceAllows, parseVisualProductionMediaConfiguration, parseVisualProductionMediaExecution, parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, assertVisualProductionId } from '@dutydeck/shared'
+import { mergeLegacyVisualShotOutputs, resolveVisualShotOutputs, visualProductionMediaSourceAllows, parseVisualCandidateReview, parseVisualProductionMediaConfiguration, parseVisualProductionMediaExecution, parseVisualProductionCommand, parseVisualProductionDraft, VISUAL_PRODUCTION_LIMITS, VISUAL_PRODUCTION_READ_METHODS, VISUAL_PRODUCTION_STORAGE_SEGMENTS, assertVisualProductionId } from '@dutydeck/shared'
 import type { MediaAssetRef, VisualCandidate, VisualEditingDocument, VisualEditingExportSettings, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualProductionDraft, VisualMedia, VisualJob, VisualProductionMediaOption, VisualProductionMediaExecution, VisualShotOutputs } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
@@ -28,13 +28,52 @@ export interface VisualProductionServiceDependencies {
   readMediaAsset?: (reference: MediaAssetRef) => Promise<Uint8Array>
   /** 真实成片编码器；缺失时剪辑任务会明确失败。 */
   renderExport?: (input: { productionId: string; episodeId: string; timeline: VisualEditingDocument; settings: VisualEditingExportSettings; sourceMedia: VisualMedia[]; readMedia: (mediaId: string) => { bytes: Uint8Array; mime: string } }) => Promise<{ encoderId: string; artifactMedia: VisualMedia; artifactBytes: Uint8Array }>
+  /** Agent 正式修改锁定资产时复用宿主权限弹窗；手工 UI 入口不注入此能力。 */
+  authorizeLockedAssetChanges?: (request: VisualLockedAssetApprovalRequest, signal?: AbortSignal) => Promise<boolean>
+}
+
+/** 单个锁定资产字段的前后值，供项目原生权限弹窗精确展示。 */
+export interface VisualLockedAssetFieldChange {
+  /** 用户可读字段名。 */
+  field: string
+  /** 当前正式值。 */
+  before: string | boolean | null
+  /** 拟采用值。 */
+  after: string | boolean | null
+}
+
+/** 一个锁定角色的完整待授权变更。 */
+export interface VisualLockedAssetChange {
+  /** 稳定资产身份。 */
+  assetId: string
+  /** 资产名称。 */
+  name: string
+  /** 本次变更字段。 */
+  fields: VisualLockedAssetFieldChange[]
+}
+
+/** 宿主要求用户授权的锁定资产变更身份。 */
+export interface VisualLockedAssetApprovalRequest {
+  /** 发起操作的会话。 */
+  sessionId: string
+  /** 所属作品。 */
+  productionId: string
+  /** 本次待采用的精确候选，批准不能复用于其他候选。 */
+  candidateId: string
+  /** 候选基于的正式 revision。 */
+  revision: number
+  /** 当前正式写入锁定资产的唯一入口。 */
+  action: 'adopt'
+  /** 精确的锁定资产差异。 */
+  changes: VisualLockedAssetChange[]
 }
 /** 内容摘要用于不可变媒体与版本比较。 */
 function hash(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex') }
 /** 只投影可编辑字段，系统身份不得作为不可信草稿输入。 */
 function editable(document: VisualProductionDraft): VisualProductionDraft {
   const { title, kind, brief, ratio, fps, voice, music, episodes, assets, shots } = document
-  return { title, kind, brief, ratio, fps, voice, music, episodes, assets, shots }
+  /** 所有可编辑集合必须独立复制，候选构造不能借共享引用提前修改正式作品。 */
+  return structuredClone({ title, kind, brief, ratio, fps, voice, music, episodes, assets, shots })
 }
 /** 比较已通过解析的普通领域对象。 */
 function same(left: unknown, right: unknown): boolean { return JSON.stringify(left) === JSON.stringify(right) }
@@ -60,11 +99,11 @@ export class VisualProductionService {
   }
   /** 固定受管目录；所有层级禁止软链接。 */
   private directory(id?: string, create = false): string {
-    return interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', ...(id ? [id] : [])], create)
+    return interactionDirectory(this.dependencies.projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', ...(id ? [id] : [])], create)
   }
   /** 有界枚举作品目录，损坏对象不能静默忽略。 */
   private ids(): string[] {
-    if (!existsSync(join(this.dependencies.projectRoot, '.proma', 'visual-production', 'projects'))) return []
+    if (!existsSync(join(this.dependencies.projectRoot, ...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects'))) return []
     const directory = opendirSync(this.directory())
     const ids: string[] = []
     try {
@@ -96,6 +135,25 @@ export class VisualProductionService {
       if (!['running', 'candidate', 'cancelled', 'failed', 'interrupted'].includes(job.status) || !Number.isSafeInteger(job.baseRevision) || job.baseRevision < 1 || job.baseRevision > snapshot.document.revision || typeof job.instruction !== 'string' || typeof job.createdAt !== 'number') throw new Error('任务索引损坏')
       if (job.compatibleRevision !== undefined && (!job.shotId || !Number.isSafeInteger(job.compatibleRevision) || job.compatibleRevision < job.baseRevision || job.compatibleRevision > snapshot.document.revision)) throw new Error('任务兼容版本损坏')
       if (job.stage !== undefined && !['preparing', 'generating', 'reviewing'].includes(job.stage)) throw new Error('任务阶段索引损坏')
+      if (job.mediaKind !== undefined && !['image', 'video', 'audio', 'mixed'].includes(job.mediaKind)) throw new Error('任务媒体类别损坏')
+      if (job.workflowDiscovery !== undefined) {
+        const discovery = job.workflowDiscovery
+        const selected = discovery.selectedWorkflow
+        const selectedValid = selected === undefined || (Boolean(selected)
+          && typeof selected.workflowId === 'string' && selected.workflowId.length > 0 && selected.workflowId.length <= 128
+          && Number.isSafeInteger(selected.workflowRevision) && selected.workflowRevision >= 1
+          && typeof selected.contentHash === 'string' && /^[a-f0-9]{64}$/.test(selected.contentHash))
+        if (!['required', 'scanning', 'candidates', 'selected', 'no-match', 'blocked'].includes(discovery.status)
+          || !['image', 'video', 'audio'].includes(discovery.mediaKind)
+          || typeof discovery.connectionId !== 'string' || discovery.connectionId.length === 0 || discovery.connectionId.length > 128
+          || !Number.isSafeInteger(discovery.candidateCount) || discovery.candidateCount < 0
+          || !Number.isSafeInteger(discovery.blockedCount) || discovery.blockedCount < 0
+          || (discovery.nextOffset !== null && (!Number.isSafeInteger(discovery.nextOffset) || discovery.nextOffset < 0))
+          || (discovery.snapshotId !== undefined && (typeof discovery.snapshotId !== 'string' || discovery.snapshotId.length === 0 || discovery.snapshotId.length > 256))
+          || (discovery.checkedAt !== undefined && (typeof discovery.checkedAt !== 'number' || !Number.isFinite(discovery.checkedAt) || discovery.checkedAt < 0))
+          || (discovery.message !== undefined && (typeof discovery.message !== 'string' || discovery.message.length > 2000))
+          || !selectedValid || (discovery.status === 'selected' && !selected)) throw new Error('工作流发现索引损坏')
+      }
       if (job.shotId) assertVisualProductionId(job.shotId)
       if (job.mediaConfiguration) job.mediaConfiguration = parseVisualProductionMediaConfiguration(job.mediaConfiguration)
       if (job.mediaExecutions !== undefined) {
@@ -110,6 +168,8 @@ export class VisualProductionService {
       if (!['ready', 'stale', 'adopted', 'discarded'].includes(candidate.status) || !Number.isSafeInteger(candidate.baseRevision) || candidate.baseRevision < 1 || candidate.baseRevision > snapshot.document.revision || typeof candidate.summary !== 'string' || !snapshot.jobs.some(job => job.id === candidate.jobId)) throw new Error('候选索引损坏')
       if (candidate.status === 'ready' && candidate.baseRevision !== snapshot.document.revision) throw new Error('候选版本索引损坏')
       if (candidate.sourceRevision !== undefined && (!Number.isSafeInteger(candidate.sourceRevision) || candidate.sourceRevision < 1 || candidate.sourceRevision > candidate.baseRevision)) throw new Error('候选原始版本损坏')
+      if (candidate.reviewRequired !== undefined && typeof candidate.reviewRequired !== 'boolean') throw new Error('候选审核门禁损坏')
+      if (candidate.review !== undefined) parseVisualCandidateReview(candidate.review, true)
     }
     for (const asset of snapshot.document.assets) if (!Number.isSafeInteger(snapshot.assetVersions[asset.id]) || snapshot.assetVersions[asset.id]! < 1) throw new Error('资产版本索引损坏')
     for (const shot of snapshot.document.shots) {
@@ -266,7 +326,6 @@ export class VisualProductionService {
   private proposeCandidates(snapshot: VisualProductionSnapshot, job: VisualJob, drafts: VisualProductionDraft[], summary: string): VisualCandidate {
     for (const draft of drafts) {
       this.references(snapshot, draft)
-      for (const asset of snapshot.document.assets) if (asset.locked && !same(asset, draft.assets.find(item => item.id === asset.id))) throw new Error('候选不能修改锁定资产')
       if (job.shotId) {
         const original = editable(snapshot.document)
         if (original.shots.find(shot => shot.id === job.shotId)?.episodeId !== draft.shots.find(shot => shot.id === job.shotId)?.episodeId || !same(original.shots.map(shot => shot.id), draft.shots.map(shot => shot.id)) || !draft.shots.some(shot => shot.id === job.shotId) || !same({ ...original, shots: original.shots.filter(shot => shot.id !== job.shotId) }, { ...draft, shots: draft.shots.filter(shot => shot.id !== job.shotId) })) throw new Error('单镜头任务不能修改其他内容')
@@ -278,22 +337,55 @@ export class VisualProductionService {
       if (removable < 0) throw new Error('待采纳候选数量超过预算，请先采纳或丢弃')
       snapshot.candidates.splice(removable, 1)
     }
-    const candidates: VisualCandidate[] = drafts.map(draft => ({ id: randomUUID(), baseRevision: snapshot.document.revision, ...(job.baseRevision === snapshot.document.revision ? {} : { sourceRevision: job.baseRevision }), draft, summary, status: 'ready', jobId: job.id, createdAt: Date.now() }))
+    /** 新影片输出必须经过技术、动作和衔接审核，静帧和旧候选保持原流程。 */
+    const media = new Map(snapshot.media.map(item => [item.id, item]))
+    const candidates: VisualCandidate[] = drafts.map(draft => {
+      const previousVideo = new Map(snapshot.document.shots.map(shot => [shot.id, resolveVisualShotOutputs(shot, media).video]))
+      const reviewRequired = draft.shots.some(shot => previousVideo.get(shot.id) !== resolveVisualShotOutputs(shot, media).video)
+      return { id: randomUUID(), baseRevision: snapshot.document.revision, ...(job.baseRevision === snapshot.document.revision ? {} : { sourceRevision: job.baseRevision }), draft, summary, status: 'ready', jobId: job.id, ...(reviewRequired ? { reviewRequired: true } : {}), createdAt: Date.now() }
+    })
     snapshot.candidates.push(...candidates)
     job.status = 'candidate'
+    /** 影片候选进入同一 Agent 任务的审片步骤，不是额外后台任务。 */
+    if (candidates.some(candidate => candidate.reviewRequired)) job.stage = 'reviewing'
     this.autoAdoptShots(snapshot)
     return candidates[0]!
   }
+  /**
+   * 计算正式文档中锁定资产相对候选草稿的差异。
+   * 候选阶段允许保存差异；只有正式采用时才要求用户一次性授权。
+   * @param current 当前正式可编辑文档。
+   * @param draft 拟采用的候选草稿。
+   * @returns 仅包含锁定资产字段变化的有界列表。
+   */
+  private collectLockedAssetChanges(current: VisualProductionDraft, draft: VisualProductionDraft): VisualLockedAssetChange[] {
+    const changes: VisualLockedAssetChange[] = []
+    for (const asset of current.assets.filter(item => item.locked)) {
+      const next = draft.assets.find(item => item.id === asset.id)
+      if (!next) {
+        changes.push({ assetId: asset.id, name: asset.name, fields: [{ field: '资产', before: '存在', after: '删除' }] })
+        continue
+      }
+      const fields: VisualLockedAssetFieldChange[] = []
+      if (asset.name !== next.name) fields.push({ field: '名称', before: asset.name, after: next.name })
+      if (asset.type !== next.type) fields.push({ field: '类型', before: asset.type, after: next.type })
+      if (asset.description !== next.description) fields.push({ field: '描述', before: asset.description, after: next.description })
+      if (asset.locked !== next.locked) fields.push({ field: '锁定状态', before: asset.locked, after: next.locked })
+      if (asset.mediaId !== next.mediaId) fields.push({ field: '媒体', before: asset.mediaId, after: next.mediaId })
+      if (fields.length > 0) changes.push({ assetId: asset.id, name: next.name, fields })
+    }
+    return changes
+  }
   /** 执行经过严格解析的单命令；异步来源读取完成后重新读取当前快照。 */
-  async invoke<M extends VisualProductionMethod>(method: M, input: VisualProductionInputs[M]): Promise<VisualProductionResults[M]> {
+  async invoke<M extends VisualProductionMethod>(method: M, input: VisualProductionInputs[M], signal?: AbortSignal): Promise<VisualProductionResults[M]> {
     this.dependencies.assertCurrent?.()
     const command = parseVisualProductionCommand({ method, input })
     /** 跨进程锁覆盖读、校验、异步准备和提交，原子文件 CAS 再次确认目标身份。 */
-    const release = VISUAL_PRODUCTION_READ_METHODS.includes(method) ? undefined : acquireMediaFileLock(join(interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production'], true), 'write.lock'))
-    try { return await this.execute(command) as VisualProductionResults[M] } finally { release?.() }
+    const release = VISUAL_PRODUCTION_READ_METHODS.includes(method) ? undefined : acquireMediaFileLock(join(interactionDirectory(this.dependencies.projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS], true), 'write.lock'))
+    try { return await this.execute(command, signal) as VisualProductionResults[M] } finally { release?.() }
   }
   /** 联合命令分派保留每个方法的输入收窄。 */
-  private async execute(command: ReturnType<typeof parseVisualProductionCommand>): Promise<unknown> {
+  private async execute(command: ReturnType<typeof parseVisualProductionCommand>, signal?: AbortSignal): Promise<unknown> {
     if (command.method === 'list') {
       /** 列表累计读取上限，避免多个大型候选快照造成主进程长时间阻塞。 */
       let remainingBytes = VISUAL_PRODUCTION_LIMITS.metadataBytes * 4
@@ -327,7 +419,7 @@ export class VisualProductionService {
       if (snapshot.media.length >= VISUAL_PRODUCTION_LIMITS.media) throw new Error('媒体数量超过预算')
       const media: VisualMedia = { id: digest, hash: digest, ...format, name: command.method === 'importFile' ? basename(command.input.relativePath).slice(0, 200) : command.input.reference.assetId, byteSize: bytes.length, createdAt: Date.now() }
       /** 二进制采用原子 JSON 字节封装；独立副本不依赖画布生命周期。 */
-      const directory = interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', input.productionId, 'media'], true)
+      const directory = interactionDirectory(this.dependencies.projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', input.productionId, 'media'], true)
       const path = join(directory, `${digest}.json`)
       if (!existsSync(path)) writeJsonFileAtomicSecure(path, { hash: digest, data: bytes.toString('base64') }, { expectedDestination: { kind: 'missing' } })
       snapshot.media.push(media)
@@ -339,7 +431,7 @@ export class VisualProductionService {
     const input = command.input
     if ('baseRevision' in input && input.baseRevision !== snapshot.document.revision) {
       /** 仅类型化单镜头操作可沿宿主证明兼容的旧基线继续，完整草稿与手工保存仍要求最新版本。 */
-      if (['proposeShot', 'referenceMedia', 'updateJob', 'recordMediaExecution'].includes(command.method) && 'jobId' in input) this.currentJob(snapshot, { sessionId: input.sessionId, baseRevision: input.baseRevision, jobId: input.jobId })
+      if (['recordWorkflowDiscovery', 'proposeShot', 'referenceMedia', 'updateJob', 'recordMediaExecution'].includes(command.method) && 'jobId' in input) this.currentJob(snapshot, { sessionId: input.sessionId, baseRevision: input.baseRevision, jobId: input.jobId })
       else throw new Error('VISUAL_PRODUCTION_CONFLICT: 正式版本已变化')
     }
     switch (command.method) {
@@ -407,6 +499,50 @@ export class VisualProductionService {
       case 'mediaContent': return this.mediaContent(snapshot, command.input.mediaId)
       case 'exportManifest': return { fileName: `${snapshot.document.id}-manifest.json`, json: JSON.stringify({ schemaVersion: 1, document: snapshot.document, media: snapshot.media, shotStates: snapshot.shotStates, assetVersions: snapshot.assetVersions, mediaConfiguration: snapshot.mediaConfiguration, jobs: snapshot.jobs }, null, 2) }
       case 'save': this.commit(snapshot, parseVisualProductionDraft(command.input.draft)); break
+      case 'updateShotPlan': {
+        const draft = editable(snapshot.document)
+        const targetShot = draft.shots.find(shot => shot.id === command.input.shotId)
+        if (!targetShot) throw new Error('镜头不存在')
+        const previousShot = structuredClone(targetShot)
+        /** 只把已导入媒体登记成非锁定资产；既有资产保持原样，避免计划工具成为资产编辑器。 */
+        for (const reference of command.input.references ?? []) {
+          const media = snapshot.media.find(item => item.id === reference.mediaId)
+          if (!media || media.kind === 'audio' && reference.type !== '声音' || media.kind !== 'audio' && reference.type === '声音') {
+            throw new Error('计划引用媒体不属于当前作品或与资产类型不匹配')
+          }
+          const existing = draft.assets.find(asset => asset.id === reference.assetId)
+          if (existing) {
+            if (existing.mediaId !== reference.mediaId) throw new Error('计划引用资产身份已被其他媒体占用')
+            continue
+          }
+          draft.assets.push({
+            id: reference.assetId,
+            name: reference.name,
+            type: reference.type,
+            description: reference.description,
+            locked: false,
+            mediaId: reference.mediaId,
+          })
+        }
+        /** 首尾帧和动作锚点必须成为目标镜头引用，其他镜头保持不变。 */
+        const referencedAssetIds = new Set([
+          ...(command.input.references ?? []).map(reference => reference.assetId),
+          ...(command.input.videoPlan.firstFrameAssetId ? [command.input.videoPlan.firstFrameAssetId] : []),
+          ...(command.input.videoPlan.lastFrameAssetId ? [command.input.videoPlan.lastFrameAssetId] : []),
+          ...command.input.continuityPlan.anchors.flatMap(anchor => anchor.assetId ? [anchor.assetId] : []),
+        ])
+        targetShot.assetIds = [...new Set([...targetShot.assetIds, ...referencedAssetIds])]
+        targetShot.videoPlan = structuredClone(command.input.videoPlan)
+        targetShot.continuityPlan = structuredClone(command.input.continuityPlan)
+        const normalized = parseVisualProductionDraft(draft)
+        const normalizedShot = normalized.shots.find(shot => shot.id === command.input.shotId)!
+        /** 重复提交完全相同计划保持幂等，不制造无意义的版本和候选失效。 */
+        if (same(previousShot, normalizedShot) && !(command.input.references ?? []).some(reference => !snapshot.document.assets.some(asset => asset.id === reference.assetId))) {
+          return snapshot
+        }
+        this.commit(snapshot, normalized)
+        break
+      }
       case 'beginJob': {
         /** 仅裁剪未被待采纳候选引用的最老终态任务，关联终态候选一同裁剪。 */
         const referencedJobs = new Set(snapshot.candidates.filter(candidate => candidate.status === 'ready').map(candidate => candidate.jobId))
@@ -417,8 +553,36 @@ export class VisualProductionService {
           snapshot.candidates = snapshot.candidates.filter(candidate => candidate.jobId !== removed.id)
         }
         if (command.input.shotId && !snapshot.document.shots.some(shot => shot.id === command.input.shotId)) throw new Error('镜头不存在')
-        const job = { ...(snapshot.mediaConfiguration ? { mediaConfiguration: structuredClone(snapshot.mediaConfiguration) } : {}), id: randomUUID(), sessionId: input.sessionId, baseRevision: snapshot.document.revision, instruction: command.input.instruction, ...(command.input.shotId ? { shotId: command.input.shotId } : {}), status: 'running' as const, stage: 'preparing' as const, createdAt: Date.now() }
+        const targetShot = command.input.shotId ? snapshot.document.shots.find(shot => shot.id === command.input.shotId) : undefined
+        const requestedKinds = command.input.mediaKind === 'mixed' ? ['image', 'video', 'audio'] as const
+          : command.input.mediaKind ? [command.input.mediaKind] as const
+            : targetShot?.videoPlan ? ['video'] as const : []
+        const connectionKind = requestedKinds.find(kind => {
+          const entryId = snapshot.mediaConfiguration?.defaults[kind]
+          return entryId ? snapshot.mediaConfiguration?.entries.find(entry => entry.id === entryId)?.source.type === 'connection' : false
+        })
+        const connectionEntry = connectionKind ? snapshot.mediaConfiguration?.entries.find(entry => entry.id === snapshot.mediaConfiguration?.defaults[connectionKind]) : undefined
+        const workflowDiscovery = connectionKind && connectionEntry?.source.type === 'connection' ? {
+          status: 'required' as const, connectionId: connectionEntry.source.connectionId, mediaKind: connectionKind,
+          candidateCount: 0, blockedCount: 0, nextOffset: null,
+        } : undefined
+        const job: VisualJob = { ...(snapshot.mediaConfiguration ? { mediaConfiguration: structuredClone(snapshot.mediaConfiguration) } : {}), id: randomUUID(), sessionId: input.sessionId, baseRevision: snapshot.document.revision, instruction: command.input.instruction, ...(command.input.shotId ? { shotId: command.input.shotId } : {}), ...(command.input.mediaKind ? { mediaKind: command.input.mediaKind } : {}), ...(workflowDiscovery ? { workflowDiscovery } : {}), status: 'running' as const, stage: 'preparing' as const, createdAt: Date.now() }
         snapshot.jobs.push(job); this.persist(snapshot, state); return job
+      }
+      case 'recordWorkflowDiscovery': {
+        const job = this.currentJob(snapshot, command.input)
+        if (job.workflowDiscovery && job.workflowDiscovery.connectionId !== command.input.discovery.connectionId) throw new Error('工作流发现服务与任务不一致')
+        /** 单个任务的冻结媒体类别必须与扫描结果一致，避免同一任务混写多类工作流证据。 */
+        if ((job.mediaKind !== undefined && job.mediaKind !== 'mixed' && job.mediaKind !== command.input.discovery.mediaKind)
+          || (job.workflowDiscovery && job.workflowDiscovery.mediaKind !== command.input.discovery.mediaKind)) throw new Error('工作流发现媒体类别与任务不一致')
+        /** 无匹配必须来自完整目录快照；阻断和无匹配也必须保留可解释原因。 */
+        if (command.input.discovery.status === 'no-match'
+          && (command.input.discovery.nextOffset !== null || !command.input.discovery.snapshotId)) throw new Error('工作流发现尚未完成完整目录检查')
+        if ((command.input.discovery.status === 'no-match' || command.input.discovery.status === 'blocked')
+          && !command.input.discovery.message?.trim()) throw new Error('工作流发现终态缺少原因')
+        job.workflowDiscovery = structuredClone(command.input.discovery)
+        this.persist(snapshot, state)
+        return job
       }
       case 'updateJob': {
         /** 只推进当前会话仍存活的任务；终态不能被阶段更新复活。 */
@@ -475,6 +639,27 @@ export class VisualProductionService {
         this.persist(snapshot, state)
         return candidate
       }
+      case 'proposeScript': {
+        /** 剧本属于整集结构，单镜头任务不能越过制作边界重写整集叙事。 */
+        const job = this.currentJob(snapshot, command.input)
+        if (job.shotId) throw new Error('单镜头任务不能提交整集剧本')
+        if (!snapshot.document.episodes.some(episode => episode.id === command.input.episodeId)) throw new Error('剧本所属集数不存在')
+        const draft = editable(snapshot.document)
+        const episode = draft.episodes.find(item => item.id === command.input.episodeId)!
+        episode.script = structuredClone(command.input.script)
+        const normalized = parseVisualProductionDraft(draft)
+        const candidate = this.proposeCandidates(snapshot, job, [normalized], command.input.summary)
+        this.persist(snapshot, state)
+        return candidate
+      }
+      case 'reviewCandidate': {
+        /** 审核只更新当前仍可采用的候选，不修改正式输出或媒体副本。 */
+        const candidate = snapshot.candidates.find(item => item.id === command.input.candidateId)
+        if (!candidate || candidate.status !== 'ready' || candidate.baseRevision !== snapshot.document.revision) throw new Error('候选已过期或不可审核')
+        candidate.review = { ...command.input.review, sessionId: input.sessionId, reviewedAt: Date.now() }
+        this.persist(snapshot, state)
+        return candidate
+      }
       case 'propose': {
         const job = this.currentJob(snapshot, command.input)
         const draft = parseVisualProductionDraft(command.input.draft)
@@ -486,7 +671,27 @@ export class VisualProductionService {
         const media = new Map(snapshot.media.map(item => [item.id, item]))
         const candidate = snapshot.candidates.find(item => item.id === command.input.candidateId)
         if (!candidate || candidate.status !== 'ready' || candidate.baseRevision !== snapshot.document.revision) throw new Error('候选已过期或不可采纳')
-        for (const asset of snapshot.document.assets) if (asset.locked && !same(asset, candidate.draft.assets.find(item => item.id === asset.id))) throw new Error('候选不能修改锁定资产')
+        if (candidate.reviewRequired) {
+          if (!candidate.review) throw new Error('候选需先完成视频审核')
+          if ([candidate.review.technical, candidate.review.motion, candidate.review.continuity].includes('failed') || candidate.review.issues.some(issue => issue.severity === 'error')) throw new Error('视频审核存在失败项，不能采用')
+          if ([candidate.review.technical, candidate.review.motion, candidate.review.continuity].includes('pending')) throw new Error('候选视频审核尚未完成')
+        }
+        const lockedAssetChanges = this.collectLockedAssetChanges(snapshot.document, candidate.draft)
+        if (lockedAssetChanges.length > 0) {
+          if (!this.dependencies.authorizeLockedAssetChanges) throw new Error('锁定角色或资产需要用户授权后才能采用')
+          const approved = await this.dependencies.authorizeLockedAssetChanges({
+            sessionId: command.input.sessionId,
+            productionId: command.input.productionId,
+            candidateId: candidate.id,
+            revision: snapshot.document.revision,
+            action: 'adopt',
+            changes: lockedAssetChanges,
+          }, signal)
+          if (!approved) throw new Error('VISUAL_PRODUCTION_LOCKED_ASSET_DENIED: 用户未授权修改锁定角色或资产')
+          /** 审批返回后可能已收到取消；正式写入前必须再检查一次运行信号。 */
+          signal?.throwIfAborted()
+          this.dependencies.assertCurrent?.()
+        }
         /** 手工选择也仅合并本次输出；完整创作候选仍沿用严格的整作品提交。 */
         /** 兼容旧完整候选时也补齐未声明槽，设定变更不能悄悄删除画面或音频。 */
         const currentShots = new Map(snapshot.document.shots.map(shot => [shot.id, shot]))
@@ -534,7 +739,7 @@ export class VisualProductionService {
   private mediaContent(snapshot: VisualProductionSnapshot, id: string): { mediaId: string; bytes: Uint8Array; mime: string } {
     const media = snapshot.media.find(item => item.id === id)
     if (!media) throw new Error('媒体不属于当前作品')
-    const directory = interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', snapshot.document.id, 'media'])
+    const directory = interactionDirectory(this.dependencies.projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', snapshot.document.id, 'media'])
     const stored = JSON.parse(readInteractionFile(join(directory, `${media.hash}.json`), VISUAL_PRODUCTION_LIMITS.mediaBytes * 1.4 + 1024).toString()) as { hash: string; data: string }
     const bytes = Buffer.from(stored.data, 'base64')
     if (bytes.length !== media.byteSize || hash(bytes) !== media.hash || stored.hash !== media.hash || mediaFormat(bytes).mime !== media.mime) throw new Error('媒体副本损坏')
@@ -546,7 +751,7 @@ export class VisualProductionService {
     if (bytes.length !== media.byteSize || hash(bytes) !== media.hash) throw new Error('成片媒体 hash 不匹配')
     const existing = snapshot.media.find(item => item.id === media.id)
     if (existing && (existing.hash !== media.hash || existing.byteSize !== media.byteSize)) throw new Error('成片媒体身份冲突')
-    const directory = interactionDirectory(this.dependencies.projectRoot, ['.proma', 'visual-production', 'projects', snapshot.document.id, 'media'], true)
+    const directory = interactionDirectory(this.dependencies.projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', snapshot.document.id, 'media'], true)
     const path = join(directory, `${media.hash}.json`)
     if (!existsSync(path)) writeJsonFileAtomicSecure(path, { hash: media.hash, data: Buffer.from(bytes).toString('base64') }, { expectedDestination: { kind: 'missing' } })
     if (!existing) {

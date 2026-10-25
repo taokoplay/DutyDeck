@@ -7,4 +7,7 @@ export * from './runtime-api.js';
 export * from './runtime-session.js';
 export * from './v3-schema.js';
 export * from './v3-validation.js';
+export * from './version-compatibility.js';
+export * from './surface-theme.js';
+export * from './surface-components.js';
 export * from './v3.js';

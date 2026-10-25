@@ -40,6 +40,18 @@ export class PluginCapabilityBrokerError extends Error {
   }
 }
 
+/** 仅允许宿主或能力提供者抛出稳定错误码，避免把路径和异常正文越过进程边界。 */
+function stableProviderErrorCode(error: unknown): string | undefined {
+  const candidate = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : error instanceof Error
+      ? error.message
+      : undefined
+  return typeof candidate === 'string' && /^PLUGIN_[A-Z0-9_]{1,80}$/.test(candidate)
+    ? candidate
+    : undefined
+}
+
 /** 判断数据能否安全通过进程边界。 */
 function isJsonValue(value: unknown, seen = new Set<object>()): boolean {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
@@ -101,8 +113,8 @@ export class CapabilityBroker {
     let result: unknown
     try {
       result = await provider({ request: request.input, caller, signal: controller.signal })
-    } catch {
-      throw new PluginCapabilityBrokerError('PLUGIN_CAPABILITY_FAILED')
+    } catch (error) {
+      throw new PluginCapabilityBrokerError(stableProviderErrorCode(error) ?? 'PLUGIN_CAPABILITY_FAILED')
     }
     try {
       caller.assertCurrent()

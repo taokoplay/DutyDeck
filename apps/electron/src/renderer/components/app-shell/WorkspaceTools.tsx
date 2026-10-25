@@ -132,9 +132,8 @@ export function WorkspaceTools(): React.ReactElement {
     const pluginSurface = parsePluginRuntimeSurfaceId(module.surfaceId)
     if (pluginSurface) {
       const openPluginSurface = async (): Promise<void> => {
-        const catalog = module.state === 'attached'
-          ? moduleCatalog
-          : await attachAgentModule(store, window.electronAPI, sessionId, module.id)
+        /** 接入操作必须幂等重放，不能信任可能过期的“attached”标签。 */
+        const catalog = await attachAgentModule(store, window.electronAPI, sessionId, module.id)
         if (!catalog) return
         const opened = await window.electronAPI.moduleRuntimePlugin.openSurface({
           sessionId,

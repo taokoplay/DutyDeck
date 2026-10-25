@@ -535,13 +535,20 @@ export class MediaRunService {
         const state = queue && 'state' in queue ? queue.state : null
         if (queue && 'raw' in queue) this.assertRemoteOwnership(manifest, queue.raw)
         if (state) {
-          manifest.snapshot.phase = state === 'running' ? 'running' : 'queued'
-          manifest.snapshot.error = null
+          /** 周期对账只在真实阶段变化时持久化，避免同状态反复推进 revision。 */
+          const phase = state === 'running' ? 'running' : 'queued'
+          if (manifest.snapshot.phase !== phase || manifest.snapshot.error !== null) {
+            manifest.snapshot.phase = phase
+            manifest.snapshot.error = null
+            this.save(manifest)
+          }
         } else if (manifest.snapshot.phase !== 'cancel-requested') {
-          manifest.snapshot.phase = 'submission-unknown'
-          manifest.snapshot.error = 'MEDIA_SUBMISSION_UNKNOWN'
+          if (manifest.snapshot.phase !== 'submission-unknown' || manifest.snapshot.error !== 'MEDIA_SUBMISSION_UNKNOWN') {
+            manifest.snapshot.phase = 'submission-unknown'
+            manifest.snapshot.error = 'MEDIA_SUBMISSION_UNKNOWN'
+            this.save(manifest)
+          }
         }
-        this.save(manifest)
         return this.snapshot(manifest)
       }
       this.assertRemoteOwnership(manifest, history.prompt)
@@ -649,8 +656,15 @@ export class MediaRunService {
       this.resolveClient(manifest)
       if (!manifest.workflow.prompt[progress.nodeId] || !Number.isSafeInteger(progress.value) || !Number.isSafeInteger(progress.max)
         || progress.value < 0 || progress.max <= 0 || progress.value > progress.max) return
+      /** ComfyUI 会重复发送同一采样值；相同节点和计数不构成新的业务版本。 */
+      const current = manifest.snapshot.progress
+      const sameProgress = current?.nodeId === progress.nodeId
+        && current.value === progress.value
+        && current.max === progress.max
+      const nextPhase = manifest.snapshot.phase === 'cancel-requested' ? 'cancel-requested' : 'running'
+      if (sameProgress && manifest.snapshot.phase === nextPhase) return
       manifest.snapshot.progress = { ...progress }
-      if (manifest.snapshot.phase !== 'cancel-requested') manifest.snapshot.phase = 'running'
+      manifest.snapshot.phase = nextPhase
       this.save(manifest)
     } finally { release() }
   }

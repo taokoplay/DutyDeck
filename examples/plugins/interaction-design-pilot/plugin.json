@@ -1,0 +1,222 @@
+{
+  "formatVersion": 3,
+  "apiVersion": "1.0.0",
+  "id": "dutydeck.interaction-design-pilot",
+  "publisherId": "dutydeck",
+  "version": "1.0.8",
+  "displayName": "交互设计插件试点",
+  "description": "使用通用项目产物能力运行的新旧并存交互设计试点。",
+  "license": "AGPL-3.0-only",
+  "profile": "module-runtime",
+  "compatibility": {
+    "hostApi": "^1.0.0",
+    "runtimeProtocol": 1,
+    "platforms": ["darwin", "win32", "linux"],
+    "architectures": ["arm64", "x64"]
+  },
+  "runtime": {
+    "entry": "runtime/main.mjs",
+    "format": "module-esm"
+  },
+  "modules": [
+    {
+      "id": "workspace",
+      "displayName": "交互设计试点",
+      "description": "创建、迭代和采纳项目级可点击原型，不覆盖旧交互设计模块。",
+      "icon": "mouse-pointer-2",
+      "scope": "project",
+      "activation": "session-toggle",
+      "skillRefs": [
+        {
+          "id": "interaction-design",
+          "scope": "builtin",
+          "required": true
+        }
+      ],
+      "promptRefs": ["workflow"],
+      "tools": ["list", "read", "create", "propose", "adopt", "read-source"],
+      "surfaces": ["workspace"],
+      "services": [],
+      "artifacts": ["workspace"]
+    }
+  ],
+  "tools": [
+    {
+      "id": "list",
+      "ownerModuleId": "workspace",
+      "title": "列出交互设计试点",
+      "description": "读取当前项目原型摘要和 artifact revision；项目尚无原型时返回空状态。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": true,
+        "destructive": false,
+        "idempotent": true,
+        "openWorld": false
+      },
+      "approval": "none",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "read",
+      "ownerModuleId": "workspace",
+      "title": "读取交互设计试点",
+      "description": "读取当前项目原型的完整页面、候选和 revision；修改前必须调用。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": true,
+        "destructive": false,
+        "idempotent": true,
+        "openWorld": false
+      },
+      "approval": "none",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "create",
+      "ownerModuleId": "workspace",
+      "title": "创建交互设计试点",
+      "description": "仅在项目尚无试点原型时创建首版；写入隔离的项目级 artifact。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "platform": { "type": "string", "enum": ["mobile", "desktop"] },
+          "html": { "type": "string", "minLength": 1, "maxLength": 200000 }
+        },
+        "required": ["name", "platform", "html"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": false,
+        "destructive": false,
+        "idempotent": false,
+        "openWorld": false
+      },
+      "approval": "write",
+      "timeoutMs": 30000,
+      "concurrencyKey": "workspace"
+    },
+    {
+      "id": "propose",
+      "ownerModuleId": "workspace",
+      "title": "提交交互设计候选",
+      "description": "为已有页面提交候选；必须携带刚读取到的 baseRevision，正式页面在采纳前不变。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "baseRevision": { "type": "integer", "minimum": 1 },
+          "pageId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "html": { "type": "string", "minLength": 1, "maxLength": 200000 },
+          "summary": { "type": "string", "maxLength": 2000 }
+        },
+        "required": ["baseRevision", "pageId", "name", "html", "summary"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": false,
+        "destructive": false,
+        "idempotent": false,
+        "openWorld": false
+      },
+      "approval": "write",
+      "timeoutMs": 30000,
+      "concurrencyKey": "workspace"
+    },
+    {
+      "id": "adopt",
+      "ownerModuleId": "workspace",
+      "title": "采纳交互设计候选",
+      "description": "按当前 artifact revision 和候选 ID 采纳候选；旧候选不得覆盖新页面。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "baseRevision": { "type": "integer", "minimum": 1 },
+          "candidateId": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "required": ["baseRevision", "candidateId"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": false,
+        "destructive": false,
+        "idempotent": false,
+        "openWorld": false
+      },
+      "approval": "write",
+      "timeoutMs": 30000,
+      "concurrencyKey": "workspace"
+    },
+    {
+      "id": "read-source",
+      "ownerModuleId": "workspace",
+      "title": "读取交互设计来源",
+      "description": "按项目相对路径读取有界 UTF-8 源码，用于还原真实页面和组件证据。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "maxBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+        },
+        "required": ["path", "maxBytes"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnly": true,
+        "destructive": false,
+        "idempotent": true,
+        "openWorld": false
+      },
+      "approval": "none",
+      "timeoutMs": 10000
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "workspace",
+      "ownerModuleId": "workspace",
+      "title": "交互设计试点",
+      "entry": "surfaces/workspace/index.html",
+      "apiVersion": 1,
+      "defaultPlacement": "right-panel",
+      "methods": ["load", "list", "read", "create", "propose", "adopt", "readSource"]
+    }
+  ],
+  "services": [],
+  "artifacts": [
+    {
+      "id": "workspace",
+      "ownerModuleId": "workspace",
+      "title": "交互设计试点文档",
+      "schemaVersion": 1,
+      "mimeTypes": ["application/json"],
+      "retention": "project"
+    }
+  ],
+  "prompts": [
+    {
+      "id": "workflow",
+      "version": "1.0.0",
+      "kind": "workflow",
+      "path": "prompts/workflow.md"
+    }
+  ],
+  "settings": [],
+  "capabilities": [
+    "project.files.read",
+    "artifact.read",
+    "artifact.write"
+  ],
+  "dependencies": [],
+  "exports": []
+}

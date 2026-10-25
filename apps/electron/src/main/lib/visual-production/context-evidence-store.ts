@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { assertVisualProductionId } from '@dutydeck/shared'
+import { assertVisualProductionId, VISUAL_PRODUCTION_STORAGE_SEGMENTS } from '@dutydeck/shared'
 import { interactionDirectory, readInteractionFile } from '../interaction-design/paths'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { VisualContextObservation, VisualContextEvidenceStore } from './task-context'
@@ -33,7 +33,7 @@ export function createVisualContextEvidenceStore(projectRoot: string, assertCurr
     assertCurrent()
     assertVisualProductionId(productionId)
     assertScope(scopeKey)
-    return interactionDirectory(projectRoot, ['.proma', 'visual-production', 'projects', productionId, 'visual-observations', scopeKey], create)
+    return interactionDirectory(projectRoot, [...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', productionId, 'visual-observations', scopeKey], create)
   }
   /** 缺失目录意味着无记录；其他边界错误不得当作空库。 */
   const existingDirectory = (productionId: string, scopeKey: string): string | undefined => {

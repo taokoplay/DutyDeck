@@ -24,6 +24,24 @@ export interface VisualRecordGroups {
   /** 页签及入口共用任务口径，同任务多个候选不重复计数。 */
   counts: Record<VisualRecordTab, number>
 }
+
+/** 视频候选审核对采用动作的可读状态。 */
+export type VisualCandidateReviewState = 'legacy' | 'missing' | 'pending' | 'failed' | 'ready'
+
+/**
+ * 从候选审核记录计算采用门禁，不修改候选或正式作品。
+ * @param candidate 当前候选；旧候选没有 reviewRequired 时保持兼容。
+ * @returns 可显示并用于按钮禁用的审核状态。
+ */
+export function visualCandidateReviewState(candidate: VisualCandidate): VisualCandidateReviewState {
+  if (!candidate.reviewRequired) return 'legacy'
+  if (!candidate.review) return 'missing'
+  const review = candidate.review
+  if ([review.technical, review.motion, review.continuity].includes('failed') || review.issues.some(issue => issue.severity === 'error')) return 'failed'
+  if ([review.technical, review.motion, review.continuity].includes('pending')) return 'pending'
+  return 'ready'
+}
+
 /** 输入作品任务与候选，按任务合并并返回展示分组；不修改持久化数据。 */
 export function groupVisualRecords(snapshot: Pick<VisualProductionSnapshot, 'jobs' | 'candidates'>): VisualRecordGroups {
   /** 一次建立关联，避免每条任务重复扫描整个候选集合。 */
@@ -85,6 +103,20 @@ export function buildVisualReference(workspaceId: string, document: VisualProduc
 export function buildVisualRetryPrompt(document: VisualProductionDocument, job: VisualJob): string | null {
   if (!['failed', 'cancelled', 'interrupted'].includes(job.status) || (job.shotId && !document.shots.some(shot => shot.id === job.shotId))) return null
   return `请重试影像作品「${document.title}」${job.shotId ? `中镜头「${document.shots.find(shot => shot.id === job.shotId)!.title}」` : '的上述对象'}。\n${job.instruction}\n请先核对最新设定和已确认资产，创建新任务重试，不恢复旧任务；只修改上述目标。`
+}
+
+/**
+ * 为待审视频生成可引用的 Agent 审片要求，不自动发送或提交审核。
+ * @param document 当前正式作品。
+ * @param candidate 需要审核的候选。
+ * @param job 候选所属任务及可选镜头范围。
+ * @returns 明确的审片提示；旧候选或无需审核时返回 null。
+ */
+export function buildVisualCandidateReviewPrompt(document: VisualProductionDocument, candidate: VisualCandidate, job: VisualJob): string | null {
+  if (!candidate.reviewRequired || candidate.status !== 'ready') return null
+  const shot = job.shotId ? document.shots.find(item => item.id === job.shotId) : undefined
+  const target = shot ? `镜头「${shot.title}」` : `作品「${document.title}」`
+  return `请审核${target}的视频候选「${candidate.summary}」。打开正式作品 ${document.id} 的视觉范围并使用候选 ${candidate.id}，将前后镜头加入 continuityShotIds；先 inspect 实际视频抽样，再提交 reviewCandidate。审核覆盖 technical、motion、continuity 三项：technical 检查可解码、时长和异常帧；motion 检查主体、动作和生成瑕疵；continuity 检查前后镜头方向、空间、动作、道具与声音接续。问题记录时间点，未听完整音频、未看完整视频或仅抽帧要写入未检查范围。不要替用户采用候选。`
 }
 /** 迟到请求只有在同一上下文且最新代次时才可回填界面。 */
 export class VisualRequestGate {

@@ -174,6 +174,36 @@ beforeEach(() => { directory = mkdtempSync(join(tmpdir(), 'proma-media-run-')) }
 afterEach(() => { rmSync(directory, { recursive: true, force: true }) })
 
 describe('媒体运行完整链路', () => {
+  test('Given 远端队列持续 running 且状态未变 When 周期对账 Then 不重复推进 revision', async () => {
+    const fixture = harness()
+    const service = fixture.create()
+    const prepared = await service.prepare(input())
+    await service.advance('project-a', prepared.id, prepared.revision)
+    fixture.setPendingQueue('owned')
+    const first = await service.reconcile('project-a', prepared.id)
+    const second = await service.reconcile('project-a', prepared.id)
+    const third = await service.reconcile('project-a', prepared.id)
+
+    expect(second.revision).toBe(first.revision)
+    expect(third.revision).toBe(first.revision)
+  })
+
+  test('Given ComfyUI 重复上报同一进度 When 记录 Then 只保留首个进度版本', async () => {
+    const fixture = harness()
+    const service = fixture.create()
+    const prepared = await service.prepare(input())
+    await service.advance('project-a', prepared.id, prepared.revision)
+    const target = service.getWatchTarget('project-a', prepared.id)
+    expect(target).not.toBeNull()
+    service.recordProgress('project-a', prepared.id, target!.promptId, { nodeId: '2', value: 1, max: 2 })
+    const first = service.get('project-a', prepared.id)
+    service.recordProgress('project-a', prepared.id, target!.promptId, { nodeId: '2', value: 1, max: 2 })
+    const second = service.get('project-a', prepared.id)
+
+    expect(first.progress).toEqual({ nodeId: '2', value: 1, max: 2 })
+    expect(second.revision).toBe(first.revision)
+  })
+
   test('Given 影像任务绑定 When 重建服务读取 Then 保留不可变归属并兼容普通旧运行', async () => {
     const fixture = harness()
     const origin = { actor: { sessionId: 'session', runStartedAt: 10, mode: 'project-agent' as const }, visualProduction: { productionId: 'production', jobId: 'job', baseRevision: 1 } }

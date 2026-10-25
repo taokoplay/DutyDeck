@@ -104,6 +104,42 @@ export class MediaRunSupervisor {
     })
   }
 
+  /**
+   * Host 托管等待真实终态；进度和同阶段 revision 更新不唤醒 Agent。
+   * 用户停止、应用退出或任务终态都会结束等待。
+   * @param projectId 任务所属项目。
+   * @param runId 固定媒体运行身份。
+   * @param signal Agent 运行取消信号。
+   * @returns 终态或取消时的最新权威快照。
+   */
+  async waitForTerminal(projectId: string, runId: string, signal?: AbortSignal): Promise<MediaRunSnapshot> {
+    const current = this.dependencies.runs.get(projectId, runId)
+    if (terminal(current)) return current
+    /** 恢复的历史任务可能尚未进入监督索引，先登记再等待。 */
+    this.watch(projectId, runId)
+    return await new Promise<MediaRunSnapshot>((resolve, reject) => {
+      /** 所有退出路径统一释放订阅与取消监听。 */
+      const finish = (): void => {
+        unsubscribe()
+        signal?.removeEventListener('abort', abort)
+        this.stopController.signal.removeEventListener('abort', abort)
+        try { resolve(this.dependencies.runs.get(projectId, runId)) } catch (error) { reject(error) }
+      }
+      const abort = (): void => { finish() }
+      const unsubscribe = this.dependencies.runs.subscribe((snapshot) => {
+        if (snapshot.projectId === projectId && snapshot.id === runId && terminal(snapshot)) finish()
+      })
+      signal?.addEventListener('abort', abort, { once: true })
+      this.stopController.signal.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted || this.disposed) finish()
+      else {
+        /** 订阅建立前可能已完成；同步复核避免错过唯一终态事件。 */
+        const latest = this.dependencies.runs.get(projectId, runId)
+        if (terminal(latest)) finish()
+      }
+    })
+  }
+
   /** 应用退出释放 WS、timer 和等待，不伪造取消成功。 */
   dispose(): void {
     this.disposed = true

@@ -271,3 +271,22 @@ export function resolveActiveModuleContext(
     unavailable,
   }
 }
+
+/**
+ * 只保留必须中止本轮运行的模块错误。
+ * @param unavailable 模块解析产生的全部不可用项。
+ * @param activeModuleIds 本轮已成功激活的模块。
+ * @param policy 当前会话模块策略。
+ * @param explicitModuleIds 本条消息明确选择的模块。
+ * @returns 显式选择失败，或全部固定模块都失效时需要阻断的条目。
+ */
+export function selectBlockingModuleUnavailability(
+  unavailable: ResolvedAgentModuleContext['unavailable'],
+  activeModuleIds: readonly string[],
+  policy: AgentSessionModulePolicy,
+  explicitModuleIds: readonly string[],
+): ResolvedAgentModuleContext['unavailable'] {
+  const explicit = new Set(explicitModuleIds)
+  const pinned = new Set(policy.pinnedModuleIds)
+  return unavailable.filter(item => explicit.has(item.moduleId) || (activeModuleIds.length === 0 && pinned.has(item.moduleId)))
+}

@@ -440,6 +440,33 @@ describe('Agent sendMessage 准入顺序合同', () => {
     expect(body.slice(approvalIndex, bypassIndex)).toContain("type: 'permission_resolved'")
   })
 
+  test('Given Agent 采用锁定资产变更 When 请求项目原生授权 Then 绑定精确候选并禁止自动批准或永久允许', () => {
+    const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
+    const start = source.indexOf('authorizeLockedAssetChanges: async')
+    const end = source.indexOf('\n      }) : undefined', start)
+    const body = source.slice(start, end)
+
+    expect(start).toBeGreaterThan(0)
+    expect(body).toContain('if (!signal) throw new Error')
+    expect(body).toContain("'visual_production_locked_asset_change'")
+    expect(body).toContain('candidateId: request.candidateId')
+    expect(body).toContain('baseRevision: request.revision')
+    expect(body).toContain('lockedAssetChanges: request.changes')
+    expect(body).not.toContain('allowAlways: true')
+    expect(body).toContain('revalidateSingleApprovalResult')
+    expect(body).toContain("type: 'permission_resolved'")
+    expect(body).not.toContain('toolApprovalPolicy')
+    expect(body).not.toContain('bypassPermissions')
+  })
+
+  test('Given 长时媒体任务正在运行 When Agent 回合结束 Then Host 在完成门禁中等待终态而不是立即续行轮询', () => {
+    const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
+
+    expect(source).toContain('waitForMediaExecution: (input, signal) => waitForProductionVisualMediaExecution(sessionId, input, signal)')
+    expect(source).toContain('const mediaSteps = discoveryMessage ? [] : await visualReviewRun.waitForPendingMedia(signal)')
+    expect(source).toContain('媒体任务执行后由 Host 托管等待终态，不要用 media_wait_run 高频刷新进度')
+  })
+
   test('Given 非媒体高风险工具 When 存在媒体自动审批策略 Then 仍走各自逐次审批分支', () => {
     const source = readFileSync(join(import.meta.dir, 'agent-orchestrator.ts'), 'utf8')
     const start = source.indexOf('const canUseTool = async')

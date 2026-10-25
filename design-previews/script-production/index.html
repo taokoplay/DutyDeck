@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>影像创作 · 脚本工作台</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-script" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v5h5M9 12h7M9 16h7M9 8h2"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m4 16-.8 4.8L8 20l10-10-4-4ZM12 8l4 4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4ZM12 9v5m0 3v.1"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.7 13.1A9 9 0 0 1 10.9 3.3 9 9 0 1 0 20.7 13.1Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+
+  <header class="preview-bar">
+    <span><i></i>SCRIPT PRODUCTION · 交互预览</span>
+    <span class="preview-note">剧本、映射与拍摄准备仅在本页模拟</span>
+    <div><button id="compact">窄面板</button><button id="theme" class="icon" aria-label="切换主题"><svg><use href="#i-moon"/></svg></button></div>
+  </header>
+
+  <div class="studio" id="studio">
+    <header class="project-header">
+      <div class="identity">
+        <span class="brand"><svg><use href="#i-script"/></svg></span>
+        <div><span class="eyebrow">影像创作 · 脚本</span><h1>大胤刑警<span>：醒来就在刑场</span></h1></div>
+      </div>
+      <div class="project-meta"><span>第 1 集</span><b>90 秒</b><b>9:16</b><b>24 fps</b></div>
+    </header>
+
+    <nav class="tabs" aria-label="影像工作区">
+      <span>项目</span><span>资产</span><span aria-current="page">脚本<i></i></span><span>分镜</span><span>画布</span><span>剪辑成片</span><span>素材导出</span><span>制作配置</span>
+      <em>正式版本 v20</em>
+    </nav>
+
+    <div class="toolbar">
+      <div class="episode-picker"><span>本集剧本</span><button>第 1 集｜醒来就在刑场（90 秒试播）<b>⌄</b></button></div>
+      <div class="stats"><span>6 个节拍</span><span>12/12 镜已映射</span><span>90s / 目标 90s</span></div>
+      <div class="actions"><button class="outline" id="agent"><svg><use href="#i-spark"/></svg>让 Agent 重构</button><button class="primary" id="edit"><svg><use href="#i-edit"/></svg>编辑剧本</button></div>
+    </div>
+
+    <main class="layout">
+      <aside class="beats-panel">
+        <div class="section-head"><h2>叙事节拍</h2><span>06</span></div>
+        <div class="beats" id="beats"></div>
+        <p class="mapping-note"><span>↳</span>节拍决定叙事顺序，镜头决定执行顺序；两者以 shotId 对齐。</p>
+      </aside>
+
+      <section class="script-panel">
+        <header class="logline">
+          <button class="logline-toggle" id="logline-toggle" aria-expanded="false" aria-controls="logline-full">
+            <span><i class="eyebrow">本集故事弧</i><strong>开场钩子 <svg><use href="#i-arrow"/></svg> 核心转折 <svg><use href="#i-arrow"/></svg> 阶段结果</strong></span>
+            <span>展开全文 <b>⌄</b></span>
+          </button>
+          <div class="logline-full" id="logline-full" hidden>
+            <span class="eyebrow">LOGLINE · 本集专属</span>
+            <h2>现代刑警穿越成待斩死囚，借一次证物复核争取重查，却发现县令知道他的现代身份。</h2>
+            <p>观众在前 10 秒理解“如果证物不成立，他就有机会活下来”，并持续追问县令为什么认识他。</p>
+            <div class="arc">
+              <div><span>开场钩子</span><p>现代古镜反光切入刑场刀光，人在刀下醒来。</p></div><svg><use href="#i-arrow"/></svg>
+              <div><span>核心转折</span><p>断刀与骨中刀尖当众重验，断口始终无法吻合。</p></div><svg><use href="#i-arrow"/></svg>
+              <div><span>阶段结果</span><p>停刑重查；县令耳语“沈警官”，留下穿越关联。</p></div>
+            </div>
+          </div>
+        </header>
+
+        <article class="beat-detail" id="beat-detail"></article>
+
+        <section class="production-notes">
+          <div class="section-head"><h2>拍摄总要求</h2><span>事实 · 连续 · 声音 · 验收</span></div>
+          <p>石灰灰、褪色靛蓝、暗绛红为主体色，铜色只用于关键物件。主角左颧骨浅擦伤与双腕绑绳整集不变；证物断口、人物手别、刑场南北主轴、县令离席后的空座均需连续。静帧、单镜候选和制作清单不得称为完整成片。</p>
+        </section>
+      </section>
+
+      <aside class="flow-panel">
+        <div class="section-head"><h2>整集准备</h2><span>仍有生成缺口</span></div>
+        <div class="flow" id="flow"></div>
+        <section class="risks">
+          <div class="section-head"><h2>当前风险</h2><span>03</span></div>
+          <ul><li>镜 07 的关键断口动作必须看完整中间过程，首尾帧不足以证明。</li><li>角色脸型、古镜断弧与袖扣符号仍需跨镜一致性复核。</li><li>真实配音、字幕、混音与整段视听验收尚未完成。</li></ul>
+        </section>
+        <div class="flow-actions"><button class="outline" id="agent-2"><svg><use href="#i-spark"/></svg>让 Agent 修复缺口</button><button class="text">引用本集到 Agent <svg><use href="#i-arrow"/></svg></button></div>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="editor">
+    <form method="dialog">
+      <header><div><span class="eyebrow">SCREENPLAY EDITOR</span><h2>编辑整集剧本</h2><p>保存后形成新的正式版本，镜头与媒体不会被直接改写。</p></div><button class="icon" value="cancel" aria-label="关闭"><svg><use href="#i-close"/></svg></button></header>
+      <div class="editor-body">
+        <label>一句话故事<textarea id="logline-input" rows="3"></textarea></label>
+        <label>观众承诺<textarea id="promise-input" rows="3"></textarea></label>
+        <div class="two"><label>开场钩子<textarea id="hook-input" rows="3"></textarea></label><label>阶段结果<textarea id="payoff-input" rows="3"></textarea></label></div>
+        <label>拍摄总要求<textarea id="notes-input" rows="5"></textarea></label>
+        <div class="editor-beat-head"><span>当前节拍</span><b id="editor-beat-name"></b></div>
+        <label>戏剧问题<input id="question-input"></label>
+        <label>视觉动作方向<textarea id="action-input" rows="4"></textarea></label>
+        <label>连续性<textarea id="continuity-input" rows="3"></textarea></label>
+      </div>
+      <footer><span>仅保存到本次预览</span><button class="outline" value="cancel">取消</button><button class="primary" value="save">保存剧本</button></footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

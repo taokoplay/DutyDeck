@@ -62,6 +62,18 @@ function runtimeError(code: string): PluginRuntimeError {
   return { code, message: '插件调用失败', retryable: false }
 }
 
+/** 能力层只暴露受控的 PLUGIN_* 错误码，其他异常统一回退到调用类型错误。 */
+function stableErrorCode(error: unknown, fallback: string): string {
+  const candidate = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : error instanceof Error
+      ? error.message
+      : undefined
+  return typeof candidate === 'string' && /^PLUGIN_[A-Z0-9_]{1,80}$/.test(candidate)
+    ? candidate
+    : fallback
+}
+
 /** 校验插件注册 ID，避免 handler 覆盖其它贡献。 */
 function assertId(value: string, code: string): void {
   if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(value)) throw new Error(code)
@@ -272,8 +284,11 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
           })
           respond(command.requestId, result)
         }
-      } catch {
-        fail(command.requestId, runtimeError(command.method === 'tool.invoke' ? 'PLUGIN_TOOL_FAILED' : 'PLUGIN_SURFACE_FAILED'))
+      } catch (error) {
+        fail(command.requestId, runtimeError(stableErrorCode(
+          error,
+          command.method === 'tool.invoke' ? 'PLUGIN_TOOL_FAILED' : 'PLUGIN_SURFACE_FAILED',
+        )))
       } finally {
         capabilityControllers.delete(invocationId)
         hostRequestControllers.delete(command.requestId)

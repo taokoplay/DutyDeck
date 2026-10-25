@@ -8,9 +8,48 @@
   </head>
   <body>
     <main>
-      <h1>插件模块已加载</h1>
-      <p id="status">等待宿主 bridge 就绪。</p>
+      <header class="surface-header">
+        <div>
+          <h1>插件模块已加载</h1>
+          <p>Surface 自动继承 DutyDeck 的深浅主题、字体、圆角和阴影。</p>
+        </div>
+        <div class="surface-actions">
+          <span class="badge">主题已同步</span>
+          <button id="open-demo" class="dd-button" data-variant="outline" data-size="sm" type="button">组件预览</button>
+        </div>
+      </header>
+      <section class="card">
+        <p id="status">等待宿主 bridge 就绪。</p>
+      </section>
     </main>
+    <dialog id="demo-dialog" class="dd-dialog" aria-labelledby="demo-dialog-title" aria-describedby="demo-dialog-description">
+      <form class="dd-dialog-form" method="dialog">
+        <header class="dd-dialog-head">
+          <p class="dd-dialog-kicker">Surface 组件规范</p>
+          <h2 id="demo-dialog-title" class="dd-dialog-title">弹窗与表单</h2>
+          <p id="demo-dialog-description" class="dd-dialog-description">这里复用 DutyDeck 的弹窗尺寸、字段高度、焦点反馈和按钮规格。</p>
+          <button class="dd-icon-button dd-dialog-close" data-close type="button" aria-label="关闭">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </header>
+        <div class="dd-dialog-body">
+          <label class="dd-field">
+            <span class="dd-label">示例名称</span>
+            <input class="dd-input" value="与软件一致的表单" />
+          </label>
+          <label class="dd-field">
+            <span class="dd-label">示例说明</span>
+            <textarea class="dd-textarea">插件可按此规范组合自己的业务字段。</textarea>
+          </label>
+        </div>
+        <footer class="dd-dialog-footer">
+          <button class="dd-button" data-variant="ghost" data-close type="button">取消</button>
+          <button class="dd-button" data-variant="primary" data-close type="button">确认</button>
+        </footer>
+      </form>
+    </dialog>
     <script type="module" src="./main.js"></script>
   </body>
 </html>

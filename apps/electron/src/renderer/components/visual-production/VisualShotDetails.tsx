@@ -24,6 +24,9 @@ interface VisualShotDetailsProps {
 
 /** 按媒体实际类型显示中文名称，避免把参考声音或视频误称为图片。 */
 const MEDIA_LABELS = { image: '图片', video: '视频', audio: '声音' }
+/** 详情区用中文呈现动作相位与声音接续，便于逐项审阅生成前合同。 */
+const ACTION_PHASE_LABELS = { start: '起始', development: '过程', contact: '接触', peak: '峰值', result: '结果', reaction: '反应', exit: '出口' } as const
+const AUDIO_TRANSITION_LABELS = { 'hard-cut': '同步硬切', 'carry-over': '声音延续', prelap: '声音先入', 'dialogue-carry': '对白跨切点' } as const
 
 /** 长提示词默认展示摘要，展开保留原文、换行与键盘操作。 */
 function ShotText({ label, value, empty }: { label: string; value: string; empty: string }): React.ReactElement {
@@ -72,6 +75,13 @@ export function VisualShotDetails({ sessionId, productionId, shot, assets, media
         <ShotText label="画面描述" value={shot.scene} empty="尚未填写画面描述" />
         <ShotText label="运镜与动作" value={shot.motion} empty="尚未设置运镜与动作" />
         <ShotText label="旁白 / 对白" value={shot.dialogue} empty="尚未设置旁白或对白" />
+        {shot.continuityPlan && <div className="vp-shot-continuity-details" aria-label="分镜衔接合同">
+          <div className="vp-shot-section-heading"><h4>分镜衔接</h4><span className="vp-muted">{AUDIO_TRANSITION_LABELS[shot.continuityPlan.audioTransition]}</span></div>
+          <ShotText label="入场状态" value={shot.continuityPlan.entryState} empty="尚未填写入场状态" />
+          <ShotText label="出场状态" value={shot.continuityPlan.exitState} empty="尚未填写出场状态" />
+          {shot.continuityPlan.anchors.length > 0 && <div className="vp-shot-continuity-anchors"><h4>动作中间锚点</h4>{shot.continuityPlan.anchors.map(anchor => <div key={anchor.phase}><span>{ACTION_PHASE_LABELS[anchor.phase]}</span><p>{anchor.state}</p><small>{anchor.assetId ? `画面：${assetsById.get(anchor.assetId)?.name ?? '资产不可用'}` : '文字状态'}</small></div>)}</div>}
+          <ShotText label="衔接依据" value={shot.continuityPlan.rationale} empty="尚未填写衔接依据" />
+        </div>}
       </section>
     </div>
   </div>

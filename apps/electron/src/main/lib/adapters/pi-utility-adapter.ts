@@ -24,6 +24,8 @@ type PendingQuery = {
   accepted: boolean
   ended: boolean
   runtimeFailed: boolean
+  /** 是否由超时、删除或用户停止触发了显式强制关闭。 */
+  forcedClose: boolean
   runtimeAbortPromise?: Promise<void>
   runtimeStopPromise?: Promise<void>
   forceClosePromise?: Promise<void>
@@ -71,11 +73,14 @@ export class PiUtilityAdapter {
       accepted: false,
       ended: false,
       runtimeFailed: false,
+      forcedClose: false,
     }
     this.pendingQueries.set(queryId, pending)
     this.currentQueryTokens.set(input.sessionId, queryId)
     client.setRequestHandler((request) => this.handleRuntimeRequest(request))
     const unsubscribe = client.onEvent((event) => this.handleRuntimeEvent(event, queryId))
+    /** 本轮是否已出现业务异常；清理异常不得覆盖它。 */
+    let hasQueryError = false
 
     try {
       await client.call(
@@ -91,6 +96,7 @@ export class PiUtilityAdapter {
         yield result.value
       }
     } catch (error) {
+      hasQueryError = true
       pending.queue.fail(error)
       throw error
     } finally {
@@ -105,6 +111,13 @@ export class PiUtilityAdapter {
         } else {
           if (pending.accepted && !pending.runtimeFailed) await this.requestRuntimeAbort(pending)
           await this.stopRuntime(pending)
+        }
+      } catch (cleanupError) {
+        // 业务已有确定结果或异常时，进程收尾故障只作为基础设施告警；
+        // 不能把成功回合改判为失败，也不能覆盖真正的模型/工具错误。
+        if (!hasQueryError && pending.forcedClose) throw cleanupError
+        if (!hasQueryError) {
+          console.warn(`[PiUtilityAdapter] runtime cleanup failed after query completion: sessionId=${input.sessionId}`, cleanupError)
         }
       } finally {
         this.pendingQueries.delete(queryId)
@@ -292,6 +305,7 @@ export class PiUtilityAdapter {
   /** 结束 pending next 的队列并等待 utility runtime 真正停止；并发调用共享同一 Promise。 */
   private forceClosePendingQuery(pending: PendingQuery): Promise<void> {
     if (pending.forceClosePromise) return pending.forceClosePromise
+    pending.forcedClose = true
     pending.forceClosePromise = (async () => {
       try {
         if (pending.accepted && !pending.runtimeFailed) await this.requestRuntimeAbort(pending)

@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, realpathSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { PluginV3Manifest } from '@dutydeck/plugin-sdk'
+import {
+  PLUGIN_V3_API_VERSION,
+  isPluginHostApiCompatible,
+  type PluginV3Manifest,
+} from '@dutydeck/plugin-sdk'
 import { readBoundedFile, writeNewFile } from '@dutydeck/plugin-kit/filesystem'
 import { inspectPluginPackage } from '@dutydeck/plugin-kit/package'
 import { acquireMediaFileLock } from '../media/media-file-lock'
@@ -36,6 +40,14 @@ export interface ModuleRuntimePluginPreview {
   previousVersion?: string
 }
 
+/** 可供显式回滚的历史包摘要，不暴露文件系统路径。 */
+export interface ArchivedRuntimePluginVersion {
+  version: string
+  packageHash: string
+  signatureVerified: boolean
+  keyId?: string
+}
+
 /** service 依赖与隔离模式。 */
 export interface ModuleRuntimePluginServiceOptions {
   root: string
@@ -56,6 +68,22 @@ interface RuntimePreviewState {
   preview: ModuleRuntimePluginPreview
   bytes: Uint8Array
   expiresAt: number
+}
+
+/** 插件 ID 只允许稳定的小写命名空间片段。 */
+const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/
+
+/** 校验插件声明的平台、架构和 Host API 范围是否适用于当前宿主。 */
+function assertHostCompatibility(manifest: PluginV3Manifest): void {
+  if (!manifest.compatibility.platforms.includes(process.platform as PluginV3Manifest['compatibility']['platforms'][number])) {
+    throw new Error('PLUGIN_PLATFORM_UNSUPPORTED')
+  }
+  if (!manifest.compatibility.architectures.includes(process.arch as PluginV3Manifest['compatibility']['architectures'][number])) {
+    throw new Error('PLUGIN_ARCHITECTURE_UNSUPPORTED')
+  }
+  if (!isPluginHostApiCompatible(manifest.compatibility.hostApi, PLUGIN_V3_API_VERSION)) {
+    throw new Error('PLUGIN_HOST_API_UNSUPPORTED')
+  }
 }
 
 /** 判断磁盘注册表结构，损坏时 fail closed。 */
@@ -141,6 +169,7 @@ export class ModuleRuntimePluginService {
     if (inspected.manifest.formatVersion !== 3 || inspected.manifest.profile !== 'module-runtime') {
       throw new Error('PLUGIN_MODULE_RUNTIME_REQUIRED')
     }
+    assertHostCompatibility(inspected.manifest)
     if (!this.development && !inspected.signatureVerified) throw new Error('PLUGIN_SIGNATURE_REQUIRED')
     const previous = this.registry.plugins.find(plugin => plugin.manifest.id === inspected.manifest.id)
     const token = randomUUID()
@@ -168,6 +197,7 @@ export class ModuleRuntimePluginService {
       if (inspected.manifest.formatVersion !== 3 || inspected.packageHash !== pending.preview.packageHash) {
         throw new Error('PLUGIN_PREVIEW_CHANGED')
       }
+      assertHostCompatibility(inspected.manifest)
       const previous = this.registry.plugins.find(plugin => plugin.manifest.id === inspected.manifest.id)
       const keyId = inspected.signer?.keyId
       if (!this.development) {
@@ -308,6 +338,108 @@ export class ModuleRuntimePluginService {
   /** 返回当前持久目录快照。 */
   snapshot(): ModuleRuntimePluginSnapshot {
     return { revision: this.registry.revision, plugins: structuredClone(this.registry.plugins) }
+  }
+
+  /** 列出指定插件的不可变历史包，按版本从高到低返回。 */
+  listVersions(pluginId: string): ArchivedRuntimePluginVersion[] {
+    if (!PLUGIN_ID_PATTERN.test(pluginId)) throw new Error('PLUGIN_ID_INVALID')
+    const directory = join(this.root, 'archives', pluginId)
+    if (!existsSync(directory)) return []
+    const state = lstatSync(directory)
+    if (!state.isDirectory() || state.isSymbolicLink()) throw new Error('PLUGIN_ARCHIVE_DIRECTORY_UNSAFE')
+    const versions = readdirSync(directory)
+      .filter(name => /^[a-f0-9]{64}\.ddplugin$/.test(name))
+      .map((name): ArchivedRuntimePluginVersion => {
+        const packageHash = name.slice(0, -'.ddplugin'.length)
+        const inspected = inspectPluginPackage(readBoundedFile(join(directory, name), 50 * 1024 * 1024))
+        if (inspected.manifest.formatVersion !== 3
+          || inspected.manifest.id !== pluginId
+          || inspected.packageHash !== packageHash) {
+          throw new Error('PLUGIN_ARCHIVE_IDENTITY_CHANGED')
+        }
+        return {
+          version: inspected.manifest.version,
+          packageHash,
+          signatureVerified: inspected.signatureVerified,
+          ...(inspected.signer ? { keyId: inspected.signer.keyId } : {}),
+        }
+      })
+    return versions.sort((left, right) => {
+      if (left.version === right.version) return left.packageHash.localeCompare(right.packageHash)
+      return isHigherVersion(left.version, right.version) ? -1 : 1
+    })
+  }
+
+  /** 将当前注册显式切换到一个已归档的不可变历史版本。 */
+  async rollback(pluginId: string, packageHash: string, expectedRevision: number): Promise<ModuleRuntimePluginSnapshot> {
+    this.assertIdle()
+    return this.withLock(async () => {
+      this.assertRevision(expectedRevision)
+      if (!PLUGIN_ID_PATTERN.test(pluginId)) throw new Error('PLUGIN_ID_INVALID')
+      if (!/^[a-f0-9]{64}$/.test(packageHash)) throw new Error('PLUGIN_PACKAGE_HASH_INVALID')
+      const previous = this.registry.plugins.find(plugin => plugin.manifest.id === pluginId)
+      if (!previous) throw new Error('PLUGIN_NOT_INSTALLED')
+      if (previous.packageHash === packageHash) throw new Error('PLUGIN_ROLLBACK_TARGET_CURRENT')
+      const archivePath = this.archivePath(pluginId, packageHash)
+      if (!existsSync(archivePath)) throw new Error('PLUGIN_ROLLBACK_TARGET_NOT_FOUND')
+      const inspected = inspectPluginPackage(readBoundedFile(archivePath, 50 * 1024 * 1024))
+      if (inspected.manifest.formatVersion !== 3
+        || inspected.manifest.id !== pluginId
+        || inspected.packageHash !== packageHash) {
+        throw new Error('PLUGIN_ARCHIVE_IDENTITY_CHANGED')
+      }
+      assertHostCompatibility(inspected.manifest)
+      if (!this.development) {
+        if (!inspected.signatureVerified || !previous.keyId || inspected.signer?.keyId !== previous.keyId) {
+          throw new Error('PLUGIN_PUBLISHER_UNTRUSTED')
+        }
+      }
+      const materialized = materializeRuntimePluginPackage({
+        root: this.root,
+        manifest: inspected.manifest,
+        packageHash: inspected.packageHash,
+        files: inspected.files,
+      })
+      if (previous.enabled) await this.manager.unregister(pluginId)
+      const entry: InstalledRuntimePlugin = {
+        manifest: inspected.manifest,
+        packageHash: inspected.packageHash,
+        ...(inspected.signer ? { keyId: inspected.signer.keyId } : {}),
+        enabled: previous.enabled,
+        installedAt: new Date().toISOString(),
+        packageRoot: materialized.packageRoot,
+      }
+      const next: RuntimeRegistry = {
+        formatVersion: 1,
+        revision: this.registry.revision + 1,
+        plugins: [...this.registry.plugins.filter(plugin => plugin.manifest.id !== pluginId), entry],
+      }
+      try {
+        if (entry.enabled) {
+          this.manager.register({
+            manifest: entry.manifest,
+            packageHash: entry.packageHash,
+            packageRoot: entry.packageRoot,
+            prompts: materialized.prompts,
+          })
+        }
+        this.persist(next)
+      } catch (error) {
+        if (entry.enabled) await this.manager.unregister(pluginId)
+        if (previous.enabled) {
+          const previousVerified = this.verifyInstalledEntry(previous)
+          this.manager.register({
+            manifest: previousVerified.manifest,
+            packageHash: previous.packageHash,
+            packageRoot: previousVerified.packageRoot,
+            prompts: previousVerified.prompts,
+          })
+        }
+        throw error
+      }
+      this.registry = next
+      return this.snapshot()
+    })
   }
 
   /** 释放 manager 持有的全部 runtime。 */

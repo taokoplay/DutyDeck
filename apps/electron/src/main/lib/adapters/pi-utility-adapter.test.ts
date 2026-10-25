@@ -606,6 +606,52 @@ describe('Pi utility 强制关闭合同', () => {
     } as AgentRuntimeEvent)
     await expect(currentIterator.next()).resolves.toMatchObject({ done: true })
   })
+
+  test('Given runtime 已正常结束但停止收尾失败 When query 完成 Then 不把成功回合改判为执行错误', async () => {
+    /** 被测 utility adapter。 */
+    const adapter = new PiUtilityAdapter()
+    /** 等待正常结束事件的 async iterator。 */
+    const iterator = adapter.query(createQueryInput('session-cleanup-warning'), 'query-cleanup-warning')[Symbol.asyncIterator]()
+    const pendingNext = iterator.next()
+    await waitUntil(() => runtimeStates.length === 1)
+    const runtime = runtimeStates[0]!
+    runtime.stop.reject(new Error('Utility process did not exit within 15000ms'))
+
+    runtime.eventListener?.({
+      kind: 'event',
+      method: AGENT_RUNTIME_METHODS.EVENT_QUERY_END,
+      queryId: 'query-cleanup-warning',
+      sessionId: 'session-cleanup-warning',
+      payload: { queryId: 'query-cleanup-warning' },
+    } as AgentRuntimeEvent)
+
+    await expect(pendingNext).resolves.toMatchObject({ done: true })
+    expect(runtime.stopCalls).toBe(1)
+  })
+
+  test('Given query 自身失败且 runtime 收尾也失败 When iterator 结束 Then 保留原始业务错误', async () => {
+    /** 被测 utility adapter。 */
+    const adapter = new PiUtilityAdapter()
+    /** 等待业务错误的 async iterator。 */
+    const iterator = adapter.query(createQueryInput('session-primary-error'), 'query-primary-error')[Symbol.asyncIterator]()
+    const pendingNext = iterator.next()
+    await waitUntil(() => runtimeStates.length === 1)
+    const runtime = runtimeStates[0]!
+    /** 业务执行阶段需要透传给用户的原始错误。 */
+    const queryError = new Error('工具执行失败')
+    runtime.stop.reject(new Error('Utility process did not exit within 15000ms'))
+
+    runtime.eventListener?.({
+      kind: 'event',
+      method: AGENT_RUNTIME_METHODS.EVENT_QUERY_ERROR,
+      queryId: 'query-primary-error',
+      sessionId: 'session-primary-error',
+      payload: { queryId: 'query-primary-error', error: { code: 'tool_failed', message: queryError.message } },
+    } as AgentRuntimeEvent)
+
+    await expect(pendingNext).rejects.toThrow('工具执行失败')
+    expect(runtime.stopCalls).toBe(1)
+  })
 })
 
 

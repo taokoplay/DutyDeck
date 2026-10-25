@@ -45,6 +45,8 @@ export interface AgentRuntimeClientOptions {
   env?: NodeJS.ProcessEnv
   startupTimeoutMs?: number
   requestTimeoutMs?: number
+  /** 测试可替换的操作系统级强制终止入口；生产默认按 utility PID 发送 SIGKILL。 */
+  forceKill?: (pid: number) => void
 }
 
 export interface AgentRuntimeRequestOptions {
@@ -66,6 +68,7 @@ export class AgentRuntimeClient {
   private readonly env: NodeJS.ProcessEnv | undefined
   private readonly startupTimeoutMs: number
   private readonly requestTimeoutMs: number
+  private readonly forceKill: ((pid: number) => void) | undefined
   private runtimeProcess: UtilityProcess | undefined
   /** 当前 utility process 的可等待 spawn/exit 生命周期。 */
   private runtimeLifecycle: UtilityProcessLifecycle<UtilityProcess> | undefined
@@ -91,6 +94,7 @@ export class AgentRuntimeClient {
     this.env = options.env
     this.startupTimeoutMs = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+    this.forceKill = options.forceKill
   }
 
   get currentState(): AgentRuntimeState {
@@ -244,7 +248,10 @@ export class AgentRuntimeClient {
           serviceName: 'DutyDeck Runtime',
           env: { ...process.env, ...this.env, PROMA_AGENT_SESSION_ID: this.sessionId },
         })
-        runtimeLifecycle = createUtilityProcessLifecycle(child, { exitTimeoutMs: this.startupTimeoutMs })
+        runtimeLifecycle = createUtilityProcessLifecycle(child, {
+          exitTimeoutMs: this.startupTimeoutMs,
+          ...(this.forceKill ? { forceKill: this.forceKill } : {}),
+        })
         this.runtimeProcess = child
         this.runtimeLifecycle = runtimeLifecycle
         return child

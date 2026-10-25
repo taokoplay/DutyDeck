@@ -606,6 +606,7 @@
           "plugin.state.write",
           "artifact.read",
           "artifact.write",
+          "artifact.migrate",
           "job.runtime",
           "agent.progress",
           "agent.delegate",
@@ -617,7 +618,7 @@
           "media.export"
         ]
       },
-      "maxItems": 17,
+      "maxItems": 18,
       "uniqueItems": true
     },
     "dependencies": {

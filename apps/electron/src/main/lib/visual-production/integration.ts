@@ -8,13 +8,17 @@ import { runStableDirectoryNative } from '../stable-directory-native-host'
 import { createVisualProductionAccess } from './access'
 import type { VisualProductionExecutor } from './access'
 import { VisualProductionService } from './store'
+import type { VisualLockedAssetApprovalRequest } from './store'
 import { createVisualTaskContextRuntime } from './task-context'
 import type { VisualTaskContextRuntime } from './task-context'
 import { createVisualContextEvidenceStore } from './context-evidence-store'
 import type { MediaDeliveryInspectionResult } from '../media/media-delivery-inspection-service'
 
-/** 主进程注册可信图片读取与失效通知，Agent 与 IPC 使用同一宿主。 */
-interface VisualProductionHost {
+/**
+ * 影像插件唯一的宿主服务端口。
+ * 未来拆包时由宿主注入该接口，插件不能直接访问 Electron、项目目录或凭据。
+ */
+export interface VisualProductionHost {
   /** 仅检查 access 已读取并核对 hash 的素材；抽帧字节不持久化。 */
   inspectMedia?(workspaceId: string, input: { sessionId: string; productionId: string; media: VisualMedia; bytes: Uint8Array }, signal?: AbortSignal): Promise<MediaDeliveryInspectionResult>
   /** 只投影公开模型和服务，不枚举工作流、不探测网络或返回凭据。 */
@@ -23,6 +27,8 @@ interface VisualProductionHost {
   resolveMediaWorkflow?(workspaceId: string, source: Extract<VisualProductionMediaExecutionSource, { type: 'workflow' }>, kind: VisualProductionMediaKind): Promise<VisualProductionMediaOption>
   /** 从可信运行冻结请求提取制作事实，核验工作区与会话归属。 */
   readMediaExecution?(workspaceId: string, sessionId: string, runId: string, engine: 'model' | 'workflow'): Promise<VisualProductionMediaExecution>
+  /** Host 直接等待媒体终态；只返回公开阶段，不泄露远端任务身份。 */
+  waitMediaExecution?(workspaceId: string, input: { sessionId: string; runId: string; engine: 'model' | 'workflow' }, signal?: AbortSignal): Promise<{ phase: string }>
   /** 在受管项目写租约内登记已验证的正式参考副本。 */
   registerReference?(workspaceId: string, input: { sessionId: string; productionId: string; media: VisualMedia; bytes: Uint8Array }): Promise<MediaAssetRef>
   /** 使用主进程已配置的编码器生成真实 MP4，并返回已登记媒体身份。 */
@@ -55,7 +61,14 @@ function resolveSession(sessionId: string): { workspaceId: string; projectRoot: 
  */
 export function createProductionVisualProductionAccess(
   sessionId: string,
-  options: { assertCaller?: () => void; canWrite?: () => boolean } = {},
+  options: {
+    assertCaller?: () => void
+    canWrite?: () => boolean
+    /** 仅 Agent 主会话注入锁定资产授权；手工 UI 保持禁止。 */
+    authorizeLockedAssetChanges?: (request: VisualLockedAssetApprovalRequest, signal?: AbortSignal) => Promise<boolean>
+    /** Host 直接等待媒体运行终态，避免视觉 Agent 轮询 revision。 */
+    waitForMediaExecution?: (input: { sessionId: string; runId: string; engine: 'model' | 'workflow' }, signal?: AbortSignal) => Promise<{ phase: string }>
+  } = {},
 ): VisualProductionExecutor {
   return createVisualProductionAccess(sessionId, {
     resolveSession, ...options, acquireWriteLease: acquireWorkspaceWriteLease,
@@ -117,11 +130,30 @@ export function createProductionVisualProductionAccess(
         assertCurrent()
         return result
       },
+      ...(options.authorizeLockedAssetChanges ? { authorizeLockedAssetChanges: options.authorizeLockedAssetChanges } : {}),
     }),
+    ...(options.waitForMediaExecution ? { waitForMediaExecution: options.waitForMediaExecution } : {}),
     onChanged: (event) => {
       try { host?.onChanged(event) } catch { /* 写入已成功，窗口关闭不改变提交结果。 */ }
     },
   })
+}
+
+/**
+ * 以当前会话所属项目调用 Host 的媒体终态等待。
+ * @param sessionId 当前 Agent 会话。
+ * @param input 媒体运行身份。
+ * @param signal 用户停止信号。
+ * @returns 公开媒体阶段。
+ */
+export function waitForProductionVisualMediaExecution(
+  sessionId: string,
+  input: { runId: string; engine: 'model' | 'workflow' },
+  signal?: AbortSignal,
+): Promise<{ phase: string }> {
+  const initial = resolveSession(sessionId)
+  if (!host?.waitMediaExecution) throw new Error('VISUAL_PRODUCTION_MEDIA_WAIT_UNAVAILABLE: 媒体宿主等待尚未就绪')
+  return host.waitMediaExecution(initial.workspaceId, { sessionId, ...input }, signal)
 }
 
 /**

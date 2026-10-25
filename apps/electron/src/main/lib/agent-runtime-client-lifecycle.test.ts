@@ -263,7 +263,11 @@ describe('Agent runtime 生命周期隔离', () => {
     forkCreatesSpawnedProcess = true
     forkProcessExitsOnKill = false
     /** 使用短退出预算的被测客户端。 */
-    const client = new AgentRuntimeClient({ sessionId: 'session-stop-timeout', startupTimeoutMs: 5 })
+    const client = new AgentRuntimeClient({
+      sessionId: 'session-stop-timeout',
+      startupTimeoutMs: 5,
+      forceKill: () => {},
+    })
     /** 尚未收到 handshake 的启动 Promise。 */
     const starting = client.start()
     /** 本轮启动创建的主进程端口。 */

@@ -1,0 +1,18 @@
+{
+  "name": "dutydeck.interaction-design-pilot",
+  "version": "1.0.8",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "dutydeck-plugin build .",
+    "typecheck": "tsc --noEmit",
+    "validate": "dutydeck-plugin validate .",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@dutydeck/plugin-sdk": "file:../../../packages/plugin-sdk"
+  },
+  "devDependencies": {
+    "@dutydeck/plugin-kit": "file:../../../packages/plugin-kit"
+  }
+}

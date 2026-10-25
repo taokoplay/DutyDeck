@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import type { AgentModuleManifest, AgentSessionModulePolicy, SkillMeta } from '@dutydeck/shared'
-import { getInactiveModuleSkillSlugs, resolveActiveModuleContext, setAgentModuleRuntimeCatalog } from './module-skill-resolver'
+import { getInactiveModuleSkillSlugs, resolveActiveModuleContext, selectBlockingModuleUnavailability, setAgentModuleRuntimeCatalog } from './module-skill-resolver'
 import { listBuiltinAgentModules } from './module-registry'
 import { AgentPluginRegistry } from './plugin-registry'
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
@@ -82,6 +82,38 @@ describe('Agent 模块 Skill 解析', () => {
       { listModules: listBuiltinAgentModules, getSkills: () => skills(['interaction-design']) },
     )
     expect(result.modules[0]).toMatchObject({ moduleId: 'interaction-design', invocationMode: 'invoke', mode: 'auto' })
+  })
+})
+
+describe('Agent 模块不可用时的运行准入', () => {
+  test('Given 会话残留模块身份变化但本轮已有可用模块 When 检查阻断 Then 跳过残留模块', () => {
+    const blocking = selectBlockingModuleUnavailability(
+      [{ moduleId: 'stale-plugin', reason: 'AGENT_MODULE_IDENTITY_CHANGED' }],
+      ['visual-production'],
+      policy({ enabledModuleIds: ['visual-production', 'stale-plugin'], pinnedModuleIds: ['visual-production', 'stale-plugin'] }),
+      [],
+    )
+    expect(blocking).toEqual([])
+  })
+
+  test('Given 用户本轮显式选择失效模块 When 检查阻断 Then 保留明确失败', () => {
+    const blocking = selectBlockingModuleUnavailability(
+      [{ moduleId: 'stale-plugin', reason: 'AGENT_MODULE_IDENTITY_CHANGED' }],
+      ['visual-production'],
+      policy({ enabledModuleIds: ['visual-production'], pinnedModuleIds: ['visual-production'] }),
+      ['stale-plugin'],
+    )
+    expect(blocking).toEqual([{ moduleId: 'stale-plugin', reason: 'AGENT_MODULE_IDENTITY_CHANGED' }])
+  })
+
+  test('Given 会话只有失效的固定模块 When 检查阻断 Then 不回退为无模块普通回复', () => {
+    const blocking = selectBlockingModuleUnavailability(
+      [{ moduleId: 'stale-plugin', reason: 'AGENT_MODULE_IDENTITY_CHANGED' }],
+      [],
+      policy({ enabledModuleIds: ['stale-plugin'], pinnedModuleIds: ['stale-plugin'] }),
+      [],
+    )
+    expect(blocking).toEqual([{ moduleId: 'stale-plugin', reason: 'AGENT_MODULE_IDENTITY_CHANGED' }])
   })
 })
 

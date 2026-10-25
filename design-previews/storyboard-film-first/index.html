@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>分镜工作台 · 影片优先</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+    <symbol id="i-audio" viewBox="0 0 24 24"><path d="M4 10v4M8 5v14M12 2v20M16 6v12M20 9v6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.7 13.1A9 9 0 0 1 10.9 3.3 9 9 0 1 0 20.7 13.1Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4Zm13-1a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-muted" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4Zm13 0 5 6m0-6-5 6"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-3v13M9 9l12-3"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="15" rx="3" ry="3"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h5m4 0h7M4 17h9m4 0h3M9 4v6M17 14v6"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 4v6h6M3 10a9 9 0 1 1 2 9"/></symbol>
+  </svg>
+
+  <div class="preview-bar">
+    <span><span class="preview-dot"></span>分镜工作台 · 交互预览</span>
+    <span class="preview-note">采用与编辑仅在本页模拟</span>
+    <div class="preview-tools">
+      <button id="compact-toggle" class="text-button" aria-pressed="false">窄面板</button>
+      <button id="reset" class="icon-button" aria-label="重置预览状态" title="重置预览状态"><svg><use href="#i-reset"/></svg></button>
+      <button id="theme-toggle" class="icon-button" aria-label="切换浅色主题" title="切换主题"><svg><use href="#i-sun"/></svg></button>
+    </div>
+  </div>
+
+  <div class="studio" id="studio">
+    <header class="project-header">
+      <div class="project-identity"><span class="brand-mark"><svg><use href="#i-film"/></svg></span><div><span class="eyebrow">影像创作</span><h1>大胤刑警<span>：醒来就在刑场</span></h1></div></div>
+      <div class="project-meta"><span class="quiet-tag">9:16</span><span class="quiet-tag">24 fps</span><span class="divider"></span><span class="muted">第 1 集</span></div>
+    </header>
+    <nav class="workspace-tabs" aria-label="影像工作区">
+      <span>项目</span><span>资产</span><span aria-current="page">分镜 <span class="tab-dot"></span></span><span>画布</span><span>剪辑成片</span><span>素材导出</span>
+      <span class="preview-scope">当前预览：分镜</span>
+    </nav>
+
+    <div class="workspace-layout">
+      <aside class="shot-sidebar" aria-label="镜头序列">
+        <header class="sidebar-heading"><div><span class="eyebrow">STORYBOARD</span><h2>镜头序列</h2></div><span class="quiet-count">06</span></header>
+        <p class="sidebar-subtitle">第 1 集 · 前六镜预览</p>
+        <nav id="shot-list" aria-label="选择镜头"></nav>
+        <div class="sidebar-foot"><span class="status-dot"></span><span>影片、画面、声音独立管理</span></div>
+      </aside>
+
+      <main class="shot-main">
+        <header class="shot-heading">
+          <div class="shot-heading-title"><span id="shot-number" class="shot-index">01</span><div><div class="shot-overline">当前镜头 <span id="shot-duration">6 秒</span></div><h2 id="shot-title">古镜里的白光</h2></div></div>
+          <div class="shot-navigation"><button id="previous" class="icon-button" aria-label="上一镜头"><svg class="flip"><use href="#i-chevron"/></svg></button><span id="shot-position">01 / 06</span><button id="next" class="icon-button" aria-label="下一镜头"><svg><use href="#i-chevron"/></svg></button></div>
+        </header>
+
+        <section class="film-section" aria-labelledby="film-title">
+          <header class="section-heading film-heading"><h3 id="film-title"><svg><use href="#i-film"/></svg>影片<span class="section-description">主预览</span></h3><span id="film-status" class="status pending"><i></i>候选预览</span></header>
+          <div class="theater" id="theater">
+            <div class="theater-meta"><span id="stage-version">影片候选 01</span><span id="stage-spec">576 × 1024 · 24 fps</span></div>
+            <video id="main-video" src="assets/shot-01.mp4" poster="assets/shot-01.jpg" preload="metadata" playsinline aria-label="当前镜头影片"></video>
+            <button id="stage-play" class="stage-play" aria-label="播放影片"><svg><use href="#i-play"/></svg></button>
+            <div id="film-empty" class="stage-empty" hidden><svg><use href="#i-film"/></svg><h4>这个镜头还没有影片</h4><p>画面已就绪，可作为影片制作的参考。</p><span>影片完成后会显示在这里</span></div>
+          </div>
+          <div class="transport">
+            <button id="play" class="icon-button" aria-label="播放影片"><svg><use href="#i-play"/></svg></button>
+            <time id="elapsed">00:00</time><input id="seek" type="range" min="0" max="6.04" step="0.01" value="0" aria-label="影片播放位置"><time id="total">00:06</time>
+            <button id="mute" class="icon-button" aria-label="静音"><svg><use href="#i-volume"/></svg></button><button id="fullscreen" class="icon-button" aria-label="全屏查看影片"><svg><use href="#i-expand"/></svg></button>
+          </div>
+          <div class="film-candidate-row" id="film-candidate-row">
+            <button class="candidate-preview" id="video-candidate"><span class="candidate-thumb"><img src="assets/shot-01.jpg" alt="首镜影片候选封面"><svg><use href="#i-play"/></svg></span><span class="candidate-copy"><span class="candidate-kicker">影片候选 <b id="video-count">1</b></span><strong>缓推近景 · 单次白光</strong><span class="muted small">6 秒 · 查看影片与采用状态</span></span><svg class="candidate-arrow"><use href="#i-chevron"/></svg></button>
+            <button class="button primary" id="adopt-video"><svg><use href="#i-check"/></svg>采用影片</button>
+          </div>
+        </section>
+
+        <div class="support-grid">
+          <section class="support-section image-section" aria-labelledby="image-title">
+            <header class="section-heading"><h3 id="image-title"><svg><use href="#i-image"/></svg>画面参考</h3><button class="text-button" id="image-candidates">画面候选 <span class="small-count" id="image-count">1</span><svg><use href="#i-chevron"/></svg></button></header>
+            <div class="image-reference"><button id="open-image" class="reference-preview" aria-label="放大当前画面"><img id="reference-image" src="assets/shot-01.jpg" alt="当前镜头已采用的静态画面"><span><svg><use href="#i-expand"/></svg></span></button><div class="image-reference-copy"><span class="status adopted"><i></i>已采用画面</span><h4 id="image-name">构图与起始关键帧</h4><p>用于核对人物、构图与光线。</p><span class="muted small">静帧独立保留</span><button class="text-button" id="image-compare">查看画面候选<svg><use href="#i-arrow"/></svg></button></div></div>
+          </section>
+          <section class="support-section audio-section" aria-labelledby="audio-title">
+            <header class="section-heading"><h3 id="audio-title"><svg><use href="#i-audio"/></svg>声音设计</h3><button class="text-button" id="audio-design">编辑<svg><use href="#i-sliders"/></svg></button></header>
+            <div class="audio-tracks"><div class="audio-track"><span class="track-icon"><svg><use href="#i-mic"/></svg></span><div><h4>对白 / 旁白</h4><p id="dialogue-line">“现场发现一面古镜。”</p></div><span class="track-state">待制作</span></div><div class="audio-track"><span class="track-icon"><svg><use href="#i-audio"/></svg></span><div><h4>环境 / 音效</h4><p id="fx-line">雨声、记录仪提示音、白光冲击</p></div><span class="track-state">待制作</span></div><div class="audio-track"><span class="track-icon"><svg><use href="#i-music"/></svg></span><div><h4>配乐</h4><p id="music-line">克制的低频氛围，不盖过对白</p></div><span class="track-state">待制作</span></div></div>
+            <footer class="audio-foot">独立音轨尚未生成 · 影片原声在主窗口播放</footer>
+          </section>
+        </div>
+        <footer class="main-foot"><span>先看影片，再确认画面与声音。</span><span>镜头 <b id="foot-shot">01</b> / 06</span></footer>
+      </main>
+
+      <aside class="inspector" aria-label="镜头设定">
+        <header><h2><svg><use href="#i-sliders"/></svg>镜头设定</h2><span class="muted small">制作依据</span></header>
+        <section class="inspector-section"><span class="eyebrow">画面描述</span><p id="scene-text"></p></section>
+        <section class="inspector-section"><span class="eyebrow">运镜与表演</span><p id="motion-text"></p></section>
+        <section class="inspector-section"><span class="eyebrow">对白</span><blockquote id="quote-text"></blockquote></section>
+        <section class="inspector-section output-overview"><span class="eyebrow">本镜输出</span><div><svg><use href="#i-film"/></svg>影片<span id="overview-video" class="accent-text">1 个候选</span></div><div><svg><use href="#i-image"/></svg>画面<span id="overview-image">已采用</span></div><div><svg><use href="#i-audio"/></svg>独立音频<span>未生成</span></div></section>
+        <div class="inspector-note"><span class="note-mark">i</span><p>影片、画面分别确认。替换其中一项，保留其余输出。</p></div>
+      </aside>
+    </div>
+  </div>
+
+  <dialog id="candidate-dialog" aria-labelledby="candidate-title">
+    <header class="dialog-header"><div><span class="eyebrow" id="candidate-overline">影片候选</span><h2 id="candidate-title">古镜里的白光</h2></div><button class="icon-button" data-close aria-label="关闭候选预览"><svg><use href="#i-close"/></svg></button></header>
+    <div class="dialog-body"><div class="candidate-kind-line"><span id="candidate-kind" class="status pending">影片候选 01</span><span id="candidate-note">仅采用影片，画面与音频保持不变</span></div><div class="candidate-comparison"><figure class="current-output"><figcaption>当前已采用</figcaption><div id="current-output-body"></div></figure><figure class="proposed-output"><figcaption id="proposed-label">本次影片候选</figcaption><div id="proposed-output-body"></div></figure></div><div class="candidate-description"><h3 id="candidate-summary">缓推近景 · 单次白光</h3><p id="candidate-description"></p></div></div>
+    <footer class="dialog-footer"><span id="candidate-footer-note">采用只在此预览页生效</span><button class="button" data-close>返回分镜</button><button class="button primary" id="dialog-adopt"><svg><use href="#i-check"/></svg>采用影片</button></footer>
+  </dialog>
+
+  <dialog id="image-dialog" class="image-dialog" aria-labelledby="image-dialog-title"><header class="dialog-header"><div><span class="eyebrow">画面参考</span><h2 id="image-dialog-title">当前已采用画面</h2></div><button class="icon-button" data-close aria-label="关闭画面预览"><svg><use href="#i-close"/></svg></button></header><div class="image-dialog-body"><img id="large-image" src="assets/shot-01.jpg" alt="当前画面大图"></div></dialog>
+
+  <dialog id="audio-dialog" class="audio-dialog" aria-labelledby="audio-dialog-title"><form id="audio-form"><header class="dialog-header"><div><span class="eyebrow">独立声音设计</span><h2 id="audio-dialog-title">古镜里的白光</h2></div><button type="button" class="icon-button" data-close aria-label="关闭声音设计"><svg><use href="#i-close"/></svg></button></header><div class="dialog-body audio-form"><label><span><svg><use href="#i-mic"/></svg>对白 / 旁白</span><textarea id="audio-dialogue" rows="3" placeholder="角色、台词与情绪"></textarea></label><label><span><svg><use href="#i-audio"/></svg>环境 / 音效</span><textarea id="audio-fx" rows="3" placeholder="描述声音、出现时机与强弱"></textarea></label><label><span><svg><use href="#i-music"/></svg>配乐</span><textarea id="audio-music" rows="2" placeholder="描述情绪、节奏与配器"></textarea></label><p class="muted small">这里保存制作要求；音频生成后，各音轨独立试听与采用。</p></div><footer class="dialog-footer"><span>仅保存在本次预览中</span><button type="button" class="button" data-close>取消</button><button type="submit" class="button primary">保存声音设计</button></footer></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="shots.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

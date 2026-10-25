@@ -4,11 +4,12 @@ import type { VisualProductionResults } from '@dutydeck/shared'
 import { parseVisualProductionDraft } from '@dutydeck/shared'
 
 describe('Given 主 Agent 影像工具', () => {
-  test('When 注册工具 Then 不提供正式保存采纳且写操作检查权限', async () => {
+  test('When 注册工具 Then 提供受控候选采纳但不提供整作品直接保存且写操作检查权限', async () => {
     const writes: boolean[] = []
     const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess: write => { writes.push(write) }, async execute<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { return largeSnapshot() as unknown as VisualProductionResults[M] } })
     expect(tools.map(tool => tool.name).sort()).toEqual([...VISUAL_PRODUCTION_AGENT_TOOL_NAMES].filter(name => !['visual_production_open_context', 'visual_production_inspect_media', 'visual_production_record_observation', 'visual_production_close_context'].includes(name)).sort())
-    expect(tools.some(tool => /adopt|save/.test(tool.name))).toBe(false)
+    expect(tools.some(tool => tool.name === 'visual_production_adopt_candidate')).toBe(true)
+    expect(tools.some(tool => tool.name.includes('save'))).toBe(false)
     const create = tools.find(tool => tool.name === 'visual_production_create')!
     await create.execute('call', { title: '作品', kind: 'film' }, new AbortController().signal, undefined, {} as never)
     expect(writes).toEqual([true])
@@ -16,6 +17,53 @@ describe('Given 主 Agent 影像工具', () => {
     const reference = tools.find(tool => tool.name === 'visual_production_reference_media')!
     expect(reference.description).toContain('inputs.reference')
     expect(reference.description).toContain('kind: "asset"')
+  })
+
+  test('When 用户明确授权采用精确候选 Then 只传递候选身份和当前正式版本', async () => {
+    const calls: unknown[] = []
+    const writes: boolean[] = []
+    const snapshot = largeSnapshot()
+    snapshot.candidates[0]!.status = 'adopted'
+    const tools = buildVisualProductionAgentTools({
+      sessionId: 'session',
+      sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'],
+      assertAccess(write) { writes.push(write) },
+      execute: (async (method, input) => { calls.push({ method, input }); return snapshot }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'],
+    })
+    const adopt = tools.find(tool => tool.name === 'visual_production_adopt_candidate')!
+    const result = await adopt.execute('call', { productionId: 'production', baseRevision: 2, candidateId: 'candidate' }, undefined, undefined, {} as never)
+
+    expect(calls).toEqual([{ method: 'adopt', input: { sessionId: 'session', productionId: 'production', baseRevision: 2, candidateId: 'candidate' } }])
+    expect(writes).toEqual([true])
+    expect(result.details).toMatchObject({ production: { revision: 1 }, candidates: [{ id: 'candidate', status: 'adopted' }] })
+    await expect(adopt.execute('call', { productionId: 'production', baseRevision: 2, candidateId: 'candidate', draft: {} }, undefined, undefined, {} as never)).rejects.toThrow('INVALID_INPUT')
+  })
+
+  test('When 视频生成缺少镜头计划 Then 单工具原子写入首尾帧且只回传目标镜头', async () => {
+    const calls: unknown[] = []
+    const snapshot = largeSnapshot()
+    const videoPlan = { mode: 'first-last-frame' as const, firstFrameAssetId: null, lastFrameAssetId: 'tail', transitionIn: 'hard-cut' as const, rationale: '白光吞没后接入下一镜。' }
+    const continuityPlan = { entryState: '手掌贴合盘面。', exitState: '画面全白。', anchors: [], audioTransition: 'carry-over' as const, rationale: '声音延续到下一镜。' }
+    snapshot.document.shots[0]!.assetIds = ['tail']
+    snapshot.document.shots[0]!.videoPlan = videoPlan
+    snapshot.document.shots[0]!.continuityPlan = continuityPlan
+    const tools = buildVisualProductionAgentTools({
+      sessionId: 'session',
+      sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'],
+      assertAccess() {},
+      execute: (async (method, input) => { calls.push({ method, input }); return snapshot }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'],
+    })
+    const update = tools.find(tool => tool.name === 'visual_production_update_shot_plan')!
+    const result = await update.execute('call', {
+      productionId: 'production', baseRevision: 1, shotId: 'shot0', videoPlan, continuityPlan,
+      references: [{ assetId: 'tail', mediaId: 'tail-media', name: '全白尾帧', type: '场景', description: '约束最终过曝状态。' }],
+    }, undefined, undefined, {} as never)
+    expect(calls).toEqual([{ method: 'updateShotPlan', input: {
+      sessionId: 'session', productionId: 'production', baseRevision: 1, shotId: 'shot0', videoPlan, continuityPlan,
+      references: [{ assetId: 'tail', mediaId: 'tail-media', name: '全白尾帧', type: '场景', description: '约束最终过曝状态。' }],
+    } }])
+    expect(result.details).toMatchObject({ productionId: 'production', revision: 1, shot: { id: 'shot0', videoPlan } })
+    expect(JSON.stringify(result.details)).not.toContain('画'.repeat(100))
   })
 
   test('When 读取并提出时间线修改 Then 只传结构化时间线且候选不直接采用', async () => {
@@ -37,6 +85,74 @@ describe('Given 主 Agent 影像工具', () => {
     expect(proposeResult.details).toMatchObject({ id: 'candidate', status: 'ready', summary: '缩短开场' })
   })
 
+  test('When Agent 粗剪并精确采用时间线 Then 透传两个正式版本且写回执不重复完整片段', async () => {
+    const calls: unknown[] = []
+    const writes: boolean[] = []
+    const timeline = { schemaVersion: 1 as const, id: 'timeline', productionId: 'production', episodeId: 'episode', revision: 2, baseProductionRevision: 7, tracks: [{ id: 'video', kind: 'video' as const, clips: [{ id: 'clip', source: { type: 'shot-media' as const, shotId: 'shot', mediaId: 'media', mediaHash: 'a'.repeat(64), shotOutputVersion: 1 }, start: 0, duration: 2, sourceIn: 0, sourceOut: 2, label: '开场' }] }], duration: 2, createdAt: 1, updatedAt: 2 }
+    const snapshot = { timeline, needsReplacementClipIds: [], candidates: [], exportJobs: [] }
+    const tools = buildVisualProductionAgentTools({
+      sessionId: 'session',
+      sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'],
+      assertAccess(write) { writes.push(write) },
+      execute: (async (method, input) => { calls.push({ method, input }); return snapshot }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'],
+    })
+    const rough = await tools.find(tool => tool.name === 'visual_production_create_rough_cut')!.execute(
+      'call', { productionId: 'production', episodeId: 'episode', baseProductionRevision: 7 }, undefined, undefined, {} as never,
+    )
+    const adopted = await tools.find(tool => tool.name === 'visual_production_adopt_timeline_edit')!.execute(
+      'call', { productionId: 'production', episodeId: 'episode', candidateId: 'candidate', expectedRevision: 2 }, undefined, undefined, {} as never,
+    )
+
+    expect(calls).toEqual([
+      { method: 'createRoughCut', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode', baseProductionRevision: 7 } },
+      { method: 'adoptTimelineEdit', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode', candidateId: 'candidate', expectedRevision: 2 } },
+    ])
+    expect(writes).toEqual([true, true])
+    for (const result of [rough, adopted]) {
+      expect(result.details).toMatchObject({ timeline: { revision: 2, baseProductionRevision: 7, tracks: [{ id: 'video', kind: 'video', clipCount: 1 }] }, needsReplacementClipIds: [] })
+      expect(JSON.stringify(result.details)).not.toContain('mediaHash')
+      expect(JSON.stringify(result.details)).not.toContain('"clips"')
+    }
+  })
+
+  test('When Agent 请求、读取并取消成片导出 Then 透传精确设置且读取不申请写权限', async () => {
+    const calls: unknown[] = []
+    const writes: boolean[] = []
+    const settings = { ratio: '16:9', fps: 24, includeVoice: true, includeMusic: true, includeCaptions: false }
+    const job = { id: 'export-1', productionId: 'production', episodeId: 'episode', timelineRevision: 4, sourceHashes: ['a'.repeat(64)], settings, status: 'queued' as const, createdAt: 1, updatedAt: 1 }
+    const tools = buildVisualProductionAgentTools({
+      sessionId: 'session',
+      sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'],
+      assertAccess(write) { writes.push(write) },
+      execute: (async (method, input) => {
+        calls.push({ method, input })
+        if (method === 'listExportJobs') return [job]
+        if (method === 'cancelExport') return { ...job, status: 'cancelled', updatedAt: 2 }
+        return job
+      }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'],
+    })
+
+    const requested = await tools.find(tool => tool.name === 'visual_production_request_export')!.execute(
+      'call', { productionId: 'production', episodeId: 'episode', expectedTimelineRevision: 4, settings }, undefined, undefined, {} as never,
+    )
+    const listed = await tools.find(tool => tool.name === 'visual_production_list_export_jobs')!.execute(
+      'call', { productionId: 'production', episodeId: 'episode' }, undefined, undefined, {} as never,
+    )
+    const cancelled = await tools.find(tool => tool.name === 'visual_production_cancel_export')!.execute(
+      'call', { productionId: 'production', episodeId: 'episode', exportJobId: 'export-1' }, undefined, undefined, {} as never,
+    )
+
+    expect(calls).toEqual([
+      { method: 'requestExport', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode', expectedTimelineRevision: 4, settings } },
+      { method: 'listExportJobs', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode' } },
+      { method: 'cancelExport', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode', exportJobId: 'export-1' } },
+    ])
+    expect(writes).toEqual([true, false, true])
+    expect(requested.details).toMatchObject({ id: 'export-1', status: 'queued', timelineRevision: 4 })
+    expect(listed.details).toEqual([job])
+    expect(cancelled.details).toMatchObject({ id: 'export-1', status: 'cancelled' })
+  })
+
   test('When 提交单镜头多个输出 Then 将替选媒体身份完整透传并保留待采用', async () => {
     const calls: unknown[] = []
     const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => {
@@ -54,6 +170,73 @@ describe('Given 主 Agent 影像工具', () => {
     const propose = tools.find(tool => tool.name === 'visual_production_propose_shot')!
     const result = await propose.execute('call', { productionId: 'production', baseRevision: 5, jobId: 'job', shotId: 'shot', mediaId: 'media-main', summary: '唯一图自动采用' }, undefined, undefined, {} as never)
     expect(result.details).toMatchObject({ status: 'adopted', adoptedRevision: 6 })
+  })
+
+  test('When 提交视频候选审核 Then 透传三项门禁、问题和未检查范围', async () => {
+    const calls: unknown[] = []
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => {
+      calls.push({ method, input })
+      return { ...largeSnapshot().candidates[0]!, reviewRequired: true }
+    }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+    const review = { technical: 'passed' as const, motion: 'passed' as const, continuity: 'warning' as const, conclusion: '轻微停留偏长', unchecked: ['未听取完整音轨'], issues: [{ gate: 'continuity' as const, severity: 'warning' as const, message: '切点偏迟', atSeconds: 3.2 }] }
+    const result = await tools.find(tool => tool.name === 'visual_production_review_candidate')!.execute('call', { productionId: 'production', baseRevision: 1, candidateId: 'candidate', review }, undefined, undefined, {} as never)
+    expect(calls).toEqual([{ method: 'reviewCandidate', input: { sessionId: 'session', productionId: 'production', baseRevision: 1, candidateId: 'candidate', review } }])
+    expect(result.details).toMatchObject({ reviewRequired: true })
+  })
+
+  test('When 完整扫描后没有语义匹配 Then 保存可审计的 no-match 且由宿主补可信时间', async () => {
+    const calls: unknown[] = []
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => {
+      calls.push({ method, input })
+      return {
+        id: 'job', sessionId: 'session', baseRevision: 1, mediaKind: 'video', instruction: '生成', status: 'running', createdAt: 1,
+        workflowDiscovery: input && typeof input === 'object' && 'discovery' in input ? input.discovery : undefined,
+      }
+    }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+    const tool = tools.find(item => item.name === 'visual_production_record_workflow_discovery')!
+    const input = {
+      productionId: 'production', baseRevision: 1, jobId: 'job', status: 'no-match' as const,
+      connectionId: 'comfy.local', mediaKind: 'video' as const, candidateCount: 2, blockedCount: 0,
+      nextOffset: null, snapshotId: 'snapshot-1', message: '两个候选均为单图输入，无法满足首尾帧约束',
+    }
+    const result = await tool.execute('call', input, undefined, undefined, {} as never)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({
+      method: 'recordWorkflowDiscovery',
+      input: {
+        productionId: 'production', baseRevision: 1, jobId: 'job', sessionId: 'session',
+        discovery: {
+          status: 'no-match', connectionId: 'comfy.local', mediaKind: 'video',
+          candidateCount: 2, blockedCount: 0, nextOffset: null,
+          snapshotId: 'snapshot-1', message: input.message, checkedAt: expect.any(Number),
+        },
+      },
+    })
+    expect(result.details).toMatchObject({ jobId: 'job', workflowDiscovery: { status: 'no-match', message: input.message } })
+  })
+
+  test('When Agent 读取并提交整集剧本 Then 使用独立分页读取且只提交结构化节拍', async () => {
+    const calls: unknown[] = []
+    const snapshot = largeSnapshot()
+    const episodeId = snapshot.document.episodes[0]!.id
+    const shotId = snapshot.document.shots[0]!.id
+    const script = {
+      logline: '刑警在刑场醒来。', audiencePromise: '用证物逻辑争取重查。', hook: '醒来即在刑场。',
+      turningPoint: '断口无法吻合。', payoff: '县令暂停行刑。', targetDurationSeconds: 5,
+      productionNotes: '人物、空间与道具连续性固定。',
+      beats: [{ id: 'beat-1', title: '醒来', purpose: 'hook' as const, dramaticQuestion: '这是哪里？', synopsis: '主角醒来。', visualAction: '眼部下摇到绑绳。', dialogue: '内心声。', sound: '木击。', continuity: '双腕绑于身前。', shotIds: [shotId] }],
+    }
+    snapshot.document.episodes[0]!.script = script
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => {
+      calls.push({ method, input })
+      if (method === 'load') return snapshot
+      return { id: 'script-candidate', jobId: 'job', status: 'ready', baseRevision: 1, summary: '整集剧本', draft: snapshot.document, createdAt: 1 }
+    }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+    const read = await tools.find(tool => tool.name === 'visual_production_read_script')!.execute('call', { productionId: 'production', episodeId, offset: 0, limit: 5 }, undefined, undefined, {} as never)
+    expect(read.details).toMatchObject({ productionId: 'production', script: { logline: '刑警在刑场醒来。' }, beats: [{ id: 'beat-1', shots: [{ id: shotId }] }], nextOffset: null })
+    const proposed = await tools.find(tool => tool.name === 'visual_production_propose_script')!.execute('call', { productionId: 'production', baseRevision: 1, jobId: 'job', episodeId, script, summary: '整集剧本' }, undefined, undefined, {} as never)
+    expect(calls[1]).toMatchObject({ method: 'proposeScript', input: { sessionId: 'session', episodeId, script } })
+    expect(proposed.details).toMatchObject({ id: 'script-candidate', status: 'ready' })
   })
 })
 
@@ -123,7 +306,7 @@ test.each(['普通文本', 'JSON转义文本'])('Given 合法最大镜头与200�
   /** 合法单条镜头足以超过常规列表分页预算，必须能沿引用游标续读。 */
   const snapshot = largeSnapshot()
   snapshot.document.assets = Array.from({ length: 200 }, (_, index) => ({ id: `asset${index}`.padEnd(128, 'x'), name: `资产${index}`, type: '角色', locked: true, description: '资产约束', mediaId: null }))
-  snapshot.document.shots = [{ ...snapshot.document.shots[0]!, scene: (format === 'JSON转义文本' ? '\u0001' : '景').repeat(8000), motion: (format === 'JSON转义文本' ? '\u0002' : '动').repeat(8000), dialogue: (format === 'JSON转义文本' ? '\n' : '话').repeat(8000), assetIds: snapshot.document.assets.map(asset => asset.id) }]
+  snapshot.document.shots = [{ ...snapshot.document.shots[0]!, scene: (format === 'JSON转义文本' ? '\u0001' : '景').repeat(8000), motion: (format === 'JSON转义文本' ? '\u0002' : '动').repeat(8000), dialogue: (format === 'JSON转义文本' ? '\n' : '话').repeat(8000), soundDesign: { effects: '雨'.repeat(8000), music: '乐'.repeat(8000) }, assetIds: snapshot.document.assets.map(asset => asset.id) }]
   snapshot.document.brief = '目标'.repeat(8000)
   snapshot.document.voice = '声'.repeat(4000)
   snapshot.document.music = '乐'.repeat(4000)
@@ -137,7 +320,7 @@ test.each(['普通文本', 'JSON转义文本'])('Given 合法最大镜头与200�
     /** 每一引用页先完成长文本续读，正文、设定和资产描述逐字段还原。 */
     let textOffset: number | null = 0
     let nextReference: number | null = null
-    const restored = { scene: '', motion: '', dialogue: '', brief: '', voice: '', music: '' }
+    const restored = { effects: '', shotMusic: '', scene: '', motion: '', dialogue: '', brief: '', voice: '', music: '' }
     const descriptions = new Map<string, string>()
     do {
       const result = await tool.execute('call', { productionId: 'production', shotId: 'shot0', referenceOffset: offset, referenceLimit: 20, textOffset }, undefined, undefined, {} as never)
@@ -146,6 +329,8 @@ test.each(['普通文本', 'JSON转义文本'])('Given 合法最大镜头与200�
       expect(page.shot.assetIds).toEqual(page.assets.map(asset => asset.id))
       if (textOffset === 0) ids.push(...page.assets.map(asset => asset.id))
       else expect(page.referencePage.nextOffset).toBe(nextReference)
+      restored.effects += page.shot.soundDesign!.effects
+      restored.shotMusic += page.shot.soundDesign!.music
       for (const field of ['scene', 'motion', 'dialogue'] as const) restored[field] += page.shot[field]
       for (const field of ['brief', 'voice', 'music'] as const) restored[field] += page.settings[field]
       for (const asset of page.assets) descriptions.set(asset.id, (descriptions.get(asset.id) ?? '') + asset.description)
@@ -153,7 +338,7 @@ test.each(['普通文本', 'JSON转义文本'])('Given 合法最大镜头与200�
       textOffset = page.textPage.nextOffset
       nextReference = page.referencePage.nextOffset
     } while (textOffset !== null)
-    expect(restored).toEqual({ scene: draft.shots[0]!.scene, motion: draft.shots[0]!.motion, dialogue: draft.shots[0]!.dialogue, brief: draft.brief, voice: draft.voice, music: draft.music })
+    expect(restored).toEqual({ effects: draft.shots[0]!.soundDesign!.effects, shotMusic: draft.shots[0]!.soundDesign!.music, scene: draft.shots[0]!.scene, motion: draft.shots[0]!.motion, dialogue: draft.shots[0]!.dialogue, brief: draft.brief, voice: draft.voice, music: draft.music })
     for (const [id, description] of descriptions) expect(description).toBe(draft.assets.find(asset => asset.id === id)!.description)
     if (nextReference !== null) expect(nextReference).toBeGreaterThan(offset)
     offset = nextReference

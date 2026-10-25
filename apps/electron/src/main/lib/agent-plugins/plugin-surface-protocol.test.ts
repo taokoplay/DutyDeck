@@ -6,7 +6,7 @@ import { parsePluginManifestV3 } from '@dutydeck/plugin-sdk'
 import { AgentPluginRegistry } from '../agent-modules/plugin-registry'
 import { ModuleRuntimeManager } from './module-runtime-manager'
 import { setModuleRuntimeManager } from './module-runtime-bridge'
-import { handlePluginSurfaceRequest } from './plugin-surface-protocol'
+import { handlePluginSurfaceRequest, PLUGIN_SURFACE_SCHEME_PRIVILEGES } from './plugin-surface-protocol'
 
 describe('Given plugin Surface protocol', () => {
   test('When token 请求 Surface HTML Then 返回 CSP 响应且拒绝 runtime 资源', () => {
@@ -46,6 +46,8 @@ describe('Given plugin Surface protocol', () => {
       const response = handlePluginSurfaceRequest(new Request(`dutydeck-plugin://${opened.token}/surfaces/workspace/index.html`))
       expect(response.status).toBe(200)
       expect(response.headers.get('content-security-policy')).toContain("connect-src 'none'")
+      expect(response.headers.get('access-control-allow-origin')).toBe('*')
+      expect(PLUGIN_SURFACE_SCHEME_PRIVILEGES.privileges.corsEnabled).toBe(true)
       expect(handlePluginSurfaceRequest(new Request(`dutydeck-plugin://${opened.token}/runtime/main.mjs`)).status).toBe(404)
     } finally {
       setModuleRuntimeManager(undefined)

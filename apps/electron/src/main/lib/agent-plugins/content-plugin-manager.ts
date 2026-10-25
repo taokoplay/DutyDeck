@@ -19,6 +19,17 @@ export class ContentPluginManager {
   /** 文件选择后的候选同时核验与既有 V1/内置目录的冲突。 */
   preview(path: string): ContentPluginPreview {
     const preview = this.service.preview(path)
+    return this.trackPreview(preview)
+  }
+
+  /** 拖放字节预览复用同一身份冲突和预算校验，不依赖源文件路径。 */
+  previewBytes(bytes: Uint8Array): ContentPluginPreview {
+    const preview = this.service.previewBytes(bytes)
+    return this.trackPreview(preview)
+  }
+
+  /** 保存一次性预览并核验候选目录；安装时仍会再次检查。 */
+  private trackPreview(preview: ContentPluginPreview): ContentPluginPreview {
     this.validateCandidate(this.service.snapshot(), preview)
     if (this.previews.size >= 8) this.previews.clear()
     this.previews.set(preview.token, preview)

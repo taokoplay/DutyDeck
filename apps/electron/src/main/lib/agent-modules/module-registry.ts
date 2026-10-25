@@ -1,4 +1,5 @@
 import type { AgentModuleManifest } from '@dutydeck/shared'
+import { visualProductionModuleManifest } from '@dutydeck/shared'
 
 /**
  * DutyDeck 内置模块清单。
@@ -24,23 +25,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     requiredPermissions: ['project.files.read', 'project.files.write'],
     activation: 'session-toggle',
   },
-  {
-    id: 'visual-production',
-    version: '1.0.0',
-    apiVersion: 1,
-    displayName: '影像创作',
-    description: '按已配置的模型和工作流生成、评审和交付媒体产物。',
-    icon: 'clapperboard',
-    scope: 'project',
-    contributions: ['surface', 'skill', 'prompt', 'tool', 'artifact'],
-    skillRefs: ['media-models'],
-    promptRefs: ['visual-production.system.v1'],
-    toolRefs: ['media.list_models', 'media.generate', 'media.review'],
-    artifactTypes: ['media.image', 'media.video', 'media.audio'],
-    surfaceIds: ['visual-production'],
-    requiredPermissions: ['project.files.read', 'project.files.write', 'media.execute'],
-    activation: 'session-toggle',
-  },
+  visualProductionModuleManifest(),
   {
     id: 'interaction-design',
     version: '1.0.0',

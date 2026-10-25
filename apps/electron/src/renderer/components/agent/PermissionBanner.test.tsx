@@ -72,6 +72,37 @@ describe('权限横幅', () => {
     expect(html).toBe('')
   })
 
+  test('Given Agent 修改锁定资产 When 渲染原生权限横幅 Then 展示精确字段且不提供会话级永久允许', () => {
+    const store = createStore()
+    store.set(allPendingPermissionRequestsAtom, new Map([['session-1', [{
+      requestId: 'permission-locked-asset',
+      sessionId: 'session-1',
+      toolName: 'visual_production_locked_asset_change',
+      toolInput: {
+        action: 'adopt', productionId: 'production', candidateId: 'candidate', baseRevision: 8,
+        lockedAssetChanges: [{ assetId: 'actor', name: '主角', fields: [{ field: '描述', before: '银发', after: '黑发' }] }],
+      },
+      description: '锁定资产授权',
+      sdkDisplayName: '锁定资产授权',
+      sdkTitle: '允许 Agent 修改锁定的角色或资产吗？',
+      sdkDescription: '本次只会采用当前候选中的以下精确变更，其他锁定资产保持不变。\n主角 · 描述：银发 → 黑发',
+      dangerLevel: 'dangerous',
+      allowAlways: false,
+    }]]]))
+
+    const html = renderToStaticMarkup(
+      <Provider store={store}>
+        <PermissionBanner sessionId="session-1" onStop={() => undefined} />
+      </Provider>,
+    )
+
+    expect(html).toContain('允许 Agent 修改锁定的角色或资产吗？')
+    expect(html).toContain('主角 · 描述：银发 → 黑发')
+    expect(html).toContain('其他锁定资产保持不变')
+    expect(html).not.toContain('本次会话总是允许')
+    expect(html).not.toContain('candidateId')
+  })
+
   test('Given 接口变更审批 When 检查横幅源码 Then 走结构化视图并提示人工复核', async () => {
     const source = await Bun.file(new URL('./PermissionBanner.tsx', import.meta.url)).text()
 

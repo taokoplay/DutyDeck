@@ -530,8 +530,12 @@ import { PluginRuntimeSupervisor } from './lib/agent-plugins/runtime-supervisor'
 import { setModuleRuntimeManager } from './lib/agent-plugins/module-runtime-bridge'
 import { CapabilityBroker, PluginCapabilityBrokerError } from './lib/agent-plugins/capability-broker'
 import { createCoreCapabilityProviders } from './lib/agent-plugins/core-capability-providers'
+import { createProjectArtifactCapabilityProviders } from './lib/agent-plugins/project-artifact-providers'
+import { registerPluginPackageImportIpc } from './lib/agent-plugins/plugin-package-import-ipc'
+import { resolvePluginRuntimeMode } from './lib/agent-plugins/plugin-runtime-mode'
 import { PluginStateStore } from './lib/agent-plugins/plugin-state-store'
 import { isPluginCapabilityId } from '@dutydeck/plugin-sdk'
+import { createVisualProductionBuiltinPluginAdapter } from './lib/visual-production/plugin-adapter'
 import { AgentRunJournalStore } from './lib/agent-run-journal'
 import { registerAgentRunRecoveryIpc } from './lib/agent-run-recovery-ipc'
 import { buildAgentModuleRunAudits } from './lib/agent-modules/module-run-audit'
@@ -3316,6 +3320,25 @@ export function registerIpcHandlers(): void {
         parameters: Object.fromEntries(Object.entries(inputs).flatMap(([key, value]) => value.kind === 'scalar' ? [[key, value.value]] : [])),
         referenceAssets: Object.values(inputs).flatMap(value => value.kind === 'asset' ? [value.asset] : []), phase, createdAt, ...(outputCount === undefined ? {} : { outputCount }), ...(prompt ? { prompt } : {}),
       }
+    },
+    waitMediaExecution: async (workspaceId, input, signal) => {
+      /** API 模型与 ComfyUI 工作流使用各自的权威运行服务，但都只在真实终态返回。 */
+      if (input.engine === 'model') {
+        const recorded = unifiedMediaGeneration.getAttachmentSource(input.sessionId, input.runId)
+        if (recorded.snapshot.projectId !== workspaceId || !recorded.visualProduction) throw new Error('制作记录不属于当前影像任务')
+        let snapshot = recorded.snapshot
+        while (!['succeeded', 'failed', 'cancelled', 'unknown'].includes(snapshot.phase)) {
+          signal?.throwIfAborted()
+          snapshot = await unifiedMediaGeneration.wait(input.sessionId, input.runId, 30_000, snapshot.revision, signal)
+        }
+        signal?.throwIfAborted()
+        return { phase: snapshot.phase }
+      }
+      const origin = mediaRuns.getOrigin(workspaceId, input.runId)
+      if (origin.actor?.sessionId !== input.sessionId) throw new Error('制作记录不属于当前会话')
+      const snapshot = await mediaSupervisor.waitForTerminal(workspaceId, input.runId, signal)
+      signal?.throwIfAborted()
+      return { phase: snapshot.phase }
     },
     registerReference: (workspaceId, input) => {
       /** 同一会话/作品的不可变参考复用登记身份，避免重试重复创建或跨会话来源冲突。 */
@@ -7029,14 +7052,24 @@ export function registerIpcHandlers(): void {
   agentModuleRuntimeManager = new ModuleRuntimeManager({
     moduleRegistry: agentPluginRegistry,
     createSupervisor: (plugin) => {
+      /** 从当前可见会话解析唯一项目，插件不能提交工作区 ID 或项目路径。 */
+      const resolvePluginProject = (sessionId: string): { workspaceId: string; projectRoot: string } | undefined => {
+        const session = getAgentSessionMeta(sessionId)
+        const workspace = session?.workspaceId ? getAgentWorkspace(session.workspaceId) : undefined
+        if (!session || session.archived || !workspace) return undefined
+        return { workspaceId: workspace.id, projectRoot: getProjectFilesPath(workspace.slug) }
+      }
       const broker = new CapabilityBroker({
-        providers: createCoreCapabilityProviders({
-          state: new PluginStateStore(join(getConfigDir(), 'agent-plugins', 'data')),
-          getSession: (sessionId) => {
-            const session = getAgentSessionMeta(sessionId)
-            return session ? { id: session.id, workspaceId: session.workspaceId, archived: session.archived === true } : undefined
-          },
-        }),
+        providers: new Map([
+          ...createCoreCapabilityProviders({
+            state: new PluginStateStore(join(getConfigDir(), 'agent-plugins', 'data')),
+            getSession: (sessionId) => {
+              const session = getAgentSessionMeta(sessionId)
+              return session ? { id: session.id, workspaceId: session.workspaceId, archived: session.archived === true } : undefined
+            },
+          }),
+          ...createProjectArtifactCapabilityProviders({ resolveProject: resolvePluginProject }),
+        ]),
       })
       let supervisor: PluginRuntimeSupervisor
       supervisor = new PluginRuntimeSupervisor({
@@ -7079,23 +7112,33 @@ export function registerIpcHandlers(): void {
     onModulesChanged: (modules, prompts) => setAgentModuleRuntimeCatalog(modules, prompts),
   })
   setModuleRuntimeManager(agentModuleRuntimeManager)
-  agentModuleRuntimePluginService = new ModuleRuntimePluginService({
-    root: join(getConfigDir(), process.env.DUTYDECK_PLUGIN_RUNTIME_DEV === '1' ? 'plugin-runtime-v3-development' : 'plugin-runtime-v3'),
+  /** 未打包源码固定使用隔离开发根，避免开发拖入的未签名包进入正式插件目录。 */
+  const pluginRuntimeMode = resolvePluginRuntimeMode({
+    isPackaged: app.isPackaged,
+    forceDevelopment: process.env.DUTYDECK_PLUGIN_RUNTIME_DEV === '1',
+  })
+  const runtimePluginService = new ModuleRuntimePluginService({
+    root: join(getConfigDir(), pluginRuntimeMode.rootDirectory),
     manager: agentModuleRuntimeManager,
-    development: process.env.DUTYDECK_PLUGIN_RUNTIME_DEV === '1',
+    development: pluginRuntimeMode.development,
     isBusy: () => hasActiveAgentSessions() || hasActiveAgentDataWrites(),
   })
+  agentModuleRuntimePluginService = runtimePluginService
   registerModuleRuntimePluginIpc({
-    service: agentModuleRuntimePluginService,
+    service: runtimePluginService,
     manager: agentModuleRuntimeManager,
     requireVisibleSession,
     getSessionPolicy: getAgentSessionModulePolicy,
   })
-  void agentModuleRuntimePluginService.initialize().catch((error) => {
+  void runtimePluginService.initialize().catch((error) => {
     console.warn('[插件] V3 插件目录不可用，请在插件设置中检查', error)
   })
   registerAgentPluginManagementIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
-  registerContentPluginIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
+  const contentPluginManager = registerContentPluginIpc(agentPluginRegistry, () => hasActiveAgentSessions() || hasActiveAgentDataWrites())
+  registerPluginPackageImportIpc({
+    runtimeService: runtimePluginService,
+    contentManager: contentPluginManager,
+  })
   const host = new AgentPluginHost()
   agentPluginHost = host
   host.subscribe((event) => {
@@ -7105,7 +7148,9 @@ export function registerIpcHandlers(): void {
     }
   })
   agentPluginHostStartPromise = (async () => {
-    for (const registration of createBuiltinAgentPluginRegistrations(listBuiltinAgentModules())) {
+    for (const registration of createBuiltinAgentPluginRegistrations(listBuiltinAgentModules(), {
+      'visual-production': createVisualProductionBuiltinPluginAdapter(),
+    })) {
       await host.register(registration)
     }
     await host.start()

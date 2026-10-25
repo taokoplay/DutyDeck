@@ -59,6 +59,23 @@ describe('Given capability broker', () => {
     })).rejects.toThrow('PLUGIN_CAPABILITY_RESULT_TOO_LARGE')
   })
 
+  test('When provider 抛出稳定插件错误码 Then 原样保留且不泄露任意异常正文', async () => {
+    const broker = new CapabilityBroker({
+      providers: new Map([['project.files.read', async ({ caller: pluginCaller }) => {
+        if (pluginCaller.invocationId === 'read-only') throw new Error('PLUGIN_CAPABILITY_READ_ONLY')
+        throw new Error('/private/secret/path')
+      }]]),
+    })
+    await expect(broker.invoke(caller({ invocationId: 'read-only' }), {
+      capability: 'project.files.read',
+      input: {},
+    })).rejects.toThrow('PLUGIN_CAPABILITY_READ_ONLY')
+    await expect(broker.invoke(caller({ invocationId: 'path-leak' }), {
+      capability: 'project.files.read',
+      input: {},
+    })).rejects.toThrow('PLUGIN_CAPABILITY_FAILED')
+  })
+
   test('When 已授权 Then 使用宿主注入 caller 并返回结果', async () => {
     let observed = ''
     const broker = new CapabilityBroker({

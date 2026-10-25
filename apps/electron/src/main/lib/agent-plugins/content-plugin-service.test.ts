@@ -80,6 +80,14 @@ describe('真实签名内容包的安装使用生命周期', () => {
     const preview = service.preview(path); writeFileSync(path, 'changed');
     expect(service.install(preview.token, preview.signer!.keyId).plugins[0]!.packageHash).toBe(preview.packageHash);
   });
+  test('Given 拖入的包字节 When 预览 Then 不依赖源路径且安装同一摘要', () => {
+    const directory = realpathSync(root());
+    const service = new ContentPluginService(directory);
+    const bytes = readFileSync(fixture(directory, '1.0.0', generateKeyPairSync('ed25519').privateKey));
+    const preview = service.previewBytes(bytes);
+    expect(preview.manifest.id).toBe('acme.demo');
+    expect(service.install(preview.token, preview.signer!.keyId).plugins[0]!.packageHash).toBe(preview.packageHash);
+  });
   test('Given 旧修订号或预览 When 别处已修改 Then 拒绝覆盖', () => {
     const directory = realpathSync(root()); const first = new ContentPluginService(directory); const second = new ContentPluginService(directory);
     const path = fixture(directory, '1.0.0', generateKeyPairSync('ed25519').privateKey);

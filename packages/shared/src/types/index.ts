@@ -148,12 +148,15 @@ export * from './server-ops-deployment'
 export * from './canvas-view-command'
 export * from './visual-production'
 export * from './visual-production-reference'
+export * from './visual-production-readiness'
 export * from './visual-production-validation'
 
 export * from './visual-production-media'
+export * from './visual-production-plugin'
 export * from './visual-editing'
 
 export * from './agent-module-audit'
 
 export * from './content-plugin'
 export * from './module-runtime-plugin'
+export * from './plugin-package-import'

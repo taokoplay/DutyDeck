@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, ipcMain } from 'electron'
 import {
   MODULE_RUNTIME_PLUGIN_IPC_CHANNELS,
   type AgentSessionModulePolicy,
+  type ArchivedModuleRuntimePluginVersionView,
   type CloseModuleRuntimeSurfaceInput,
   type InstalledModuleRuntimePluginView,
   type InvokeModuleRuntimeSurfaceInput,
@@ -61,6 +62,11 @@ function assertToken(value: unknown): asserts value is string {
   if (typeof value !== 'string' || !/^[a-f0-9-]{20,64}$/i.test(value)) throw new Error('PLUGIN_TOKEN_INVALID')
 }
 
+/** 回滚目标只接受由宿主归档文件名推导出的 SHA-256。 */
+function assertPackageHash(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value)) throw new Error('PLUGIN_PACKAGE_HASH_INVALID')
+}
+
 /** 注册 V3 插件管理四层 IPC；安装和 Surface 调用均复用主进程可信目录。 */
 export function registerModuleRuntimePluginIpc(options: ModuleRuntimePluginIpcOptions): void {
   const { service, manager } = options
@@ -96,6 +102,20 @@ export function registerModuleRuntimePluginIpc(options: ModuleRuntimePluginIpcOp
     }
     await service.initialize()
     const snapshot = snapshotView(await service.setEnabled(pluginId, enabled, Number(expectedRevision)))
+    publishChanged()
+    return snapshot
+  })
+  ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.LIST_VERSIONS, async (_event, pluginId: unknown): Promise<ArchivedModuleRuntimePluginVersionView[]> => {
+    assertId(pluginId)
+    await service.initialize()
+    return service.listVersions(pluginId)
+  })
+  ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.ROLLBACK, async (_event, pluginId: unknown, packageHash: unknown, expectedRevision: unknown) => {
+    assertId(pluginId)
+    assertPackageHash(packageHash)
+    if (!Number.isSafeInteger(expectedRevision) || Number(expectedRevision) < 0) throw new Error('PLUGIN_STATE_INPUT_INVALID')
+    await service.initialize()
+    const snapshot = snapshotView(await service.rollback(pluginId, packageHash, Number(expectedRevision)))
     publishChanged()
     return snapshot
   })

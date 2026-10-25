@@ -62,4 +62,42 @@ describe('标准脚手架与可交付插件包', () => {
     files.set('surfaces/workspace/index.html', new TextEncoder().encode('<!doctype html><html></html>'))
     expect(() => createPluginPackage(files)).toThrow('PLUGIN_RUNTIME_ENTRY_MISSING')
   })
+
+  test('Given V3 作者元数据版本不一致 When 打包 Then 拒绝发布固定版本之外的包', () => {
+    const files = createModuleRuntimePluginFiles('acme.echo', '回显')
+    files.set('runtime/main.mjs', new TextEncoder().encode('export default { activate() {} }'))
+    files.set('surfaces/workspace/index.html', new TextEncoder().encode('<!doctype html><html></html>'))
+    const packageJson = JSON.parse(new TextDecoder().decode(files.get('package.json'))) as Record<string, unknown>
+    packageJson.version = '1.0.1'
+    files.set('package.json', new TextEncoder().encode(`${JSON.stringify(packageJson)}\n`))
+    expect(() => createPluginPackage(files)).toThrow('PLUGIN_AUTHOR_VERSION_MISMATCH')
+  })
+
+  test('Given V3 Surface 模板 When 创建工程 Then 默认消费宿主主题令牌', () => {
+    const files = createModuleRuntimePluginFiles('acme.echo', '回显')
+    const main = new TextDecoder().decode(files.get('src/surfaces/workspace/main.ts'))
+    const html = new TextDecoder().decode(files.get('src/surfaces/workspace/index.html'))
+    const style = new TextDecoder().decode(files.get('src/surfaces/workspace/style.css'))
+    expect(main).toContain('applyPluginSurfaceTheme')
+    expect(main).toContain('isPluginSurfaceThemeMessage')
+    expect(main).toContain('installPluginSurfaceComponentStyles')
+    expect(main).toContain('event.source === window.parent')
+    expect(main).toContain('PLUGIN_SURFACE_READY_MESSAGE')
+    expect(html).toContain('class="dd-dialog"')
+    expect(html).toContain('class="dd-input"')
+    expect(html).toContain('data-variant="primary"')
+    expect(style).toContain('--dutydeck-background')
+    expect(style).toContain('--dutydeck-card')
+    expect(style).toContain('--dutydeck-radius-xl')
+    expect(style).toContain('--dutydeck-shadow-sm')
+    expect(style).not.toContain('prefers-color-scheme')
+  })
+
+  test('Given V3 Changelog 缺少当前固定版本 When 打包 Then 拒绝无发布记录的版本', () => {
+    const files = createModuleRuntimePluginFiles('acme.echo', '回显')
+    files.set('runtime/main.mjs', new TextEncoder().encode('export default { activate() {} }'))
+    files.set('surfaces/workspace/index.html', new TextEncoder().encode('<!doctype html><html></html>'))
+    files.set('CHANGELOG.md', new TextEncoder().encode('# 版本记录\n\n## 0.9.0\n\n旧版本。\n'))
+    expect(() => createPluginPackage(files)).toThrow('PLUGIN_CHANGELOG_VERSION_MISSING')
+  })
 })

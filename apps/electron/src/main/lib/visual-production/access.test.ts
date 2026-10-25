@@ -29,6 +29,22 @@ describe('Given 会话绑定的影像能力', () => {
     await run.finish(true)
     expect(calls).toEqual([{ method: 'cancelJob', input: { sessionId: 'session', productionId: 'production', jobId: 'job' } }])
   })
+  test('Given Host 提供媒体终态等待 When 调用 Then 绑定当前会话并在取消后拒绝迟到结果', async () => {
+    const calls: unknown[] = []
+    const access = createVisualProductionAccess('session', {
+      resolveSession: () => ({ workspaceId: 'workspace', projectRoot: '/project' }),
+      acquireWriteLease: () => () => {},
+      createService: () => ({ async invoke<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { throw new Error('不应写入') } }),
+      waitForMediaExecution: async (input) => {
+        calls.push(input)
+        return { phase: 'succeeded' }
+      },
+    })
+    expect(await access.waitForMediaExecution?.({ runId: 'run', engine: 'workflow' })).toEqual({ phase: 'succeeded' })
+    const controller = new AbortController(); controller.abort()
+    await expect(access.waitForMediaExecution?.({ runId: 'run', engine: 'workflow' }, controller.signal)).rejects.toThrow()
+    expect(calls).toEqual([{ sessionId: 'session', runId: 'run', engine: 'workflow' }])
+  })
 })
 
 test('Given 同会话新运行 When 提交旧运行job Then 不得进入正式执行器', async () => {

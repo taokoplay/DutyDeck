@@ -1,5 +1,5 @@
-import { CONTENT_PLUGIN_IPC_CHANNELS, MODULE_RUNTIME_PLUGIN_IPC_CHANNELS } from '@dutydeck/shared'
-import type { ContentPluginSnapshot, ContentPluginPreview, ModuleRuntimePluginApi } from '@dutydeck/shared'
+import { CONTENT_PLUGIN_IPC_CHANNELS, MODULE_RUNTIME_PLUGIN_IPC_CHANNELS, PLUGIN_PACKAGE_IMPORT_IPC_CHANNELS } from '@dutydeck/shared'
+import type { ContentPluginSnapshot, ContentPluginPreview, ModuleRuntimePluginApi, PluginPackageImportApi } from '@dutydeck/shared'
 import { MOBILE_MIRROR_CHANNELS } from '@dutydeck/shared'
 import type { MobileMirrorSessionInput, MobileMirrorCaptureInput, MobileMirrorActionInput, MobileMirrorOpenResult, MobileMirrorDevice, MobileMirrorFrame } from '@dutydeck/shared'
 import { createTokenUsagePreload } from './token-usage-preload'
@@ -368,6 +368,8 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   apiWorkbench: ApiWorkbenchApi
   /** V3 可执行插件目录与隔离 Surface bridge。 */
   moduleRuntimePlugin: ModuleRuntimePluginApi
+  /** 插件中心统一文件选择和拖放字节预览。 */
+  pluginPackageImport: PluginPackageImportApi
   /** 提示词编排工厂：界面侧可采纳 / 回滚 / 导出（人的动作），与 Agent 侧的方法集刻意不同。 */
   capabilityFactory: CapabilityFactoryApi
   /** 项目内页面原型、候选、资源和版本接口。 */
@@ -857,7 +859,7 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   /** 原生选择已签名包并预览；取消时返回 null。 */
   previewContentPlugin: () => Promise<ContentPluginPreview | null>
   /** 明确信任指纹后安装已预览的包。 */
-  installContentPlugin: (token: string, trustedKeyId: string) => Promise<ContentPluginSnapshot>
+  installContentPlugin: (token: string, trustedKeyId?: string) => Promise<ContentPluginSnapshot>
   /** 按修订号切换插件是否允许被选中。 */
   setContentPluginEnabled: (id: string, enabled: boolean, expectedRevision: number) => Promise<ContentPluginSnapshot>
   /** 卸载内容插件，保留用户数据。 */
@@ -2496,6 +2498,8 @@ const electronAPI: ElectronAPI = {
     preview: () => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.PREVIEW),
     install: (token, trustedKeyId) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.INSTALL, token, trustedKeyId),
     setEnabled: (pluginId, enabled, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.SET_ENABLED, pluginId, enabled, expectedRevision),
+    listVersions: (pluginId) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.LIST_VERSIONS, pluginId),
+    rollback: (pluginId, packageHash, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.ROLLBACK, pluginId, packageHash, expectedRevision),
     uninstall: (pluginId, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.UNINSTALL, pluginId, expectedRevision),
     openSurface: (input) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.OPEN_SURFACE, input),
     invokeSurface: (input) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.INVOKE_SURFACE, input),
@@ -2505,6 +2509,10 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.on(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.CHANGED, listener)
       return () => ipcRenderer.removeListener(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.CHANGED, listener)
     },
+  },
+  pluginPackageImport: {
+    preview: () => ipcRenderer.invoke(PLUGIN_PACKAGE_IMPORT_IPC_CHANNELS.PREVIEW),
+    previewBytes: bytes => ipcRenderer.invoke(PLUGIN_PACKAGE_IMPORT_IPC_CHANNELS.PREVIEW_BYTES, bytes),
   },
   previewAgentPlugin: () => ipcRenderer.invoke(AGENT_IPC_CHANNELS.PREVIEW_AGENT_PLUGIN),
   installAgentPlugin: (token) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.INSTALL_AGENT_PLUGIN, token),
