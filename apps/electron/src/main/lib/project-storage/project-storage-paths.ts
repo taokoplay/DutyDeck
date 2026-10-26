@@ -78,17 +78,19 @@ export function resolveProjectStorageDirectory(
   }
   if (inspection.state === 'current') return inspection.targetPath
   if (inspection.state === 'legacy') return inspection.sourcePath
-  if (create) {
-    ensureDirectoryDurable(join(validateProjectRoot(projectRoot), PROJECT_STORAGE_DIRECTORY_NAME))
+  const root = validateProjectRoot(projectRoot)
+  if (create && existsSync(root)) {
+    ensureDirectoryDurable(join(root, PROJECT_STORAGE_DIRECTORY_NAME))
     ensureDirectoryDurable(inspection.targetPath)
   }
   return inspection.targetPath
 }
 
-/** 校验项目根是绝对路径且本身不是符号链接或普通文件。 */
+/** 校验项目根是绝对路径；缺失允许由后续写入方创建，已存在时必须是实际目录。 */
 function validateProjectRoot(projectRoot: string): string {
   if (!isAbsolute(projectRoot)) throw new Error('PROJECT_STORAGE_UNSAFE: 项目根必须是绝对路径')
   const root = resolve(projectRoot)
+  if (!existsSync(root)) return root
   const state = lstatSync(root)
   if (!state.isDirectory() || state.isSymbolicLink()) {
     throw new Error('PROJECT_STORAGE_UNSAFE: 项目根不是安全的实际目录')

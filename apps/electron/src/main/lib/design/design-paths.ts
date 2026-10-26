@@ -1,12 +1,15 @@
-import { isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import type { AgentWorkspace } from '@dutydeck/shared'
 import { getAgentWorkspace, getProjectFilesPath } from '../agent-workspace-manager'
 import { getConfigDir } from '../config-paths'
+import { resolveProjectStorageDirectory } from '../project-storage/project-storage-paths'
 
 /** Design 路径解析后的项目正式目录与全局缓存目录。 */
 export interface DesignPaths {
   projectId: string
   projectRoot: string
+  /** 项目级 DutyDeck 存储根，供内部目录边界校验复用。 */
+  storageRoot: string
   designRoot: string
   canvasPath: string
   canvasesRoot: string
@@ -101,8 +104,15 @@ export function createDesignPathResolver(
       throw new Error('Design 路径必须位于绝对目录')
     }
 
-    /** 项目内可移植的 Design 正式数据根。 */
-    const designRoot = join(projectRoot, '.proma', 'design')
+    /** 新项目使用 .dutydeck；只有旧目录的存量项目在迁移前继续使用 .proma。 */
+    let designRoot: string
+    try {
+      designRoot = resolveProjectStorageDirectory(projectRoot, 'design', false)
+    } catch (error) {
+      throw new Error('DESIGN_PATH_UNSAFE', { cause: error })
+    }
+    /** 项目级存储根用于子目录边界校验。 */
+    const storageRoot = dirname(designRoot)
     /** 项目内多 Canvas 正式数据根。 */
     const canvasesRoot = join(designRoot, 'canvases')
     /** 项目内可移植的长期创作上下文根。 */
@@ -112,6 +122,7 @@ export function createDesignPathResolver(
     return {
       projectId,
       projectRoot,
+      storageRoot,
       designRoot,
       canvasPath: join(designRoot, 'canvas.json'),
       canvasesRoot,

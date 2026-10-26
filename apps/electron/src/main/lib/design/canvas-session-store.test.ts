@@ -79,7 +79,7 @@ describe('CanvasSessionStore', () => {
     expect(store.list({ projectId: 'project-1', archived: true })).toHaveLength(1)
 
     /** 项目内索引路径必须与其它项目完全隔离。 */
-    const indexPath = join(root, 'project-1', '.proma', 'design', 'canvases', 'index.json')
+    const indexPath = join(root, 'project-1', '.dutydeck', 'design', 'canvases', 'index.json')
     expect(existsSync(indexPath)).toBe(true)
     expect(JSON.parse(readFileSync(indexPath, 'utf8'))).toMatchObject({
       schemaVersion: 1,
@@ -106,7 +106,7 @@ describe('CanvasSessionStore', () => {
     const store = createStore()
     const created = store.create({ projectId: 'project-1', title: '待删除 Canvas' })
     /** 模拟已经落盘的画布文档和可重建缓存。 */
-    const canvasRoot = join(root, 'project-1', '.proma', 'design', 'canvases', created.id)
+    const canvasRoot = join(root, 'project-1', '.dutydeck', 'design', 'canvases', created.id)
     const cacheRoot = join(root, '.config', 'design-cache', 'project-1', 'canvases', created.id)
     mkdirSync(canvasRoot, { recursive: true })
     mkdirSync(cacheRoot, { recursive: true })
@@ -135,8 +135,8 @@ describe('CanvasSessionStore', () => {
   test('Given 损坏索引 When 列表 Then 明确失败且不覆盖主文件', () => {
     const store = createStore()
     /** 已损坏主文件是需要显式处理的权威事实。 */
-    const indexPath = join(root, 'project-1', '.proma', 'design', 'canvases', 'index.json')
-    mkdirSync(join(root, 'project-1', '.proma', 'design', 'canvases'), { recursive: true })
+    const indexPath = join(root, 'project-1', '.dutydeck', 'design', 'canvases', 'index.json')
+    mkdirSync(join(root, 'project-1', '.dutydeck', 'design', 'canvases'), { recursive: true })
     writeFileSync(indexPath, '{broken', 'utf8')
 
     expect(() => store.list({ projectId: 'project-1' })).toThrow('Canvas 会话索引 JSON 损坏')
@@ -174,15 +174,15 @@ describe('CanvasSessionStore', () => {
 
     expect(store.list({ projectId: 'project-1' })).toEqual([projectOne])
     expect(secondStore.list({ projectId: 'project-2' })).toEqual([projectTwo])
-    expect(existsSync(join(root, 'project-1', '.proma', 'design', 'canvases', 'index.json'))).toBe(true)
-    expect(existsSync(join(root, 'project-2', '.proma', 'design', 'canvases', 'index.json'))).toBe(true)
+    expect(existsSync(join(root, 'project-1', '.dutydeck', 'design', 'canvases', 'index.json'))).toBe(true)
+    expect(existsSync(join(root, 'project-2', '.dutydeck', 'design', 'canvases', 'index.json'))).toBe(true)
   })
 
   test('Given 索引包含未知字段或跨项目记录 When 读取 Then 严格拒绝', () => {
     const store = createStore()
     /** 固定索引目录用于逐个验证损坏 schema。 */
-    const indexPath = join(root, 'project-1', '.proma', 'design', 'canvases', 'index.json')
-    mkdirSync(join(root, 'project-1', '.proma', 'design', 'canvases'), { recursive: true })
+    const indexPath = join(root, 'project-1', '.dutydeck', 'design', 'canvases', 'index.json')
+    mkdirSync(join(root, 'project-1', '.dutydeck', 'design', 'canvases'), { recursive: true })
     writeFileSync(indexPath, JSON.stringify({
       schemaVersion: 1,
       projectId: 'project-1',

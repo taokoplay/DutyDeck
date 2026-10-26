@@ -74,12 +74,12 @@ describe('Design revision 原子存储', () => {
 
     expect(snapshot.document).toEqual(createEmptyDesignDocument('project-1', 100))
     expect(snapshot.writable).toBe(true)
-    expect(existsSync(join(projectRoot, '.proma/design/canvas.json'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.dutydeck/design/canvas.json'))).toBe(false)
   })
 
   test('Given 全新项目无 legacy 数据 When 幂等初始化 Design Then 原子落盘同一份空文档', () => {
     const store = createStore()
-    const canvasPath = join(projectRoot, '.proma/design/canvas.json')
+    const canvasPath = join(projectRoot, '.dutydeck/design/canvas.json')
 
     const first = store.initialize('project-1')
     currentTime = 200
@@ -104,14 +104,14 @@ describe('Design revision 原子存储', () => {
       throw new Error('策略拒绝')
     })).toThrow('策略拒绝')
     expect(validationCount).toBe(1)
-    expect(existsSync(join(projectRoot, '.proma/design/canvas.json'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.dutydeck/design/canvas.json'))).toBe(false)
   })
 
   test('Given 损坏主文件和有效备份 When 加载 Then 从备份恢复并标记来源', () => {
     /** 使用真实 safe-file 恢复链的存储。 */
     const store = createStore()
     /** 当前项目画布主文件路径。 */
-    const canvasPath = join(projectRoot, '.proma/design/canvas.json')
+    const canvasPath = join(projectRoot, '.dutydeck/design/canvas.json')
     store.mutate('project-1', 0, [{
       type: 'set-viewport',
       viewport: { x: 0, y: 0, zoom: 1 },
@@ -132,7 +132,7 @@ describe('Design revision 原子存储', () => {
     /** 使用真实安全恢复、备份和删除链的存储。 */
     const store = createStore()
     /** 当前项目画布主文件路径。 */
-    const canvasPath = join(projectRoot, '.proma/design/canvas.json')
+    const canvasPath = join(projectRoot, '.dutydeck/design/canvas.json')
     /** revision 1 作为模拟崩溃遗留的固定 tmp。 */
     const revisionOne = store.mutate('project-1', 0, [{
       type: 'set-viewport',
@@ -221,7 +221,7 @@ describe('Design revision 原子存储', () => {
       type: 'move-nodes',
       positions: [{ nodeId: 'missing-node', position: { x: 10, y: 20 } }],
     }])).toThrow('DESIGN_DOCUMENT_INVALID')
-    expect(existsSync(join(projectRoot, '.proma/design/canvas.json'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.dutydeck/design/canvas.json'))).toBe(false)
   })
 
   test('Given stale revision When 只更新视口 Then 仍在最新 revision 上重放', () => {
@@ -259,7 +259,7 @@ describe('Design revision 原子存储', () => {
     /** 用于验证恢复与 mutation 必须分成两次用户操作的存储。 */
     const store = createStore()
     /** 当前项目画布主文件路径。 */
-    const canvasPath = join(projectRoot, '.proma/design/canvas.json')
+    const canvasPath = join(projectRoot, '.dutydeck/design/canvas.json')
     /** 建立 revision 1 后模拟主文件 rename 前后的崩溃残留。 */
     store.mutate('project-1', 0, [{
       type: 'set-viewport',
@@ -310,7 +310,7 @@ describe('Design revision 原子存储', () => {
       type: 'upsert-nodes',
       nodes: [invalidNode],
     }])).toThrow('DESIGN_DOCUMENT_INVALID')
-    expect(existsSync(join(projectRoot, '.proma/design/canvas.json'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.dutydeck/design/canvas.json'))).toBe(false)
   })
 
   test('Given 空 mutation When 保存 Then 返回当前文档且不创建文件或递增 revision', () => {
@@ -320,7 +320,7 @@ describe('Design revision 原子存储', () => {
     const unchanged = store.mutate('project-1', 0, [])
 
     expect(unchanged.revision).toBe(0)
-    expect(existsSync(join(projectRoot, '.proma/design/canvas.json'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.dutydeck/design/canvas.json'))).toBe(false)
   })
 
   test('Given 旧文档缺少mediaAssets When 加载 Then 兼容并规范化为空数组', () => {

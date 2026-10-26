@@ -203,7 +203,7 @@ describe('DesignContextCatalog', () => {
       title: '品牌',
       tags: [],
       markdown: '# Brand',
-    })).toThrow('创作上下文项目根不是实际目录')
+    })).toThrow('DESIGN_PATH_UNSAFE')
   })
 
   test('Given 条目被任务审计引用 When 删除 Then 明确拒绝并保留资料', () => {

@@ -63,7 +63,7 @@ describe('DesignProjectTextIndex', () => {
     write('private-key.pem', 'PRIVATE')
     write('node_modules/pkg/index.js', 'ignored')
     write('dist/app.js', 'ignored')
-    write('.proma/design/context/documents/brand.md', '# Brand')
+    write('.dutydeck/design/context/documents/brand-v2.md', '# Brand V2')
     /** 指向项目外秘密文件的叶子符号链接。 */
     const outsideSecret = join(tempRoot, 'outside-secret.ts')
     writeFileSync(outsideSecret, 'export const secret = true')

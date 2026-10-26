@@ -15,6 +15,7 @@ import type { DesignPathResolver } from './design-paths'
 /** 明确排除的依赖、版本控制、构建和 Proma 内部目录。 */
 const EXCLUDED_NAMES = new Set([
   '.git',
+  '.dutydeck',
   '.proma',
   'node_modules',
   'dist',

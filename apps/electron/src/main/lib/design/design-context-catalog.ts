@@ -339,7 +339,7 @@ export class DesignContextCatalog implements DesignContextCatalogContract {
     const projectRoot = realpathSync(paths.projectRoot)
     /** 按父到子顺序创建，满足 ensureDirectoryDurable 的单层父目录合同。 */
     const directories = [
-      join(paths.projectRoot, '.proma'),
+      paths.storageRoot,
       paths.designRoot,
       paths.contextRoot,
       paths.contextDocumentsDir,
@@ -565,7 +565,7 @@ function assertExistingContextDirectoryChain(paths: DesignPaths): void {
   /** 项目物理根用于复验每个现存子目录仍位于授权范围内。 */
   const projectRoot = realpathSync(paths.projectRoot)
   /** 读取清单前需要经过的固定正式目录链。 */
-  const directories = [join(paths.projectRoot, '.proma'), paths.designRoot, paths.contextRoot]
+  const directories = [paths.storageRoot, paths.designRoot, paths.contextRoot]
   for (const directoryPath of directories) {
     try {
       const stat = lstatSync(directoryPath)

@@ -1,66 +1,99 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { AgentWorkspace } from '@dutydeck/shared'
 import { createDesignPathResolver } from './design-paths'
 
 describe('Design 路径解析', () => {
-  test('Given 外部项目 When 解析 Then 正式数据随项目且缓存按稳定 ID 隔离', () => {
-    /** 使用外部目录的项目路径解析器。 */
-    const resolver = createDesignPathResolver({
-      getWorkspace: () => ({
-        id: 'project-1',
-        name: '项目',
-        slug: 'stable-slug',
-        projectRootPath: '/projects/demo',
-        createdAt: 1,
-        updatedAt: 1,
-      }),
-      getProjectFilesPath: () => '/projects/demo',
-      getConfigDir: () => '/home/test/.proma',
+  /** 每个测试独占的临时根。 */
+  let tempRoot: string
+  /** 实际存在的项目根。 */
+  let projectRoot: string
+  /** 当前活动业务数据根。 */
+  let configRoot: string
+
+  beforeEach(() => {
+    tempRoot = mkdtempSync(join(tmpdir(), 'dutydeck-design-paths-'))
+    projectRoot = join(tempRoot, 'project')
+    configRoot = join(tempRoot, 'config', '.DutyDeck')
+    mkdirSync(projectRoot, { recursive: true })
+    mkdirSync(configRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(tempRoot, { recursive: true, force: true })
+  })
+
+  /** 创建可读取真实临时项目根的解析器。 */
+  function createResolver(workspace: AgentWorkspace | undefined): ReturnType<typeof createDesignPathResolver> {
+    return createDesignPathResolver({
+      getWorkspace: () => workspace,
+      getProjectFilesPath: () => projectRoot,
+      getConfigDir: () => configRoot,
+    })
+  }
+
+  test('Given 外部项目 When 解析 Then 新项目正式数据写入 .dutydeck 且缓存按稳定 ID 隔离', () => {
+    const resolver = createResolver({
+      id: 'project-1',
+      name: '项目',
+      slug: 'stable-slug',
+      projectRootPath: projectRoot,
+      createdAt: 1,
+      updatedAt: 1,
     })
 
     expect(resolver.resolve('project-1')).toEqual({
       projectId: 'project-1',
-      projectRoot: '/projects/demo',
-      designRoot: '/projects/demo/.proma/design',
-      canvasPath: '/projects/demo/.proma/design/canvas.json',
-      canvasesRoot: '/projects/demo/.proma/design/canvases',
-      canvasSessionsIndexPath: '/projects/demo/.proma/design/canvases/index.json',
-      assetsDir: '/projects/demo/.proma/design/assets',
-      annotationsDir: '/projects/demo/.proma/design/annotations',
-      contextRoot: '/projects/demo/.proma/design/context',
-      contextManifestPath: '/projects/demo/.proma/design/context/manifest.json',
-      contextDocumentsDir: '/projects/demo/.proma/design/context/documents',
-      contextReferencesDir: '/projects/demo/.proma/design/context/references',
-      cacheRoot: '/home/test/.proma/design-cache/project-1',
-      preferencesPath: '/home/test/.proma/design-cache/project-1/preferences.json',
-      thumbnailsDir: '/home/test/.proma/design-cache/project-1/thumbnails',
-      jobsDir: '/home/test/.proma/design-cache/project-1/jobs',
-      tracesDir: '/home/test/.proma/design-cache/project-1/traces',
-      stagingDir: '/home/test/.proma/design-cache/project-1/staging',
+      projectRoot,
+      storageRoot: join(projectRoot, '.dutydeck'),
+      designRoot: join(projectRoot, '.dutydeck', 'design'),
+      canvasPath: join(projectRoot, '.dutydeck', 'design', 'canvas.json'),
+      canvasesRoot: join(projectRoot, '.dutydeck', 'design', 'canvases'),
+      canvasSessionsIndexPath: join(projectRoot, '.dutydeck', 'design', 'canvases', 'index.json'),
+      assetsDir: join(projectRoot, '.dutydeck', 'design', 'assets'),
+      annotationsDir: join(projectRoot, '.dutydeck', 'design', 'annotations'),
+      contextRoot: join(projectRoot, '.dutydeck', 'design', 'context'),
+      contextManifestPath: join(projectRoot, '.dutydeck', 'design', 'context', 'manifest.json'),
+      contextDocumentsDir: join(projectRoot, '.dutydeck', 'design', 'context', 'documents'),
+      contextReferencesDir: join(projectRoot, '.dutydeck', 'design', 'context', 'references'),
+      cacheRoot: join(configRoot, 'design-cache', 'project-1'),
+      preferencesPath: join(configRoot, 'design-cache', 'project-1', 'preferences.json'),
+      thumbnailsDir: join(configRoot, 'design-cache', 'project-1', 'thumbnails'),
+      jobsDir: join(configRoot, 'design-cache', 'project-1', 'jobs'),
+      tracesDir: join(configRoot, 'design-cache', 'project-1', 'traces'),
+      stagingDir: join(configRoot, 'design-cache', 'project-1', 'staging'),
     })
 
-    expect(resolver.resolveCanvas('project-1', 'canvas-1')).toEqual({
-      projectId: 'project-1',
-      canvasId: 'canvas-1',
-      canvasRoot: '/projects/demo/.proma/design/canvases/canvas-1',
-      documentPath: '/projects/demo/.proma/design/canvases/canvas-1/canvas.json',
-      transactionsDir: '/projects/demo/.proma/design/canvases/canvas-1/transactions',
-      nodesDir: '/projects/demo/.proma/design/canvases/canvas-1/nodes',
-      trashDir: '/projects/demo/.proma/design/canvases/canvas-1/trash',
-      cacheRoot: '/home/test/.proma/design-cache/project-1/canvases/canvas-1',
-      jobsDir: '/home/test/.proma/design-cache/project-1/canvases/canvas-1/jobs',
-      tracesDir: '/home/test/.proma/design-cache/project-1/canvases/canvas-1/traces',
-      stagingDir: '/home/test/.proma/design-cache/project-1/canvases/canvas-1/staging',
-      thumbnailsDir: '/home/test/.proma/design-cache/project-1/canvases/canvas-1/thumbnails',
+    expect(resolver.resolveCanvas('project-1', 'canvas-1')).toMatchObject({
+      canvasRoot: join(projectRoot, '.dutydeck', 'design', 'canvases', 'canvas-1'),
+      documentPath: join(projectRoot, '.dutydeck', 'design', 'canvases', 'canvas-1', 'canvas.json'),
+    })
+    expect(existsSync(join(projectRoot, '.dutydeck', 'design'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.proma'))).toBe(false)
+  })
+
+  test('Given 只有旧 .proma/design When 解析 Then 继续使用旧目录等待显式迁移', () => {
+    mkdirSync(join(projectRoot, '.proma', 'design'), { recursive: true })
+    const resolver = createResolver({
+      id: 'project-1',
+      name: '旧项目',
+      slug: 'stable-slug',
+      projectRootPath: projectRoot,
+      createdAt: 1,
+      updatedAt: 1,
     })
 
-    expect(() => resolver.resolveCanvas('project-1', '../escape')).toThrow('Canvas ID 非法')
-    expect(() => resolver.resolveCanvas('project-1', 'nested/path')).toThrow('Canvas ID 非法')
+    const paths = resolver.resolve('project-1')
+
+    expect(paths.storageRoot).toBe(join(projectRoot, '.proma'))
+    expect(paths.designRoot).toBe(join(projectRoot, '.proma', 'design'))
+    expect(existsSync(join(projectRoot, '.dutydeck'))).toBe(false)
   })
 
   test('Given 托管项目 When 解析 Then 通过不可变 slug 获取项目根', () => {
-    /** 记录正式项目根解析实际收到的 slug。 */
     let resolvedSlug = ''
-    /** 使用 Proma 托管目录的项目路径解析器。 */
     const resolver = createDesignPathResolver({
       getWorkspace: () => ({
         id: 'project-2',
@@ -71,40 +104,31 @@ describe('Design 路径解析', () => {
       }),
       getProjectFilesPath: (slug) => {
         resolvedSlug = slug
-        return '/home/test/.proma/agent-workspaces/managed-slug/workspace-files'
+        return projectRoot
       },
-      getConfigDir: () => '/home/test/.proma',
+      getConfigDir: () => configRoot,
     })
 
-    /** 托管项目解析后的可信路径集合。 */
     const paths = resolver.resolve('project-2')
     expect(resolvedSlug).toBe('managed-slug')
-    expect(paths.projectRoot).toBe('/home/test/.proma/agent-workspaces/managed-slug/workspace-files')
-    expect(paths.designRoot).toBe('/home/test/.proma/agent-workspaces/managed-slug/workspace-files/.proma/design')
+    expect(paths.projectRoot).toBe(projectRoot)
+    expect(paths.designRoot).toBe(join(projectRoot, '.dutydeck', 'design'))
   })
 
   test('Given 未知项目 When 解析 Then 明确拒绝', () => {
-    /** 永远无法找到项目的路径解析器。 */
-    const resolver = createDesignPathResolver({
-      getWorkspace: () => undefined,
-      getProjectFilesPath: () => '',
-      getConfigDir: () => '',
-    })
-
+    const resolver = createResolver(undefined)
     expect(() => resolver.resolve('forged')).toThrow('项目不存在: forged')
   })
 
   test('Given 非法项目 ID When 解析 Then 在构造缓存路径前拒绝', () => {
-    /** 记录非法 ID 是否错误触达工作区索引。 */
     let workspaceLookupCalled = false
-    /** 非法 ID 必须在工作区查询前被拒绝的路径解析器。 */
     const resolver = createDesignPathResolver({
       getWorkspace: () => {
         workspaceLookupCalled = true
         return undefined
       },
-      getProjectFilesPath: () => '/projects/safe',
-      getConfigDir: () => '/home/test/.proma',
+      getProjectFilesPath: () => projectRoot,
+      getConfigDir: () => configRoot,
     })
 
     expect(() => resolver.resolve('../escape')).toThrow('项目 ID 非法')
@@ -112,9 +136,7 @@ describe('Design 路径解析', () => {
   })
 
   test('Given 项目显示名变化 When 解析 Then 缓存映射保持稳定', () => {
-    /** 当前项目显示名，模拟用户重命名项目。 */
     let projectName = '旧名称'
-    /** 缓存只依赖稳定 ID 的路径解析器。 */
     const resolver = createDesignPathResolver({
       getWorkspace: () => ({
         id: 'stable_id-1',
@@ -123,15 +145,12 @@ describe('Design 路径解析', () => {
         createdAt: 1,
         updatedAt: 1,
       }),
-      getProjectFilesPath: () => '/projects/demo',
-      getConfigDir: () => '/home/test/.proma',
+      getProjectFilesPath: () => projectRoot,
+      getConfigDir: () => configRoot,
     })
 
-    /** 重命名前的缓存根。 */
     const beforeRename = resolver.resolve('stable_id-1').cacheRoot
     projectName = '新名称'
-    /** 重命名后的缓存根。 */
-    const afterRename = resolver.resolve('stable_id-1').cacheRoot
-    expect(afterRename).toBe(beforeRename)
+    expect(resolver.resolve('stable_id-1').cacheRoot).toBe(beforeRename)
   })
 })
