@@ -5,6 +5,7 @@
 export * from './types/index'
 export * from './config/index'
 export * from './utils/index'
+export * from './constants/project-storage'
 export * from './constants/permission-rules'
 export * from './types/server-ops-agent-diagnostics'
 export * from './types/server-ops-connection-draft'
