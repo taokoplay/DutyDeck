@@ -8,7 +8,7 @@ describe('影像模块插件边界', () => {
     first.toolRefs.push('forged.tool')
     expect(visualProductionModuleManifest().toolRefs).not.toContain('forged.tool')
     expect(VISUAL_PRODUCTION_HOST_CAPABILITIES).toContain('media-execution-context')
-    expect(VISUAL_PRODUCTION_STORAGE_NAMESPACE).toBe('.proma/visual-production')
+    expect(VISUAL_PRODUCTION_STORAGE_NAMESPACE).toBe('.dutydeck/visual-production')
     expect(VISUAL_PRODUCTION_IPC_CHANNEL_PREFIX).toBe('visual-production:')
     expect(VISUAL_PRODUCTION_CHANNELS).toEqual({ INVOKE: 'visual-production:invoke', CHANGED: 'visual-production:changed' })
   })

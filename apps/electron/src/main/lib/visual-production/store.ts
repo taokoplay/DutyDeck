@@ -7,6 +7,7 @@ import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
 import { interactionDirectory, interactionSourcePath, readInteractionFile } from '../interaction-design/paths'
+import { resolveProjectStorageDirectory } from '../project-storage/project-storage-paths'
 import { interactionImageMime } from '../interaction-design/asset-service'
 import { VisualEditingStore } from './editing-store'
 import { shotOutputChanges, withShotOutputs } from './shot-outputs'
@@ -103,7 +104,9 @@ export class VisualProductionService {
   }
   /** 有界枚举作品目录，损坏对象不能静默忽略。 */
   private ids(): string[] {
-    if (!existsSync(join(this.dependencies.projectRoot, ...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects'))) return []
+    /** 只读解析真实命名空间，空项目不创建目录，旧项目继续枚举旧作品。 */
+    const storageDirectory = resolveProjectStorageDirectory(this.dependencies.projectRoot, 'visual-production', false)
+    if (!existsSync(join(storageDirectory, 'projects'))) return []
     const directory = opendirSync(this.directory())
     const ids: string[] = []
     try {

@@ -264,7 +264,7 @@ describe('Given 资产与镜头制作依赖', () => {
   })
   test('Given 候选审批期间正式文件被替换 When 迟到批准返回 Then CAS 拒绝覆盖新正式版本', async () => {
     const { service, target, draft, job, revision, projectRoot } = await lockedAssetFixture(async () => {
-      const path = join(projectRoot, '.proma', 'visual-production', 'projects', target.productionId, 'snapshot.json')
+      const path = join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json')
       const external = JSON.parse(readFileSync(path, 'utf8'))
       external.document.brief = '审批期间的外部正式修改'
       writeFileSync(path, JSON.stringify(external))
@@ -277,7 +277,7 @@ describe('Given 资产与镜头制作依赖', () => {
     })
     await expect(service.invoke('adopt', { ...target, baseRevision: revision, candidateId: candidate.id }))
       .rejects.toThrow()
-    const disk = JSON.parse(readFileSync(join(projectRoot, '.proma', 'visual-production', 'projects', target.productionId, 'snapshot.json'), 'utf8'))
+    const disk = JSON.parse(readFileSync(join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json'), 'utf8'))
     expect(disk.document.brief).toBe('审批期间的外部正式修改')
     expect(disk.document.assets.find((asset: { id: string }) => asset.id === 'actor').description).toBe('锁定的银发造型')
   })
@@ -351,7 +351,7 @@ describe('Given 作品独立媒体与受管文件', () => {
   })
   test('When 快照损坏 Then 报错而不静默重置', async () => {
     const { service, target, projectRoot } = await fixture()
-    writeFileSync(join(projectRoot, '.proma', 'visual-production', 'projects', target.productionId, 'snapshot.json'), '{broken')
+    writeFileSync(join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json'), '{broken')
     await expect(service.invoke('load', target)).rejects.toThrow()
     await expect(service.invoke('list', { sessionId: 'session' })).rejects.toThrow()
   })
@@ -360,7 +360,7 @@ describe('Given 作品独立媒体与受管文件', () => {
 
 test('Given 损坏任务索引 When 读取作品 Then 拒绝不可信运行状态', async () => {
   const { service, target, projectRoot } = await fixture()
-  const path = join(projectRoot, '.proma', 'visual-production', 'projects', target.productionId, 'snapshot.json')
+  const path = join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json')
   const snapshot = JSON.parse(readFileSync(path, 'utf8'))
   snapshot.jobs = [{ id: 'job', sessionId: 'session', status: 'running', baseRevision: -1 }]
   writeFileSync(path, JSON.stringify(snapshot))
@@ -369,7 +369,7 @@ test('Given 损坏任务索引 When 读取作品 Then 拒绝不可信运行状�
 
 test('Given 工作流发现身份被改坏 When 读取作品 Then 拒绝伪造的精确选择', async () => {
   const { service, target, projectRoot } = await fixture()
-  const path = join(projectRoot, '.proma', 'visual-production', 'projects', target.productionId, 'snapshot.json')
+  const path = join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json')
   const snapshot = JSON.parse(readFileSync(path, 'utf8'))
   snapshot.jobs = [{
     id: 'job', sessionId: 'session', status: 'running', baseRevision: 1, mediaKind: 'video',
@@ -432,7 +432,7 @@ test('Given 磁盘媒体元数据类型被改坏 When 读取作品 Then 拒绝�
   const { service, target, projectRoot } = await fixture()
   writeFileSync(join(projectRoot, 'image.png'), Buffer.from('89504e470d0a1a0a00000000', 'hex'))
   await service.invoke('importFile', { ...target, relativePath: 'image.png' })
-  const path = join(projectRoot, '.proma', 'visual-production', 'projects', target.productionId, 'snapshot.json')
+  const path = join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json')
   const snapshot = JSON.parse(readFileSync(path, 'utf8'))
   snapshot.media[0].kind = 'audio'
   writeFileSync(path, JSON.stringify(snapshot))
@@ -533,7 +533,7 @@ for (const invalidation of ['cancel', 'revision'] as const) {
     const { projectRoot, target, job, media } = await loopFixture()
     const service = new VisualProductionService({ workspaceId: 'workspace', projectRoot, registerReference: async ({ media: item }) => {
       /** 模拟锁外进程破坏或恢复替换快照，确保异步返回仍复核最新任务。 */
-      const path = join(projectRoot, '.proma', 'visual-production', 'projects', target.productionId, 'snapshot.json')
+      const path = join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json')
       const snapshot = JSON.parse(readFileSync(path, 'utf8'))
       if (invalidation === 'cancel') snapshot.jobs[0].status = 'cancelled'
       else snapshot.document.revision++

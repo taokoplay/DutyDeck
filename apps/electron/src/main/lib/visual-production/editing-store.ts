@@ -6,6 +6,7 @@ import type { VisualEditingClip, VisualEditingDocument, VisualEditingExportJob, 
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
 import type { AtomicFileState } from '../safe-file'
 import { interactionDirectory, readInteractionFile } from '../interaction-design/paths'
+import { resolveProjectStorageDirectory } from '../project-storage/project-storage-paths'
 
 /** 每集剪辑文件的持久化外壳，为后续候选和导出任务预留稳定边界。 */
 interface VisualEditingFile {
@@ -44,7 +45,8 @@ export class VisualEditingStore {
 
   /** 读取文件并验证持久化外壳，损坏内容不能静默当成空剪辑。 */
   private read(productionId: string, episodeId: string): { file: VisualEditingFile; state: AtomicFileState } | null {
-    const directory = join(this.dependencies.projectRoot, ...VISUAL_PRODUCTION_STORAGE_SEGMENTS, 'projects', productionId, 'editing')
+    /** 缺失剪辑返回空；目录选择与作品读写保持一致，兼容尚未迁移的旧作品。 */
+    const directory = join(resolveProjectStorageDirectory(this.dependencies.projectRoot, 'visual-production', false), 'projects', productionId, 'editing')
     if (!existsSync(directory)) return null
     const path = this.path(productionId, episodeId)
     const state = readAtomicFileState(path)

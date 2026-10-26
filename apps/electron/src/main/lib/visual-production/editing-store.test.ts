@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { VisualProductionDraft } from '@dutydeck/shared'
@@ -33,6 +33,51 @@ async function fixture() {
 }
 
 describe('影像剪辑时间线存储', () => {
+  it('Given 新旧项目均无作品 When 列表读取 Then 返回空且不创建当前目录', async () => {
+    /** 两种空态分别覆盖全新项目与只有旧模块目录的项目。 */
+    for (const legacy of [false, true]) {
+      /** 隔离项目根只允许测试创建旧目录，不提前创建任何作品。 */
+      const projectRoot = mkdtempSync(join(tmpdir(), 'visual-empty-'))
+      roots.push(projectRoot)
+      if (legacy) mkdirSync(join(projectRoot, '.proma', 'visual-production'), { recursive: true })
+      /** 真实服务读取应保持无副作用。 */
+      const service = new VisualProductionService({ workspaceId: 'workspace', projectRoot })
+      expect(await service.invoke('list', { sessionId: 'session' })).toEqual([])
+      expect(existsSync(join(projectRoot, '.dutydeck'))).toBe(false)
+    }
+  })
+
+  it('Given 旧目录保存作品媒体和时间线 When 重建服务并继续编辑导出 Then 全链路使用旧目录且不双写', async () => {
+    /** 先生成真实持久化快照和时间线，再按历史项目的目录布局重新打开。 */
+    const base = await fixture()
+    await base.service.invoke('createRoughCut', { ...base.target, episodeId: base.episodeId, baseProductionRevision: 2 })
+    expect(existsSync(join(base.projectRoot, '.dutydeck', 'visual-production'))).toBe(true)
+    renameSync(join(base.projectRoot, '.dutydeck'), join(base.projectRoot, '.proma'))
+    /** 模拟编码器，同时真实读取剪辑存储提供的旧媒体字节。 */
+    const bytes = Buffer.from('0000ftypisom')
+    const digest = createHash('sha256').update(bytes).digest('hex')
+    const service = new VisualProductionService({
+      workspaceId: 'workspace', projectRoot: base.projectRoot,
+      renderExport: async ({ readMedia }) => {
+        expect(Buffer.from(readMedia(base.snapshot.media[0]!.id).bytes)).toEqual(Buffer.from('89504e470d0a1a0a00000000', 'hex'))
+        return { encoderId: 'test-ffmpeg', artifactMedia: { id: digest, name: '成片.mp4', hash: digest, mime: 'video/mp4', kind: 'video', byteSize: bytes.length, createdAt: 1 }, artifactBytes: bytes }
+      },
+    })
+    expect(await service.invoke('list', { sessionId: 'session' })).toMatchObject([{ id: base.target.productionId }])
+    expect((await service.invoke('load', base.target)).document.revision).toBe(2)
+    await service.invoke('save', { ...base.target, baseRevision: 2, draft: { ...editable(base.snapshot.document), brief: '旧项目继续编辑' } })
+    expect((await service.invoke('load', base.target)).document.brief).toBe('旧项目继续编辑')
+    /** 旧时间线必须被读到，否则编辑保存或导出都无法继续。 */
+    const timeline = (await service.invoke('loadTimeline', { ...base.target, episodeId: base.episodeId })).timeline!
+    expect(timeline.revision).toBe(1)
+    await service.invoke('saveTimeline', { ...base.target, episodeId: base.episodeId, expectedRevision: 1, timeline: { ...timeline, revision: 2 } })
+    const job = await service.invoke('requestExport', { ...base.target, episodeId: base.episodeId, expectedTimelineRevision: 2, settings: { ratio: '16:9', fps: 24, includeVoice: false, includeMusic: false, includeCaptions: false } })
+    expect(job.status).toBe('completed')
+    expect(Buffer.from((await service.invoke('mediaContent', { ...base.target, mediaId: digest })).bytes)).toEqual(bytes)
+    expect(existsSync(join(base.projectRoot, '.proma', 'visual-production', 'projects', base.target.productionId, 'media', `${digest}.json`))).toBe(true)
+    expect(existsSync(join(base.projectRoot, '.dutydeck'))).toBe(false)
+  })
+
   it('Given 独立画面影片音频 When 粗剪与后续音频更新 Then 音画对齐且只标记音频过期', async () => {
     const { snapshot, projectRoot, episodeId } = await fixture()
     const image = snapshot.media[0]!

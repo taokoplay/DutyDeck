@@ -34,7 +34,7 @@ async function fixture(outputCount?: number) {
   const draft: VisualProductionDraft = { ...editable(created.document), assets: [{ id: 'actor', name: '角色', type: '角色', description: '固定身份', locked: true, mediaId: media[0]!.id }], shots: ['shot1', 'shot2'].map(id => ({ id, episodeId: created.document.episodes[0]!.id, title: id, duration: 5, scene: '原画面', motion: '', dialogue: '', assetIds: ['actor'], mediaId: null })) }
   const snapshot = await service.invoke('save', { ...target, baseRevision: 1, draft })
   /** 用于兼容旧候选测试的固定快照位置。 */
-  const snapshotPath = join(projectRoot, '.proma/visual-production/projects', target.productionId, 'snapshot.json')
+  const snapshotPath = join(projectRoot, '.dutydeck/visual-production/projects', target.productionId, 'snapshot.json')
   return { service, target, media, snapshot, snapshotPath, projectRoot }
 }
 
@@ -182,7 +182,7 @@ describe('空镜头唯一图片自动采用', () => {
   test('Given 图片副本损坏 When 自动采用 Then 拒绝且不留下半提交候选或正式画面', async () => {
     const f = await fixture()
     const job = await begin(f)
-    writeJsonFileAtomicSecure(join(f.projectRoot, '.proma/visual-production/projects', f.target.productionId, 'media', `${f.media[1]!.id}.json`), { hash: f.media[1]!.id, data: '' })
+    writeJsonFileAtomicSecure(join(f.projectRoot, '.dutydeck/visual-production/projects', f.target.productionId, 'media', `${f.media[1]!.id}.json`), { hash: f.media[1]!.id, data: '' })
     await expect(f.service.invoke('proposeShot', { ...f.target, baseRevision: 2, jobId: job.id, shotId: 'shot1', mediaId: f.media[1]!.id, summary: '损坏画面' })).rejects.toThrow('损坏')
     const saved = await f.service.invoke('load', f.target)
     expect(saved.document).toEqual(f.snapshot.document)

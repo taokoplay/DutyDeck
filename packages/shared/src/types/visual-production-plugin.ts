@@ -1,12 +1,13 @@
 import type { AgentModuleManifest } from './agent-modules'
+import { PROJECT_STORAGE_DIRECTORY_NAME } from '../constants/project-storage'
 
 /** 内置插件身份；拆分独立插件后必须保持同一稳定 ID。 */
 export const VISUAL_PRODUCTION_PLUGIN_ID = 'builtin.visual-production'
 /** 右侧工作区稳定 surface ID。 */
 export const VISUAL_PRODUCTION_SURFACE_ID = 'visual-production'
-/** 项目内数据目录分段；插件迁移不得改变旧作品可移植路径。 */
-export const VISUAL_PRODUCTION_STORAGE_SEGMENTS = ['.proma', 'visual-production'] as const
-/** 插件迁移后仍必须读取的宿主项目内数据命名空间。 */
+/** 新项目默认目录分段；旧作品由宿主中央解析器保持原目录读写。 */
+export const VISUAL_PRODUCTION_STORAGE_SEGMENTS = [PROJECT_STORAGE_DIRECTORY_NAME, 'visual-production'] as const
+/** 当前项目内数据命名空间，实际文件位置由宿主兼容解析。 */
 export const VISUAL_PRODUCTION_STORAGE_NAMESPACE = VISUAL_PRODUCTION_STORAGE_SEGMENTS.join('/')
 /** 四层 IPC 合同前缀；独立进程插件也必须沿用稳定通道语义。 */
 export const VISUAL_PRODUCTION_IPC_CHANNEL_PREFIX = 'visual-production:' as const
