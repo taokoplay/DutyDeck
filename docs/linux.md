@@ -54,19 +54,13 @@ AppImage 的隔离能力低于正确配置的 `.deb`。DutyDeck 内嵌浏览器�
 
 ## 数据位置
 
-正式版本数据位于：
+正式版与开发版共享 locator 指向的业务数据根，默认位于：
 
 ```text
-~/.proma/
+~/.DutyDeck/
 ```
 
-开发模式数据位于：
-
-```text
-~/.proma-dev/
-```
-
-会话、工作区、配置和 Skills 使用 JSON/JSONL 文件保存。迁移前请退出 DutyDeck，并备份对应目录。
+会话、工作区、配置和 Skills 使用 JSON/JSONL 文件保存；自定义数据根以设置中的实际位置为准。旧版 `~/.proma/` 数据需要用户确认后迁移，不会自动覆盖当前数据。迁移前请退出 DutyDeck，并备份对应目录。
 
 Linux 下 `safeStorage` 依赖 GNOME Keyring、KWallet 或其他 Secret Service 实现。无可用系统密钥环时，不建议在共享机器上保存 API Key；请先配置桌面密钥环并重新启动 DutyDeck。
 

@@ -92,7 +92,7 @@ Socket Mode 是必须项：DutyDeck 不提供 HTTP Events receiver，也不需�
    - **已连接**：配置完成，DutyDeck 已接收 Slack Socket Mode 事件。
    - **连接错误**：展开卡片查看脱敏错误信息，按“排障”处理。
 
-DutyDeck 使用 Electron `safeStorage` 加密保存 Token。正式版配置位于 `~/.proma/slack.json`；开发模式位于 `~/.proma-dev/slack.json`。每个 Bot 的 thread 绑定和投递 ledger 以 `slack-bindings-<botId>.json` 与 `slack-delivery-<botId>.json` 保存在同一配置目录。系统 Keychain/Secret Service 不可用时，DutyDeck 会拒绝保存或使用 Token；恢复安全存储后重新粘贴并保存凭证。
+DutyDeck 使用 Electron `safeStorage` 加密保存 Token。正式版与开发版共享 locator 指向的业务数据根，默认配置位于 `~/.DutyDeck/slack.json`；自定义数据根以设置中的实际位置为准。旧版 `~/.proma/` 数据需要用户确认后迁移。每个 Bot 的 thread 绑定和投递 ledger 以 `slack-bindings-<botId>.json` 与 `slack-delivery-<botId>.json` 保存在同一配置目录。系统 Keychain/Secret Service 不可用时，DutyDeck 会拒绝保存或使用 Token；恢复安全存储后重新粘贴并保存凭证。
 
 ## 频道验收
 
