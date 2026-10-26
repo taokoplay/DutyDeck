@@ -430,9 +430,9 @@ function syncCommittedFileDurability(
 }
 
 /** 同步目录项；只把 Windows 明确不支持的目录 fsync 降级为 file-only。 */
-function syncDirectoryDurability(
+export function syncDirectoryDurability(
   directoryPath: string,
-  options: DurabilitySyncOptions,
+  options: DurabilitySyncOptions = {},
 ): DurabilityResult {
   try {
     (options.syncDirectory ?? syncDirectoryDurable)(directoryPath)

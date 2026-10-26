@@ -18,6 +18,7 @@ function createPaths(root: string): DesignPaths {
   const contextRoot = join(designRoot, 'context')
   return {
     projectId: 'project-1', projectRoot: join(root, 'project'), designRoot,
+    storageRoot: join(root, 'project', '.proma'),
     canvasPath: join(designRoot, 'canvas.json'), canvasesRoot,
     canvasSessionsIndexPath: join(canvasesRoot, 'index.json'), assetsDir: join(designRoot, 'assets'),
     annotationsDir: join(designRoot, 'annotations'), cacheRoot,

@@ -253,6 +253,38 @@ describe('Agent 预检拒绝的 Journal 终态', () => {
 })
 
 describe('Agent 会话 JSONL 读取', () => {
+  test('Given 已授权项目完成目录迁移 When 三种会话读取入口加载旧附件 Then 仅投影归属项目且不改历史', async () => {
+    /** 项目根与用户数据根分离，验证真实会话归属接线。 */
+    const projectRoot = join(tempHome, 'project-storage-history')
+    mkdirSync(join(projectRoot, '.proma', 'design'), { recursive: true })
+    /** 生产索引负责选择当前会话的项目，不能由附件路径授予项目身份。 */
+    const workspaceId = 'project-storage-history-workspace'
+    const sessionId = 'project-storage-history-session'
+    writeAgentWorkspacesIndex([{ id: workspaceId, name: '目录迁移历史', slug: workspaceId, projectRootPath: projectRoot, createdAt: 1, updatedAt: 1 }])
+    writeAgentSessionsIndex([{ id: sessionId, title: '迁移历史', workspaceId, createdAt: 1, updatedAt: 1 }])
+    const oldPath = join(projectRoot, '.proma', 'design', 'image.png')
+    const currentPath = join(projectRoot, '.dutydeck', 'design', 'image.png')
+    const unrelatedPath = join(tempHome, 'other-project', '.proma', 'design', 'other.png')
+    /** 明确附件协议可更新，普通正文与另一项目附件保持原样。 */
+    const message = { type: 'user', uuid: 'project-storage-user', parent_tool_use_id: null,
+      mediaAttachments: [{ targetPath: oldPath }, { targetPath: unrelatedPath }],
+      message: { content: `<attached_files>\n- image.png: ${oldPath}\n</attached_files>\n正文记录 ${oldPath}` } }
+    writeAgentSessionJsonl(sessionId, [JSON.stringify(message)])
+    const { getAgentSessionMessagesPath } = await import('./config-paths')
+    const filePath = getAgentSessionMessagesPath(sessionId)
+    const original = readFileSync(filePath, 'utf8')
+    expect(manager.getAgentSessionSDKMessages(sessionId)[0]).toMatchObject({ mediaAttachments: [{ targetPath: oldPath }, { targetPath: unrelatedPath }] })
+    const { migrateProjectStorageNamespace } = await import('./project-storage/project-storage-migration')
+    migrateProjectStorageNamespace(projectRoot)
+    for (const messages of [manager.getAgentSessionMessages(sessionId), manager.getAgentSessionSDKMessages(sessionId), await manager.getAgentSessionSDKMessagesForDisplay(sessionId)]) {
+      expect(messages).toHaveLength(1)
+      expect(messages[0]).toMatchObject({ mediaAttachments: [{ targetPath: currentPath }, { targetPath: unrelatedPath }] })
+      expect(JSON.stringify(messages[0])).toContain(`- image.png: ${currentPath}`)
+      expect(JSON.stringify(messages[0])).toContain(`正文记录 ${oldPath}`)
+    }
+    expect(readFileSync(filePath, 'utf8')).toBe(original)
+  })
+
   test('Given 有效消息之间存在 null 记录 When 读取历史 Then 保留前后消息且不改写磁盘', async () => {
     /** 使用生产路径创建异常记录 fixture，不依赖历史默认根。 */
     const { getAgentSessionMessagesPath } = await import('./config-paths')

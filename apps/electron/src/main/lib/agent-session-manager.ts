@@ -26,6 +26,7 @@ import {
   getPiSessionsDir,
   createDataRootPathResolver,
   createDataRootPathSerializer,
+  resolveWorkspaceFilesDir,
 } from './config-paths'
 import {
   getAgentWorkspace,
@@ -33,6 +34,7 @@ import {
   listAgentWorkspaces,
 } from './agent-workspace-manager'
 import { resolvePiThinkingLevel } from './agent-thinking-level'
+import { createProjectStorageAttachmentResolver } from './project-storage/project-storage-attachment-paths'
 import { getSettings } from './settings-service'
 import type {
   AgentSessionMeta,
@@ -786,9 +788,16 @@ export function createAgentSession(
   })
 }
 
-/**
- * 读取会话的所有消息
- */
+/** 按会话权威归属捕获历史附件别名，项目目录检查失败不影响普通会话正文。 */
+function createSessionAttachmentPathResolver(sessionId: string): (path: string) => string {
+  const resolveDataPath = createDataRootPathResolver()
+  const session = getAgentSessionMeta(sessionId)
+  const workspace = session?.workspaceId ? getAgentWorkspace(session.workspaceId) : undefined
+  const projectRoot = workspace ? workspace.projectRootPath ?? resolveWorkspaceFilesDir(workspace.slug) : undefined
+  return createProjectStorageAttachmentResolver(projectRoot, resolveDataPath)
+}
+
+/** 读取会话的所有消息。 */
 export function getAgentSessionMessages(id: string): AgentMessage[] {
   const filePath = getAgentSessionMessagesPath(id)
 
@@ -800,7 +809,7 @@ export function getAgentSessionMessages(id: string): AgentMessage[] {
     const raw = readFileSync(filePath, 'utf-8')
     const lines = raw.split('\n').filter((line) => line.trim())
     /** 旧格式消息读取也统一为当前数据根的绝对路径。 */
-    const resolvePath = createDataRootPathResolver()
+    const resolvePath = createSessionAttachmentPathResolver(id)
     return parseJsonlLenient<AgentMessage>(lines, `读取会话消息 (${id})`)
       .map((message) => projectSessionAttachmentPaths(message, resolvePath))
   } catch (error) {
@@ -1281,7 +1290,7 @@ export function getAgentSessionSDKMessages(id: string): SDKMessage[] {
     const raw = readFileSync(filePath, 'utf-8')
     const lines = raw.split('\n').filter((line) => line.trim())
     /** 一次读取只捕获一次根快照，投影不修改 JSONL 或证据字节索引。 */
-    const resolvePath = createDataRootPathResolver()
+    const resolvePath = createSessionAttachmentPathResolver(id)
     return parseJsonlLenient<unknown>(lines, `读取 SDKMessage (${id})`)
       .map((message) => projectSessionAttachmentPaths(normalizePersistedSDKMessage(message), resolvePath))
   } catch (error) {
@@ -1300,7 +1309,7 @@ export async function getAgentSessionSDKMessagesForDisplay(id: string): Promise<
   const filePath = getAgentSessionMessagesPath(id)
   if (!existsSync(filePath)) return []
   /** 旧附档协议文本与结构化媒体共用路径投影，文件预览拿到当前有效路径。 */
-  const resolvePath = createDataRootPathResolver()
+  const resolvePath = createSessionAttachmentPathResolver(id)
   /** readline 只保留当前行，处理后的数组不再引用整份原始文件字符串。 */
   const input = createReadStream(filePath, { encoding: 'utf-8' })
   const lines = createInterface({ input, crlfDelay: Infinity })

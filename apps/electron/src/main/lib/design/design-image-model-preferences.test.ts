@@ -28,6 +28,7 @@ function createPaths(root: string, projectId: string): DesignPaths {
     projectId,
     projectRoot: join(root, 'projects', projectId),
     designRoot,
+    storageRoot: join(root, 'projects', projectId, '.proma'),
     canvasPath: join(designRoot, 'canvas.json'),
     canvasesRoot,
     canvasSessionsIndexPath: join(canvasesRoot, 'index.json'),

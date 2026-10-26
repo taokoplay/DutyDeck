@@ -1,8 +1,9 @@
-import { existsSync, lstatSync } from 'node:fs'
+import { lstatSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import {
   LEGACY_PROJECT_STORAGE_DIRECTORY_NAME,
   PROJECT_STORAGE_DIRECTORY_NAME,
+  PROJECT_STORAGE_OWNED_DIRECTORIES,
   type ProjectStorageDirectoryMigrationState,
   type ProjectStorageOwnedDirectory,
 } from '@dutydeck/shared'
@@ -31,6 +32,9 @@ export function inspectProjectStorageDirectory(
   projectRoot: string,
   directory: ProjectStorageOwnedDirectory,
 ): ProjectStorageDirectoryInspection {
+  if (!PROJECT_STORAGE_OWNED_DIRECTORIES.includes(directory)) {
+    throw new Error('PROJECT_STORAGE_UNSAFE: 不支持的项目模块目录')
+  }
   const root = validateProjectRoot(projectRoot)
   const sourceRoot = join(root, LEGACY_PROJECT_STORAGE_DIRECTORY_NAME)
   const targetRoot = join(root, PROJECT_STORAGE_DIRECTORY_NAME)
@@ -79,7 +83,7 @@ export function resolveProjectStorageDirectory(
   if (inspection.state === 'current') return inspection.targetPath
   if (inspection.state === 'legacy') return inspection.sourcePath
   const root = validateProjectRoot(projectRoot)
-  if (create && existsSync(root)) {
+  if (create && inspectActualDirectory(root)) {
     ensureDirectoryDurable(join(root, PROJECT_STORAGE_DIRECTORY_NAME))
     ensureDirectoryDurable(inspection.targetPath)
   }
@@ -90,18 +94,15 @@ export function resolveProjectStorageDirectory(
 function validateProjectRoot(projectRoot: string): string {
   if (!isAbsolute(projectRoot)) throw new Error('PROJECT_STORAGE_UNSAFE: 项目根必须是绝对路径')
   const root = resolve(projectRoot)
-  if (!existsSync(root)) return root
-  const state = lstatSync(root)
-  if (!state.isDirectory() || state.isSymbolicLink()) {
-    throw new Error('PROJECT_STORAGE_UNSAFE: 项目根不是安全的实际目录（不安全）')
-  }
+  inspectActualDirectory(root)
   return root
 }
 
 /** 检查路径是否为实际目录；缺失返回 false，链接或错误类型立即拒绝。 */
 function inspectActualDirectory(path: string): boolean {
-  if (!existsSync(path)) return false
-  const state = lstatSync(path)
+  /** lstat 不跟随悬空链接；只有真正 ENOENT 才能解释为缺失。 */
+  const state = lstatSync(path, { throwIfNoEntry: false })
+  if (!state) return false
   if (!state.isDirectory() || state.isSymbolicLink()) {
     throw new Error(`PROJECT_STORAGE_UNSAFE: ${path} 不是安全的实际目录（不安全）`)
   }

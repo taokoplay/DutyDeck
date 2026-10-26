@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { ProjectStorageOwnedDirectory } from '@dutydeck/shared'
 import {
   inspectProjectStorageDirectory,
   resolveProjectStorageDirectory,
@@ -22,6 +23,16 @@ function createProjectRoot(): string {
 }
 
 describe('项目存储目录解析', () => {
+  test('Given 运行时传入目录穿越 When 解析 Then 拒绝白名单之外的目录', () => {
+    expect(() => resolveProjectStorageDirectory(createProjectRoot(), '../outside' as ProjectStorageOwnedDirectory, true))
+      .toThrow('PROJECT_STORAGE_UNSAFE')
+  })
+
+  test('Given 命名空间是悬空链接 When 解析 Then 不按缺失目录处理', () => {
+    const root = createProjectRoot()
+    symlinkSync(join(root, 'missing'), join(root, '.proma'))
+    expect(() => resolveProjectStorageDirectory(root, 'design', true)).toThrow('PROJECT_STORAGE_UNSAFE')
+  })
   test('Given 新旧目录都不存在 When 创建写入路径 Then 使用 .dutydeck', () => {
     const root = createProjectRoot()
     const path = resolveProjectStorageDirectory(root, 'design', true)

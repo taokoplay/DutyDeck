@@ -37,4 +37,6 @@ export interface ProjectStorageMigrationStatus {
   directories: ProjectStorageDirectoryMigrationStatus[]
   /** 迁移后仍保留在旧命名空间、但不属于 DutyDeck 的条目名称。 */
   retainedLegacyEntries: string[]
+  /** 上次迁移中断，需要核对已移动目录并完成标记。 */
+  recoveryRequired?: boolean
 }
