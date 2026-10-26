@@ -203,6 +203,7 @@ describe('项目知识库 1A 核心服务', () => {
       entryId: '00000000000000000000000000000000',
     })).rejects.toThrow('知识条目不存在')
     expect(existsSync(join(projectRoot, '.proma'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.dutydeck'))).toBe(false)
     expect(existsSync(cacheRoot)).toBe(false)
   })
 
@@ -213,7 +214,7 @@ describe('项目知识库 1A 核心服务', () => {
     await firstService.startScan('workspace-1')
     await firstService.waitForScan('workspace-1')
     /** 首次发布的权威清单内容。 */
-    const manifestPath = join(projectRoot, '.proma/knowledge/manifest.json')
+    const manifestPath = join(projectRoot, '.dutydeck/knowledge/manifest.json')
     /** 冲突前的清单字节用于证明不会被覆盖。 */
     const beforeConflict = readFileSync(manifestPath, 'utf8')
 
@@ -225,12 +226,12 @@ describe('项目知识库 1A 核心服务', () => {
 
   test('Given 文本、记忆、图片、凭据与软链接 When 扫描 Then 只登记安全来源并支持中英文检索', async () => {
     mkdirSync(join(projectRoot, 'docs'))
-    mkdirSync(join(projectRoot, '.proma'), { recursive: true })
+    mkdirSync(join(projectRoot, '.dutydeck'), { recursive: true })
     writeFileSync(join(projectRoot, 'README.md'), '# Order Service\n订单服务负责 checkout and payment。', 'utf8')
     writeFileSync(join(projectRoot, 'docs/api.md'), '# Payment API\n支付接口支持退款。', 'utf8')
     writeFileSync(join(projectRoot, 'diagram.png'), Buffer.from([1, 2, 3, 4]))
     writeFileSync(join(projectRoot, '.env'), 'SECRET=never-index', 'utf8')
-    writeFileSync(join(projectRoot, '.proma/internal.md'), '不应自扫描', 'utf8')
+    writeFileSync(join(projectRoot, '.dutydeck/internal.md'), '不应自扫描', 'utf8')
     writeFileSync(join(memoryRoot, 'decision.md'), '# 决策\n结算流程采用异步队列。', 'utf8')
     symlinkSync(join(projectRoot, 'docs/api.md'), join(projectRoot, 'linked.md'))
 
@@ -262,7 +263,7 @@ describe('项目知识库 1A 核心服务', () => {
     expect(chinese.items[0]?.entry.source.relativePath).toBe('docs/api.md')
     expect(chinese.items[0]?.snippet).toContain('支付接口')
     expect(englishAlias.items.some((item) => item.entry.source.relativePath === 'README.md')).toBe(true)
-    expect(readFileSync(join(projectRoot, '.proma/knowledge/manifest.json'), 'utf8')).not.toContain('SECRET')
+    expect(readFileSync(join(projectRoot, '.dutydeck/knowledge/manifest.json'), 'utf8')).not.toContain('SECRET')
   })
 
   test('Given 超长 UTF-8 文档 When 分页读取 Then 每页不超过 24 KiB 且可无损续读', async () => {
@@ -473,7 +474,7 @@ describe('项目知识库 1A 核心服务', () => {
     const entry = service.store.readEntries(project, before)[0]
     if (!entry) throw new Error('测试条目缺失')
     /** 占用 safe-file 固定临时路径以模拟 manifest 发布失败。 */
-    mkdirSync(join(projectRoot, '.proma/knowledge/manifest.json.tmp'))
+    mkdirSync(join(projectRoot, '.dutydeck/knowledge/manifest.json.tmp'))
 
     await expect(service.store.commitEntries(project, before.revision, [{
       entry: { ...entry, title: '未发布标题', revision: 'f'.repeat(64) },
@@ -598,7 +599,7 @@ describe('项目知识库 1A 核心服务', () => {
     /** 模拟条目文件在纯状态事务期间暂时不可读。 */
     rmSync(join(
       projectRoot,
-      '.proma/knowledge/entries',
+      '.dutydeck/knowledge/entries',
       entry.id,
       'revisions',
       entry.revision,

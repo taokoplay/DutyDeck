@@ -122,7 +122,7 @@ function normalizeRelativePath(value: string, label: string): string {
   /** 所有相对路径片段。 */
   const segments = normalized.split('/')
   if (segments.some((segment) => !segment || segment === '.' || segment === '..')) throw new Error(`${label}越界`)
-  if (segments.some((segment) => ['.git', '.proma', '.obsidian'].includes(segment.toLowerCase()))) {
+  if (segments.some((segment) => ['.git', '.dutydeck', '.proma', '.obsidian'].includes(segment.toLowerCase()))) {
     throw new Error(`${label}不能使用 Git、Proma 或 Obsidian 内部目录`)
   }
   return segments.join('/')

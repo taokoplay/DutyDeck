@@ -1,10 +1,8 @@
 import { existsSync, lstatSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { ensureDirectoryDurable } from '../safe-file'
+import { resolveProjectStorageDirectory } from '../project-storage/project-storage-paths'
 import type { ResolvedKnowledgeProject } from './types'
-
-/** 知识库固定目录名。 */
-const KNOWLEDGE_DIRECTORY_PARTS = ['.proma', 'knowledge'] as const
 
 /** 确认路径是实际目录，拒绝符号链接。 */
 export function assertActualDirectory(directoryPath: string, label: string): void {
@@ -49,7 +47,7 @@ export function assertKnowledgeCacheDirectories(project: ResolvedKnowledgeProjec
 
 /** 返回权威知识目录，不产生文件系统副作用。 */
 export function getKnowledgeRoot(project: ResolvedKnowledgeProject): string {
-  return join(project.projectRoot, ...KNOWLEDGE_DIRECTORY_PARTS)
+  return resolveProjectStorageDirectory(project.projectRoot, 'knowledge', false)
 }
 
 /** 返回权威清单路径。 */
@@ -91,24 +89,22 @@ export function getIndexPath(project: ResolvedKnowledgeProject): string {
 /** 按层创建知识目录，并在每一步拒绝既有符号链接。 */
 export function ensureKnowledgeDirectories(project: ResolvedKnowledgeProject): void {
   validateResolvedProject(project)
-  /** 从项目根开始逐层建立的目录。 */
-  let currentPath = project.projectRoot
-  for (const part of KNOWLEDGE_DIRECTORY_PARTS) {
-    currentPath = join(currentPath, part)
-    if (existsSync(currentPath)) assertActualDirectory(currentPath, '知识库目录')
-    else ensureDirectoryDurable(currentPath)
-  }
+  /** 新项目创建 .dutydeck；只有旧目录的存量项目继续使用 .proma。 */
+  const knowledgeRoot = resolveProjectStorageDirectory(project.projectRoot, 'knowledge', true)
+  /** 存储根由中央解析器校验，目录本身继续要求非链接实际目录。 */
+  const storageRoot = dirname(knowledgeRoot)
+  if (existsSync(storageRoot)) assertActualDirectory(storageRoot, '知识库存储根')
+  if (existsSync(knowledgeRoot)) assertActualDirectory(knowledgeRoot, '知识库目录')
+  else ensureDirectoryDurable(knowledgeRoot)
 }
 
 /** 只读校验知识目录完整父链，拒绝任一级被替换为符号链接。 */
 export function assertKnowledgeDirectories(project: ResolvedKnowledgeProject): void {
   validateResolvedProject(project)
-  /** 从项目根逐级复核的现有知识目录。 */
-  let currentPath = project.projectRoot
-  for (const part of KNOWLEDGE_DIRECTORY_PARTS) {
-    currentPath = join(currentPath, part)
-    assertActualDirectory(currentPath, '知识库目录')
-  }
+  /** 中央解析器先确认新旧命名空间根，再复核模块目录不是链接。 */
+  const knowledgeRoot = getKnowledgeRoot(project)
+  assertActualDirectory(dirname(knowledgeRoot), '知识库存储根')
+  assertActualDirectory(knowledgeRoot, '知识库目录')
 }
 
 /** 只读校验不可变条目版本的完整父目录链。 */

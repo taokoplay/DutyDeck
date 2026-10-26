@@ -160,13 +160,13 @@ describe('项目知识库受管正文与整理', () => {
     const before = service.store.readManifest(getProject())!
     /** 待提交受管条目。 */
     const entry = createManagedEntry('failed-transaction', '未发布', '未发布正文')
-    mkdirSync(join(projectRoot, '.proma/knowledge/manifest.json.tmp'))
+    mkdirSync(join(projectRoot, '.dutydeck/knowledge/manifest.json.tmp'))
 
     await expect(service.store.transact(getProject(), 'workspace-1', () => ({
       commits: [{ entry, content: '未发布正文' }],
     }))).rejects.toThrow()
     expect(service.store.readManifest(getProject())).toEqual(before)
-    expect(readFileSync(join(projectRoot, '.proma/knowledge/manifest.json'), 'utf8')).not.toContain(entry.id)
+    expect(readFileSync(join(projectRoot, '.dutydeck/knowledge/manifest.json'), 'utf8')).not.toContain(entry.id)
   })
 
   test('Given 下一版清单超过读取上限 When 事务发布 Then 拒绝且不写条目依赖', async () => {
@@ -174,7 +174,7 @@ describe('项目知识库受管正文与整理', () => {
     const service = createService()
     await service.store.initialize(getProject(), 'workspace-1')
     /** 超限事务前的权威清单字节。 */
-    const manifestPath = join(projectRoot, '.proma/knowledge/manifest.json')
+    const manifestPath = join(projectRoot, '.dutydeck/knowledge/manifest.json')
     const before = readFileSync(manifestPath, 'utf8')
     /** 若清单合法才允许写入的受管条目。 */
     const entry = createManagedEntry('oversized-manifest', '超限事务', '不得提前写入')
@@ -186,7 +186,7 @@ describe('项目知识库受管正文与整理', () => {
       excludedSources,
     }))).rejects.toThrow('知识库清单超过大小上限')
     expect(readFileSync(manifestPath, 'utf8')).toBe(before)
-    expect(existsSync(join(projectRoot, '.proma/knowledge/entries', entry.id))).toBe(false)
+    expect(existsSync(join(projectRoot, '.dutydeck/knowledge/entries', entry.id))).toBe(false)
   })
 
   test('Given 条目 revision 父目录被替换为软链接 When 读取 Then 拒绝跟随目录外内容', async () => {
@@ -197,7 +197,7 @@ describe('项目知识库受管正文与整理', () => {
     /** 原 revision 目录与伪造的目录外目标。 */
     const revisionDirectory = join(
       projectRoot,
-      '.proma/knowledge/entries',
+      '.dutydeck/knowledge/entries',
       entry.id,
       'revisions',
       entry.revision,

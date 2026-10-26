@@ -34,7 +34,7 @@ const DISCOVERY_YIELD_INTERVAL = 100
 
 /** 永不递归进入的依赖、产物与内部目录。 */
 const EXCLUDED_DIRECTORIES = new Set([
-  '.git', '.proma', '.obsidian', 'node_modules', 'dist', 'build', 'out', '.next', 'coverage', 'target', 'release',
+  '.git', '.dutydeck', '.proma', '.obsidian', 'node_modules', 'dist', 'build', 'out', '.next', 'coverage', 'target', 'release',
   '.cache', '.turbo', '.vite', '.ssh', '.gnupg', '.aws', '.azure', '.kube', '.docker',
 ])
 /** 首版可安全作为 UTF-8 文本提取的扩展名。 */
