@@ -1,6 +1,13 @@
 import { constants, closeSync, fstatSync, lstatSync, openSync, readSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
+import {
+  LEGACY_PROJECT_STORAGE_DIRECTORY_NAME,
+  PROJECT_STORAGE_DIRECTORY_NAME,
+  PROJECT_STORAGE_OWNED_DIRECTORIES,
+  type ProjectStorageOwnedDirectory,
+} from '@dutydeck/shared'
 import { ensureDirectoryDurable } from '../safe-file'
+import { resolveProjectStorageDirectory } from '../project-storage/project-storage-paths'
 
 /** 校验单级持久身份，禁止路径片段。 */
 export function assertInteractionId(value: string): void {
@@ -9,20 +16,46 @@ export function assertInteractionId(value: string): void {
 /** 在明确项目根下逐级校验实际目录，可选创建缺失目录。 */
 export function interactionDirectory(root: string, parts: string[], create = false): string {
   if (!isAbsolute(root)) throw new Error('项目根必须为绝对路径')
+  const [storageNamespace, storageDirectory, ...remainingParts] = parts
+  if (
+    storageNamespace === PROJECT_STORAGE_DIRECTORY_NAME
+    || storageNamespace === LEGACY_PROJECT_STORAGE_DIRECTORY_NAME
+  ) {
+    if (
+      !storageDirectory
+      || !PROJECT_STORAGE_OWNED_DIRECTORIES.includes(storageDirectory as ProjectStorageOwnedDirectory)
+    ) throw new Error('项目存储子目录非法')
+    /** 新旧命名空间由中央解析器选择，后续片段继续拒绝链接和路径注入。 */
+    let current = resolveProjectStorageDirectory(
+      root,
+      storageDirectory as ProjectStorageOwnedDirectory,
+      create,
+    )
+    for (const part of remainingParts) {
+      assertInteractionId(part)
+      current = join(current, part)
+      assertOrCreateDirectory(current, create)
+    }
+    return current
+  }
   /** 当前已校验的目录。 */
   let current = root
   for (const part of ['', ...parts]) {
-    if (part) { assertInteractionId(part === '.proma' ? 'proma' : part); current = join(current, part) }
-    try {
-      /** 当前目录实际身份。 */
-      const state = lstatSync(current)
-      if (!state.isDirectory() || state.isSymbolicLink()) throw new Error('交互设计目录不安全')
-    } catch (error) {
-      if (!create || (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      ensureDirectoryDurable(current)
-    }
+    if (part) { assertInteractionId(part); current = join(current, part) }
+    assertOrCreateDirectory(current, create)
   }
   return current
+}
+
+/** 校验实际目录；显式创建时只补当前缺失层，其他错误继续向上抛出。 */
+function assertOrCreateDirectory(path: string, create: boolean): void {
+  try {
+    const state = lstatSync(path)
+    if (!state.isDirectory() || state.isSymbolicLink()) throw new Error('交互设计目录不安全')
+  } catch (error) {
+    if (!create || (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    ensureDirectoryDurable(path)
+  }
 }
 /** 来源路径必须在项目内，且每级目录和最终文件均非链接。 */
 export function interactionSourcePath(root: string, value: string): string {

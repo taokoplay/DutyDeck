@@ -31,7 +31,7 @@ describe('交互设计访问边界', () => {
     const { root, access, state } = fixture(); state.writable = false
     expect(await access.execute('list', { sessionId: 'session-1' })).toEqual([])
     await expect(access.execute('create', { sessionId: 'session-1', name: '测试', platform: 'desktop' })).rejects.toThrow('计划模式')
-    expect(existsSync(join(root, '.proma'))).toBe(false)
+    expect(existsSync(join(root, '.dutydeck'))).toBe(false)
     expect(state.leases).toBe(0)
   })
   test('Given 固定会话 When 换会话或项目根 Then 不能跨归属读写', async () => {
@@ -61,7 +61,7 @@ describe('交互设计访问边界', () => {
     await expect(access.execute('create', { sessionId: 'session-1', name: '测试', platform: 'mobile' })).rejects.toThrow('写入权限')
     expect(state.leases).toBe(0)
     expect(state.changes).toBe(0)
-    expect(existsSync(join(root, '.proma'))).toBe(false)
+    expect(existsSync(join(root, '.dutydeck'))).toBe(false)
   })
   test('Given 读取期间项目改变 When 返回结果 Then 不向旧调用者泄漏结果', async () => {
     const { dependencies, state } = fixture()
@@ -86,7 +86,7 @@ describe('交互设计访问边界', () => {
     })
     const access = createInteractionDesignAccess('session-1', dependencies)
     await expect(access.execute('create', { sessionId: 'session-1', name: '测试', platform: 'mobile' }, controller.signal)).rejects.toThrow('工具调用已取消')
-    expect(existsSync(join(root, '.proma'))).toBe(false)
+    expect(existsSync(join(root, '.dutydeck'))).toBe(false)
     expect(state.leases).toBe(0)
     expect(state.changes).toBe(0)
   })

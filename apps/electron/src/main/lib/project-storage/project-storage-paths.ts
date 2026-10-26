@@ -93,7 +93,7 @@ function validateProjectRoot(projectRoot: string): string {
   if (!existsSync(root)) return root
   const state = lstatSync(root)
   if (!state.isDirectory() || state.isSymbolicLink()) {
-    throw new Error('PROJECT_STORAGE_UNSAFE: 项目根不是安全的实际目录')
+    throw new Error('PROJECT_STORAGE_UNSAFE: 项目根不是安全的实际目录（不安全）')
   }
   return root
 }
@@ -103,7 +103,7 @@ function inspectActualDirectory(path: string): boolean {
   if (!existsSync(path)) return false
   const state = lstatSync(path)
   if (!state.isDirectory() || state.isSymbolicLink()) {
-    throw new Error(`PROJECT_STORAGE_UNSAFE: ${path} 不是安全的实际目录`)
+    throw new Error(`PROJECT_STORAGE_UNSAFE: ${path} 不是安全的实际目录（不安全）`)
   }
   return true
 }

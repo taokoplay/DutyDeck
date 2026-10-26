@@ -29,8 +29,8 @@ function withoutPageRevisions<T extends { pageRevision?: number }>(pages: T[]): 
 /** 将现有合法模块复制成历史模块夹具，只重写身份和一页正文。 */
 function clonePrototype(root: string, source: PrototypeDocument, id: string, name: string, html: string): void {
   /** 正式模块目录；复制后所有不可变内容仍属于隔离测试项目。 */
-  const sourceDirectory = join(root, '.proma', 'interaction-design', 'prototypes', source.id)
-  const targetDirectory = join(root, '.proma', 'interaction-design', 'prototypes', id)
+  const sourceDirectory = join(root, '.dutydeck', 'interaction-design', 'prototypes', source.id)
+  const targetDirectory = join(root, '.dutydeck', 'interaction-design', 'prototypes', id)
   cpSync(sourceDirectory, targetDirectory, { recursive: true })
   /** head 身份必须与目标目录一致，避免服务把历史夹具误判为篡改。 */
   const headPath = join(targetDirectory, 'head.json')
@@ -133,7 +133,7 @@ describe('交互设计版本与候选', () => {
     const first = await service.invoke('create', { sessionId, name: '家具', platform: 'mobile' })
     const candidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: first.document, summary: '旧候选' })
     /** 模拟旧版本已保存且正文身份一致的候选，并非篡改检测测试。 */
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'candidates', `${candidate.id}.json`)
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'candidates', `${candidate.id}.json`)
     const stored = JSON.parse(readFileSync(path, 'utf8')) as PrototypeCandidate & { draftHash: string }
     stored.draft.pages[0]!.html = '<img src="assets/cabinet.png">'
     stored.draftHash = interactionHash(JSON.stringify(parsePrototypeDraft(stored.draft)))
@@ -151,7 +151,7 @@ describe('交互设计版本与候选', () => {
     /** 模拟旧版存储合法身份与损坏语义同时存在，而不是破坏文件校验。 */
     const document = structuredClone(saved.document)
     document.pages[0]!.states![0]!.html = '<img src="assets/cabinet.png">'
-    const directory = join(root, '.proma', 'interaction-design', 'prototypes', document.id)
+    const directory = join(root, '.dutydeck', 'interaction-design', 'prototypes', document.id)
     const versionPath = join(directory, 'revisions', '2.json')
     const stored = JSON.parse(readFileSync(versionPath, 'utf8')) as { hash: string; document: { pages: Array<{ states: Array<{ contentHash: string }> }> } }
     const contentHash = interactionHash(document.pages[0]!.states![0]!.html)
@@ -219,7 +219,7 @@ describe('交互设计版本与候选', () => {
     const candidate = await service.invoke('propose', { ...base, jobId: job.id, draft, summary: '旧首页候选' })
     /** 旧合同没有 mode、plan 或 pageManifest，仅以 pageId 固定范围。 */
     const { mode: _mode, ...legacyJob } = job
-    writeJsonFileAtomic(join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`), {
+    writeJsonFileAtomic(join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`), {
       ...legacyJob, status: 'candidate', instruction: '继续已确认的首页还原任务，页面仅 home，不修改其他页面',
     })
     /** 升级后的服务应直接采纳原候选，而非要求用户补造多页规划。 */
@@ -254,7 +254,7 @@ describe('交互设计版本与候选', () => {
     const candidate = await service.invoke('propose', { ...base, jobId: job.id, draft: first.document, summary: '旧候选' })
     /** 旧任务没有 mode，也没有可约束候选的单页身份。 */
     const { mode: _mode, ...legacyJob } = job
-    writeJsonFileAtomic(join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`), {
+    writeJsonFileAtomic(join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`), {
       ...legacyJob, status: 'candidate', instruction: '根据现有项目还原业务页面',
     })
     await expect(service.invoke('adopt', { ...base, candidateId: candidate.id })).rejects.toThrow('缺少页面清单')
@@ -386,9 +386,9 @@ describe('交互设计版本与候选', () => {
     /** 第二次列表读取只复用 canonical，不再生成 v4 或重复追加页面。 */
     expect(await service.invoke('list', { sessionId })).toEqual(summaries)
     expect((await service.invoke('load', { sessionId, prototypeId: first.document.id })).document.revision).toBe(3)
-    const marker = JSON.parse(readFileSync(join(root, '.proma', 'interaction-design', 'consolidation.json'), 'utf8')) as { canonicalId: string; sourceIds: string[] }
+    const marker = JSON.parse(readFileSync(join(root, '.dutydeck', 'interaction-design', 'consolidation.json'), 'utf8')) as { canonicalId: string; sourceIds: string[] }
     expect(marker).toMatchObject({ canonicalId: first.document.id, sourceIds: expect.arrayContaining([first.document.id, 'legacy']) })
-    expect(readdirSync(join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions')).sort()).toEqual(['1.json', '2.json', '3.json'])
+    expect(readdirSync(join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions')).sort()).toEqual(['1.json', '2.json', '3.json'])
     expect(canonical.document.pages).toHaveLength(2)
   })
   it('Given 新项目 When 创建、保存及恢复 Then 只切换当前版本且保留后续历史', async () => {
@@ -403,7 +403,7 @@ describe('交互设计版本与候选', () => {
     expect(saved.document.revision).toBe(2)
     expect((await service.invoke('getVersion', { sessionId, prototypeId: first.document.id, revision: 1 })).name).toBe('测试原型')
     /** 恢复前记录不可变版本文件，恢复只能改 head 指针。 */
-    const revisionsDirectory = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions')
+    const revisionsDirectory = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions')
     const beforeRestore = readdirSync(revisionsDirectory).sort().map(name => [name, readFileSync(join(revisionsDirectory, name))] as const)
     /** 历史恢复。 */
     const restored = await service.invoke('restore', { sessionId, prototypeId: first.document.id, baseRevision: 2, revision: 1 })
@@ -428,7 +428,7 @@ describe('交互设计版本与候选', () => {
     /** 当前第三版，必须保留。 */
     const third = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 2, draft: { ...second.document, name: '第三版' }, summary: '第三版' })
     /** 临时项目版本目录，用于核对实际文件删除。 */
-    const revisionsDirectory = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions')
+    const revisionsDirectory = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions')
     await expect(service.invoke('deleteVersion', { sessionId, prototypeId: first.document.id, baseRevision: 2, revision: 1 })).rejects.toThrow('版本已变化')
     await expect(service.invoke('deleteVersion', { sessionId, prototypeId: first.document.id, baseRevision: 3, revision: 9 })).rejects.toThrow('版本不存在')
     /** 删除中间历史后的权威快照。 */
@@ -512,7 +512,7 @@ describe('交互设计版本与候选', () => {
     const handoff = await service.invoke('createHandoff', { sessionId, prototypeId: first.document.id, revision: 1 })
     await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: first.document, summary: '后续版本' })
     /** 仅在测试临时根内替换为链接，以验证 no-follow 边界。 */
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'deliveries', `${handoff.id}.handoff.json`)
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'deliveries', `${handoff.id}.handoff.json`)
     /** 测试根内的交接副本，作为符号链接目标。 */
     const target = join(root, 'handoff-copy.json')
     writeFileSync(target, readFileSync(path))
@@ -535,7 +535,7 @@ describe('交互设计版本与候选', () => {
     expect(handoff.designTokens).toEqual({ '--brand': '#123456', '--gap': '16px' })
     expect(handoff.manifestHash).toMatch(/^[a-f0-9]{64}$/)
     expect(JSON.stringify(handoff)).not.toContain(root)
-    const deliveryRoot = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'deliveries')
+    const deliveryRoot = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'deliveries')
     expect(readdirSync(deliveryRoot).some(name => name.endsWith('.handoff.json'))).toBe(true)
   })
   it('Given 相同基线 When 两次保存 Then 旧写入不能覆盖当前稿', async () => {
@@ -564,7 +564,7 @@ describe('交互设计版本与候选', () => {
     const request = { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: first.document, summary: '候选' }
     const candidate = await service.invoke('propose', request)
     await service.invoke('save', request)
-    const revisionsDirectory = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions')
+    const revisionsDirectory = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions')
     expect(readdirSync(revisionsDirectory).sort()).toEqual(['1.json', '2.json'])
     const restored = await service.invoke('restore', { sessionId, prototypeId: first.document.id, baseRevision: 2, revision: 1 })
     expect(restored.document.revision).toBe(1)
@@ -593,7 +593,7 @@ describe('交互设计版本与候选', () => {
     /** 隔离项目与正式文件。 */
     const { root, service } = setup()
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
-    const contents = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'contents')
+    const contents = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'contents')
     writeFileSync(join(contents, readdirSync(contents)[0]!), JSON.stringify({ html: 'tampered' }))
     await expect(service.invoke('load', { sessionId, prototypeId: first.document.id })).rejects.toThrow('损坏')
   })
@@ -660,7 +660,7 @@ describe('图片与授权来源', () => {
     expect(a.id).toBe(b.id)
     rmSync(join(root, 'image.png'))
     expect((await service.invoke('assetContent', { sessionId, prototypeId: first.document.id, assetId: a.id })).dataUrl).toContain(png.toString('base64'))
-    expect(readFileSync(join(root, '.proma', 'interaction-design', 'assets', 'blobs', 'sha256', a.hash.slice(0, 2), `${a.hash}.png`))).toEqual(png)
+    expect(readFileSync(join(root, '.dutydeck', 'interaction-design', 'assets', 'blobs', 'sha256', a.hash.slice(0, 2), `${a.hash}.png`))).toEqual(png)
   })
   it('Given 用户拖入图片字节 When 导入 Then 复制到资产库并复用相同内容身份', async () => {
     const { service } = setup()
@@ -687,7 +687,7 @@ describe('图片与授权来源', () => {
     /** 两个隔离项目。 */
     const { root, service } = setup()
     const outside = setup().root
-    symlinkSync(outside, join(root, '.proma'))
+    symlinkSync(outside, join(root, '.dutydeck'))
     await expect(service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })).rejects.toThrow('不安全')
     expect(readdirSync(outside)).toEqual([])
   })
@@ -749,7 +749,7 @@ describe('交付、预算与任务范围', () => {
     })
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
     await expect(service.invoke('importAsset', { sessionId, prototypeId: first.document.id, relativePath: 'image.png' })).rejects.toThrow('授权已撤回')
-    expect(readdirSync(join(root, '.proma', 'interaction-design'))).not.toContain('assets')
+    expect(readdirSync(join(root, '.dutydeck', 'interaction-design'))).not.toContain('assets')
   })
   it('Given 超预算源码 When 有界读取 Then 明确失败而不返回残缺正文', async () => {
     /** 大型来源。 */
@@ -805,7 +805,7 @@ describe('来源闭包和内容身份', () => {
     /** 已提交版本元数据。 */
     const { root, service } = setup()
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions', '1.json')
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions', '1.json')
     const stored = JSON.parse(readFileSync(path, 'utf8')) as { document: { name: string } }
     stored.document.name = '被修改'
     writeFileSync(path, JSON.stringify(stored))
@@ -818,7 +818,7 @@ describe('崩溃残留与采纳二次校验', () => {
     /** 当前有效原型与未提交版本位置。 */
     const { root, service } = setup()
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
-    const revisions = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions')
+    const revisions = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions')
     writeFileSync(join(revisions, '2.json'), '{broken')
     expect((await service.invoke('load', { sessionId, prototypeId: first.document.id })).document.revision).toBe(1)
     const saved = await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: first.document, summary: '重试提交' })
@@ -830,7 +830,7 @@ describe('崩溃残留与采纳二次校验', () => {
     const { root, service } = setup()
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
     const html = '<h1>新页面正文</h1>'
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'contents', `${interactionHash(html)}.json`)
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'contents', `${interactionHash(html)}.json`)
     writeFileSync(path, JSON.stringify({ html: '损坏残留' }))
     const draft = { ...first.document, pages: [{ ...first.document.pages[0]!, html }] }
     await expect(service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft, summary: '新正文' })).rejects.toThrow('内容对象损坏')
@@ -841,7 +841,7 @@ describe('崩溃残留与采纳二次校验', () => {
     const { root, service } = setup()
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
     const candidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: first.document, summary: '候选' })
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'candidates', `${candidate.id}.json`)
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'candidates', `${candidate.id}.json`)
     const stored = JSON.parse(readFileSync(path, 'utf8')) as { draft: { name: string } }
     stored.draft.name = '变更后的候选'
     writeFileSync(path, JSON.stringify(stored))
@@ -854,7 +854,7 @@ describe('崩溃残留与采纳二次校验', () => {
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
     const job = await service.invoke('beginJob', { sessionId, prototypeId: first.document.id, baseRevision: 1, instruction: '改稿' })
     const candidate = await service.invoke('propose', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft: first.document, summary: '候选', jobId: job.id })
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`)
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'jobs', `${job.id}.json`)
     writeFileSync(path, JSON.stringify(job))
     await expect(service.invoke('adopt', { sessionId, prototypeId: first.document.id, candidateId: candidate.id, baseRevision: 1 })).rejects.toThrow('尚未完成')
     expect((await service.invoke('load', { sessionId, prototypeId: first.document.id })).document.revision).toBe(1)
@@ -867,7 +867,7 @@ describe('崩溃残留与采纳二次校验', () => {
     const first = await service.invoke('create', { sessionId, name: '原型', platform: 'mobile' })
     const request = { sessionId, prototypeId: first.document.id, relativePath: 'image.png' }
     const asset = await service.invoke('importAsset', request)
-    const directory = join(root, '.proma', 'interaction-design', 'assets')
+    const directory = join(root, '.dutydeck', 'interaction-design', 'assets')
     rmSync(join(directory, `${asset.id}.json`))
     writeFileSync(join(directory, 'blobs', 'sha256', asset.hash.slice(0, 2), `${asset.hash}.png`), 'corrupted')
     await expect(service.invoke('importAsset', request)).rejects.toThrow('图片内容对象损坏')
@@ -895,7 +895,7 @@ it('Given 放弃候选 When 重读与列表展示 Then 校验hash保留但不暴
   expect(reloaded.status).toBe('discarded')
   expect('draftHash' in reloaded).toBe(false)
   expect('draftHash' in snapshot.candidates[0]!).toBe(false)
-  const directory = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'candidates')
+  const directory = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'candidates')
   expect(JSON.parse(readFileSync(join(directory, `${candidate.id}.json`), 'utf8')).draftHash).toBeTruthy()
   expect(JSON.parse(readFileSync(join(directory, `${candidate.id}.summary.json`), 'utf8')).draftHash).toBeUndefined()
 })
@@ -911,7 +911,7 @@ it('Given 唯一项目模块包含大页面且正文损坏 When list Then 仅读
   ] }
   await service.invoke('save', { sessionId, prototypeId: first.document.id, baseRevision: 1, draft, summary: '大页面' })
   /** 删除全部内容文件，任何正文读取都会失败。 */
-  const contents = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'contents')
+  const contents = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'contents')
   for (const file of readdirSync(contents)) rmSync(join(contents, file))
   await expect(service.invoke('load', { sessionId, prototypeId: first.document.id })).rejects.toThrow()
   /** 摘要可以展示，但不宣称已经验证正文完整性。 */
@@ -925,7 +925,7 @@ it('Given 版本元数据累计超预算 When list Then 明确拒绝无界摘要
   const { root, service } = setup()
   /** 单模块元数据超过列表预算。 */
   const first = await service.invoke('create', { sessionId, name: '唯一模块', platform: 'mobile' })
-  const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions', '1.json')
+  const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions', '1.json')
   const stored = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
   stored.padding = 'x'.repeat(9 * 1024 * 1024)
   writeFileSync(path, JSON.stringify(stored))
@@ -939,7 +939,7 @@ describe('页面状态持久化', () => {
     const { root, service } = setup()
     const first = await service.invoke('create', { sessionId, name: '状态测试', platform: 'mobile' })
     const prototypeId = first.document.id
-    const directory = join(root, '.proma', 'interaction-design', 'prototypes', prototypeId)
+    const directory = join(root, '.dutydeck', 'interaction-design', 'prototypes', prototypeId)
     const oldBytes = readFileSync(join(directory, 'revisions', '1.json'))
     /** 两个不同状态共享正文，验证内容寻址去重。 */
     const draft = { ...first.document, pages: first.document.pages.map(page => ({ ...page, defaultStateName: '有数据', states: [{ id: 'empty', name: '无数据', html: '<p>暂无记录</p>' }, { id: 'loading', name: '加载中', html: '<p>暂无记录</p>' }] })) }
@@ -964,7 +964,7 @@ describe('页面状态持久化', () => {
     const prototypeId = first.document.id
     const draft = { ...first.document, pages: first.document.pages.map(page => ({ ...page, states: [{ id: 'empty', name: '无数据', html: '<p>空</p>' }] })) }
     const candidate = await service.invoke('propose', { sessionId, prototypeId, baseRevision: 1, draft, summary: '状态' })
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', prototypeId, 'candidates', `${candidate.id}.json`)
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', prototypeId, 'candidates', `${candidate.id}.json`)
     const stored = JSON.parse(readFileSync(path, 'utf8')) as { draft: typeof draft }
     stored.draft.pages[0]!.states[0]!.html = '<p>被替换</p>'
     writeFileSync(path, JSON.stringify(stored))
@@ -1008,7 +1008,7 @@ describe('历史记录清理与候选页面提示', () => {
     const candidate = await service.invoke('propose', { ...base, baseRevision: 2, draft, summary: '局部更改' })
     expect(candidate.affectedPageIds).toEqual(['second'])
     /** 隔离项目的候选摘要文件。 */
-    const path = join(root, '.proma', 'interaction-design', 'prototypes', base.prototypeId, 'candidates', `${candidate.id}.summary.json`)
+    const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', base.prototypeId, 'candidates', `${candidate.id}.summary.json`)
     /** 模拟旧版候选摘要。 */
     const summary = JSON.parse(readFileSync(path, 'utf8'))
     delete summary.affectedPageIds
@@ -1068,7 +1068,7 @@ describe('历史记录清理与候选页面提示', () => {
     const deleted = await service.invoke('deleteHistory', { ...base, baseRevision: 3, kind: 'candidate', recordId: candidate.id })
     expect(deleted.versions.map(version => version.revision)).toEqual([3, 2, 1])
     /** 持久化采纳事实，验证清理不丢幂等信息。 */
-    const head = JSON.parse(readFileSync(join(root, '.proma', 'interaction-design', 'prototypes', base.prototypeId, 'head.json'), 'utf8'))
+    const head = JSON.parse(readFileSync(join(root, '.dutydeck', 'interaction-design', 'prototypes', base.prototypeId, 'head.json'), 'utf8'))
     expect(head.adopted[candidate.id]).toBe(2)
   })
 })
@@ -1143,7 +1143,7 @@ it('Given 已采纳任务对应当前版本 When 从任务入口删除 Then 同�
   expect((await service.invoke('load', base)).candidates).toHaveLength(1)
   expect((await service.invoke('load', base)).jobs).toHaveLength(1)
   /** 模拟旧基线被破坏，禁止把校验失败当作正常保守回退。 */
-  const baselinePath = join(root, '.proma', 'interaction-design', 'prototypes', base.prototypeId, 'revisions', '1.json')
+  const baselinePath = join(root, '.dutydeck', 'interaction-design', 'prototypes', base.prototypeId, 'revisions', '1.json')
   writeFileSync(baselinePath, '{}')
   await expect(service.invoke('getCandidateImpact', { ...base, candidateId: candidate.id })).rejects.toThrow('版本页面记录非法')
 })
@@ -1205,7 +1205,7 @@ it('Given 旧版磁盘记录 When 缺省全部布局字段 Then 原内容hash仍
   /** 构造与旧版本完全一致的持久化载荷，不使用新解析器生成历史 hash。 */
   const { root, service } = setup()
   const first = await service.invoke('create', { sessionId, name: '旧记录', platform: 'mobile' })
-  const path = join(root, '.proma', 'interaction-design', 'prototypes', first.document.id, 'revisions', '1.json')
+  const path = join(root, '.dutydeck', 'interaction-design', 'prototypes', first.document.id, 'revisions', '1.json')
   const stored = JSON.parse(readFileSync(path, 'utf8')) as { hash: string; document: { environment?: unknown; pages: Array<{ presentation?: unknown }> } }
   delete stored.document.environment
   for (const page of stored.document.pages) delete page.presentation

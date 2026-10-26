@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, opendirSync, readdirSync } from 'node:fs'
 import { basename, join, posix } from 'node:path'
 import type { InteractionDesignInputs, InteractionDesignMethod, InteractionDesignResults, PrototypeCandidate, PrototypeCandidateSummary, PrototypeCheck, PrototypeDocument, PrototypeDraft, PrototypeJob, PrototypePage, PrototypePageComparison, PrototypePageVersionSummary, PrototypeReferenceProjection, PrototypeSnapshot, PrototypeSummary, PrototypeVersion } from '@dutydeck/shared'
-import { assertPrototypeDraft, createPrototypeBlankPage, inferPrototypeJobMode, isProjectRestoreInstruction, parsePrototypeDraft, parsePrototypePlan, parseInteractionDesignCommand, PROTOTYPE_LIMITS, validateProjectRestoreDraft, validatePrototypeStructure } from '@dutydeck/shared'
+import { assertPrototypeDraft, createPrototypeBlankPage, inferPrototypeJobMode, isProjectRestoreInstruction, parsePrototypeDraft, parsePrototypePlan, parseInteractionDesignCommand, PROJECT_STORAGE_DIRECTORY_NAME, PROTOTYPE_LIMITS, validateProjectRestoreDraft, validatePrototypeStructure } from '@dutydeck/shared'
 import { acquireMediaFileLock } from '../media/media-file-lock'
 import { readAtomicFileState, removeFileAtomic, writeJsonFileAtomicSecure } from '../safe-file'
+import { resolveProjectStorageDirectory } from '../project-storage/project-storage-paths'
 import { assertInteractionId, interactionDirectory, readInteractionFile } from './paths'
 import { InteractionAssetService, MAX_INTERACTION_IMAGE_BYTES } from './asset-service'
 import { InteractionSourceService, interactionHash } from './source-service'
@@ -75,7 +76,7 @@ export class InteractionDesignService {
     this.assets = new InteractionAssetService(dependencies.projectRoot)
   }
   /** 获取已校验的正式目录；不把全局缓存当权威数据。 */
-  private root(create = false): string { return interactionDirectory(this.dependencies.projectRoot, ['.proma', 'interaction-design'], create) }
+  private root(create = false): string { return interactionDirectory(this.dependencies.projectRoot, [PROJECT_STORAGE_DIRECTORY_NAME, 'interaction-design'], create) }
   /** 读取项目级合并指针；指针损坏时停止加载，避免把历史模块误当成当前模块。 */
   private consolidation(): PrototypeConsolidation | null {
     const path = join(this.root(), 'consolidation.json')
@@ -89,16 +90,19 @@ export class InteractionDesignService {
   }
   /** 检查项目是否已经存在正式交互模块；旧模块目录保留以避免重复创建。 */
   private hasPrototype(): boolean {
-    const path = join(this.dependencies.projectRoot, '.proma', 'interaction-design', 'prototypes')
+    const path = join(
+      resolveProjectStorageDirectory(this.dependencies.projectRoot, 'interaction-design', false),
+      'prototypes',
+    )
     if (!existsSync(path)) return false
     /** 原型目录也必须逐级拒绝符号链接，不能因唯一性检查绕过正式路径边界。 */
-    interactionDirectory(this.dependencies.projectRoot, ['.proma', 'interaction-design', 'prototypes'])
+    interactionDirectory(this.dependencies.projectRoot, [PROJECT_STORAGE_DIRECTORY_NAME, 'interaction-design', 'prototypes'])
     return readdirSync(path, { withFileTypes: true }).some(entry => entry.isDirectory() && /^[A-Za-z0-9_-]+$/.test(entry.name) && existsSync(join(path, entry.name, 'head.json')))
   }
   /** 校验原型身份并定位独立目录。 */
   private directory(id: string, child?: string, create = false): string {
     assertInteractionId(id)
-    return interactionDirectory(this.dependencies.projectRoot, ['.proma', 'interaction-design', 'prototypes', id, ...(child ? [child] : [])], create)
+    return interactionDirectory(this.dependencies.projectRoot, [PROJECT_STORAGE_DIRECTORY_NAME, 'interaction-design', 'prototypes', id, ...(child ? [child] : [])], create)
   }
   /** 有界读取正式 JSON；不存在或损坏均不静默还原旧 head。 */
   private json<T>(path: string, maxBytes = 32 * 1024 * 1024): T { return JSON.parse(readInteractionFile(path, maxBytes).toString('utf8')) as T }
@@ -172,10 +176,13 @@ export class InteractionDesignService {
   }
   /** 枚举项目内正式原型目录，保留有 head 的稳定身份。 */
   private prototypeIds(): string[] {
-    const path = join(this.dependencies.projectRoot, '.proma', 'interaction-design', 'prototypes')
+    const path = join(
+      resolveProjectStorageDirectory(this.dependencies.projectRoot, 'interaction-design', false),
+      'prototypes',
+    )
     if (!existsSync(path)) return []
     this.root()
-    interactionDirectory(this.dependencies.projectRoot, ['.proma', 'interaction-design', 'prototypes'])
+    interactionDirectory(this.dependencies.projectRoot, [PROJECT_STORAGE_DIRECTORY_NAME, 'interaction-design', 'prototypes'])
     const ids: string[] = []
     const handle = opendirSync(path)
     let entries = 0

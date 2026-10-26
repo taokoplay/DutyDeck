@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { constants, closeSync, existsSync, fstatSync, fsyncSync, lstatSync, openSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { PROTOTYPE_LIMITS } from '@dutydeck/shared'
+import { PROJECT_STORAGE_DIRECTORY_NAME, PROTOTYPE_LIMITS } from '@dutydeck/shared'
 import type { PrototypeAsset } from '@dutydeck/shared'
 import { readAtomicFileState, writeJsonFileAtomicSecure } from '../safe-file'
+import { resolveProjectStorageDirectory } from '../project-storage/project-storage-paths'
 import { assertInteractionId, interactionDirectory, readInteractionFile } from './paths'
 import { interactionHash } from './source-service'
 
@@ -22,7 +23,7 @@ export function interactionImageMime(bytes: Buffer): string {
 export class InteractionAssetService {
   constructor(private readonly projectRoot: string) {}
   /** 返回并校验独立素材目录。 */
-  private directory(create = false): string { return interactionDirectory(this.projectRoot, ['.proma', 'interaction-design', 'assets'], create) }
+  private directory(create = false): string { return interactionDirectory(this.projectRoot, [PROJECT_STORAGE_DIRECTORY_NAME, 'interaction-design', 'assets'], create) }
   /** 导入内容；同一 hash 重用已有逻辑资产。调用方持有模块锁。 */
   import(bytes: Buffer, name: string, expectedHash?: string): PrototypeAsset {
     if (bytes.length > MAX_INTERACTION_IMAGE_BYTES) throw new Error('图片超过大小限制')
@@ -37,7 +38,7 @@ export class InteractionAssetService {
     const existing = this.list().find(asset => asset.hash === hash)
     if (existing) { this.content(existing.id); return existing }
     /** 不可变 blob 的持久文件。 */
-    const blobs = interactionDirectory(this.projectRoot, ['.proma', 'interaction-design', 'assets', 'blobs', 'sha256', hash.slice(0, 2)], true)
+    const blobs = interactionDirectory(this.projectRoot, [PROJECT_STORAGE_DIRECTORY_NAME, 'interaction-design', 'assets', 'blobs', 'sha256', hash.slice(0, 2)], true)
     /** MIME 决定文件后缀，用户名称不参与路径。 */
     const extension = mime.split('/')[1]!
     /** 内容寻址二进制文件。 */
@@ -84,7 +85,10 @@ export class InteractionAssetService {
   /** 列出轻量图片元数据，不载入 blob。 */
   list(): PrototypeAsset[] {
     /** 首次项目没有资产目录时返回空。 */
-    const rawRoot = join(this.projectRoot, '.proma', 'interaction-design', 'assets')
+    const rawRoot = join(
+      resolveProjectStorageDirectory(this.projectRoot, 'interaction-design', false),
+      'assets',
+    )
     if (!existsSync(rawRoot)) return []
     /** 安全资产目录。 */
     const root = this.directory()
@@ -102,7 +106,7 @@ export class InteractionAssetService {
     const asset = JSON.parse(readInteractionFile(join(root, `${id}.json`), 4096).toString()) as PrototypeAsset
     if (!/^[a-f0-9]{64}$/.test(asset.hash) || asset.id !== id) throw new Error('资产记录损坏')
     /** 内容寻址的原始二进制目录。 */
-    const blobs = interactionDirectory(this.projectRoot, ['.proma', 'interaction-design', 'assets', 'blobs', 'sha256', asset.hash.slice(0, 2)])
+    const blobs = interactionDirectory(this.projectRoot, [PROJECT_STORAGE_DIRECTORY_NAME, 'interaction-design', 'assets', 'blobs', 'sha256', asset.hash.slice(0, 2)])
     if (!/^image\/(png|jpeg|gif|webp)$/.test(asset.mime)) throw new Error('资产 MIME 无效')
     /** 校验后的原始图片。 */
     const bytes = readInteractionFile(join(blobs, `${asset.hash}.${asset.mime.split('/')[1]}`), MAX_INTERACTION_IMAGE_BYTES)
