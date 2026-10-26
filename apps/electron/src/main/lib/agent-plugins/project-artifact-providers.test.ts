@@ -75,7 +75,7 @@ describe('Given 宿主项目产物能力', () => {
       await expect(broker.invoke(caller(), {
         capability: 'artifact.write',
         input: { artifactId: 'workspace', schemaVersion: 1, value: { revision: 3 }, expectedRevision: 1 },
-      })).rejects.toThrow('PLUGIN_CAPABILITY_FAILED')
+      })).rejects.toThrow('PLUGIN_ARTIFACT_REVISION_CONFLICT')
       await expect(broker.invoke(caller(), {
         capability: 'artifact.read',
         input: { artifactId: 'workspace', schemaVersion: 1 },
@@ -148,7 +148,7 @@ describe('Given 宿主项目产物能力', () => {
           expectedRevision: 1,
           value: { stale: true },
         },
-      })).rejects.toThrow('PLUGIN_CAPABILITY_FAILED')
+      })).rejects.toThrow('PLUGIN_ARTIFACT_REVISION_CONFLICT')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -191,7 +191,7 @@ describe('Given 宿主项目产物能力', () => {
         await expect(broker.invoke(caller(), {
           capability: 'project.files.read',
           input: { path, maxBytes: 4096 },
-        })).rejects.toThrow('PLUGIN_CAPABILITY_FAILED')
+        })).rejects.toThrow(/PLUGIN_PROJECT_SOURCE_(?:PATH_INVALID|FORBIDDEN)/)
       }
     } finally {
       rmSync(root, { recursive: true, force: true })
