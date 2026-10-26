@@ -12,6 +12,7 @@ function createWorkspace(overrides: Partial<WorkspacePathState>): WorkspacePathS
     kind: 'external',
     availability: 'available',
     relocation: null,
+    projectStorageMigration: { state: 'none', directories: [], retainedLegacyEntries: [] },
     ...overrides,
   }
 }

@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { SettingsCard, SettingsRow, SettingsSection } from './primitives'
+import { ProjectStorageMigrationAction } from './ProjectStorageMigrationAction'
 
 /** 单个项目迁移动作的 renderer 交互阶段。 */
 export type WorkspaceActionPhase = 'idle' | 'starting' | 'running' | 'cancelling'
@@ -273,6 +274,7 @@ export function WorkspacePathList({
                 description={<WorkspacePathDescription workspace={workspace} progress={progress} />}
               >
                 <div className="flex min-w-24 justify-end gap-2">
+                  <ProjectStorageMigrationAction workspace={workspace} disabled={busy || migrating || stale} onChanged={onChanged} />
                   {(phase === 'running' || phase === 'cancelling') && progress ? (
                     <Button size="sm" variant="outline" disabled={phase === 'cancelling'} onClick={() => void handleCancel(progress)}>
                       {phase === 'cancelling' ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}

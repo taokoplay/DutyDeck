@@ -1,4 +1,6 @@
-import type { WorkspacePathState } from '@dutydeck/shared'
+import type { ProjectStorageMigrationResult, WorkspacePathState } from '@dutydeck/shared'
+import { inspectProjectStorageMigrationNamespace } from './project-storage/project-storage-migration'
+import { migrateWorkspaceProjectStorageWithDependencies } from './project-storage/workspace-project-storage-migration'
 import { getConfigDir, getWorkspaceFilesDir } from './config-paths'
 import { hasActiveAgentDataWritesForWorkspace } from './agent-service'
 import { hasRunningAutomationForWorkspace } from './automation-scheduler'
@@ -48,6 +50,13 @@ export function listWorkspacePathStates(): WorkspacePathState[] {
     const kind = workspace.projectRootPath === undefined ? 'managed' as const : 'external' as const
     const sourceRoot = workspace.projectRootPath ?? getWorkspaceFilesDir(workspace.slug)
     const rootStatus = getLocalProjectRootStatusSync(sourceRoot)
+    /** 每个项目独立检查，损坏/符号链接不影响其他设置行；不扫描模块内容。 */
+    let projectStorageMigration: WorkspacePathState['projectStorageMigration'] = null
+    let projectStorageMigrationError: string | undefined
+    if (rootStatus === 'available') {
+      try { projectStorageMigration = inspectProjectStorageMigrationNamespace(sourceRoot) }
+      catch { projectStorageMigrationError = '项目数据目录不安全或无法检查，请打开项目位置处理' }
+    }
     return {
       workspaceId: workspace.id,
       name: workspace.name,
@@ -59,7 +68,21 @@ export function listWorkspacePathStates(): WorkspacePathState[] {
           ? 'missing'
           : 'unavailable',
       relocation: relocator.getStatus(workspace.id),
+      projectStorageMigration,
+      ...(projectStorageMigrationError ? { projectStorageMigrationError } : {}),
     }
+  })
+}
+
+/** 同一项目的全部工作区共享迁移准入，不会停止用户任务。 */
+export function migrateWorkspaceProjectStorage(workspaceId: string): ProjectStorageMigrationResult {
+  return migrateWorkspaceProjectStorageWithDependencies(workspaceId, {
+    listWorkspaces: () => listAgentWorkspaces().map((workspace) => ({
+      id: workspace.id,
+      projectRoot: workspace.projectRootPath ?? getWorkspaceFilesDir(workspace.slug),
+    })),
+    isActive: (id) => hasActiveAgentDataWritesForWorkspace(id) || hasRunningAutomationForWorkspace(id),
+    acquireOperation: (id) => acquireWorkspaceOperation(id, 'project-storage-migration'),
   })
 }
 

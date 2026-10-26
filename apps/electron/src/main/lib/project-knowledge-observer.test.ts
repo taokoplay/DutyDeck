@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test'
 import type { ProjectKnowledgeObserverDependencies, ProjectKnowledgeWatcher } from './project-knowledge-observer'
+import { createWorkspaceOperationRegistry } from './workspace-operation-lock'
 
 /** Observer 行为通过依赖注入验证，模块加载时隔离无关 Electron 运行时。 */
 mock.module('./agent-workspace-manager', () => ({ listAgentWorkspaces: () => [] }))
@@ -61,6 +62,87 @@ function fixture(overrides: Partial<ProjectKnowledgeObserverDependencies> = {}) 
 }
 
 describe('项目知识观察器', () => {
+  test('Given 恢复 Promise 尚未结束 When 请求迁移 Then 写 lease 阻断迁移直到恢复扫描完成', async () => {
+    /** 独立锁注册表验证真实互斥语义，不只统计释放回调。 */
+    const registry = createWorkspaceOperationRegistry()
+    /** 人工推进恢复边界，保证测试不依赖定时器。 */
+    let finishRecovery!: () => void
+    const recovery = new Promise<void>((resolve) => { finishRecovery = resolve })
+    const f = fixture({ acquireWriteLease: registry.acquireWorkspaceWriteLease, recoverKnowledge: async () => recovery })
+    const pending = f.observer.tick()
+    await Promise.resolve()
+    expect(() => registry.acquireWorkspaceOperation('workspace-1', 'project-storage-migration')).toThrow('写入')
+    finishRecovery()
+    await pending
+    expect(f.state.scanCalls).toBe(1)
+    const releaseMigration = registry.acquireWorkspaceOperation('workspace-1', 'project-storage-migration')
+    releaseMigration()
+    f.observer.dispose()
+  })
+
+  test('Given 迁移持锁 When observer tick Then 不读取快照且解锁后可以重试', async () => {
+    /** 生产锁先到时，知识目录不能发生任何恢复或同步写入。 */
+    const registry = createWorkspaceOperationRegistry()
+    const releaseMigration = registry.acquireWorkspaceOperation('workspace-1', 'project-storage-migration')
+    let snapshotCalls = 0
+    const f = fixture({
+      acquireWriteLease: registry.acquireWorkspaceWriteLease,
+      getService: () => ({
+        getSnapshot: async () => { snapshotCalls++; return { initialized: true, scan: { status: 'idle' } } },
+        startScan: async () => undefined,
+        waitForScan: async () => undefined,
+      }),
+    })
+    await f.observer.tick()
+    expect(snapshotCalls).toBe(0)
+    expect(f.state.recoverCalls).toBe(0)
+    releaseMigration()
+    await f.observer.tick()
+    expect(snapshotCalls).toBe(1)
+    expect(f.state.recoverCalls).toBe(1)
+    f.observer.dispose()
+    registry.acquireWorkspaceOperation('workspace-1', 'project-storage-migration')()
+  })
+
+  test('Given 恢复失败或等待时销毁 When 异步操作结束 Then 释放 lease 不永久阻塞迁移', async () => {
+    /** 成功路径之外验证异常和提前退出同样执行 finally。 */
+    for (const failure of [false, true]) {
+      const registry = createWorkspaceOperationRegistry()
+      let finishRecovery!: () => void
+      const recovery = new Promise<void>((resolve) => { finishRecovery = resolve })
+      const f = fixture({
+        acquireWriteLease: registry.acquireWorkspaceWriteLease,
+        recoverKnowledge: async () => { await recovery; if (failure) throw new Error('恢复失败') },
+      })
+      const pending = f.observer.tick()
+      await Promise.resolve()
+      if (!failure) f.observer.dispose()
+      expect(() => registry.acquireWorkspaceOperation('workspace-1', 'project-storage-migration')).toThrow('写入')
+      finishRecovery()
+      await pending
+      registry.acquireWorkspaceOperation('workspace-1', 'project-storage-migration')()
+      expect(f.state.scanCalls).toBe(0)
+      f.observer.dispose()
+    }
+  })
+
+  test('Given 当前和旧存储根的内部写入 When watcher 上报 Then 不重复扫描且普通源码仍触发刷新', async () => {
+    /** 以真实 observer 回调验证两种分隔符和目录边界，避免只测试正则副本。 */
+    const f = fixture()
+    await f.observer.tick()
+    expect(f.state.scanCalls).toBe(1)
+    for (const path of ['.dutydeck/knowledge/manifest.json', '.proma/knowledge/manifest.json', '.dutydeck\\visual-production\\snapshot.json', '.proma\\design\\canvas.json']) {
+      f.state.watchChanges[0]?.(path)
+    }
+    await f.observer.tick()
+    expect(f.state.scanCalls).toBe(1)
+    expect(f.state.timers).toHaveLength(0)
+    f.state.watchChanges[0]?.('.dutydeck-notes/source.ts')
+    await f.observer.tick()
+    expect(f.state.scanCalls).toBe(2)
+    f.observer.dispose()
+  })
+
   test('Given 自定义资料库目录 When 连续保存正文与索引 Then 只刷新快照不重复扫描来源', async () => {
     const f = fixture({
       getService: () => ({

@@ -1,3 +1,5 @@
+import type { ProjectStorageMigrationStatus, ProjectStorageOwnedDirectory } from '../constants/project-storage'
+
 /** 数据根当前可访问性。 */
 export type DataRootAvailability = 'available' | 'missing' | 'unavailable' | 'invalid'
 
@@ -56,7 +58,17 @@ export type WorkspaceRelocationStage =
   | 'completed'
 
 /** 当前允许占用工作区独占锁的操作类型。 */
-export type WorkspaceOperationKind = 'relocation' | 'deletion'
+export type WorkspaceOperationKind = 'relocation' | 'deletion' | 'project-storage-migration'
+
+/** 项目内部命名空间迁移的公开结果，不接受 renderer 指定磁盘路径。 */
+export interface ProjectStorageMigrationResult {
+  /** 本次操作的工作区身份。 */
+  workspaceId: string
+  /** 本次移动的受管模块。 */
+  movedDirectories: ProjectStorageOwnedDirectory[]
+  /** 仍保留在旧目录的未知内容名称。 */
+  retainedLegacyEntries: string[]
+}
 
 /** 启动项目路径迁移的共享请求。 */
 export interface StartWorkspaceRelocationInput {
@@ -127,6 +139,10 @@ export interface WorkspacePathState {
   kind: 'managed' | 'external'
   availability: 'available' | 'missing' | 'unavailable'
   relocation: WorkspaceRelocationProgress | null
+  /** 不可用或不安全项目不读取模块内容，以 null 表示无法检查。 */
+  projectStorageMigration: ProjectStorageMigrationStatus | null
+  /** 单项目检查失败不会阻断其他项目的路径设置。 */
+  projectStorageMigrationError?: string
 }
 
 /** 启动前发现的应用数据目录问题，供轻量恢复窗口直接说明路径与原因。 */
@@ -372,6 +388,7 @@ export const PATH_MANAGEMENT_IPC_CHANNELS = {
   RESUME_WORKSPACE_RELOCATION: 'path-management:resume-workspace-relocation',
   ABANDON_WORKSPACE_RELOCATION: 'path-management:abandon-workspace-relocation',
   RELINK_WORKSPACE: 'path-management:relink-workspace',
+  MIGRATE_PROJECT_STORAGE: 'path-management:migrate-project-storage',
   WORKSPACE_RELOCATION_PROGRESS: 'path-management:workspace-relocation-progress',
   RECOVER_DATA_ROOT: 'path-management:recover-data-root',
   OPEN_DATA_ROOT: 'path-management:open-data-root',

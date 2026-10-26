@@ -10,6 +10,8 @@ export interface WorkspaceOperationRegistry {
   getWorkspaceOperationKind: (workspaceId: string) => WorkspaceOperationKind | undefined
   /** 获取工作区异步写 lease，迁移只能在全部 lease 释放后开始。 */
   acquireWorkspaceWriteLease: (workspaceId: string) => () => void
+  /** 无参数查询所有项目是否仍有写入；返回 true 时不能重启应用。 */
+  hasActiveWorkspaceWrites: () => boolean
 }
 
 /** 工作区锁在注册表中的内部持有记录。 */
@@ -26,6 +28,7 @@ const WORKSPACE_DELETION_BLOCK_REASON = '项目正在删除，请等待完成后
 
 /** 根据锁持有者返回与当前用户操作一致的阻断原因。 */
 function operationBlockReason(kind: WorkspaceOperationKind): string {
+  if (kind === 'project-storage-migration') return '项目数据目录正在迁移，请等待完成后重试'
   return kind === 'deletion' ? WORKSPACE_DELETION_BLOCK_REASON : WORKSPACE_RELOCATION_BLOCK_REASON
 }
 
@@ -38,7 +41,7 @@ function assertWorkspaceId(workspaceId: unknown): asserts workspaceId is string 
 
 /** 在未类型化运行时边界再次限制允许的工作区操作类型。 */
 function assertWorkspaceOperationKind(kind: WorkspaceOperationKind): void {
-  if (kind !== 'relocation' && kind !== 'deletion') {
+  if (kind !== 'relocation' && kind !== 'deletion' && kind !== 'project-storage-migration') {
     throw new Error('工作区操作类型无效')
   }
 }
@@ -55,7 +58,7 @@ export function createWorkspaceOperationRegistry(): WorkspaceOperationRegistry {
       assertWorkspaceId(workspaceId)
       assertWorkspaceOperationKind(kind)
       if ((writeLeaseCounts.get(workspaceId) ?? 0) > 0) {
-        throw new Error(kind === 'deletion' ? '项目仍有写入正在进行，请稍后删除' : '项目仍有 Design 写入正在进行，无法迁移')
+        throw new Error(kind === 'deletion' ? '项目仍有写入正在进行，请稍后删除' : '项目仍有写入正在进行，无法迁移')
       }
       /** 已有操作拥有锁，新请求不得替换其身份。 */
       const currentOperation = entries.get(workspaceId)
@@ -85,6 +88,7 @@ export function createWorkspaceOperationRegistry(): WorkspaceOperationRegistry {
       assertWorkspaceId(workspaceId)
       return entries.get(workspaceId)?.kind
     },
+    hasActiveWorkspaceWrites: () => writeLeaseCounts.size > 0,
     acquireWorkspaceWriteLease: (workspaceId) => {
       assertWorkspaceId(workspaceId)
       const operation = entries.get(workspaceId)
@@ -116,3 +120,6 @@ export const getWorkspaceOperationKind = defaultRegistry.getWorkspaceOperationKi
 
 /** 获取默认注册表的异步写 lease。 */
 export const acquireWorkspaceWriteLease = defaultRegistry.acquireWorkspaceWriteLease
+
+/** 无参数查询默认注册表的全局写入；返回 true 时阻止全应用重启。 */
+export const hasActiveWorkspaceWrites = defaultRegistry.hasActiveWorkspaceWrites

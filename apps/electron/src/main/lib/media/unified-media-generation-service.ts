@@ -76,6 +76,14 @@ export class UnifiedMediaGenerationService {
     for (const adapter of options.adapters) this.adapters.set(adapter.id, adapter)
   }
 
+  /** 无参查询真实在途 Promise；即使取消已写终态，产物登记收尾前仍返回 true。 */
+  hasActiveWork(): boolean {
+    for (const record of this.records.values()) {
+      if (record.task) return true
+    }
+    return false
+  }
+
   /** 校验模型并冻结一次生成意图，不触发远端请求。 */
   prepare(ownerSessionId: string, raw: MediaGenerationRequest): MediaGenerationSnapshot {
     const parsed = parseMediaGenerationRequest(raw)

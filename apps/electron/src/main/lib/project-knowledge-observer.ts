@@ -5,6 +5,7 @@ import { listAgentWorkspaces } from './agent-workspace-manager'
 import { getConfigDir, resolveWorkspaceFilesDir } from './config-paths'
 import { getProjectKnowledgeBinding, getProjectKnowledgeService, recoverProjectKnowledge } from './project-knowledge-runtime'
 import { replayWorkspaceMemoryOperations } from './project-knowledge-memory-journal'
+import { acquireWorkspaceWriteLease } from './workspace-operation-lock'
 
 const SCAN_INTERVAL_MS = 5 * 60_000
 const CHANGE_DEBOUNCE_MS = 500
@@ -28,6 +29,8 @@ interface ProjectKnowledgeObserverService {
 
 /** 注入文件系统、运行时和时钟，使生命周期与失败补偿可独立验证。 */
 export interface ProjectKnowledgeObserverDependencies {
+  /** 整轮异步恢复和扫描持有写 lease，返回释放函数；迁移持锁时拒绝进入。 */
+  acquireWriteLease?(workspaceId: string): () => void
   listWorkspaces(): ProjectKnowledgeWorkspace[]
   getConfigRoot(): string
   resolveWorkspaceFilesDir(slug: string): string
@@ -69,7 +72,7 @@ export interface ProjectKnowledgeObserver {
 /** 源目录事件排除内部写入，防止知识库自身产生扫描回环。 */
 function affectsSource(filename: string | Buffer | null): boolean {
   if (!filename) return true
-  return !/(^|[\/\\])(?:\.proma|\.obsidian|\.git|node_modules|dist|build|\.next|target|vendor|\.cache)(?:[\/\\]|$)/.test(filename.toString())
+  return !/(^|[\/\\])(?:\.dutydeck|\.proma|\.obsidian|\.git|node_modules|dist|build|\.next|target|vendor|\.cache)(?:[\/\\]|$)/.test(filename.toString())
 }
 
 /** 创建可测试的项目知识观察器；只有恢复与监听均结束后才发布初始化状态。 */
@@ -160,7 +163,10 @@ export function createProjectKnowledgeObserver(dependencies: ProjectKnowledgeObs
         if (disposed) break
         const key = `${dependencies.getConfigRoot()}\0${workspace.id}`
         active.add(key)
+        /** 覆盖快照同步、恢复和扫描的全部 await，避免迁移碰到未完成写入。 */
+        let releaseWriteLease: (() => void) | undefined
         try {
+          releaseWriteLease = dependencies.acquireWriteLease?.(workspace.id)
           const service = dependencies.getService()
           const snapshot = await service.getSnapshot(workspace.id)
           if (disposed) break
@@ -193,6 +199,8 @@ export function createProjectKnowledgeObserver(dependencies: ProjectKnowledgeObs
           }
         } catch {
           // 离线项目、归属冲突或迁移保持原状态，下次重新验证。
+        } finally {
+          releaseWriteLease?.()
         }
       }
       if (!disposed) {
@@ -228,6 +236,7 @@ export function createProjectKnowledgeObserver(dependencies: ProjectKnowledgeObs
 /** 启动后只恢复已建库项目；新会话检索不会调用此扫描器。 */
 export function startProjectKnowledgeObservation(): () => void {
   const observer = createProjectKnowledgeObserver({
+    acquireWriteLease: acquireWorkspaceWriteLease,
     listWorkspaces: listAgentWorkspaces,
     getConfigRoot: getConfigDir,
     resolveWorkspaceFilesDir,

@@ -14,6 +14,31 @@ interface UntypedWorkspaceOperationRegistry {
 }
 
 describe('工作区进程内独占锁', () => {
+  test('Given 不同项目持有未结束写入 When 查询重启准入 Then 全部租约释放前持续忙碌', () => {
+    /** 全局查询覆盖另一项目，避免重启截断异步导出。 */
+    const registry = createWorkspaceOperationRegistry()
+    expect(registry.hasActiveWorkspaceWrites()).toBe(false)
+    /** 同项目的重复租约与另一项目的租约均须计入全局忙碌状态。 */
+    const releaseFirst = registry.acquireWorkspaceWriteLease('exporting-project')
+    const releaseSecond = registry.acquireWorkspaceWriteLease('exporting-project')
+    const releaseOther = registry.acquireWorkspaceWriteLease('another-project')
+    expect(registry.hasActiveWorkspaceWrites()).toBe(true)
+    releaseFirst()
+    releaseFirst()
+    releaseOther()
+    expect(registry.hasActiveWorkspaceWrites()).toBe(true)
+    releaseSecond()
+    expect(registry.hasActiveWorkspaceWrites()).toBe(false)
+  })
+
+  test('Given 项目数据目录正在迁移 When 新写入进入 Then 返回专属提示并拒绝写 lease', () => {
+    const registry = createWorkspaceOperationRegistry()
+    const release = registry.acquireWorkspaceOperation('namespace', 'project-storage-migration')
+    expect(() => registry.acquireWorkspaceWriteLease('namespace')).toThrow('项目数据目录正在迁移')
+    expect(registry.getWorkspaceOperationKind('namespace')).toBe('project-storage-migration')
+    release()
+    registry.acquireWorkspaceWriteLease('namespace')()
+  })
   test('Given 项目正在异步删除 When 新写入或迁移到达 Then 同项目被拒绝且其它项目继续可写', () => {
     /** 使用独立注册表验证删除期间的完整准入边界。 */
     const registry = createWorkspaceOperationRegistry()
@@ -189,10 +214,10 @@ describe('工作区进程内独占锁', () => {
     const releaseSecond = registry.acquireWorkspaceWriteLease('workspace-design')
 
     expect(() => registry.acquireWorkspaceOperation('workspace-design', 'relocation'))
-      .toThrow('项目仍有 Design 写入正在进行，无法迁移')
+      .toThrow('项目仍有写入正在进行，无法迁移')
     releaseFirst()
     expect(() => registry.acquireWorkspaceOperation('workspace-design', 'relocation'))
-      .toThrow('项目仍有 Design 写入正在进行，无法迁移')
+      .toThrow('项目仍有写入正在进行，无法迁移')
     releaseSecond()
     const releaseRelocation = registry.acquireWorkspaceOperation('workspace-design', 'relocation')
     releaseRelocation()

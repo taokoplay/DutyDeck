@@ -38,10 +38,37 @@ function harness() {
   const supervisor = new MediaRunSupervisor({ runs, pollMs: 10, stream: { subscribe: (_input, listener) => {
     calls.subscribe += 1; eventListener = listener; return () => { calls.release += 1 }
   }, dispose: () => undefined } })
-  return { supervisor, calls, listeners, update, touch, setComplete: () => { complete = true }, setCollectionFailures: (value: number) => { collectionFailures = value }, setOffline: (value: boolean) => { offline = value }, emit: (event: ComfyProgressEvent) => eventListener?.(event) }
+  return { supervisor, runs, calls, listeners, update, touch, setComplete: () => { complete = true }, setCollectionFailures: (value: number) => { collectionFailures = value }, setOffline: (value: boolean) => { offline = value }, emit: (event: ComfyProgressEvent) => eventListener?.(event) }
 }
 
 describe('媒体后台运行监督', () => {
+  test('Given 已登记观察但网络尚未开始 When 查询迁移门禁 Then 忙碌直到监督结束', () => {
+    const fixture = harness()
+    expect(fixture.supervisor.hasActiveWork()).toBe(false)
+    fixture.supervisor.start('project', 'run', 1)
+    expect(fixture.supervisor.hasActiveWork()).toBe(true)
+    fixture.supervisor.dispose()
+    expect(fixture.supervisor.hasActiveWork()).toBe(false)
+  })
+
+  test('Given 对账请求仍在途 When dispose 移除观察 Then 等请求真正完成才释放迁移门禁', async () => {
+    const fixture = harness()
+    /** 精确控制网络对账生命周期，不依赖固定时长猜测。 */
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    fixture.runs.reconcile = async () => {
+      entered.resolve()
+      await release.promise
+      return fixture.update('succeeded')
+    }
+    fixture.supervisor.start('project', 'run', 1)
+    await entered.promise
+    fixture.supervisor.dispose()
+    expect(fixture.supervisor.hasActiveWork()).toBe(true)
+    release.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(fixture.supervisor.hasActiveWork()).toBe(false)
+  })
   test('Given Host 等待运行终态 When 收到同阶段 revision 通知 Then 不提前返回，直到真实终态', async () => {
     const fixture = harness()
     try {

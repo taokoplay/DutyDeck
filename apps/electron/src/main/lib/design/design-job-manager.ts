@@ -367,6 +367,10 @@ export class DesignJobManager {
   }>()
   /** 启动恢复发现的 Comfy 任务，首次续跑只允许对账原 operation。 */
   private readonly recoveringMediaJobs = new Set<string>()
+  /** execute 真正结束前保持占用；取消释放调用方等待并不意味着后台读写已经结束。 */
+  private pendingExecutions = 0
+  /** 取消、恢复与预检等异步读写计数，不以磁盘中的旧 queued 状态判断忙碌。 */
+  private pendingStorageOperations = 0
   private readonly createId: () => string
   private readonly createCreativeTaskId: () => string
   private readonly now: () => number
@@ -393,6 +397,13 @@ export class DesignJobManager {
       () => this.dependencies.imageModels.resolveAvailableSnapshot(input.imageModelProfileId!, input.projectId),
     )
     return clonePublicDesignJob(this.createInternal(input, imageModelSnapshot))
+  }
+
+  /** 无参查询进程内真实在途任务；返回 true 时项目存储迁移必须等待。 */
+  hasActiveWork(): boolean {
+    return this.activeExecutions.size > 0 || this.pendingExecutions > 0 || this.pendingStorageOperations > 0
+      || this.canvasImageInFlightCreations.size > 0 || this.canvasImageReservations.size > 0
+      || this.recoveringMediaJobs.size > 0
   }
 
   /** 创建只归属 Canvas 图片模块的 queued journal，不修改旧 Design 节点。 */
@@ -450,7 +461,8 @@ export class DesignJobManager {
    * @returns 所有目标、模型、来源素材和直接入边有效时完成。
    */
   async preflightCanvasImage(input: CreateDesignJobInput): Promise<void> {
-    await this.resolveCanvasImagePreflight(input)
+    this.pendingStorageOperations += 1
+    try { await this.resolveCanvasImagePreflight(input) } finally { this.pendingStorageOperations -= 1 }
   }
 
   /**
@@ -895,17 +907,20 @@ export class DesignJobManager {
     /** 兼容 run-only 调用没有 accepted 消费者，内部观察拒绝以避免未处理 Promise。 */
     void accepted.promise.catch(() => undefined)
     /** 先登记 owner 再执行，阻断同步状态监听器重入造成重复启动。 */
+    this.pendingExecutions += 1
     const running = this.execute(jobId, {
       accept: accepted.resolve,
       reject: accepted.reject,
     })
     void running.then(
       () => {
+        this.pendingExecutions -= 1
         /** 非 queued 幂等入口可能无需进入 running，也视为已接受。 */
         accepted.resolve()
         completion.resolve()
       },
       (error: unknown) => {
+        this.pendingExecutions -= 1
         accepted.reject(error)
         completion.reject(error)
       },
@@ -1145,6 +1160,14 @@ export class DesignJobManager {
 
   /** 取消 queued/running 任务；终态任务保持不变。 */
   async cancel(projectId: string, jobId: string): Promise<DesignJobRecord> {
+    this.pendingStorageOperations += 1
+    try {
+      return await this.cancelOwned(projectId, jobId)
+    } finally { this.pendingStorageOperations -= 1 }
+  }
+
+  /** 在迁移占用期间取消指定项目任务，并返回最新公开记录。 */
+  private async cancelOwned(projectId: string, jobId: string): Promise<DesignJobRecord> {
     const job = this.requireProjectJob(projectId, jobId)
     if (job.terminalState?.status === 'pending') throw new Error('任务已进入结果提交阶段，无法取消')
     if (job.status !== 'queued' && job.status !== 'running') return clonePublicDesignJob(job)
@@ -1278,6 +1301,14 @@ export class DesignJobManager {
 
   /** 在权威画布恢复后，仅二次对账 terminal pending，不中断其它活动任务。 */
   async reconcilePendingTerminals(projectId: string): Promise<DesignJobRecord[]> {
+    this.pendingStorageOperations += 1
+    try {
+      return await this.reconcilePendingTerminalsOwned(projectId)
+    } finally { this.pendingStorageOperations -= 1 }
+  }
+
+  /** 在恢复占用期间对账指定项目的 pending 终态，并返回公开任务记录。 */
+  private async reconcilePendingTerminalsOwned(projectId: string): Promise<DesignJobRecord[]> {
     return this.dependencies.runWorkspaceWrite(projectId, async () => {
       const jobs = this.readProjectJobs(projectId)
       this.rebuildCanvasImageIndex(projectId, jobs)
@@ -1292,6 +1323,14 @@ export class DesignJobManager {
 
   /** 恢复单项目 journal，把无法续跑的 running 任务标记为 interrupted。 */
   async recover(projectId: string): Promise<DesignJobRecord[]> {
+    this.pendingStorageOperations += 1
+    try {
+      return await this.recoverOwned(projectId)
+    } finally { this.pendingStorageOperations -= 1 }
+  }
+
+  /** 在恢复占用期间读取并修复指定项目 journal，返回恢复后的公开记录。 */
+  private async recoverOwned(projectId: string): Promise<DesignJobRecord[]> {
     /** 写 lease 释放后才启动的媒体恢复任务，避免输出提交等待自己持有的项目锁。 */
     const mediaRecoveryIds: string[] = []
     const recovered = await this.dependencies.runWorkspaceWrite(projectId, async () => {

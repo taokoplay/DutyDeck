@@ -80,6 +80,7 @@ describe('路径管理 preload API', () => {
       'getDataRootOccupiedStorage',
       'getPathManagementState',
       'getWorkspaceRelocationStatus',
+      'migrateProjectStorage',
       'onDataRootMigrationProgress',
       'onWorkspaceRelocationProgress',
       'openDataRoot',
@@ -114,6 +115,7 @@ describe('路径管理 preload API', () => {
     const persisted = { workspaceId: 'workspace-1', operationId: 'operation-1' }
     await invokeApi(api, 'resumeWorkspaceRelocation', persisted)
     await invokeApi(api, 'abandonWorkspaceRelocation', persisted)
+    await invokeApi(api, 'migrateProjectStorage', 'workspace-1')
     expect(recorded.invokes).toEqual([
       { channel: PATH_MANAGEMENT_IPC_CHANNELS.GET_STATE, args: [] },
       { channel: PATH_MANAGEMENT_IPC_CHANNELS.GET_DATA_ROOT_OCCUPIED_STORAGE, args: [] },
@@ -129,6 +131,7 @@ describe('路径管理 preload API', () => {
       { channel: PATH_MANAGEMENT_IPC_CHANNELS.CANCEL_WORKSPACE_RELOCATION, args: ['operation-1'] },
       { channel: PATH_MANAGEMENT_IPC_CHANNELS.RESUME_WORKSPACE_RELOCATION, args: [persisted] },
       { channel: PATH_MANAGEMENT_IPC_CHANNELS.ABANDON_WORKSPACE_RELOCATION, args: [persisted] },
+      { channel: PATH_MANAGEMENT_IPC_CHANNELS.MIGRATE_PROJECT_STORAGE, args: ['workspace-1'] },
     ])
   })
 

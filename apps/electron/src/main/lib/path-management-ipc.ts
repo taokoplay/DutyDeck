@@ -14,6 +14,7 @@ import type {
   DataRootStartupMode,
   OpenDataRootTarget,
   PathManagementState,
+  ProjectStorageMigrationResult,
   PickWorkspaceTargetInput,
   RecoverDataRootInput,
   WorkspacePathState,
@@ -59,6 +60,7 @@ const PATH_MANAGEMENT_HANDLER_CHANNELS: readonly string[] = [
   PATH_MANAGEMENT_IPC_CHANNELS.RESUME_WORKSPACE_RELOCATION,
   PATH_MANAGEMENT_IPC_CHANNELS.ABANDON_WORKSPACE_RELOCATION,
   PATH_MANAGEMENT_IPC_CHANNELS.RELINK_WORKSPACE,
+  PATH_MANAGEMENT_IPC_CHANNELS.MIGRATE_PROJECT_STORAGE,
   PATH_MANAGEMENT_IPC_CHANNELS.RECOVER_DATA_ROOT,
   PATH_MANAGEMENT_IPC_CHANNELS.OPEN_DATA_ROOT,
   PATH_MANAGEMENT_IPC_CHANNELS.EXIT_APP,
@@ -145,6 +147,8 @@ export interface RegisterPathManagementIpcOptions {
   coordinator?: PathManagementCoordinator
   /** 正常模式迁移前检查 Agent 与 Automation 是否活跃。 */
   hasActiveTasks?: () => boolean
+  /** 项目目录迁移须等待所有项目写租约、媒体和 Design 后台任务，避免重启截断写入。 */
+  hasActiveProjectStorageTasks?: () => boolean
   /** 正常模式迁移前检查是否存在共享数据根的其他实例。 */
   hasOtherPromaInstance?: () => boolean | Promise<boolean>
   /** 取得跨 dev/prod 共享的迁移 intent，阻止新 normal 实例进入。 */
@@ -162,6 +166,8 @@ export interface RegisterPathManagementIpcOptions {
     & Partial<Pick<WorkspaceProjectRelocator, 'resume' | 'abandon'>>
   /** 枚举设置页需要的 managed/external/offline 项目状态。 */
   listWorkspacePathStates?: () => WorkspacePathState[]
+  /** 仅 normal 窗口可按权威工作区身份迁移内部存储。 */
+  migrateProjectStorage?: (workspaceId: string) => ProjectStorageMigrationResult
   /** 离线项目重新绑定现存目录，不触发复制器。 */
   relinkWorkspace?: (workspaceId: string, targetRoot: string) => void
   /** 已提交迁移后按旧根、新根顺序切换目录监听。 */
@@ -281,6 +287,28 @@ export function registerPathManagementIpcHandlers(
   }
 
   if (options.mode === 'normal') {
+    register(PATH_MANAGEMENT_IPC_CHANNELS.MIGRATE_PROJECT_STORAGE, async (event, rawWorkspaceId) => {
+      const workspaceId = assertNonEmptyString(rawWorkspaceId, '工作区 ID 无效')
+      if (!options.migrateProjectStorage) throw new Error('当前环境不支持项目数据目录迁移')
+      /** 跨实例探测期间阻止新 normal 实例进入，返回后复验窗口与运行状态。 */
+      const guard = await options.acquireMigrationGuard?.()
+      try {
+        await assertMigrationCanStart(options)
+        assertExpectedSender(event, options.getExpectedWebContents())
+        if (options.hasActiveTasks?.() || options.hasActiveProjectStorageTasks?.()) throw new Error('仍有任务正在运行，无法迁移项目数据目录')
+        const workspace = options.listWorkspacePathStates?.().find((item) => item.workspaceId === workspaceId)
+        if (!workspace || workspace.availability !== 'available') throw new Error('项目不可用，无法迁移项目数据目录')
+        const status = workspace.projectStorageMigration
+        if (!status || status.state === 'conflict') throw new Error(workspace.projectStorageMigrationError ?? '项目数据目录冲突，请先处理新旧目录')
+        const result = options.migrateProjectStorage(workspaceId)
+        /** 旧面板、资源 URL 和服务句柄统一随重启重建。确认框明确告知该行为。 */
+        if (result.movedDirectories.length > 0 || status.recoveryRequired) relaunchNow()
+        return result
+      } finally {
+        guard?.release()
+        options.refreshWorkspaceRenderer?.()
+      }
+    })
     register(PATH_MANAGEMENT_IPC_CHANNELS.GET_STATE, async () => {
       const state = getCoordinator().getStatus()
       /** normal 状态才读取业务工作区，轻量 recovery/migration 模式保持隔离。 */

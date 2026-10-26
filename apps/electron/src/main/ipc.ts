@@ -612,6 +612,7 @@ import { ensureDirectoryDurable, readJsonFileSafe, writeJsonFileAtomicSecure, wr
 import {
   getDefaultWorkspaceProjectRelocator,
   listWorkspacePathStates,
+  migrateWorkspaceProjectStorage,
   relinkWorkspaceProjectRoot,
 } from './lib/workspace-project-relocator-production'
 import { replaceAttachedDirectoryWatcher } from './lib/workspace-watcher'
@@ -695,7 +696,7 @@ import {
   removeWorktreeRepo,
   cleanupStaleWorkspaceAttachedPaths,
 } from './lib/agent-workspace-manager'
-import { acquireWorkspaceOperation, getWorkspaceOperationBlockReason } from './lib/workspace-operation-lock'
+import { acquireWorkspaceOperation, getWorkspaceOperationBlockReason, hasActiveWorkspaceWrites } from './lib/workspace-operation-lock'
 import { createWorkspaceOperationGuard } from './lib/workspace-operation-guard'
 import { movePathSafely } from './lib/file-move-service'
 import { subscribeWorkspaceMemoryChanges } from './lib/workspace-memory-change-watcher'
@@ -4850,6 +4851,8 @@ export function registerIpcHandlers(): void {
     acquireMigrationGuard: () => dataRootInstanceLease.acquireMigrationGuard(),
     workspaceRelocator: getDefaultWorkspaceProjectRelocator(),
     listWorkspacePathStates,
+    migrateProjectStorage: migrateWorkspaceProjectStorage,
+    hasActiveProjectStorageTasks: () => hasActiveWorkspaceWrites() || mediaSupervisor.hasActiveWork() || unifiedMediaGeneration.hasActiveWork() || designJobManager.hasActiveWork(),
     relinkWorkspace: relinkWorkspaceProjectRoot,
     switchWorkspaceWatcher: replaceAttachedDirectoryWatcher,
     refreshWorkspaceRenderer: () => {

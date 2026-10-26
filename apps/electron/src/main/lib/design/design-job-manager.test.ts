@@ -300,14 +300,18 @@ describe('Design Job Manager', () => {
       await release.promise
     }
     const job = await harness.manager.createCanvasImage(createCanvasImageInput('a'))
+    /** queued journal 本身不是本进程在途任务。 */
+    expect(harness.manager.hasActiveWork()).toBe(false)
 
     await Promise.all([harness.manager.start(job.id), harness.manager.start(job.id)])
 
     expect(harness.manager.get(job.id)?.status).toBe('running')
     expect(runCount).toBe(1)
     await entered.promise
+    expect(harness.manager.hasActiveWork()).toBe(true)
     release.resolve()
     await harness.manager.run(job.id)
+    expect(harness.manager.hasActiveWork()).toBe(false)
   })
 
   test('Given Canvas 图片选择 ComfyUI When 执行成功 Then 不创建 LLM 会话并登记原候选链', async () => {
@@ -433,6 +437,21 @@ describe('Design Job Manager', () => {
     await expect(running).resolves.toBeUndefined()
     await expect(harness.manager.run(job.id)).resolves.toBeUndefined()
     expect(harness.manager.get(job.id)?.status).toBe('cancelled')
+    /** 逻辑取消仅释放 UI 等待，真实后台 Promise 尚未结束时迁移仍需阻断。 */
+    expect(harness.manager.hasActiveWork()).toBe(true)
+  })
+
+  test('Given 取消后后台任务仍在收尾 When 实际执行结束 Then 释放迁移占用', async () => {
+    /** 模拟后台执行不立即响应取消，但最终能够自然收尾。 */
+    const release = Promise.withResolvers<void>()
+    harness.runHeadless = async () => release.promise
+    const job = await harness.manager.createCanvasImage(createCanvasImageInput('a'))
+    await harness.manager.start(job.id)
+    await harness.manager.cancel('project-1', job.id)
+    expect(harness.manager.hasActiveWork()).toBe(true)
+    release.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(harness.manager.hasActiveWork()).toBe(false)
   })
 
   test('Given Canvas 图片任务失败或取消 When 进入终态 Then 候选批次不再保持运行中', async () => {
@@ -604,9 +623,11 @@ describe('Design Job Manager', () => {
 
     const first = harness.manager.createCanvasImageOnce(createCanvasImageInput('a'), jobId)
     await entered.promise
+    expect(harness.manager.hasActiveWork()).toBe(true)
     const replay = harness.manager.createCanvasImageOnce(createCanvasImageInput('a'), jobId)
     release.resolve()
     const results = await Promise.all([first, replay])
+    expect(harness.manager.hasActiveWork()).toBe(false)
 
     expect(results.map((result) => result.created).sort()).toEqual([false, true])
     expect(results[0]!.job).toEqual(results[1]!.job)
@@ -1357,8 +1378,10 @@ describe('Design Job Manager', () => {
     })
     await Promise.resolve()
     const settledWhileAdoptionPending = recoveredBeforeAdoption
+    expect(harness.manager.hasActiveWork()).toBe(true)
     releaseAdoption?.()
     const recovered = await recovery
+    expect(harness.manager.hasActiveWork()).toBe(false)
 
     expect(settledWhileAdoptionPending).toBe(false)
     const recoveredJob = recovered.find((candidate) => candidate.id === job.id)
@@ -2200,7 +2223,7 @@ describe('Design Job Manager', () => {
 
     await harness.manager.run(job.id)
 
-    expect(harness.relocationAttemptError).toContain('Design 写入正在进行')
+    expect(harness.relocationAttemptError).toContain('写入正在进行')
     expect(harness.unguardedOutputEffects).toEqual([])
     expect(harness.outputEffects).toEqual(['import', 'authoritative-read', 'store-mutate', 'commit'])
   })

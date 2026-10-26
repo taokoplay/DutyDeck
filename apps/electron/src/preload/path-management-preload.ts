@@ -10,6 +10,7 @@ import type {
   OpenDataRootTarget,
   PickWorkspaceTargetInput,
   PathManagementState,
+  ProjectStorageMigrationResult,
   RecoverDataRootInput,
   WorkspaceRelocationPreview,
   WorkspaceRelocationProgress,
@@ -30,6 +31,8 @@ export interface PathManagementPreloadIpc {
 
 /** 普通主窗口可用的路径管理 API。 */
 export interface NormalPathManagementPreloadApi {
+  /** 用户确认后迁移项目内部数据目录，由主进程解析工作区路径。 */
+  migrateProjectStorage: (workspaceId: string) => Promise<ProjectStorageMigrationResult>
   /** 获取当前路径管理状态。 */
   getPathManagementState: () => Promise<PathManagementState>
   /** 独立刷新当前数据根占用空间，不阻塞首屏卷信息。 */
@@ -107,6 +110,10 @@ export function createNormalPathManagementPreloadApi(
   ipc: PathManagementPreloadIpc,
 ): NormalPathManagementPreloadApi {
   return {
+    migrateProjectStorage: (workspaceId) => ipc.invoke(
+      PATH_MANAGEMENT_IPC_CHANNELS.MIGRATE_PROJECT_STORAGE,
+      workspaceId,
+    ) as Promise<ProjectStorageMigrationResult>,
     getPathManagementState: () => invokePathManagementState(ipc),
     getDataRootOccupiedStorage: () => ipc.invoke(
       PATH_MANAGEMENT_IPC_CHANNELS.GET_DATA_ROOT_OCCUPIED_STORAGE,

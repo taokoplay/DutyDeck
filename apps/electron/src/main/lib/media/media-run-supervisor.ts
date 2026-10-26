@@ -49,6 +49,11 @@ export class MediaRunSupervisor {
     this.stream = dependencies.stream ?? new ComfyProgressStream()
   }
 
+  /** 无参查询本进程是否仍在监督或执行媒体请求；返回 true 时禁止迁移项目存储。 */
+  hasActiveWork(): boolean {
+    return this.watched.size > 0 || this.activeRequests > 0
+  }
+
   /** 启动已获 Host 授权的准备，不在网络等待期间占用 UI/Agent 工具调用。 */
   start(projectId: string, runId: string, expectedRevision: number): MediaRunSnapshot {
     const snapshot = this.dependencies.runs.get(projectId, runId)

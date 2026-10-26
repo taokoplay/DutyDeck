@@ -25,6 +25,7 @@ describe('UnifiedMediaGenerationService', () => {
     })
     const prepared = service.prepare('session-1', request)
     expect(prepared.phase).toBe('prepared')
+    expect(service.hasActiveWork()).toBe(false)
     const running = await service.execute('session-1', prepared.id, prepared.revision)
     expect(running.phase).toBe('running')
     const done = await service.wait('session-1', prepared.id, 1_000, running.revision)
@@ -110,10 +111,13 @@ describe('UnifiedMediaGenerationService', () => {
     const prepared = service.prepare('session-1', request)
     await service.execute('session-1', prepared.id, prepared.revision)
     await registrationReady
+    expect(service.hasActiveWork()).toBe(true)
     expect(service.cancel('session-1', prepared.id).phase).toBe('cancelled')
+    expect(service.hasActiveWork()).toBe(true)
     resolveRegistration?.({ assetId: 'asset-late', revision: 1, hash: 'a'.repeat(64), mediaKind: 'audio' })
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(service.get('session-1', prepared.id).phase).toBe('cancelled')
+    expect(service.hasActiveWork()).toBe(false)
   })
 })
 
