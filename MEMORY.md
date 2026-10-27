@@ -1,5 +1,9 @@
 # MEMORY.md
 
+- 2026-10-27（v0.20.17 发布准备）：应用与 bun.lock 版本已从 0.20.16 递增到 0.20.17，新增 release-notes/v0.20.17.md；发布合同测试 37 项/136 断言通过，validate-release-version 输出与 v0.20.17 一致。隔离临时仓库布局完成 macOS arm64 Electron Builder `--dir` 打包（未签名），安装包冒烟确认版本 0.20.17、Electron 43.3.0、Pi 1.4.0、原生 helpers、CLI 和 mobile-dist 均存在且可加载。远端最新正式标签为 v0.20.16，v0.20.17 尚不存在；待推送当前分支与 tag 触发 GitHub Actions Release。Nowledge 定向检索因 127.0.0.1:14242 连接拒绝未同步。
+
+- 2026-10-27（开发主界面 ERR_ABORTED 定位）：提交前 electron:build 与现有 Dev 共用 dist，08:09:31 起 electronmon 监听到 runtime/preload 连续变化，hook.js:48 的 reloadIgnoringCache 中断主界面初始导航，08:09:36 日志明确记录 ERR_ABORTED(-3)。index.ts 的 did-fail-load 已忽略 -3，但初始 loadMainRenderer().catch 仍无条件打开错误页，导致正常导航取消被误判并覆盖后续加载。独立读取 5174 返回 HTTP 200，右侧 CSP 为开发警告，与此次故障无因果证据；本轮仅定位，未修业务代码。后续应统一导航取消/过期加载处理，并隔离 Dev 与验证构建产物。Nowledge 定向检索仍连接拒绝。
+
 - 2026-10-27（累计改动提交前验证）：Pi 1.4.0、网络恢复/诊断、协作分页、Renderer 恢复、影像审查/原生声画预览及历史搜索路径累计改动已核对；37 个变更测试文件逐文件隔离运行共 521 项/2643 断言通过，全仓 typecheck 与 diff check 通过。同进程批跑存在 Electron/child_process mock 跨文件污染，不能将批跑异常直接判为生产回归。Electron 构建的主进程、各 Utility、Preload、Renderer 和 CLI 通过；默认 Swift 缓存受沙箱阻断，设置 CLANG_MODULE_CACHE_PATH/SWIFT_MODULECACHE_PATH 到 /tmp 后 native-helpers 与 resources 补跑通过。仅本地 Git 提交，不推送、不发布；Nowledge 定向检索因 127.0.0.1:14242 连接拒绝未同步。
 
 - 2026-10-26（影像模块统一审查与授权生成收尾）：Dev 影像模块已注入统一剧本/分镜/动态/声音/语音/旁白/音效/音乐审查合同；新增声音必审门禁、有限纠偏续行、紧凑任务回执与按 jobId 分页读取冻结配置，并修复“必需结论齐全但已有 unchecked 证据缺口时 Host 反复续审”的空转问题。用户明确授权的本轮仅执行 3 次外部生成且各一次：镜02 POV 参考图 1 张、镜01/镜02 小米 MiMo-V2.5-TTS 各 1 句；实际调用均成功，未自动重试，未生成新视频。镜02 POV 图证明第一人称身前绑腕构图，但不证明睁眼/虚焦/动态；两句 MP3 已完整解码与 hash 核验但未实际听验，audio 仍 pending。镜01/02 候选 continuity 均 failed+error：镜01继承画面入/出场与计划冲突，镜02→03 身前绑腕→背后绑腕无过渡；两候选均未采用、不插轨、不导出。正式作品 revision 38、精剪 timeline revision 2、锁定角色和后10镜保持 baseline 不变。隔离本地排练页 `http://127.0.0.1:8795/review-pov.html` 保留，展示黑场→开睑虚焦→看清绑腕→人物反应及两句待听验配音；仅验证节奏/锚点，环境声、拟音、事件音效、音乐、全片连续观看和实际听验仍缺。Dev electronmon 已恢复，安装版 LAN Bridge 29889 冲突保持原样；未提交、未发布。
