@@ -38,6 +38,13 @@ jobs:
       - name: 构建插件公开合同与工具
         run: bun run build:plugins
 
+      - name: Test visual production task scope
+        run: >-
+          bun test
+          apps/electron/src/main/lib/visual-production/agent-tools.scope.test.ts
+          apps/electron/src/main/lib/visual-production/agent-tools.test.ts
+          apps/electron/src/main/lib/visual-production/execution-contract.test.ts
+
       - name: Test stable directory helper
         run: bun test apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts
 
@@ -104,8 +111,18 @@ jobs:
         run: bun run builder --win --x64 --publish never
         working-directory: apps/electron
 
+      - name: Hash Windows installer
+        shell: pwsh
+        run: |
+          Get-ChildItem apps/electron/out/*.exe | ForEach-Object {
+            $digest = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$digest  $($_.Name)" | Set-Content "$($_.FullName).sha256" -Encoding ascii
+          }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: DutyDeck-win-x64
-          path: apps/electron/out/*.exe
+          path: |
+            apps/electron/out/*.exe
+            apps/electron/out/*.exe.sha256

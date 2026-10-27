@@ -564,7 +564,7 @@ export class VisualProductionService {
           const removed = snapshot.jobs.splice(removable, 1)[0]!
           snapshot.candidates = snapshot.candidates.filter(candidate => candidate.jobId !== removed.id)
         }
-        if (command.input.shotId && !snapshot.document.shots.some(shot => shot.id === command.input.shotId)) throw new Error('镜头不存在')
+        if (command.input.shotId && !snapshot.document.shots.some(shot => shot.id === command.input.shotId)) throw new Error('镜头不存在：shotId 必须来自当前作品的正式镜头；整作品或整集任务请省略 shotId，Agent 工具也可传 null')
         const targetShot = command.input.shotId ? snapshot.document.shots.find(shot => shot.id === command.input.shotId) : undefined
         const requestedKinds = command.input.mediaKind === 'mixed' ? ['image', 'video', 'audio'] as const
           : command.input.mediaKind ? [command.input.mediaKind] as const

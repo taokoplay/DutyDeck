@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { PROVIDER_DEFAULT_URLS } from '@proma/shared'
+import { PROVIDER_DEFAULT_URLS } from '@dutydeck/shared'
 import { buildModel } from './pi-model-registry'
 
 describe('Pi 升级后的 Kimi 渠道协议兼容', () => {

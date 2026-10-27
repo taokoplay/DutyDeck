@@ -2,7 +2,7 @@ import { Type } from 'typebox'
 import type { TSchema } from 'typebox'
 import { Value } from 'typebox/value'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { parseVisualProductionCommand, resolveVisualShotOutputs, VISUAL_SHOT_ACTION_PHASES, VISUAL_SHOT_AUDIO_TRANSITIONS } from '@dutydeck/shared'
+import { assertVisualProductionId, parseVisualProductionCommand, resolveVisualShotOutputs, VISUAL_SHOT_ACTION_PHASES, VISUAL_SHOT_AUDIO_TRANSITIONS } from '@dutydeck/shared'
 import type { VisualEditingTimelineSnapshot, VisualJob, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot } from '@dutydeck/shared'
 /** 工具只能使用主运行时固定的会话身份。 */
 export interface VisualProductionAgentToolOptions {
@@ -190,11 +190,19 @@ function projectTimelineWriteResult(snapshot: VisualEditingTimelineSnapshot): un
 }
 /** 创建固定领域操作；严格解析器再次验证完整输入。 */
 export function buildVisualProductionAgentTools(options: VisualProductionAgentToolOptions): ToolDefinition[] {
-  /** 通用身份与正式版本字段。 */
-  const id = Type.String({ minLength: 1, maxLength: 128 })
+  /** 内部身份与 shared 解析器一致，仅用于作品内对象和安全路径单段。 */
+  const id = Type.String({ minLength: 1, maxLength: 128, pattern: '^(?!(?:constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9_-]{0,127}$', description: '对象 ID：以英文字母或数字开头，仅含英文字母、数字、下划线、连字符；引用已有对象时必须沿用读取结果，不能填写名称、路径或范围占位符。' })
+  /** 外部连接身份允许点号，不能被内部路径段规则误拒绝。 */
+  const connectionId = Type.String({ minLength: 1, maxLength: 128, pattern: '^(?!(?:constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$' })
+  /** 外部媒体资产允许冒号和更长身份，匹配统一媒体引用合同。 */
+  const externalAssetId = Type.String({ minLength: 1, maxLength: 256, pattern: '^(?!(?:constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$' })
   const revision = Type.Integer({ minimum: 1 })
   const target = { productionId: id }
   const base = { ...target, baseRevision: revision }
+  /** 任务范围允许显式 null，兼容要求填写可选字段的模型；真实镜头仍必须使用正式身份。 */
+  const jobShotId = Type.Optional(Type.Union([id, Type.Null()], { description: '仅修改单个已有镜头时填写其真实 shotId；整作品、整集剧本或尚无镜头时省略或传 null。禁止 /、空格、all、空字符串、集数 ID 或虚构镜头 ID。' }))
+  /** 显式 null 表达纯文本任务，避免模型为填写字段误选 mixed。 */
+  const jobMediaKind = Type.Optional(Type.Union([...['image', 'video', 'audio', 'mixed'].map(value => Type.Literal(value)), Type.Null()], { description: '纯文本创作省略或传 null；仅制作媒体时填写 image/video/audio/mixed。mixed 不是整集范围标记。' }))
   const kind = Type.Union(['comic', 'film', 'promo', 'image'].map(value => Type.Literal(value)))
   const mediaId = Type.Union([id, Type.Null()])
   const alternativeMediaIds = Type.Optional(Type.Array(id, { maxItems: 15 }))
@@ -280,9 +288,9 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
     { name: 'visual_production_read_timeline', method: 'loadTimeline', description: '读取指定集的剪辑时间线、片段来源版本、待替换提示和候选摘要。只返回结构化元数据，不读取媒体二进制。', fields: { ...target, episodeId: id } },
     { name: 'visual_production_list_export_jobs', method: 'listExportJobs', description: '读取指定集已登记的成片导出任务及真实终态；不读取或导出媒体二进制。', fields: { ...target, episodeId: id } },
     { name: 'visual_production_create', method: 'create', description: '创建用户明确要求的新影像作品。', fields: { title: Type.String(), kind }, write: true },
-    { name: 'visual_production_begin_job', method: 'beginJob', description: '冻结当前正式版本与制作配置并登记本会话生成任务；shotId 限定为只修改一个镜头，mediaKind 明确本任务制作图片、视频、音频或混合内容。ComfyUI 默认来源会登记工作流发现要求。后续媒体准备按冻结方案执行，多个活动任务须向媒体工具提供visualJobId。', fields: { ...base, instruction: Type.String(), shotId: Type.Optional(id), mediaKind: Type.Optional(Type.Union(['image', 'video', 'audio', 'mixed'].map(value => Type.Literal(value)))) }, write: true },
+    { name: 'visual_production_begin_job', method: 'beginJob', description: '冻结当前正式版本与制作配置并登记本会话生成任务。整作品、整集剧本或尚无镜头时，shotId 必须省略或传 null；不能使用空字符串、集数 ID 或虚构镜头 ID。仅修改单个已有镜头时填写其真实 shotId。纯文本创作省略 mediaKind 或传 null；制作媒体时用 image/video/audio/mixed 明确类别。ComfyUI 默认来源会登记工作流发现要求。后续媒体准备按冻结方案执行，多个活动任务须向媒体工具提供visualJobId。', fields: { ...base, instruction: Type.String(), shotId: jobShotId, mediaKind: jobMediaKind }, write: true },
     { name: 'visual_production_update_shot_plan', method: 'updateShotPlan', description: '原子保存单个镜头的视频生成计划与连续性合同，返回新正式版本，不修改剧情、其他镜头或现有资产。用户明确要求生成或直接优化时，先 read_shot 取最新 revision；若视频准备返回 VIDEO_PLAN_REQUIRED，立即调用本工具写入计划，再重新 begin_job，禁止改试无 job、Canvas 或其他绕过路径。references 只用于把本作品已导入的首帧、尾帧或动作锚点媒体登记为非锁定资产并加入目标镜头引用。', fields: { ...base, shotId: id, videoPlan: shotVideoPlan, continuityPlan: shotContinuityPlan, references: Type.Optional(Type.Array(shotPlanReference, { maxItems: 12 })) }, write: true },
-    { name: 'visual_production_record_workflow_discovery', method: 'recordWorkflowDiscovery', description: '保存本轮 ComfyUI 工作流发现的最终审计结论。media_discover_workflows 会由宿主自动写入扫描页；当完整目录确无语义匹配时提交 no-match，当服务或工作流无法读取且无法继续时提交 blocked，并写明具体原因。选中工作流必须改用 media_use_remote_workflow，让宿主从真实回执写入精确版本和 contentHash；此工具不能伪造 selected。', fields: { ...base, jobId: id, status: Type.Union([Type.Literal('no-match'), Type.Literal('blocked')]), connectionId: id, mediaKind: Type.Union(['image', 'video', 'audio'].map(value => Type.Literal(value))), candidateCount: Type.Integer({ minimum: 0 }), blockedCount: Type.Integer({ minimum: 0 }), nextOffset: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]), snapshotId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })), message: Type.String({ minLength: 1, maxLength: 2000 }) }, write: true },
+    { name: 'visual_production_record_workflow_discovery', method: 'recordWorkflowDiscovery', description: '保存本轮 ComfyUI 工作流发现的最终审计结论。media_discover_workflows 会由宿主自动写入扫描页；当完整目录确无语义匹配时提交 no-match，当服务或工作流无法读取且无法继续时提交 blocked，并写明具体原因。选中工作流必须改用 media_use_remote_workflow，让宿主从真实回执写入精确版本和 contentHash；此工具不能伪造 selected。', fields: { ...base, jobId: id, status: Type.Union([Type.Literal('no-match'), Type.Literal('blocked')]), connectionId, mediaKind: Type.Union(['image', 'video', 'audio'].map(value => Type.Literal(value))), candidateCount: Type.Integer({ minimum: 0 }), blockedCount: Type.Integer({ minimum: 0 }), nextOffset: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]), snapshotId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })), message: Type.String({ minLength: 1, maxLength: 2000 }) }, write: true },
     { name: 'visual_production_reference_media', method: 'referenceMedia', description: '把本轮任务允许使用的正式镜头或绑定资产媒体转换为完整 MediaAssetRef，供 media_prepare_generation 的 inputs.reference 使用；调用时必须包装为 { kind: "asset", asset: <完整引用> }，不会生成，不返回路径。必须沿用返回引用的全部字段。', fields: { ...base, jobId: id, mediaId: id }, write: true },
     { name: 'visual_production_update_job', method: 'updateJob', description: '记录本轮真实制作阶段：preparing 准备参考，generating 执行媒体工具，reviewing 检查产物；不代表供应商百分比或生成成功。终态不可恢复，重试须新建任务。', fields: { ...base, jobId: id, stage: Type.Union(['preparing', 'generating', 'reviewing'].map(value => Type.Literal(value))) }, write: true },
     { name: 'visual_production_propose_script', method: 'proposeScript', description: '提交一集结构化剧本候选，不修改正式镜头或媒体。先综合作品 brief、现有镜头、资产与创作边界，覆盖开场钩子、因果推进、核心转折、阶段结果、观众问题、视觉动作方向、声音和连续性，并把每个节拍映射到真实 shotId。精确 scene、motion、dialogue、soundDesign、continuityPlan 和 videoPlan 仍写镜头；剧本不能另造事实或把未生成内容写成已完成。任务需要推进正式剧本时，重新读取最新 revision 后用 adopt_candidate 采用精确候选。', fields: { ...base, jobId: id, episodeId: id, script: episodeScript, summary: Type.String({ minLength: 1, maxLength: 2000 }) }, write: true },
@@ -299,7 +307,7 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
     { name: 'visual_production_fail_job', method: 'failJob', description: '记录当前会话任务的失败原因，不重试外部调用。', fields: { ...target, jobId: id, message: Type.String() }, write: true },
     { name: 'visual_production_cancel_job', method: 'cancelJob', description: '取消当前会话任务，迟到结果不得登记。', fields: { ...target, jobId: id }, write: true },
     { name: 'visual_production_import_file', method: 'importFile', description: '从已授权项目相对路径复制真实媒体到作品独立素材库。', fields: { ...target, relativePath: Type.String() }, write: true },
-    { name: 'visual_production_import_media', method: 'importMedia', description: '按媒体服务返回的可信身份复制素材，校验项目、版本与 hash；不直接引用旧画布路径。', fields: { ...target, reference: Type.Object({ assetId: id, revision, hash: Type.String(), mediaKind: Type.Union([Type.Literal('image'), Type.Literal('video'), Type.Literal('audio')]) }) }, write: true },
+    { name: 'visual_production_import_media', method: 'importMedia', description: '按媒体服务返回的可信身份复制素材，校验项目、版本与 hash；不直接引用旧画布路径。', fields: { ...target, reference: Type.Object({ assetId: externalAssetId, revision, hash: Type.String(), mediaKind: Type.Union([Type.Literal('image'), Type.Literal('video'), Type.Literal('audio')]) }) }, write: true },
     { name: 'visual_production_export_manifest', method: 'exportManifest', description: '导出当前正式版 JSON 制作清单，不代表已经渲染或交付视频文件。', fields: target },
   ]
   return definitions.map(definition => {
@@ -309,8 +317,18 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
         signal?.throwIfAborted()
         await options.assertAccess(Boolean(definition.write))
         signal?.throwIfAborted()
+        /** 非空范围必须保持严格身份校验；不能把错误镜头降级成整作品任务。 */
+        if (definition.method === 'beginJob' && input.shotId !== undefined && input.shotId !== null) {
+          try { assertVisualProductionId(input.shotId) } catch {
+            throw new Error('VISUAL_PRODUCTION_INVALID: shotId 必须是已有镜头 ID；整作品或整集任务请省略 shotId 或传 null，不能填空字符串或虚构 ID')
+          }
+        }
         if (!Value.Check(parameters, input)) throw new Error('VISUAL_PRODUCTION_INVALID_INPUT')
         const { section, offset, limit, ...fields } = input
+        /** 仅在 Agent 边界把显式无镜头范围转成省略，不放宽 IPC 与持久化身份合同。 */
+        if (definition.method === 'beginJob' && fields.shotId === null) delete fields.shotId
+        /** 无媒体类别的显式表达只在 Agent 边界归一化，保留后端原有省略语义。 */
+        if (definition.method === 'beginJob' && fields.mediaKind === null) delete fields.mediaKind
         /** 剧本读取使用同一 load 命令，但以独立节拍分页呈现。 */
         const { episodeId: readEpisodeId, ...scriptLoadFields } = fields
         /** read_shot 是有界呈现，不给底层 load 增加未声明参数。 */
