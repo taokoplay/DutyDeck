@@ -15,7 +15,6 @@ import { installVisualTaskContextLifecycle } from './pi-visual-task-context'
 import type { VisualTaskContextPolicy } from '../visual-production/context-contract'
 import type { DataRootPathSnapshot } from '../data-root-reference'
 import { spawn } from 'node:child_process'
-import type { Dispatcher } from 'undici'
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type {
@@ -35,6 +34,8 @@ import type {
   AgentToolCallDelta,
   SDKUserMessageInput,
   SkillActivation,
+  NetworkDiagnosticInput,
+  NetworkRecoveryNotice,
 } from '@dutydeck/shared'
 import {
   applyAgentCompletionPolicy,
@@ -102,12 +103,8 @@ import {
 import { DEFAULT_CONTEXT_WINDOW, buildModel } from './pi-model-registry'
 import { PendingPromptSkillActivationTracker } from './pi-skill-activation-tracker'
 import { createPiRetryTerminalGate, mapPiNativeRetryEvent, PI_NATIVE_RETRY_POLICY } from './pi-retry-control'
-import {
-  closePiRequestProxyDispatcher,
-  createPiRequestProxyDispatcher,
-  installPiRequestProxyFetch,
-  runWithPiRequestProxy,
-} from './pi-request-proxy'
+import { installPiRequestProxyFetch } from './pi-request-proxy'
+import { createRecoveringPiStream, type PiNetworkRecoverySource } from './pi-network-recovery'
 
 /**
  * 只返回已经落盘的 Pi session artifact；0.99.1 空会话会先生成预期路径，
@@ -309,6 +306,12 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
   /** Skill 成功加载并注入 prompt 后回调。 */
   onSkillActivated?: (activations: SkillActivation[], userMessageUuid: string) => void
   proxyUrl?: string
+  /** utility 启动时的可序列化连接快照；不进入持久化会话。 */
+  networkRecoveryInitial?: NetworkRecoveryNotice
+  /** query 级可信网络源；跨进程由宿主重建，禁止序列化函数。 */
+  networkRecovery?: PiNetworkRecoverySource
+  /** 仅回传白名单诊断，不回传错误文本或请求地址。 */
+  onNetworkDiagnostic?: (input: NetworkDiagnosticInput) => void
   /** Pi 模型请求传输策略：auto / sse / websocket / websocket-cached */
   transport?: PiAgentTransport
   /** HTTP 头/响应体空闲超时，单位毫秒；0 表示交给 Pi SDK 禁用超时 */
@@ -1652,7 +1655,6 @@ export class PiAgentAdapter implements AgentProviderAdapter {
     let unsubscribe: (() => void) | undefined
     /** SDK 内置落盘 listener 之后的回执监听器。 */
     let unsubscribePersisted: (() => void) | undefined
-    let requestProxyDispatcher: Dispatcher | undefined
     /** 音视频抽样只保留到下一次模型读取，结束或取消时主动释放。 */
     let releaseMediaSamples: (() => void) | undefined
     /** 影像任务图片跨原生重试保留，只在真实 query 收尾释放。 */
@@ -1684,19 +1686,11 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         }
       } finally {
         active.resolveClosed()
-        void closePiRequestProxyDispatcher(requestProxyDispatcher)
-        requestProxyDispatcher = undefined
       }
     }
 
     try {
       installPiRequestProxyFetch()
-      requestProxyDispatcher = createPiRequestProxyDispatcher({
-        direct: input.provider === 'dutydeck-local',
-        proxyUrl: resolvePiHttpProxy(input),
-        noProxy: getCaseInsensitiveRuntimeEnvValue(input.runtimeEnv?.env, 'NO_PROXY'),
-        httpIdleTimeoutMs: input.httpIdleTimeoutMs,
-      })
       const sdk = await import('@earendil-works/pi-coding-agent')
       const piAi = input.codexFastMode && input.provider === 'openai-codex'
         ? await import('@earendil-works/pi-ai/compat')
@@ -1877,10 +1871,23 @@ export class PiAgentAdapter implements AgentProviderAdapter {
       // 代理作用域必须只覆盖模型 provider stream：在整个 session.prompt() 链上设
       // AsyncLocalStorage 会把 MCP/产品工具等同一 Agent loop 中的 fetch 也错误地送进 Codex 代理。
       const providerStreamFn = session.agent.streamFunction
-      session.agent.streamFunction = (requestModel, context, options) => runWithPiRequestProxy(
-        requestProxyDispatcher,
-        () => providerStreamFn(requestModel, context, options),
-      )
+      session.agent.streamFunction = createRecoveringPiStream(providerStreamFn, {
+        // 内置模型位于受管回环服务，不因外网变化中断本地推理。
+        source: input.provider === 'dutydeck-local' ? undefined : input.networkRecovery,
+        onDiagnostic: input.onNetworkDiagnostic,
+        requestOptions: (notice) => {
+          /** 已初始化的空代理是明确直连，不能退回旧 runtimeEnv。 */
+          const proxyUrl = input.provider === 'dutydeck-local' ? undefined
+            : notice ? notice.proxyUrl : resolvePiHttpProxy(input)
+          return {
+            direct: !proxyUrl,
+            proxyUrl,
+            noProxy: getCaseInsensitiveRuntimeEnvValue(input.runtimeEnv?.env, 'NO_PROXY'),
+            httpIdleTimeoutMs: input.httpIdleTimeoutMs,
+            transport: input.transport ?? (input.provider === 'openai-codex' ? (proxyUrl ? 'sse' : 'auto') : undefined),
+          }
+        },
+      })
       installRuntimeGuardHooks(session, runtimeGuard)
       installCurrentSessionCompactionHooks(session)
       if (customTools.some(tool => tool.name === 'canvas_inspect_media_content')) {

@@ -13,7 +13,12 @@ export type MediaProbeExec = (file: string, args: readonly string[], options: Me
 /** 已验证的音视频格式和技术元数据。 */
 export type ProbedMediaFile =
   | { mediaKind: 'audio'; mediaType: string; extension: string; metadata: { durationMs: number; sampleRate: number; channels: number; codec: string } }
-  | { mediaKind: 'video'; mediaType: string; extension: string; metadata: { width: number; height: number; durationMs: number; fps: number | null; codec: string; hasAudio: boolean } }
+  | {
+    mediaKind: 'video'; mediaType: string; extension: string
+    /** 仅供本次抽帧的视频流时长；缺失表示未知，不等同容器时长。 */
+    visualDurationMs?: number
+    metadata: { width: number; height: number; durationMs: number; fps: number | null; codec: string; hasAudio: boolean }
+  }
 
 export interface MediaFileProbeDependencies {
   exec?: MediaProbeExec
@@ -172,7 +177,9 @@ export async function probeMediaFile(path: string, signatureBytes: Uint8Array, d
     const width = positiveNumber(video.width); const height = positiveNumber(video.height)
     if (!width || !height || !Number.isSafeInteger(width) || !Number.isSafeInteger(height) || typeof video.codec_name !== 'string' || !video.codec_name) throw new Error('MEDIA_PROBE_INVALID')
     const format = fileFormat(signature, 'video')
-    return { mediaKind: 'video', ...format, metadata: { width, height, durationMs: Math.round(duration * 1000), fps: frameRate(video.r_frame_rate), codec: video.codec_name, hasAudio: Boolean(audio) } }
+    /** 音轨可能比视频长；视频抽帧边界独立返回，不污染交付元数据。 */
+    const visualDuration = positiveNumber(video.duration)
+    return { mediaKind: 'video', ...format, ...(visualDuration ? { visualDurationMs: visualDuration * 1000 } : {}), metadata: { width, height, durationMs: Math.round(duration * 1000), fps: frameRate(video.r_frame_rate), codec: video.codec_name, hasAudio: Boolean(audio) } }
   }
   if (!audio || signature.kind === 'video-only') throw new Error('MEDIA_PROBE_TYPE_MISMATCH')
   const sampleRate = positiveNumber(audio.sample_rate); const channels = positiveNumber(audio.channels)

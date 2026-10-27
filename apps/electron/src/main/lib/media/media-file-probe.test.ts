@@ -43,6 +43,17 @@ describe('音视频文件探测', () => {
     expect(result).toEqual({ mediaKind: 'audio', mediaType: 'audio/wav', extension: '.wav', metadata: { durationMs: 1250, sampleRate: 44100, channels: 1, codec: 'pcm_s16le' } })
   })
 
+  test('Given 音轨比视频长 When 探测 Then 保留交付总时长并独立提供视频流边界', async () => {
+    /** 同一 ffprobe 响应提供视频边界，不再发起重复探测。 */
+    const result = await probeMediaFile('/managed/video.mp4', Buffer.from('000000186674797069736f6d', 'hex'), {
+      candidates: ['ffprobe'], exec: async () => ({ stdout: JSON.stringify({
+        format: { format_name: 'mov,mp4', duration: '1.05' },
+        streams: [{ codec_type: 'video', codec_name: 'h264', width: 320, height: 240, r_frame_rate: '24/1', duration: '1' }, { codec_type: 'audio' }],
+      }), stderr: '' }),
+    })
+    expect(result).toMatchObject({ visualDurationMs: 1_000, metadata: { durationMs: 1_050 } })
+  })
+
   test('Given 所有可信候选均不存在 When 探测 Then 明确报告工具不可用', async () => {
     await expect(probeMediaFile('/managed/audio.bin', Buffer.from('fLaC'), {
       candidates: ['/usr/bin/ffprobe', 'ffprobe'],

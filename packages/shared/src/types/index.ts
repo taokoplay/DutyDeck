@@ -160,3 +160,5 @@ export * from './agent-module-audit'
 export * from './content-plugin'
 export * from './module-runtime-plugin'
 export * from './plugin-package-import'
+
+export * from './network'

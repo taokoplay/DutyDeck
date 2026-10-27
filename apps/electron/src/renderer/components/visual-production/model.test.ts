@@ -87,6 +87,15 @@ describe('制作记录状态筛选', () => {
     expect(visualCandidateReviewState({ ...base, review: { technical: 'passed', motion: 'passed', continuity: 'warning', conclusion: '', unchecked: [], issues: [{ gate: 'continuity', severity: 'warning', message: '偏慢' }], sessionId: 'session', reviewedAt: 1 } })).toBe('ready')
     expect(visualCandidateReviewState(candidate('legacy', 'ready'))).toBe('legacy')
   })
+  it('新声音候选缺少听验结论或未听验时保持待审，失败禁止采用', () => {
+    /** 宿主标记不能由前三项通过隐式满足。 */
+    const base: VisualCandidate = { ...candidate('audio', 'ready'), reviewRequired: true, reviewAudioRequired: true, review: { technical: 'passed', motion: 'passed', continuity: 'passed', conclusion: '声音审核', unchecked: [], issues: [], sessionId: 'session', reviewedAt: 1 } }
+    expect(visualCandidateReviewState(base)).toBe('pending')
+    for (const audio of ['pending', 'failed', 'passed', 'warning'] as const) {
+      expect(visualCandidateReviewState({ ...base, review: { ...base.review!, audio } })).toBe(audio === 'passed' || audio === 'warning' ? 'ready' : audio)
+    }
+    expect(visualCandidateReviewState({ ...base, reviewRequired: undefined, reviewAudioRequired: undefined, review: { ...base.review!, audio: 'failed' } })).toBe('failed')
+  })
 })
 
 it('需要审核的视频候选可生成明确的 Agent 审片要求', () => {

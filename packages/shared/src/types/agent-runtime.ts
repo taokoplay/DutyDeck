@@ -77,6 +77,8 @@ export const AGENT_RUNTIME_METHODS = {
   SHUTDOWN: 'runtime.shutdown',
   QUERY_START: 'agent.query.start',
   QUERY_ABORT: 'agent.query.abort',
+  /** 单向通知：只发往当前已就绪query，不触发进程启动。 */
+  QUERY_NETWORK_CHANGED: 'agent.query.networkChanged',
   QUERY_SEND_QUEUED_MESSAGE: 'agent.query.sendQueuedMessage',
   QUERY_SET_PERMISSION_MODE: 'agent.query.setPermissionMode',
   /** 权限通过后的本轮文件采集，不携带正文。 */

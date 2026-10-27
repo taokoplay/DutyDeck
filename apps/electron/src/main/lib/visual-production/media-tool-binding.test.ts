@@ -452,7 +452,7 @@ describe('ComfyUI 服务范围内由 Agent 选择工作流', () => {
   })
 })
 
-test('Given 视频任务使用 ComfyUI When 未发现和选定工作流 Then 预检阻断，完成后才允许准备', async () => {
+test.each(['remote', 'saved'] as const)('Given 视频任务使用 ComfyUI When 通过 %s 选定工作流 Then 预检阻断直到取得可信身份', async (selection) => {
   const root = mkdtempSync(join(tmpdir(), 'visual-workflow-gate-')); roots.push(root)
   const connection = { id: 'comfy-video', name: '芯火服务', kind: 'video' as const, source: { type: 'connection' as const, connectionId: 'comfy.local' }, parameters: {}, available: true, constraints: {} }
   const workflow = { id: 'resolved-workflow', name: '工作流', kind: 'video' as const, source: { type: 'workflow' as const, connectionId: 'comfy.local', workflowId: 'workflow', workflowRevision: 2 }, parameters: {}, available: true, constraints: {} }
@@ -470,7 +470,10 @@ test('Given 视频任务使用 ComfyUI When 未发现和选定工作流 Then 预
     entries: [{ id: connection.id, name: connection.name, kind: 'video', source: connection.source, parameters: {} }], defaults: { video: connection.id } })
   await run.execute('beginJob', { ...target, baseRevision: 1, instruction: '制作视频', mediaKind: 'video' })
   const calls: string[] = []
+  /** 检查回执来自宿主工具，与模型传入的参数分离。 */
+  let inspection: Record<string, unknown> = { savedWorkflow: { id: 'workflow', revision: 2, hash: 'b'.repeat(64), connectionId: 'comfy.local' }, issues: [], unsupportedReasons: [], outputs: [{ mediaType: 'video' }] }
   const tools: ToolDefinition[] = [
+    { name: 'media_inspect_workflow', label: '检查', description: '', parameters: Type.Object({}), execute: async () => ({ content: [{ type: 'text' as const, text: '{}' }], details: inspection }) },
     { name: 'media_discover_workflows', label: '发现', description: '', parameters: Type.Object({}), execute: async () => {
       calls.push('discover')
       return { content: [{ type: 'text' as const, text: '{}' }], details: { items: [], discovery: { status: 'candidates', candidateCount: 1 }, connectionId: 'comfy.local', snapshotId: 'snapshot-1', checkedAt: 10, nextOffset: null, total: 0 } }
@@ -489,8 +492,39 @@ test('Given 视频任务使用 ComfyUI When 未发现和选定工作流 Then 预
   const prepare = { connectionId: 'comfy.local', workflowId: 'workflow', workflowRevision: 2, mediaKind: 'video', inputs: {} }
   await expect(call('media_prepare_run', prepare)).rejects.toThrow('WORKFLOW_DISCOVERY_REQUIRED')
   expect(calls).toEqual([])
-  await call('media_discover_workflows', { connectionId: 'comfy.local', mediaKind: 'video', inputKinds: ['image', 'image'] })
-  await call('media_use_remote_workflow', { descriptor: { id: 'workflow' }, contentHash: 'a'.repeat(64) })
+  if (selection === 'remote') {
+    await call('media_discover_workflows', { connectionId: 'comfy.local', mediaKind: 'video', inputKinds: ['image', 'image'] })
+    await call('media_use_remote_workflow', { descriptor: { id: 'workflow' }, contentHash: 'a'.repeat(64) })
+  } else {
+    /** 裸定义、失败检查及缺失身份都不能完成工作流选定。 */
+    const valid = structuredClone(inspection)
+    await call('media_inspect_workflow', { definition: {}, ...prepare })
+    await expect(call('media_prepare_run', prepare)).rejects.toThrow('WORKFLOW_DISCOVERY_REQUIRED')
+    for (const invalid of [
+      { ...valid, savedWorkflow: undefined },
+      { ...valid, issues: [{ code: 'INVALID' }] },
+      { ...valid, unsupportedReasons: ['unsupported'] },
+      { ...valid, outputs: [{ mediaType: 'image' }] },
+      { ...valid, savedWorkflow: { id: 'workflow', revision: 2, connectionId: 'comfy.local' } },
+      { ...valid, savedWorkflow: { id: 'workflow', revision: 3, hash: 'b'.repeat(64), connectionId: 'comfy.local' } },
+      { ...valid, savedWorkflow: { id: 'workflow', revision: 2, hash: 'b'.repeat(64) } },
+      { ...valid, savedWorkflow: { id: 'workflow', revision: 2, hash: 'b'.repeat(64), connectionId: 'other' } },
+    ]) {
+      inspection = invalid
+      await call('media_inspect_workflow', { workflowId: 'workflow', workflowRevision: 2, connectionId: 'comfy.local' })
+      await expect(call('media_prepare_run', prepare)).rejects.toThrow('WORKFLOW_DISCOVERY_REQUIRED')
+    }
+    inspection = { ...valid, savedWorkflow: { id: 'workflow', revision: 2, hash: 'b'.repeat(64), connectionId: 'other' } }
+    await expect(call('media_inspect_workflow', { workflowId: 'workflow', workflowRevision: 2, connectionId: 'other' })).rejects.toThrow('OUT_OF_SCOPE')
+    inspection = valid
+    workflow.available = false
+    await expect(call('media_inspect_workflow', { workflowId: 'workflow', workflowRevision: 2, connectionId: 'comfy.local' })).rejects.toThrow('UNAVAILABLE')
+    await expect(call('media_prepare_run', prepare)).rejects.toThrow('WORKFLOW_DISCOVERY_REQUIRED')
+    workflow.available = true
+    await call('media_inspect_workflow', { workflowId: 'workflow', workflowRevision: 2, connectionId: 'comfy.local' })
+    expect((await service.invoke('load', target)).jobs[0]?.workflowDiscovery).toMatchObject({ status: 'selected', connectionId: 'comfy.local', selectedWorkflow: { workflowId: 'workflow', workflowRevision: 2, contentHash: 'b'.repeat(64) } })
+    await expect(call('media_prepare_run', { ...prepare, connectionId: 'other' })).rejects.toThrow('WORKFLOW_DISCOVERY_REQUIRED')
+  }
   await call('media_prepare_run', prepare)
-  expect(calls).toEqual(['discover', 'select', 'prepare'])
+  expect(calls).toEqual(selection === 'remote' ? ['discover', 'select', 'prepare'] : ['prepare'])
 })

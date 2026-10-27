@@ -34,11 +34,13 @@ export type VisualCandidateReviewState = 'legacy' | 'missing' | 'pending' | 'fai
  * @returns 可显示并用于按钮禁用的审核状态。
  */
 export function visualCandidateReviewState(candidate: VisualCandidate): VisualCandidateReviewState {
+  if (candidate.review?.audio === 'failed' || candidate.review?.issues.some(issue => issue.severity === 'error')) return 'failed'
   if (!candidate.reviewRequired) return 'legacy'
   if (!candidate.review) return 'missing'
   const review = candidate.review
   if ([review.technical, review.motion, review.continuity].includes('failed') || review.issues.some(issue => issue.severity === 'error')) return 'failed'
   if ([review.technical, review.motion, review.continuity].includes('pending')) return 'pending'
+  if (review.audio === 'pending' || (candidate.reviewAudioRequired && !review.audio)) return 'pending'
   return 'ready'
 }
 
@@ -116,7 +118,7 @@ export function buildVisualCandidateReviewPrompt(document: VisualProductionDocum
   if (!candidate.reviewRequired || candidate.status !== 'ready') return null
   const shot = job.shotId ? document.shots.find(item => item.id === job.shotId) : undefined
   const target = shot ? `镜头「${shot.title}」` : `作品「${document.title}」`
-  return `请审核${target}的视频候选「${candidate.summary}」。打开正式作品 ${document.id} 的视觉范围并使用候选 ${candidate.id}，将前后镜头加入 continuityShotIds；先 inspect 实际视频抽样，再提交 reviewCandidate。审核覆盖 technical、motion、continuity 三项：technical 检查可解码、时长和异常帧；motion 检查主体、动作和生成瑕疵；continuity 检查前后镜头方向、空间、动作、道具与声音接续。问题记录时间点，未听完整音频、未看完整视频或仅抽帧要写入未检查范围。不要替用户采用候选。`
+  return `请审核${target}的媒体候选「${candidate.summary}」。打开正式作品 ${document.id} 的视觉范围并使用候选 ${candidate.id}，将前后镜头加入 continuityShotIds；先 inspect 实际媒体，再提交 reviewCandidate。审核覆盖 technical、motion、continuity，涉及声音时增加 audio：technical 检查可解码、时长和异常帧；motion 检查主体、动作和生成瑕疵；continuity 检查前后镜头方向、空间、动作、道具与声音接续；audio 必须实际听验对白、旁白、语气、音效、配乐及混音，未听验保持 pending，不能用转录或波形代替。纯声音候选的 motion 可标 passed 并说明不适用。问题记录时间点，未听完整音频、未看完整视频或仅抽帧要写入未检查范围。不要替用户采用候选。`
 }
 /** 迟到请求只有在同一上下文且最新代次时才可回填界面。 */
 export class VisualRequestGate {

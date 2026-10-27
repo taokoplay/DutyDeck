@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { VisualMediaView } from './VisualMediaView'
 import { VisualEditingTimeline } from './VisualEditingTimeline'
 import { VisualEditingInspector } from './VisualEditingInspector'
-import { VisualEditingCandidates } from './VisualEditingCandidates'
+import { VisualEditingCandidates, VisualCandidatePlayback, VisualNativePreview } from './VisualEditingCandidates'
 import { getNextVideoClipId } from './VisualEditingPlayback'
 import './visual-editing.css'
 
@@ -64,6 +64,9 @@ export function VisualEditingWorkspace({ sessionId, productionId, snapshot, epis
   const selectedMedia = selected?.clip.source ? snapshot.media.find(item => item.id === selected.clip.source?.mediaId) : undefined
   const videoTrack = timelineSnapshot?.timeline?.tracks.find(track => track.kind === 'video')
   const selectedIndex = videoTrack && selected?.track.kind === 'video' ? videoTrack.clips.findIndex(item => item.id === selectedClipId) : -1
+  /** 原生预览独立呈现，避免将待审产物混称为正式成片。 */
+  const previewJob = timelineSnapshot?.exportJobs.filter(job => job.preview).sort((left, right) => right.createdAt - left.createdAt)[0]
+  const formalExportJobs = timelineSnapshot?.exportJobs.filter(job => !job.preview) ?? []
 
   /** 播放结束后推进到下一个画面片段；到达末尾才停止。 */
   const advancePlayback = React.useCallback((): void => {
@@ -87,14 +90,29 @@ export function VisualEditingWorkspace({ sessionId, productionId, snapshot, epis
   }, [currentEpisodeId, productionId, sessionId])
 
   React.useEffect(() => { void load(); return () => { requestId.current += 1 } }, [load])
+  React.useEffect(() => {
+    if (!active || !currentEpisodeId) return
+    let cancelled = false
+    /** 后台回执只更新任务快照，不重置用户的片段选择或播放。 */
+    const refresh = async (): Promise<void> => {
+      try {
+        const next = await window.electronAPI.visualProduction.invoke('loadTimeline', { sessionId, productionId, episodeId: currentEpisodeId })
+        if (!cancelled) setTimelineSnapshot(next)
+      } catch (cause) { if (!cancelled) setError(String(cause)) }
+    }
+    void refresh()
+    /** 仅可见且有活动预览任务时轮询，不为整个媒体库增加常驻开销。 */
+    const timer = previewJob && ['queued', 'preparing', 'rendering'].includes(previewJob.status) ? window.setInterval(() => { void refresh() }, 2000) : undefined
+    return () => { cancelled = true; if (timer !== undefined) window.clearInterval(timer) }
+  }, [active, currentEpisodeId, productionId, sessionId, snapshot, previewJob?.id, previewJob?.status])
   React.useEffect(() => { if (!active) setPlaying(false) }, [active])
   React.useEffect(() => { setExportSettings(previous => ({ ...previous, ratio: snapshot.document.ratio, fps: snapshot.document.fps })) }, [snapshot.document.id, snapshot.document.ratio, snapshot.document.fps])
   React.useEffect(() => {
-    if (!playing || !active || selectedMedia?.kind !== 'image' || !selected) return
+    if (!playing || !active || candidateId || selectedMedia?.kind !== 'image' || !selected) return
     /** 静帧没有原生 ended 事件，按片段时长推进并在清理时取消定时器。 */
     const timer = window.setTimeout(advancePlayback, Math.max(250, selected.clip.duration * 1000))
     return () => window.clearTimeout(timer)
-  }, [active, advancePlayback, playing, selected?.clip.duration, selected?.clip.id, selectedMedia?.kind])
+  }, [active, candidateId, advancePlayback, playing, selected?.clip.duration, selected?.clip.id, selectedMedia?.kind])
 
   /** 按当前作品 revision 创建初始时间线。 */
   const createRoughCut = async (): Promise<void> => {
@@ -214,11 +232,12 @@ export function VisualEditingWorkspace({ sessionId, productionId, snapshot, epis
     </header>
     {error && <div className="vp-error" role="alert"><span>{error}</span><Button size="sm" variant="ghost" onClick={() => { void load() }}>重新读取</Button></div>}
     {notice && <div className="vp-toolbar vp-muted" role="status">{notice}</div>}
+    {previewJob && <VisualNativePreview key={previewJob.id} job={previewJob} media={snapshot.media} sessionId={sessionId} productionId={productionId} active={active && !candidateId} />}
     {loading ? <div className="vp-editing-loading">读取当前集剪辑…</div> : !timelineSnapshot?.timeline ? <div className="vp-editing-empty"><Film size={30} /><strong>从分镜开始你的剪辑</strong><span className="vp-muted">当前集的已采用镜头会按顺序成为可编辑片段。</span><Button disabled={busy} onClick={() => { void createRoughCut() }}>按分镜创建剪辑</Button></div> : <>
-      <section className="vp-editing-preview-card" aria-label="成片预览">
-        <div className="vp-editing-preview-heading"><strong>成片预览</strong><span className="vp-muted">点击播放器按片段预演 · {timelineSnapshot.timeline.duration.toFixed(1)} 秒</span></div>
-        <div className="vp-editing-preview-player" onClick={() => { if (selectedMedia?.kind === 'video' || selectedMedia?.kind === 'image') setPlaying(value => !value) }}>
-          {selected?.clip.source ? <VisualMediaView active={active} sessionId={sessionId} productionId={productionId} media={selectedMedia} playing={playing && active} controls onEnded={advancePlayback} onError={() => setPlaying(false)} /> : <div className="vp-player-empty">选择画面片段查看预览</div>}
+      <section className="vp-editing-preview-card" aria-label="正式时间线片段预演">
+        <div className="vp-editing-preview-heading"><strong>正式时间线片段预演</strong><span className="vp-muted">源画面与源声音，非完整混音 · {timelineSnapshot.timeline.duration.toFixed(1)} 秒</span></div>
+        <div className="vp-editing-preview-player">
+          {selected?.clip.source ? <VisualMediaView key={selected.clip.id} active={active && !candidateId} sessionId={sessionId} productionId={productionId} media={selectedMedia} range={{ start: selected.clip.sourceIn, end: selected.clip.sourceOut }} playing={playing && active && !candidateId} controls onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={advancePlayback} onError={() => setPlaying(false)} /> : <div className="vp-player-empty">选择画面片段查看预览</div>}
           {selected && <span className="vp-editing-preview-index">{selected.track.kind === 'video' && selectedIndex >= 0 ? `${selectedIndex + 1} / ${videoTrack?.clips.length ?? 0}` : selected.track.kind}</span>}
         </div>
         <div className="vp-editing-preview-controls">
@@ -232,13 +251,13 @@ export function VisualEditingWorkspace({ sessionId, productionId, snapshot, epis
       </section>
       <VisualEditingTimeline timeline={timelineSnapshot.timeline} selectedClipId={selectedClipId} needsReplacementClipIds={timelineSnapshot.needsReplacementClipIds} onSelect={(track, clip) => { setSelectedClipId(clip.id); setPlaying(false); setNotice(`${track.kind === 'caption' ? '字幕' : '片段'}已选中，可在展开精剪中继续调整。`) }} />
       <VisualEditingCandidates candidates={timelineSnapshot.candidates} currentRevision={timelineSnapshot.timeline.revision} onPreview={setCandidateId} />
-      {timelineSnapshot.exportJobs.length > 0 && <section className="vp-editing-exports" aria-label="成片导出任务"><header className="vp-editing-candidates-header"><div><strong>成片导出</strong><span className="vp-muted">导出冻结了时间线版本和素材 hash</span></div><span className="vp-muted">{timelineSnapshot.exportJobs.length} 条</span></header>{timelineSnapshot.exportJobs.slice().reverse().map(job => <div className="vp-editing-export-job" key={job.id}><div className="vp-editing-export-job-main"><strong>{job.status === 'completed' ? <CheckCircle2 size={14} /> : job.status === 'failed' ? <XCircle size={14} /> : job.status === 'cancelled' ? <AlertTriangle size={14} /> : <Download size={14} />}时间线 v{job.timelineRevision} · {job.settings.ratio} · {job.settings.fps}</strong><span className={`vp-muted vp-editing-export-status is-${job.status}`}>{exportJobLabel(job)}</span></div><div className="flex shrink-0 items-center gap-1">{job.status === 'completed' && <Button size="sm" variant="outline" disabled={exportBusy} onClick={() => { void downloadExport(job) }}>下载</Button>}{(job.status === 'queued' || job.status === 'preparing') && <Button size="sm" variant="ghost" disabled={exportBusy} onClick={() => { void cancelExport(job) }}>取消</Button>}</div></div>)}</section>}
+      {formalExportJobs.length > 0 && <section className="vp-editing-exports" aria-label="成片导出任务"><header className="vp-editing-candidates-header"><div><strong>成片导出</strong><span className="vp-muted">导出冻结了时间线版本和素材 hash</span></div><span className="vp-muted">{formalExportJobs.length} 条</span></header>{formalExportJobs.slice().reverse().map(job => <div className="vp-editing-export-job" key={job.id}><div className="vp-editing-export-job-main"><strong>{job.status === 'completed' ? <CheckCircle2 size={14} /> : job.status === 'failed' ? <XCircle size={14} /> : job.status === 'cancelled' ? <AlertTriangle size={14} /> : <Download size={14} />}时间线 v{job.timelineRevision} · {job.settings.ratio} · {job.settings.fps}</strong><span className={`vp-muted vp-editing-export-status is-${job.status}`}>{exportJobLabel(job)}</span></div><div className="flex shrink-0 items-center gap-1">{job.status === 'completed' && <Button size="sm" variant="outline" disabled={exportBusy} onClick={() => { void downloadExport(job) }}>下载</Button>}{(job.status === 'queued' || job.status === 'preparing') && <Button size="sm" variant="ghost" disabled={exportBusy} onClick={() => { void cancelExport(job) }}>取消</Button>}</div></div>)}</section>}
       {selected && <section className="vp-editing-inspector-summary"><div><strong>当前片段</strong><span className="vp-muted">{selected.clip.label || '未命名片段'}</span></div><div><span className="vp-muted">入点</span><strong>{selected.clip.sourceIn.toFixed(1)}s</strong></div><div><span className="vp-muted">时长</span><strong>{selected.clip.duration.toFixed(1)}s</strong></div><div><span className="vp-muted">来源</span><strong>{selected.clip.source?.shotId ?? '字幕轨'}</strong></div><Button size="sm" variant="outline" disabled={busy} onClick={() => setInspectorOpen(true)}>设置片段</Button></section>}
       <VisualEditingInspector open={inspectorOpen} track={selected?.track ?? null} clip={selected?.clip ?? null} busy={busy} onOpenChange={setInspectorOpen} onSave={saveOperation} />
       <Dialog open={!!selectedCandidate} onOpenChange={open => { if (!open && !exportBusy) setCandidateId(null) }}>
         <DialogContent className="vp-dialog vp-editing-candidate-dialog">
           <DialogHeader><DialogTitle>预览候选修改</DialogTitle><DialogDescription>{selectedCandidate?.summary} · 基于时间线 v{selectedCandidate?.baseRevision}</DialogDescription></DialogHeader>
-          {selectedCandidate && <><div className="vp-editing-candidate-preview"><VisualEditingTimeline timeline={selectedCandidate.timeline} selectedClipId={null} needsReplacementClipIds={[]} onSelect={() => undefined} /></div><p className="vp-muted">候选包含 {selectedCandidate.operations.length} 项操作，采用后会创建时间线 v{(timelineSnapshot?.timeline?.revision ?? 0) + 1}。</p><footer className="vp-form-footer"><Button variant="outline" disabled={exportBusy} onClick={() => { void discardCandidate() }}>丢弃候选</Button><Button disabled={exportBusy || selectedCandidate.status !== 'ready' || selectedCandidate.baseRevision !== timelineSnapshot?.timeline?.revision} onClick={() => { void adoptCandidate() }}>采用候选</Button></footer></>}
+          {selectedCandidate && <><VisualCandidatePlayback key={selectedCandidate.id} candidate={selectedCandidate} media={snapshot.media} sessionId={sessionId} productionId={productionId} active={active} /><div className="vp-editing-candidate-preview"><VisualEditingTimeline timeline={selectedCandidate.timeline} selectedClipId={null} needsReplacementClipIds={[]} onSelect={() => undefined} /></div><p className="vp-muted">候选包含 {selectedCandidate.operations.length} 项操作，采用后会创建时间线 v{(timelineSnapshot?.timeline?.revision ?? 0) + 1}。</p><footer className="vp-form-footer"><Button variant="outline" disabled={exportBusy} onClick={() => { void discardCandidate() }}>丢弃候选</Button><Button disabled={exportBusy || selectedCandidate.status !== 'ready' || selectedCandidate.baseRevision !== timelineSnapshot?.timeline?.revision} onClick={() => { void adoptCandidate() }}>采用候选</Button></footer></>}
         </DialogContent>
       </Dialog>
       <Dialog open={refineOpen} onOpenChange={open => { if (!exportBusy) setRefineOpen(open) }}>

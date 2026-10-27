@@ -43,14 +43,16 @@ export async function detectSystemProxy(): Promise<SystemProxyDetectResult> {
       default:
         return {
           success: false,
+          detectionState: 'error',
           message: `不支持的平台: ${platform}`,
         }
     }
-  } catch (error) {
-    console.error('[系统代理检测] 检测失败:', error)
+  } catch {
+    console.error('[系统代理检测] 检测失败')
     return {
       success: false,
-      message: error instanceof Error ? error.message : '检测失败',
+      detectionState: 'error',
+      message: '系统代理检测失败',
     }
   }
 }
@@ -85,23 +87,34 @@ async function detectMacOSProxy(): Promise<SystemProxyDetectResult> {
     /** 解析 networksetup 输出的代理配置行 */
     function parseProxyOutput(output: string): { enabled: boolean; server: string; port: string } {
       const lines = output.split('\n')
-      let enabled = false
+      let enabled: boolean | undefined
       let server = ''
       let port = ''
 
       for (const line of lines) {
         if (line.includes('Enabled: Yes')) {
           enabled = true
+        } else if (line.includes('Enabled: No')) {
+          enabled = false
         } else if (line.includes('Server:')) {
-          server = line.split(':')[1]?.trim() || ''
+          server = line.slice(line.indexOf(':') + 1).trim()
         } else if (line.includes('Port:')) {
           port = line.split(':')[1]?.trim() || ''
         }
       }
 
+      if (enabled === undefined || (enabled && (!server || !/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535))) {
+        throw new Error('系统代理输出格式无效')
+      }
+      if (enabled) {
+        const address = new URL(`http://${server}:${port}`)
+        if (!address.hostname) throw new Error('系统代理地址无效')
+      }
       return { enabled, server, port }
     }
 
+    /** HTTPS未确认时，即使HTTP关闭也不能断言直连。 */
+    let httpsDetectionFailed = false
     // 优先检查 HTTPS 代理（Secure Web Proxy）
     try {
       const httpsOutput = await runSystemProxyCommand('networksetup', ['-getsecurewebproxy', networkService])
@@ -110,12 +123,14 @@ async function detectMacOSProxy(): Promise<SystemProxyDetectResult> {
         const proxyUrl = `http://${httpsProxy.server}:${httpsProxy.port}`
         return {
           success: true,
+          detectionState: 'proxy',
           proxyUrl,
           message: `检测到系统 HTTPS 代理: ${proxyUrl}`,
         }
       }
     } catch {
-      // HTTPS 代理检测失败，回退到 HTTP 代理检测
+      // HTTPS 失败仍允许HTTP找到可用代理，但不允许回落直连。
+      httpsDetectionFailed = true
     }
 
     // 回退：检查 HTTP 代理（Web Proxy）
@@ -123,21 +138,27 @@ async function detectMacOSProxy(): Promise<SystemProxyDetectResult> {
     const httpProxy = parseProxyOutput(httpOutput)
     if (httpProxy.enabled && httpProxy.server && httpProxy.port) {
       const proxyUrl = `http://${httpProxy.server}:${httpProxy.port}`
+      // 代理启用但地址损坏时必须保留error，不能发出可用代理通知。
+      if (!new URL(proxyUrl).hostname) throw new Error('系统代理地址无效')
       return {
         success: true,
+        detectionState: 'proxy',
         proxyUrl,
         message: `检测到系统 HTTP 代理: ${proxyUrl}`,
       }
     }
 
+    if (httpsDetectionFailed) throw new Error('HTTPS代理状态无法确认')
     return {
       success: false,
+      detectionState: 'direct',
       message: '系统未配置代理',
     }
-  } catch (error) {
-    console.error('[macOS 代理检测] 失败:', error)
+  } catch {
+    console.error('[macOS 代理检测] 失败')
     return {
       success: false,
+      detectionState: 'error',
       message: 'macOS 代理检测失败',
     }
   }
@@ -158,11 +179,15 @@ async function detectWindowsProxy(): Promise<SystemProxyDetectResult> {
       'ProxyEnable',
     ])
 
-    const proxyEnabled = regOutput.includes('0x1')
+    /** 只接受明确的注册表开关值，命令输出损坏不能当成禁用。 */
+    const enabledMatch = regOutput.match(/ProxyEnable\s+REG_DWORD\s+0x([01])(?:\s|$)/)
+    if (!enabledMatch) throw new Error('系统代理开关格式无效')
+    const proxyEnabled = enabledMatch[1] === '1'
 
     if (!proxyEnabled) {
       return {
         success: false,
+        detectionState: 'direct',
         message: '系统未启用代理',
       }
     }
@@ -183,9 +208,8 @@ async function detectWindowsProxy(): Promise<SystemProxyDetectResult> {
       // 如果包含协议分隔符，提取 http 或 https 代理
       if (proxyUrl.includes('=')) {
         const httpMatch = proxyUrl.match(/https?=([^;]+)/)
-        if (httpMatch?.[1]) {
-          proxyUrl = httpMatch[1]
-        }
+        if (!httpMatch?.[1]) throw new Error('系统HTTP代理地址缺失')
+        proxyUrl = httpMatch[1]
       }
 
       // 确保有协议前缀
@@ -193,8 +217,11 @@ async function detectWindowsProxy(): Promise<SystemProxyDetectResult> {
         proxyUrl = `http://${proxyUrl}`
       }
 
+      // 代理启用但地址损坏时必须保留error，不能发出可用代理通知。
+      if (!new URL(proxyUrl).hostname) throw new Error('系统代理地址无效')
       return {
         success: true,
+        detectionState: 'proxy',
         proxyUrl,
         message: `检测到系统代理: ${proxyUrl}`,
       }
@@ -202,12 +229,14 @@ async function detectWindowsProxy(): Promise<SystemProxyDetectResult> {
 
     return {
       success: false,
+      detectionState: 'error',
       message: '无法读取代理服务器地址',
     }
-  } catch (error) {
-    console.error('[Windows 代理检测] 失败:', error)
+  } catch {
+    console.error('[Windows 代理检测] 失败')
     return {
       success: false,
+      detectionState: 'error',
       message: 'Windows 代理检测失败',
     }
   }
@@ -226,8 +255,12 @@ function detectLinuxProxy(): SystemProxyDetectResult {
     process.env.http_proxy
 
   if (httpProxy) {
+    /** 环境变量存在但格式错误属于检测失败，不能当成有效路由。 */
+    const address = new URL(httpProxy)
+    if (!address.hostname || !['http:', 'https:'].includes(address.protocol)) throw new Error('系统代理环境变量格式无效')
     return {
       success: true,
+      detectionState: 'proxy',
       proxyUrl: httpProxy,
       message: `检测到系统代理: ${httpProxy}`,
     }
@@ -235,6 +268,7 @@ function detectLinuxProxy(): SystemProxyDetectResult {
 
   return {
     success: false,
+    detectionState: 'direct',
     message: '系统未配置代理环境变量',
   }
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { AGENT_RUNTIME_METHODS, createAgentRuntimeRequest } from '@dutydeck/shared'
-import type { AgentRuntimeEvent } from '@dutydeck/shared'
+import type { AgentRuntimeEvent, NetworkRecoveryNotice } from '@dutydeck/shared'
 import type { PiAgentQueryOptions } from './pi-agent-adapter'
 import { createRunToolCallLimiter } from '../agent-run-tool-policy'
 import type { CanUseToolOptions } from '../agent-permission-service'
@@ -33,6 +33,10 @@ interface FakeRuntimeState {
   requestPayloads: unknown[]
   /** 底层 stop 实际调用次数。 */
   stopCalls: number
+  /** 网络单向通知记录。 */
+  notices: NetworkRecoveryNotice[]
+  /** 可选握手延迟，用于覆盖订阅启动竞态。 */
+  startGate?: ReturnType<typeof createDeferred>
   /** query abort 的协议响应。 */
   abortResponse: { accepted: boolean; completed?: boolean }
   /** adapter 注册的 runtime 事件监听器。 */
@@ -41,6 +45,19 @@ interface FakeRuntimeState {
 
 /** 每次 query 创建的独立 utility runtime。 */
 let runtimeStates: FakeRuntimeState[] = []
+/** 模拟网络服务订阅，不启动系统监听。 */
+const networkListeners = new Set<(notice: NetworkRecoveryNotice) => void>()
+/** 已解析快照可显式表达直连；undefined表示尚未初始化。 */
+let serviceSnapshot: NetworkRecoveryNotice | undefined
+let nextStartGate: ReturnType<typeof createDeferred> | undefined
+mock.module('../network-recovery-service', () => ({ networkRecoveryService: {
+  getStatus: () => ({ epoch: 0 }),
+  getSnapshot: () => serviceSnapshot,
+  subscribe: (listener: (notice: NetworkRecoveryNotice) => void) => {
+    networkListeners.add(listener)
+    return () => { networkListeners.delete(listener) }
+  },
+} }))
 
 mock.module('../agent-runtime-client', () => ({
   AgentRuntimeClient: class {
@@ -52,10 +69,14 @@ mock.module('../agent-runtime-client', () => ({
         calls: [],
         requestPayloads: [],
         stopCalls: 0,
+        notices: [],
+        startGate: nextStartGate,
         abortResponse: { accepted: true, completed: true },
       }
       runtimeStates.push(this.state)
     }
+    get currentState() { return { bootId: 'boot' } }
+    notifyNetworkChange(notice: NetworkRecoveryNotice): boolean { this.state.notices.push(notice); return true }
     setRequestHandler(): void {}
     onEvent(listener: (event: AgentRuntimeEvent) => void): () => void {
       this.state.eventListener = listener
@@ -64,6 +85,7 @@ mock.module('../agent-runtime-client', () => ({
     async call(method: string, payload?: unknown): Promise<unknown> {
       this.state.calls.push(method)
       this.state.requestPayloads.push(payload)
+      if (method === AGENT_RUNTIME_METHODS.QUERY_START && this.state.startGate) await this.state.startGate.promise
       if (method === AGENT_RUNTIME_METHODS.QUERY_ABORT) return this.state.abortResponse
       return undefined
     }
@@ -78,6 +100,9 @@ const { PiUtilityAdapter } = await import('./pi-utility-adapter')
 
 beforeEach(() => {
   runtimeStates = []
+  networkListeners.clear()
+  nextStartGate = undefined
+  serviceSnapshot = undefined
 })
 
 /** 创建只包含 utility query 启动所需字段的输入。 */
@@ -707,4 +732,96 @@ test('Given utility 崩溃 When 活跃 query 收到 EVENT_CRASHED Then 提供稳
   runtimeStates[0]!.eventListener?.({ kind: 'event', method: AGENT_RUNTIME_METHODS.EVENT_CRASHED, payload: { code: 'runtime.process_exit', message: 'arbitrary platform text' } } as AgentRuntimeEvent)
   runtimeStates[0]!.stop.resolve()
   expect(await captured).toMatchObject({ code: 'AGENT_RUNTIME_INTERRUPTED' })
+})
+
+
+test('网络通知握手期间保留最新代次，query取消后不再推送', async () => {
+  nextStartGate = createDeferred()
+  const adapter = new PiUtilityAdapter()
+  const input = { ...createQueryInput('network-session'), proxyUrl: 'http://initial', networkRecovery: { getSnapshot: () => undefined, subscribe: () => () => {} }, onNetworkDiagnostic: () => {} } as PiAgentQueryOptions
+  const iterator = adapter.query(input, 'network-query')[Symbol.asyncIterator]()
+  const pendingNext = iterator.next()
+  await waitUntil(() => runtimeStates.length === 1)
+  const payload = runtimeStates[0]!.requestPayloads[0] as { input: Record<string, unknown> }
+  expect(payload.input.networkRecovery).toBeUndefined()
+  expect(payload.input.onNetworkDiagnostic).toBeUndefined()
+  expect(payload.input.networkRecoveryInitial).toEqual({ epoch: 0, proxyUrl: 'http://initial' })
+  for (const listener of networkListeners) listener({ epoch: 1, proxyUrl: 'http://new' })
+  expect(runtimeStates[0]!.notices).toHaveLength(0)
+  nextStartGate.resolve()
+  await waitUntil(() => runtimeStates[0]!.notices.length === 1)
+  expect(runtimeStates[0]!.notices[0]?.epoch).toBe(1)
+  runtimeStates[0]!.stop.resolve()
+  await adapter.forceCloseQuery('network-query')
+  await pendingNext
+  expect(networkListeners.size).toBe(0)
+})
+
+test('取消发生在握手完成前时，迟到网络事件不得恢复通知', async () => {
+  nextStartGate = createDeferred()
+  const adapter = new PiUtilityAdapter()
+  const iterator = adapter.query(createQueryInput('cancel-network'), 'cancel-query')[Symbol.asyncIterator]()
+  const pendingNext = iterator.next()
+  await waitUntil(() => runtimeStates.length === 1)
+  const staleListeners = [...networkListeners]
+  runtimeStates[0]!.stop.resolve()
+  await adapter.forceCloseQuery('cancel-query')
+  for (const listener of staleListeners) listener({ epoch: 3 })
+  nextStartGate.resolve()
+  await pendingNext
+  expect(runtimeStates[0]!.notices).toHaveLength(0)
+  expect(networkListeners.size).toBe(0)
+})
+
+test('网络诊断严格绑定boot/query/session并经白名单容器脱敏', async () => {
+  const { networkDiagnostics } = await import('../network-diagnostics')
+  const before = networkDiagnostics.createReport().events.length
+  const adapter = new PiUtilityAdapter()
+  const iterator = adapter.query({ ...createQueryInput('diagnostic-session'), baseUrl: 'https://user:secret@example.org/private?token=secret' } as PiAgentQueryOptions, 'diagnostic-query')[Symbol.asyncIterator]()
+  const pendingNext = iterator.next()
+  await waitUntil(() => runtimeStates.length === 1)
+  const event = {
+    protocolVersion: 1 as const, kind: 'event' as const, bootId: 'boot', sessionId: 'diagnostic-session', queryId: 'diagnostic-query',
+    method: AGENT_RUNTIME_METHODS.EVENT_QUERY_CALLBACK,
+    payload: { callback: 'network_diagnostic', payload: { phase: 'failed', code: 'timeout', rawError: 'secret', status: 408 } },
+  }
+  runtimeStates[0]!.eventListener?.({ ...event, bootId: 'old' })
+  runtimeStates[0]!.eventListener?.({ ...event, sessionId: 'other' })
+  runtimeStates[0]!.eventListener?.({ ...event, queryId: 'other' })
+  expect(networkDiagnostics.createReport().events).toHaveLength(before)
+  runtimeStates[0]!.eventListener?.(event)
+  const report = networkDiagnostics.createReport()
+  expect(report.events).toHaveLength(before + 1)
+  expect(report.events.at(-1)).toMatchObject({ phase: 'failed', code: 'timeout', status: 408 })
+  expect(JSON.stringify(report)).not.toContain('secret')
+  runtimeStates[0]!.stop.resolve()
+  await adapter.forceCloseQuery('diagnostic-query')
+  await pendingNext
+})
+
+
+test('服务尚无快照且input未显式代理时，不合成直连notice覆盖runtimeEnv', async () => {
+  const adapter = new PiUtilityAdapter()
+  const iterator = adapter.query({ ...createQueryInput('env-proxy'), runtimeEnv: { env: { HTTPS_PROXY: 'http://env-proxy' } } } as PiAgentQueryOptions, 'env-query')[Symbol.asyncIterator]()
+  const pendingNext = iterator.next()
+  await waitUntil(() => runtimeStates.length === 1)
+  const payload = runtimeStates[0]!.requestPayloads[0] as { input: Record<string, unknown> }
+  expect(payload.input.networkRecoveryInitial).toBeUndefined()
+  runtimeStates[0]!.stop.resolve()
+  await adapter.forceCloseQuery('env-query')
+  await pendingNext
+})
+
+
+test('已解析epoch0直连快照优先于旧代理，不按epoch值猜测初始化', async () => {
+  serviceSnapshot = { epoch: 0, proxyUrl: undefined }
+  const adapter = new PiUtilityAdapter()
+  const iterator = adapter.query({ ...createQueryInput('direct'), proxyUrl: 'http://old-proxy' } as PiAgentQueryOptions, 'direct-query')[Symbol.asyncIterator]()
+  const pendingNext = iterator.next()
+  await waitUntil(() => runtimeStates.length === 1)
+  const payload = runtimeStates[0]!.requestPayloads[0] as { input: Record<string, unknown> }
+  expect(payload.input.networkRecoveryInitial).toEqual({ epoch: 0, proxyUrl: undefined })
+  runtimeStates[0]!.stop.resolve()
+  await adapter.forceCloseQuery('direct-query')
+  await pendingNext
 })

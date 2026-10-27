@@ -6,6 +6,7 @@
  */
 
 import * as React from 'react'
+import { NetworkDiagnosticsSettings } from './NetworkDiagnosticsSettings'
 import { useAtom, useSetAtom } from 'jotai'
 import { Globe, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react'
 import {
@@ -76,6 +77,7 @@ export function ProxySettings(): React.ReactElement {
 
   return (
     <div className="space-y-6">
+      <NetworkDiagnosticsSettings />
       {/* 代理开关 */}
       <SettingsSection
         title="代理配置"

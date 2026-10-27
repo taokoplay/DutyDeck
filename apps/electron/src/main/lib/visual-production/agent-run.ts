@@ -1,5 +1,15 @@
-import type { VisualCandidate, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualJob } from '@dutydeck/shared'
+import type { VisualCandidate, VisualCandidateReview, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualJob } from '@dutydeck/shared'
 import type { VisualProductionExecutor } from './access'
+import type { AgentCompletionEvaluation } from '../agent-completion-policy'
+
+/**
+ * 影像各阶段共用总续行预算，避免纠偏后的复审退回通用三次额度。
+ * @param message 本次有界的发现、生成、审查或修正指令；空值表示无需续行。
+ * @returns 同一 Agent 的完成判断；独立纠偏次数仍由运行队列限制。
+ */
+export function buildVisualCompletionEvaluation(message: string | null): AgentCompletionEvaluation {
+  return message ? { action: 'continue', message, continuationLimit: 12 } : { action: 'complete' }
+}
 
 /** 本轮任务中尚待同一 Agent 完成的审片候选。 */
 export interface PendingVisualReviewStep {
@@ -9,6 +19,27 @@ export interface PendingVisualReviewStep {
   jobId: string
   shotId?: string
   summary: string
+}
+
+/** 本轮失败候选的定向修正依据；不包含媒体字节或新的执行授权。 */
+export interface PendingVisualRepairStep extends PendingVisualReviewStep {
+  /** 当前候选实际保存的审核结论，供下一次指令继承约束。 */
+  review: VisualCandidateReview
+}
+
+/** 每轮运行的纠偏续行上限；限制模型循环，不代替媒体调用预算。 */
+const MAX_VISUAL_REPAIR_ROUNDS = 2
+
+/**
+ * 将失败证据转成同一 Agent 的修正任务，不能把审核失败当作新调用授权。
+ * @param pending 本轮首次交付的有效失败候选。
+ * @returns 定向修正要求；没有候选时为空。
+ */
+export function buildVisualRepairStepContinuation(pending: readonly PendingVisualRepairStep[]): string | null {
+  if (!pending.length) return null
+  /** 限制单次证据正文；完整结论仍可从正式候选读取。 */
+  const targets = pending.slice(0, 8).map(item => `- ${JSON.stringify({ productionId: item.productionId, revision: item.productionRevision, shotId: item.shotId, candidateId: item.candidateId, conclusion: item.review.conclusion.slice(0, 1000), issues: item.review.issues.slice(0, 8), unchecked: item.review.unchecked.slice(0, 4) })}`).join('\n')
+  return `本轮候选已发现硬失败，继续执行缺陷驱动修正步骤，不能仅报告“审核未通过”就结束。先形成“问题及时间点→依据→最小修正范围→继承已通过约束→新指令→复验标准”，保存到后续 job.instruction；失败候选保留且不得采用。核对剩余授权、调用次数/预算与真实处理能力，只在范围内读取最新版本并修正目标镜头计划、begin_job 新任务；每次新产物都要重新审查hash，并与前版相同时间窗比较。缺少实际听验只代表证据缺口，不能盲目重生成音频。无改善、缺能力、缺授权/预算或用户停止时，报告具体阻塞与可执行下一步。Host 每轮最多两次纠偏续行，这不是外传素材、收费重试或修改锁定资产的授权。\n${targets}`
 }
 
 /** 本轮视频任务中尚未完成的工作流发现步骤。 */
@@ -52,7 +83,7 @@ const HOST_WAITABLE_MEDIA_PHASES = new Set([
 export function buildVisualReviewStepContinuation(pending: readonly PendingVisualReviewStep[]): string | null {
   if (!pending.length) return null
   const targets = pending.slice(0, 8).map(item => `- ${item.shotId ? `镜头 ${item.shotId} · ` : ''}${item.summary}（候选 ${item.candidateId}）`).join('\n')
-  return `本轮有 ${pending.length} 个新影片候选，当前任务尚未完成审片步骤。不要等待用户点击审核按钮；请在同一个 Agent 任务中继续，打开每个候选及前后镜头的视觉范围，读取目标的 continuityPlan，逐项核对入场状态、出场状态、关键动作中间态和声音接续，inspect 实际视频抽样，并调用 visual_production_review_candidate（reviewCandidate）保存 technical、motion、continuity 结论、未检查范围和带时间点的问题。技术失败标记 failed；不要把抽帧、生成成功或文件可播放冒充完整验收。\n${targets}`
+  return `本轮有 ${pending.length} 个新影片或声音候选，当前任务尚未完成审片步骤。不要等待用户点击审核按钮；请在同一个 Agent 任务中继续，打开每个候选及必要前后镜头的上下文，读取 continuityPlan，逐项核对入场/出场、关键动作中间态、叙事和声音接续。inspect 实际视频抽样或音频技术证据，并调用 visual_production_review_candidate（reviewCandidate）保存 technical、motion、continuity；reviewAudioRequired 的候选还必须提交 audio 结论，核对准确台词/角色、声线、语气、旁白、拟音/音效/音乐与混音。未实际听验时 audio=pending 并写 unchecked，不能用 ASR、波形或AAC存在冒充听验。技术失败或已证实缺少用户关键视角、动作、连续性/声音内容时，对应门必须 failed+error，不能用 warning 放行；warning 只限轻微瑕疵，证据不足保持 pending/unchecked，不猜测通过或失败。记录问题时间点；无法取得必要证据时在 unchecked 写清各项缺口、原因与补证下一步，随后报告候选仍待审核、未采用并结束本轮；不重复检查同样的元数据，也不把报告阻塞当作质量通过。\n${targets}`
 }
 
 /**
@@ -94,12 +125,16 @@ export function buildVisualMediaStepContinuation(pending: readonly PendingVisual
 export function createVisualProductionRun(sessionId: string, access: VisualProductionExecutor, cleanup: VisualProductionExecutor) {
   /** 本轮实际 beginJob 返回的可信身份，不采纳模型提供的任意任务。 */
   const ownedJobs = new Map<string, { job: VisualJob; productionId: string }>()
+  /** 同一失败候选只分发一次，避免忽略建议时原地循环。 */
+  const deliveredRepairs = new Set<string>()
+  /** 只对实际分发修正步骤计数，空队列与过期候选不消耗额度。 */
+  let repairRounds = 0
   return {
     /** 只向主进程工具包装器提供本轮签发身份；返回副本防止外部改写冻结配置。 */
     mediaJobs() { return structuredClone([...ownedJobs.values()]) },
     /**
      * 只扫描本轮任务关联的候选，供 Host 防止 Agent 在审片步骤前结束。
-     * @returns 未完成 technical、motion、continuity 审核的视频候选。
+     * @returns 尚未记录必需结论或未说明待审证据缺口的候选；质量采用门禁独立保持。
      */
     async pendingReviews(): Promise<PendingVisualReviewStep[]> {
       const snapshots = new Map<string, VisualProductionSnapshot>()
@@ -110,16 +145,49 @@ export function createVisualProductionRun(sessionId: string, access: VisualProdu
           current = await access.execute('load', { sessionId, productionId })
           snapshots.set(productionId, current)
         }
-        for (const candidate of current.candidates.filter((item: VisualCandidate) => item.jobId === job.id && item.status === 'ready' && item.reviewRequired)) {
+        for (const candidate of current.candidates.filter((item: VisualCandidate) => item.jobId === job.id && item.status === 'ready' && item.baseRevision === current!.document.revision && item.reviewRequired)) {
           if (candidate.review) {
-            const statuses = [candidate.review.technical, candidate.review.motion, candidate.review.continuity]
-            /** 任一硬失败已形成审片结论，不再强制继续看其余项；待用户决定重做。 */
+            const statuses = [candidate.review.technical, candidate.review.motion, candidate.review.continuity, ...(candidate.review.audio ? [candidate.review.audio] : candidate.reviewAudioRequired ? ['pending'] : [])]
+            /** 硬失败已形成审片结论，由后续有界纠偏步骤处理。 */
             if (statuses.includes('failed') || candidate.review.issues.some(issue => issue.severity === 'error')) continue
-            /** 仅全部门禁已给出非 pending 结论时，同一 Agent 才结束审片步骤。 */
-            if (!statuses.includes('pending')) continue
+            /** 缺少必需声音结论仍需补审，不能借已有 unchecked 跳过该门。 */
+            const hasRequiredConclusions = !candidate.reviewAudioRequired || Boolean(candidate.review.audio)
+            /** 审查已说明缺证据时允许报告阻塞；pending 仍由采用门禁拦截，避免反复调度。 */
+            if (hasRequiredConclusions && (!statuses.includes('pending') || candidate.review.unchecked.some(item => item.trim().length > 0))) continue
           }
           pending.push({ productionId, productionRevision: current.document.revision, candidateId: candidate.id, jobId: job.id, ...(job.shotId ? { shotId: job.shotId } : {}), summary: candidate.summary })
         }
+      }
+      return pending
+    },
+    /**
+     * 只向当前运行分发有效失败候选，不接管旧任务或自动发起媒体调用。
+     * @returns 本次可处理的失败证据；同一候选不重复分发，最多两轮。
+     */
+    async takePendingRepairs(): Promise<PendingVisualRepairStep[]> {
+      if (repairRounds >= MAX_VISUAL_REPAIR_ROUNDS) return []
+      /** 同作品只读取一次快照，避免多镜任务重复读取和扩大上下文。 */
+      const snapshots = new Map<string, VisualProductionSnapshot>()
+      const pending: PendingVisualRepairStep[] = []
+      for (const { job, productionId } of ownedJobs.values()) {
+        let current = snapshots.get(productionId)
+        if (!current) {
+          current = await access.execute('load', { sessionId, productionId })
+          snapshots.set(productionId, current)
+        }
+        for (const candidate of current.candidates) {
+          if (candidate.jobId !== job.id || candidate.status !== 'ready' || candidate.baseRevision !== current.document.revision || !candidate.reviewRequired || !candidate.review || deliveredRepairs.has(candidate.id)) continue
+          /** 仅有真实硬失败才要求修正，pending、warning 不产生付费重试诱导。 */
+          const review = candidate.review
+          if (![review.technical, review.motion, review.continuity, review.audio].includes('failed') && !review.issues.some(issue => issue.severity === 'error')) continue
+          pending.push({ productionId, productionRevision: current.document.revision, candidateId: candidate.id, jobId: job.id, ...(job.shotId ? { shotId: job.shotId } : {}), summary: candidate.summary, review: structuredClone(review) })
+          if (pending.length >= 8) break
+        }
+        if (pending.length >= 8) break
+      }
+      if (pending.length) {
+        repairRounds++
+        for (const item of pending) deliveredRepairs.add(item.candidateId)
       }
       return pending
     },

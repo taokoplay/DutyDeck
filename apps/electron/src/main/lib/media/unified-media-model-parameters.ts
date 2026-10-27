@@ -28,6 +28,7 @@ export function getUnifiedMediaModelParameters(adapterId: string, modelId?: stri
   if (adapterId === 'minimax-speech' || adapterId === 'xiaomi-speech') return [
     { name: 'voice', type: 'string', description: '供应商音色 ID', defaultValue: adapterId === 'minimax-speech' ? 'female-shaonv' : 'mimo_default' },
     { name: 'format', type: 'string', description: '输出音频格式', defaultValue: 'mp3', enum: ['mp3'] },
+    ...(adapterId === 'xiaomi-speech' ? [{ name: 'instruction', type: 'string' as const, description: '语气、情绪和风格指令，不会朗读；prompt 仅填写实际台词' }] : []),
   ]
   return []
 }

@@ -309,16 +309,18 @@ function requireOwnedRun(dependencies: MediaToolProviderDependencies, context: C
 }
 
 /** 接受已保存工作流、完整定义或原始 API prompt 三种检查来源。 */
-function resolveWorkflow(dependencies: MediaToolProviderDependencies, context: CanvasToolRunContext, selector: WorkflowSelector): MediaWorkflowDefinition {
+function resolveWorkflow(dependencies: MediaToolProviderDependencies, context: CanvasToolRunContext, selector: WorkflowSelector): { definition: MediaWorkflowDefinition; saved?: MediaWorkflowVersion } {
   const modes = [selector.workflowId !== undefined, selector.definition !== undefined, selector.prompt !== undefined].filter(Boolean).length
   if (modes !== 1) throw new Error('MEDIA_WORKFLOW_SOURCE_INVALID')
   if (selector.workflowId !== undefined) {
     if (!Number.isSafeInteger(selector.workflowRevision) || (selector.workflowRevision ?? 0) < 1) throw new Error('MEDIA_WORKFLOW_SOURCE_INVALID')
-    return dependencies.configuration.getWorkflow(selector.workflowId, selector.workflowRevision!, context.projectId).definition
+    /** 同次读取保留不可变版本身份，不能用调用参数为裸定义签发身份。 */
+    const saved = dependencies.configuration.getWorkflow(selector.workflowId, selector.workflowRevision!, context.projectId)
+    return { definition: saved.definition, saved }
   }
-  if (selector.definition !== undefined) return parseMediaWorkflowDefinition(selector.definition)
+  if (selector.definition !== undefined) return { definition: parseMediaWorkflowDefinition(selector.definition) }
   if (selector.prompt && typeof selector.prompt === 'object' && ('nodes' in selector.prompt || 'links' in selector.prompt)) throw new Error('COMFY_UI_WORKFLOW_UNSUPPORTED')
-  return { schemaVersion: 1, prompt: parseComfyPrompt(selector.prompt), bindings: [], outputs: [] }
+  return { definition: { schemaVersion: 1, prompt: parseComfyPrompt(selector.prompt), bindings: [], outputs: [] } }
 }
 
 /** 将内部 schema 清洗为节点字段摘要；隐藏字段和非白名单枚举永不返回。 */
@@ -867,7 +869,7 @@ export function createMediaToolRun(dependencies: MediaToolProviderDependencies, 
     }),
     defineTool({
       name: 'media_inspect_workflow', label: '检查媒体工作流',
-      description: '检查已保存工作流、完整定义或原始 ComfyUI API prompt，分页返回节点、绑定、输出和兼容问题。',
+      description: '检查已保存工作流、完整定义或原始 ComfyUI API prompt，分页返回节点、绑定、输出和兼容问题。复用指定本地模板时，传入精确 workflowId、workflowRevision 与 connectionId；兼容检查成功后返回可信 savedWorkflow 身份，无需重新发现远端目录。',
       parameters: Type.Object({
         connectionId: Type.Optional(Type.String({ pattern: IDENTIFIER_PATTERN })),
         canvasId: Type.Optional(Type.String({ pattern: IDENTIFIER_PATTERN })),
@@ -878,12 +880,17 @@ export function createMediaToolRun(dependencies: MediaToolProviderDependencies, 
       }),
       execute: async (_toolCallId, params) => {
         authorize(dependencies, context, 'read')
-        const definition = resolveWorkflow(dependencies, context, params)
+        const { definition, saved } = resolveWorkflow(dependencies, context, params)
         const classTypes = Object.values(definition.prompt).map((node) => node.class_type)
-        const objectInfo = await dependencies.resources.getSchema(resolveMediaConnection(dependencies, context, params), context.projectId, classTypes)
+        /** 回执绑定实际完成 schema 检查的连接，不能沿用未验证的历史连接。 */
+        const connectionId = resolveMediaConnection(dependencies, context, params)
+        const objectInfo = await dependencies.resources.getSchema(connectionId, context.projectId, classTypes)
         const inspection = inspectMediaWorkflow(definition, objectInfo, { offset: params.offset, limit: params.limit })
+        /** 检查覆盖整图；节点分页不影响身份签发，兼容失败则仅返回诊断。 */
+        const savedWorkflow = saved && inspection.issues.length === 0 && inspection.unsupportedReasons.length === 0
+          ? { id: saved.id, revision: saved.revision, hash: saved.hash, connectionId } : undefined
         const selectedClasses = new Set(inspection.nodes.map((node) => node.classType))
-        return toolResult({ ...inspection, ...(params.includeSchema ? { schema: summarizeSchema(Object.fromEntries(Object.entries(objectInfo).filter(([name]) => selectedClasses.has(name)))) } : {}) })
+        return toolResult({ ...inspection, ...(savedWorkflow ? { savedWorkflow } : {}), ...(params.includeSchema ? { schema: summarizeSchema(Object.fromEntries(Object.entries(objectInfo).filter(([name]) => selectedClasses.has(name)))) } : {}) })
       },
     }),
     defineTool({
@@ -896,7 +903,7 @@ export function createMediaToolRun(dependencies: MediaToolProviderDependencies, 
       }),
       execute: async (_toolCallId, params) => {
         authorize(dependencies, context, 'read')
-        const definition = resolveWorkflow(dependencies, context, params)
+        const { definition } = resolveWorkflow(dependencies, context, params)
         const match = matchMediaWorkflowInputs(definition, await dependencies.listAssets(context), params.explicitBindings)
         return toolResult({ bindings: match.bindings, ambiguous: match.ambiguous, missing: match.missing, incompatible: match.incompatible,
           availableActions: dependencies.listSources && dependencies.importAssets ? ['media_list_sources', 'media_import_assets', 'media_list_assets'] : ['media_list_assets'] })

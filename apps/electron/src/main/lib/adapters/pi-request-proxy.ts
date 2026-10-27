@@ -73,12 +73,14 @@ export interface PiRequestProxyOptions {
  * 为单个 Pi 请求创建 dispatcher。调用者必须在请求结束时 close()，以释放连接池。
  */
 export function createPiRequestProxyDispatcher(options: PiRequestProxyOptions): Dispatcher | undefined {
-  if (options.direct) return withUndiciErrorListener(new Agent({ allowH2: false }))
-  const proxyUrl = options.proxyUrl?.trim()
-  if (!proxyUrl) return undefined
-
+  /** 直连与代理使用同一闲置预算，不能因网络恢复切换模式而丢失配置。 */
   const timeoutMs = options.httpIdleTimeoutMs ?? DEFAULT_HTTP_IDLE_TIMEOUT_MS
   const normalizedTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 0
+  if (options.direct) return withUndiciErrorListener(new Agent({
+    allowH2: false, headersTimeout: normalizedTimeoutMs, bodyTimeout: normalizedTimeoutMs,
+  }))
+  const proxyUrl = options.proxyUrl?.trim()
+  if (!proxyUrl) return undefined
   return withUndiciErrorListener(new EnvHttpProxyAgent({
     httpProxy: proxyUrl,
     httpsProxy: proxyUrl,

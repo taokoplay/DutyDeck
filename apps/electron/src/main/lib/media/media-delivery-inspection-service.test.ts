@@ -250,6 +250,7 @@ describe('媒体交付检查服务', () => {
       withAssetFile: withAssetFile(),
       probe: async () => ({
         mediaKind: 'video', mediaType: 'video/mp4', extension: '.mp4',
+        visualDurationMs: 18_000,
         metadata: { width: 1080, height: 1440, durationMs: 18_000, fps: 30, codec: 'h264', hasAudio: true },
       }),
       execute: async (_file, args) => ({ stdout: args.includes('image2pipe') ? sampleBytes : new Uint8Array(), stderr: '' }),
@@ -271,12 +272,82 @@ describe('媒体交付检查服务', () => {
     })).toThrow('MEDIA_REVIEW_UNCHECKED_REQUIRED')
   })
 
+  test('Given 两段影片需要检查切接 When 请求四帧 Then 包含首帧与最后一帧附近而不增加样本预算', async () => {
+    /** 模拟真实镜头的 158 帧、24fps 容器时长，复现旧抽样漏掉首尾的问题。 */
+    const service = createMediaDeliveryInspectionService({
+      withAssetFile: withAssetFile(),
+      probe: async () => ({
+        mediaKind: 'video', mediaType: 'video/mp4', extension: '.mp4',
+        visualDurationMs: 6_583,
+        metadata: { width: 576, height: 1024, durationMs: 6_583, fps: 24, codec: 'h264', hasAudio: true },
+      }),
+      execute: async (_file, args) => ({ stdout: args.includes('image2pipe') ? new Uint8Array([0xff, 0xd8, 0xff, 0xd9]) : new Uint8Array(), stderr: '' }),
+    })
+
+    /** 同一预算必须同时提供动作入场、出场与中间态证据。 */
+    const result = await service.inspect(context, asset, { audioPolicy: 'optional', visualSamples: { count: 4 } })
+    expect(result.samples).toHaveLength(4)
+    expect(result.summary.sampledTimesMs[0]).toBe(0)
+    expect(result.summary.sampledTimesMs.at(-1)).toBeGreaterThanOrEqual(6_540)
+    expect(result.summary.sampledTimesMs.at(-1)).toBeLessThanOrEqual(6_542)
+    expect(result.summary.unchecked).toContain('full-video-content')
+    expect(result.summary.unchecked).toContain('audio-content')
+  })
+
+  test('Given ffmpeg成功退出但没有抽到画面 When 检查 Then 不把空字节登记成视觉证据', async () => {
+    /** 空输出常见于越过真实视频尾部，不能仅凭进程退出码判定抽帧成功。 */
+    const service = createMediaDeliveryInspectionService({
+      withAssetFile: withAssetFile(),
+      probe: async () => ({
+        mediaKind: 'video', mediaType: 'video/mp4', extension: '.mp4',
+        metadata: { width: 576, height: 1024, durationMs: 6_583, fps: 24, codec: 'h264', hasAudio: true },
+      }),
+      execute: async () => ({ stdout: new Uint8Array(), stderr: '' }),
+    })
+    await expect(service.inspect(context, asset, {
+      audioPolicy: 'optional', visualSamples: { count: 4 },
+    })).rejects.toThrow('MEDIA_INSPECTION_SAMPLING_INCOMPLETE')
+  })
+
+  test.each([null, 0, 1])('Given 视频流时长缺失 When 请求%s帧 Then 只检查可证明的首帧并声明尾帧未检', async (requested) => {
+    /** 容器可能被更长音轨撑长；缺少视频边界时不猜测尾部时间。 */
+    const service = createMediaDeliveryInspectionService({
+      withAssetFile: withAssetFile(),
+      probe: async () => ({
+        mediaKind: 'video', mediaType: 'video/mp4', extension: '.mp4',
+        metadata: { width: 576, height: 1024, durationMs: 10_000, fps: 24, codec: 'h264', hasAudio: true },
+      }),
+      execute: async (_file, args) => ({ stdout: args.includes('image2pipe') ? new Uint8Array([0xff, 0xd8]) : new Uint8Array(), stderr: '' }),
+    })
+    /** null 表示常规四帧请求，同时覆盖零样本与单样本边界。 */
+    const result = await service.inspect(context, asset, { audioPolicy: 'optional', visualSamples: { count: requested ?? 4 } })
+    expect(result.summary.sampledTimesMs).toEqual(requested === 0 ? [] : [0])
+    if (requested !== 0) expect(result.summary.unchecked).toContain('video-tail-frame')
+  })
+
+  test('Given 视频帧率未知 When 请求四帧 Then 不以任意时间余量冒充尾帧', async () => {
+    /** 未知帧率不能推导末帧 PTS，只保留首帧证据。 */
+    const service = createMediaDeliveryInspectionService({
+      withAssetFile: withAssetFile(),
+      probe: async () => ({
+        mediaKind: 'video', mediaType: 'video/mp4', extension: '.mp4', visualDurationMs: 1_000,
+        metadata: { width: 576, height: 1024, durationMs: 1_000, fps: null, codec: 'h264', hasAudio: false },
+      }),
+      execute: async (_file, args) => ({ stdout: args.includes('image2pipe') ? new Uint8Array([0xff, 0xd8]) : new Uint8Array(), stderr: '' }),
+    })
+    /** 摘要如实暴露覆盖不足，不能把首帧当作全片内容。 */
+    const result = await service.inspect(context, asset, { audioPolicy: 'optional', visualSamples: { count: 4 } })
+    expect(result.summary.sampledTimesMs).toEqual([0])
+    expect(result.summary.unchecked).toContain('video-tail-frame')
+  })
+
   test('Given 计划抽取三帧但第二帧失败 When 检查 Then 明确失败且不返回部分sampled证据', async () => {
     let sampleCall = 0
     const service = createMediaDeliveryInspectionService({
       withAssetFile: withAssetFile(),
       probe: async () => ({
         mediaKind: 'video', mediaType: 'video/mp4', extension: '.mp4',
+        visualDurationMs: 18_000,
         metadata: { width: 1080, height: 1440, durationMs: 18_000, fps: 30, codec: 'h264', hasAudio: true },
       }),
       execute: async (_file, args) => {
@@ -315,8 +386,8 @@ describe('媒体交付检查服务', () => {
         execFileSync('/opt/homebrew/bin/ffmpeg', [
           '-nostdin', '-v', 'error',
           '-f', 'lavfi', '-i', 'color=c=blue:s=320x240:d=1:r=24',
-          '-f', 'lavfi', '-i', 'sine=frequency=1000:duration=1',
-          '-shortest', '-c:v', 'mpeg4', '-c:a', 'aac', '-pix_fmt', 'yuv420p', path,
+          '-f', 'lavfi', '-i', 'sine=frequency=1000:duration=1.05',
+          '-c:v', 'mpeg4', '-c:a', 'aac', '-pix_fmt', 'yuv420p', path,
         ], { timeout: 10_000 })
         const bytes = readFileSync(path)
         const hash = createHash('sha256').update(bytes).digest('hex')
@@ -333,10 +404,13 @@ describe('媒体交付检查服务', () => {
         const service = createMediaDeliveryInspectionService({ withAssetFile: withAssetFile(() => file) })
         const result = await service.inspect(context, fixtureAsset, {
           width: { exact: 320 }, height: { exact: 240 }, durationMs: { min: 900, max: 1_100 },
-          fps: { exact: 24, tolerance: 0.01 }, audioPolicy: 'required', visualSamples: { count: 2 },
+          fps: { exact: 24, tolerance: 0.01 }, audioPolicy: 'required', visualSamples: { count: 4 },
         })
         expect(result.summary).toMatchObject({ technical: { status: 'passed' }, coverage: 'sampled', decodeCoverage: 'full' })
-        expect(result.samples).toHaveLength(2)
+        expect(result.samples).toHaveLength(4)
+        expect(result.samples.every((sample) => sample.bytes.byteLength > 0)).toBe(true)
+        expect(result.summary.technical.facts?.durationMs).toBe(1_050)
+        expect(result.summary.sampledTimesMs.at(-1)).toBe(958)
       } finally {
         rmSync(directory, { recursive: true, force: true })
       }

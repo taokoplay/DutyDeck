@@ -1,3 +1,5 @@
+import { createNetworkPreload } from './network-preload'
+import type { NetworkApi } from '@dutydeck/shared'
 import { CONTENT_PLUGIN_IPC_CHANNELS, MODULE_RUNTIME_PLUGIN_IPC_CHANNELS, PLUGIN_PACKAGE_IMPORT_IPC_CHANNELS } from '@dutydeck/shared'
 import type { ContentPluginSnapshot, ContentPluginPreview, ModuleRuntimePluginApi, PluginPackageImportApi } from '@dutydeck/shared'
 import { MOBILE_MIRROR_CHANNELS } from '@dutydeck/shared'
@@ -337,6 +339,9 @@ import { QUICK_TASK_IPC_CHANNELS, TRAY_IPC_CHANNELS, VOICE_DICTATION_IPC_CHANNEL
  * 暴露给渲染进程的 API 接口定义
  */
 export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, LanBridgePreloadApi, NormalPathManagementPreloadApi, DesignPreloadApi, ServerOpsTrustPreload, ServerOpsDockerPreload, ServerOpsFilesPreload, ServerOpsConsolePreloadApi, ServerOpsTransferPreload, ServerOpsDataPreload, ServerOpsProjectPreload, ServerOpsScriptPreload, ServerOpsDeploymentPreload, ServerOpsAgentReadPreload, ServerOpsConnectionDraftPreload, MediaPreloadApi, CanvasMediaPreloadApi, ProjectKnowledgeApi {
+  /** 本机网络恢复与脱敏诊断。 */
+  network: NetworkApi
+
   // ===== 运行时相关 =====
 
   /**
@@ -1671,6 +1676,7 @@ const designPreloadApi = createDesignPreloadApi(ipcRenderer)
 const pathManagementPreloadApi = createNormalPathManagementPreloadApi(ipcRenderer)
 
 const electronAPI: ElectronAPI = {
+  network: createNetworkPreload((channel, ...args) => ipcRenderer.invoke(channel, ...args)),
   ...createTokenUsagePreload((channel, ...args) => ipcRenderer.invoke(channel, ...args)),
   ...createProjectKnowledgePreload((channel, input) => ipcRenderer.invoke(channel, input), (listener) => {
     /** 只转发固定事件载荷，避免把 Electron event 传入 renderer。 */

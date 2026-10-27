@@ -179,7 +179,8 @@ import {
 } from './lib/voice-dictation-window'
 import { registerGlobalShortcut, unregisterAllGlobalShortcuts } from './lib/global-shortcut-service'
 import { setDutyDeckVersion } from '@dutydeck/core'
-import { canRecoverRenderer, RENDERER_RECOVERY_WINDOW_MS } from './lib/renderer-process-recovery'
+import { RendererRecoveryBudget } from './lib/renderer-process-recovery'
+import { networkRecoveryService } from './lib/network-recovery-service'
 import { shouldBlockSandboxedSrcdocNavigation } from './lib/sandboxed-srcdoc-navigation'
 import {
   getDefaultDataRootLocator,
@@ -601,7 +602,8 @@ function createWindow(): void {
 
   // 主 Renderer 无法加载或崩溃时，不能让启动页无限停留；优先有限次数自动恢复。
   let hasShownRendererFailure = false
-  let rendererRecoveryAttempts: number[] = []
+  /** 主窗口独立恢复预算；使用单调时钟避免系统时间调整影响健康判定。 */
+  const rendererRecoveryBudget = new RendererRecoveryBudget()
   const showRendererFailure = (reason: string): void => {
     if (!mainWindow || mainWindow.isDestroyed()) return
 
@@ -611,6 +613,7 @@ function createWindow(): void {
       return
     }
 
+    rendererRecoveryBudget.markLoading(performance.now())
     hasShownRendererFailure = true
     const escapeHtml = (value: string): string => value
       .replace(/&/g, '&amp;')
@@ -624,14 +627,18 @@ function createWindow(): void {
       mainWindow?.show()
     })
   }
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    // 子 frame 加载及页内跳转不影响主页面健康期。
+    if (isMainFrame && !isInPlace) rendererRecoveryBudget.markLoading(performance.now())
+  })
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame || errorCode === -3) return
     console.error(`[启动] 主 Renderer 加载失败 (${errorCode}): ${errorDescription} (${validatedURL})`)
     showRendererFailure(errorDescription)
   })
   mainWindow.webContents.on('did-finish-load', () => {
-    // 主 Renderer 成功恢复后重新开始计数；只有连续失败才应进入错误页。
-    if (!hasShownRendererFailure) rendererRecoveryAttempts = []
+    // 加载完成仅开始健康计时，错误页永远不能释放恢复预算。
+    if (!hasShownRendererFailure) rendererRecoveryBudget.markLoaded(performance.now())
     if (!hasShownRendererFailure && !workspaceMenuOwner.isDestroyed()) {
       prepareWorkspaceMenu(workspaceMenuOwner)
     }
@@ -640,10 +647,8 @@ function createWindow(): void {
     // clean-exit 和应用退出不属于 Renderer 故障；避免退出过程中重新加载主窗口。
     if (getIsQuitting() || details.reason === 'clean-exit') return
 
-    const now = Date.now()
-    rendererRecoveryAttempts = rendererRecoveryAttempts.filter(
-      (attemptAt) => now - attemptAt < RENDERER_RECOVERY_WINDOW_MS,
-    )
+    /** 崩溃时使用单调时钟结算持续健康期。 */
+    const now = performance.now()
     const processId = (() => {
       try {
         return mainWindow?.webContents.getProcessId()
@@ -666,9 +671,8 @@ function createWindow(): void {
     }
     console.error('[启动] 主 Renderer 进程异常退出:', crashContext)
 
-    if (!hasShownRendererFailure && canRecoverRenderer(rendererRecoveryAttempts, now)) {
-      rendererRecoveryAttempts.push(now)
-      console.warn(`[启动] 尝试恢复主 Renderer（${rendererRecoveryAttempts.length}/2）`)
+    if (!hasShownRendererFailure && rendererRecoveryBudget.tryRecover(now, getIsQuitting(), details.reason)) {
+      console.warn('[启动] 尝试恢复主 Renderer（连续故障周期最多恢复两次）')
       void loadMainRenderer().catch((error) => {
         console.error('[启动] 主 Renderer 自动恢复失败:', error)
         showRendererFailure(`Renderer 进程异常退出：${details.reason}`)
@@ -724,8 +728,8 @@ function createWindow(): void {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     // 错误页上的“重新加载主界面”需要放行回到原始入口。
     if (url === rendererEntryUrl) {
+      if (hasShownRendererFailure) rendererRecoveryBudget.resetForManualRetry()
       hasShownRendererFailure = false
-      rendererRecoveryAttempts = []
       return
     }
     // 允许开发模式下的 Vite HMR 热重载
@@ -1102,6 +1106,7 @@ async function bootstrap(): Promise<void> {
 
   // Register IPC handlers
   registerIpcHandlers()
+  safeRun('startNetworkRecovery', () => networkRecoveryService.start())
   await safeAwait('startAgentPluginHost', startAgentPluginHost)
   /** 已建库项目的离线增量发现与队列恢复，不扫描未授权项目。 */
   const stopKnowledgeObservation = startProjectKnowledgeObservation()
@@ -1324,6 +1329,7 @@ if (!isSafeStorageMigrationHelper) {
     /** 每项独立隔离，Design journal 故障不能跳过 Agent、浏览器或 watcher 释放。 */
     runShutdownCleanupSteps([
       { name: '退出状态', run: setQuitting },
+      { name: '网络恢复监测', run: () => { networkRecoveryService.stop() } },
       { name: 'Design Job 中断', run: () => { getDefaultDesignJobManager()?.markRunningInterrupted() } },
       { name: 'Agent 进程', run: stopAllAgents },
       { name: 'Agent 插件宿主', run: () => { void disposeAgentPluginHost() } },

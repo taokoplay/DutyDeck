@@ -2,11 +2,12 @@ import { describe, expect, test } from 'bun:test'
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { buildModel, getCodexCatalogModels } from './pi-model-registry'
 import type { ProviderType } from '@dutydeck/shared'
+import { PROVIDER_DEFAULT_URLS } from '@dutydeck/shared'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { streamSimple } from '@earendil-works/pi-ai/api/openai-completions'
 
-/** 只注册内存模型，返回生产解析出的能力；不创建会话、写凭据或访问网络。 */
-async function registeredModel(provider: ProviderType, modelId: string): Promise<Model<Api>> {
+/** 只注册内存模型并返回生产能力；baseUrl 指定被测端点，默认模拟网关，不写凭据或联网。 */
+async function registeredModel(provider: ProviderType, modelId: string, baseUrl = 'https://example.invalid/v1'): Promise<Model<Api>> {
   /** 保存宿主注册到 Pi 的模型。 */
   let registered: Model<Api> | undefined
   /** 只实现本测试使用的模型注册接口。 */
@@ -16,7 +17,7 @@ async function registeredModel(provider: ProviderType, modelId: string): Promise
   }
   /** 替代实际 SDK 生命周期，生产能力解析仍完整执行。 */
   const sdk = { ModelRuntime: { create: async () => runtime } } as unknown as Parameters<typeof buildModel>[0]
-  return (await buildModel(sdk, { sessionId: 'capability-audit', provider, model: modelId, apiKey: 'test-placeholder', baseUrl: 'https://example.invalid/v1' })).model
+  return (await buildModel(sdk, { sessionId: 'capability-audit', provider, model: modelId, apiKey: 'test-placeholder', baseUrl })).model
 }
 
 /** 走真实 Pi 请求编码并在联网前截获 body；不发送模型请求。 */
@@ -61,13 +62,14 @@ describe('供应商模型快照运行时接入', () => {
   })
 
   test('Given OpenAI API 与 Codex 同名模型 When 注册 Then 分别使用各自窗口', async () => {
-    expect((await registeredModel('openai-responses', 'gpt-6-astra')).contextWindow).toBe(1_050_000)
-    expect((await registeredModel('openai-responses', 'gpt-6.1-sol')).contextWindow).toBe(1_050_000)
+    // 官方目录窗口仅适用于官方地址；自定义网关应继续走独立的保守窗口保护。
+    expect((await registeredModel('openai-responses', 'gpt-6-astra', PROVIDER_DEFAULT_URLS['openai-responses'])).contextWindow).toBe(1_050_000)
+    expect((await registeredModel('openai-responses', 'gpt-6.1-sol', PROVIDER_DEFAULT_URLS['openai-responses'])).contextWindow).toBe(1_050_000)
     expect((await getCodexCatalogModels()).find((model) => model.id === 'gpt-6-astra')?.contextWindow).toBe(372_000)
   })
 
   test('Given GPT-4o 的 128K 目录 When 注册 Then 不用 200K 默认值抬高上限', async () => {
-    expect((await registeredModel('openai', 'gpt-4o')).contextWindow).toBe(128_000)
+    expect((await registeredModel('openai', 'gpt-4o', PROVIDER_DEFAULT_URLS.openai)).contextWindow).toBe(128_000)
   })
 
   test('Given DeepSeek Flash When 注册 Then 使用当前最大输出和价格', async () => {

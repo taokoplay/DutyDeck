@@ -285,8 +285,8 @@ export interface VisualShotState {
 
 /** 视频候选的分项审核状态；pending 表示尚未完成该项。 */
 export type VisualReviewGateStatus = 'pending' | 'passed' | 'warning' | 'failed'
-/** 审核问题必须归属到技术、动作或相邻衔接门。 */
-export type VisualReviewGate = 'technical' | 'motion' | 'continuity'
+/** 审核问题必须归属到技术、动作、相邻衔接或声音门。 */
+export type VisualReviewGate = 'technical' | 'motion' | 'continuity' | 'audio'
 /** 审核问题的时间点；非空时用于定位视频片段。 */
 export interface VisualReviewIssue {
   /** 问题所属审核门。 */
@@ -306,6 +306,8 @@ export interface VisualCandidateReview {
   motion: VisualReviewGateStatus
   /** 与前后镜头的动作、空间、光线和声音衔接。 */
   continuity: VisualReviewGateStatus
+  /** 实际听验对白、旁白、音效及混音；旧记录缺省兼容。 */
+  audio?: VisualReviewGateStatus
   /** 本次审核总结。 */
   conclusion: string
   /** 明确没有覆盖的检查范围。 */
@@ -338,8 +340,10 @@ export interface VisualCandidate {
   status: 'ready' | 'stale' | 'adopted' | 'discarded'
   /** 所属生成任务。 */
   jobId: string
-  /** 新生成的影片候选必须审核后才可采用；旧候选缺省兼容。 */
+  /** 新生成的影片或独立声音候选必须审核后才可采用；旧候选缺省兼容。 */
   reviewRequired?: boolean
+  /** 宿主检测到独立声音输出变化时要求听验，不由 Agent 自行声明。 */
+  reviewAudioRequired?: boolean
   /** 已完成的技术、动作与衔接审核。 */
   review?: VisualCandidateReview
   /** 创建时间。 */
@@ -472,6 +476,8 @@ export interface VisualProductionInputs {
   discardTimelineEdit: { sessionId: string; productionId: string; episodeId: string; candidateId: string }
   /** 创建冻结时间线版本的成片导出任务。 */
   requestExport: { sessionId: string; productionId: string; episodeId: string; expectedTimelineRevision: number; settings: VisualEditingExportSettings }
+  /** 本机候选审片：绑定正式双版本与有限候选，不修改正式时间线。 */
+  requestPreview: { sessionId: string; productionId: string; baseRevision: number; episodeId: string; expectedTimelineRevision: number; candidateIds: string[]; range: { start: number; end: number }; settings: VisualEditingExportSettings }
   /** 读取指定集的导出任务。 */
   listExportJobs: { sessionId: string; productionId: string; episodeId: string }
   /** 取消仍在本机排队或准备中的导出任务。 */
@@ -512,6 +518,7 @@ export interface VisualProductionResults {
   adoptTimelineEdit: VisualEditingTimelineSnapshot
   discardTimelineEdit: VisualEditingTimelineSnapshot
   requestExport: VisualEditingExportJob
+  requestPreview: VisualEditingExportJob
   listExportJobs: VisualEditingExportJob[]
   cancelExport: VisualEditingExportJob
 }

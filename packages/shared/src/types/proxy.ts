@@ -25,6 +25,8 @@ export interface ProxyConfig {
  * 系统代理检测结果
  */
 export interface SystemProxyDetectResult {
+  /** 区分确认代理、确认直连和检测失败；可选以兼容旧UI调用方。 */
+  detectionState?: 'proxy' | 'direct' | 'error'
   /** 是否检测成功 */
   success: boolean
   /** 检测到的代理地址（如果有） */

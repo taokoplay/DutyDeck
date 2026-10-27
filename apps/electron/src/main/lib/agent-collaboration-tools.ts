@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { buildCollaborationResultView, type CollaborationResultViewOptions } from './agent-collaboration-result-view'
 import type {
   AgentDelegationRole,
   AgentDelegationStatus,
@@ -76,7 +77,6 @@ interface DelegationRecord {
 }
 
 
-const RESULT_SUMMARY_CHAR_LIMIT = 50_000
 const DELEGATION_GOAL_CHAR_LIMIT = 1_000
 /** live Map 中保留的已结束委派上限，超出时按完成时间清理最老的（持久化仍可回查） */
 const MAX_RETAINED_FINISHED_DELEGATIONS = 200
@@ -356,7 +356,7 @@ function summarizeChildResult(childSessionId: string, messages?: AgentMessage[])
   const lastAssistant = [...(messages ?? [])]
     .reverse()
     .find((message) => message.role === 'assistant' && message.content.trim().length > 0)
-  if (lastAssistant) return truncateText(lastAssistant.content.trim(), RESULT_SUMMARY_CHAR_LIMIT)
+  if (lastAssistant) return lastAssistant.content.trim()
 
   const sdkMessages = getAgentSessionSDKMessages(childSessionId)
   const sdkTexts: string[] = []
@@ -364,7 +364,7 @@ function summarizeChildResult(childSessionId: string, messages?: AgentMessage[])
     sdkTexts.push(...extractTextFromSdkMessage(message))
   }
   const text = sdkTexts.join('\n\n').trim()
-  if (text) return truncateText(text, RESULT_SUMMARY_CHAR_LIMIT)
+  if (text) return text
 
   return '子会话已结束，但未找到可摘要的 assistant 文本。请打开子会话查看完整记录。'
 }
@@ -428,10 +428,10 @@ function listKnownDelegations(parentSessionId: string): Array<Record<string, unk
       completedAt: session.delegationStatus && session.delegationStatus !== 'running' ? session.updatedAt : undefined,
     }))
 
-  return [...live, ...persisted]
+  return [...live, ...persisted].sort((left, right) => Number(right.startedAt) - Number(left.startedAt) || String(left.delegationId).localeCompare(String(right.delegationId)))
 }
 
-function getDelegationResult(parentSessionId: string, delegationId: string): Record<string, unknown> {
+function getDelegationResult(parentSessionId: string, delegationId: string, includeResult = true): Record<string, unknown> {
   const live = delegations.get(delegationId)
   if (live) {
     if (live.parentSessionId !== parentSessionId) {
@@ -445,7 +445,7 @@ function getDelegationResult(parentSessionId: string, delegationId: string): Rec
     throw new Error(`未找到当前会话下的委派: ${delegationId}`)
   }
 
-  const resultSummary = session.delegationStatus && session.delegationStatus !== 'running'
+  const resultSummary = includeResult && session.delegationStatus && session.delegationStatus !== 'running'
     ? summarizeChildResult(session.id)
     : undefined
 
@@ -594,7 +594,7 @@ function resolveWaitTargets(ids: string[], parentSessionId: string): WaitResolut
       continue
     }
     // 不在内存：回退到持久化记录；getDelegationResult 在完全找不到时抛错
-    settled.push(getDelegationResult(parentSessionId, id))
+    settled.push(getDelegationResult(parentSessionId, id, false))
   }
   return { liveRecords, settled }
 }
@@ -816,6 +816,21 @@ export function buildPiCollaborationTools(
 ): unknown[] {
   const { Type } = require('typebox') as typeof import('typebox')
 
+  /** 通过既有父会话归属校验读取当前页原文，避免 metadata 扫描持久化消息。 */
+  function readResultBody(item: Record<string, unknown>): string | undefined {
+    const result = getDelegationResult(ctx.sessionId, String(item.delegationId)).resultSummary
+    return typeof result === 'string' ? result : undefined
+  }
+
+  /** 三类读取工具共享分页和字符预算协议，防止每项独立占满上下文。 */
+  const resultViewProperties = {
+    detail: Type.Optional(Type.Union([Type.Literal('metadata'), Type.Literal('preview'), Type.Literal('full')])),
+    offset: Type.Optional(Type.Integer({ minimum: 0, description: '列表偏移；使用返回的 nextOffset 续页' })),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, description: '每页数量，默认20' })),
+    maxChars: Type.Optional(Type.Integer({ minimum: 1000, maximum: 50000, description: '整页字符预算，默认12000；阻塞问题完整保留并标注预算例外' })),
+    resultOffset: Type.Optional(Type.Integer({ minimum: 0, description: 'full 单项原文偏移；使用 nextResultOffset 连续读取全部原文' })),
+  }
+
   const roleType = Type.Optional(Type.Union([
     Type.Literal('explore'),
     Type.Literal('research'),
@@ -962,16 +977,17 @@ export function buildPiCollaborationTools(
     sdk.defineTool({
       name: 'mcp__collaboration__wait_for_delegations',
       label: '等待子会话完成',
-      description: '父会话用于收敛子会话结果的等待屏障：等待指定的 DutyDeck 协作子会话完成，并返回结构化结果摘要。只要本轮回复、决策或交付依赖已委派任务，主会话必须在回复前调用本工具，不能只因 delegate_agent/delegate_agents 已返回就宣称完成；需要全部结果时传入所有 delegationIds 并使用 mode=all，需要部分早期结果时才使用 mode=any。若返回 timeout 或仍有 running 委派，必须如实说明未收敛状态，不能把未完成任务当作已有结果。',
+      description: '父会话用于收敛子会话结果的等待屏障：等待指定的 DutyDeck 协作子会话完成，并返回预算受限的 preview；通过 nextOffset 续页，完整正文请用 get_delegation_results 的 full 和 resultOffset。只要本轮回复、决策或交付依赖已委派任务，主会话必须在回复前调用本工具，不能只因 delegate_agent/delegate_agents 已返回就宣称完成；需要全部结果时传入所有 delegationIds 并使用 mode=all，需要部分早期结果时才使用 mode=any。若返回 timeout 或仍有 running 委派，必须如实说明未收敛状态，不能把未完成任务当作已有结果。',
       parameters: Type.Object({
         delegationIds: Type.Optional(Type.Array(Type.String(), { description: '要等待的委派 ID' })),
         mode: Type.Optional(Type.Union([Type.Literal('all'), Type.Literal('any')])),
         minCompleted: Type.Optional(Type.Number({ description: 'mode=any 时至少等待完成的数量，默认 1' })),
         timeoutSeconds: Type.Optional(Type.Number({ description: '最长等待秒数，默认 3600；最大 7200' })),
+        ...resultViewProperties,
       }),
       async execute(_toolCallId: string, params: unknown) {
         assertCollaborationAllowed(ctx)
-        const args = params as { delegationIds?: string[]; mode?: 'all' | 'any'; minCompleted?: number; timeoutSeconds?: number }
+        const args = params as { delegationIds?: string[]; mode?: 'all' | 'any'; minCompleted?: number; timeoutSeconds?: number } & CollaborationResultViewOptions
         const ids = args.delegationIds?.length
           ? args.delegationIds
           : Array.from(delegations.values())
@@ -999,20 +1015,21 @@ export function buildPiCollaborationTools(
           mode,
           completedCount: allDelegations.filter((item) => item.status !== 'running').length,
           runningCount: allDelegations.filter((item) => item.status === 'running').length,
-          delegations: allDelegations,
+          ...buildCollaborationResultView(allDelegations, args, 256, readResultBody),
         })
       },
     }),
     sdk.defineTool({
       name: 'mcp__collaboration__list_delegations',
       label: '列出协作子会话',
-      description: '列出当前父会话创建的 DutyDeck 协作子会话及状态。返回中的 thinkingLevel 表示配置/请求值，不代表模型 capability normalization 后的实际运行档位。',
+      description: '列出当前父会话创建的 DutyDeck 协作子会话及状态，默认 metadata、每页20条；使用 nextOffset 续页，正文请调用 get_delegation_results。返回中的 thinkingLevel 表示配置/请求值，不代表模型 capability normalization 后的实际运行档位。',
       parameters: Type.Object({
         includeCompleted: Type.Optional(Type.Boolean({ description: '是否包含已完成委派，默认 true' })),
+        ...resultViewProperties,
       }),
       async execute(_toolCallId: string, params: unknown) {
         assertCollaborationAllowed(ctx)
-        const args = params as { includeCompleted?: boolean }
+        const args = params as { includeCompleted?: boolean } & CollaborationResultViewOptions
         const items = listKnownDelegations(ctx.sessionId)
         const delegationsResult = args.includeCompleted === false
           ? items.filter((item) => item.status === 'running')
@@ -1020,22 +1037,23 @@ export function buildPiCollaborationTools(
         return piJsonResult({
           maxRunningDelegations: MAX_RUNNING_DELEGATIONS_PER_PARENT,
           runningCount: delegationsResult.filter((item) => item.status === 'running').length,
-          delegations: delegationsResult,
+          ...buildCollaborationResultView(delegationsResult, { ...args, detail: args.detail ?? 'metadata' }, 256, readResultBody),
         })
       },
     }),
     sdk.defineTool({
       name: 'mcp__collaboration__get_delegation_results',
       label: '读取子会话结果',
-      description: '按委派 ID 读取一个或多个 DutyDeck 协作子会话的结果摘要。返回中的 thinkingLevel 表示配置/请求值，不代表模型 capability normalization 后的实际运行档位。',
+      description: '按委派 ID 读取 DutyDeck 协作结果，默认 preview。精读使用 detail=full 且仅一个 ID；若有 nextResultOffset，用它作为 resultOffset 继续，直到没有后续偏移。默认整页12000字符，最大50000。返回中的 thinkingLevel 表示配置/请求值，不代表模型 capability normalization 后的实际运行档位。',
       parameters: Type.Object({
-        delegationIds: Type.Array(Type.String(), { description: '要读取结果的委派 ID 列表' }),
+        delegationIds: Type.Array(Type.String(), { description: '要读取结果的委派 ID 列表；full 仅传一个 ID' }),
+        ...resultViewProperties,
       }),
       async execute(_toolCallId: string, params: unknown) {
         assertCollaborationAllowed(ctx)
-        const args = params as { delegationIds: string[] }
+        const args = params as { delegationIds: string[] } & CollaborationResultViewOptions
         return piJsonResult({
-          delegations: args.delegationIds.map((delegationId) => getDelegationResult(ctx.sessionId, delegationId)),
+          ...buildCollaborationResultView(args.delegationIds.map((delegationId) => getDelegationResult(ctx.sessionId, delegationId, false)), args, 0, readResultBody),
         })
       },
     }),

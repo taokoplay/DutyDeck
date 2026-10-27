@@ -1,3 +1,6 @@
+import { networkRecoveryService } from '../network-recovery-service'
+import { networkDiagnostics } from '../network-diagnostics'
+import type { NetworkRecoveryNotice } from '@dutydeck/shared'
 import type { TokenUsageTiming } from '../token-usage-observer'
 import type {
   TokenUsageAmounts,
@@ -26,6 +29,8 @@ type PendingQuery = {
   runtimeFailed: boolean
   /** 是否由超时、删除或用户停止触发了显式强制关闭。 */
   forcedClose: boolean
+  /** 网络订阅在取消与结束时立即释放。 */
+  unsubscribeNetwork?: () => void
   runtimeAbortPromise?: Promise<void>
   runtimeStopPromise?: Promise<void>
   forceClosePromise?: Promise<void>
@@ -79,16 +84,28 @@ export class PiUtilityAdapter {
     this.currentQueryTokens.set(input.sessionId, queryId)
     client.setRequestHandler((request) => this.handleRuntimeRequest(request))
     const unsubscribe = client.onEvent((event) => this.handleRuntimeEvent(event, queryId))
+    /** 初始代理使用本query实际配置，避免epoch0服务空快照覆盖正确代理。 */
+    let latestNotice: NetworkRecoveryNotice | undefined = networkRecoveryService.getSnapshot()
+      ?? (input.proxyUrl !== undefined ? { epoch: 0, proxyUrl: input.proxyUrl } : undefined)
+    /** 主端只接受递增代次；握手中的更新留到query确认后补发。 */
+    pending.unsubscribeNetwork = networkRecoveryService.subscribe((notice) => {
+      if (pending.ended || pending.forcedClose || pending.runtimeFailed || pending.runtimeAbortPromise || pending.runtimeStopPromise || notice.epoch <= (latestNotice?.epoch ?? -1)) return
+      latestNotice = notice
+      if (pending.accepted) client.notifyNetworkChange(notice, queryId)
+    })
     /** 本轮是否已出现业务异常；清理异常不得覆盖它。 */
     let hasQueryError = false
 
     try {
       await client.call(
         AGENT_RUNTIME_METHODS.QUERY_START,
-        { queryId, input: serializeQueryInput(input) },
+        { queryId, input: { ...serializeQueryInput(input), networkRecoveryInitial: latestNotice } },
         { queryId },
       )
       pending.accepted = true
+      if (latestNotice && !pending.ended && !pending.forcedClose && !pending.runtimeFailed && !pending.runtimeAbortPromise && !pending.runtimeStopPromise) {
+        client.notifyNetworkChange(latestNotice, queryId)
+      }
 
       while (true) {
         const result = await pending.queue.next()
@@ -101,6 +118,7 @@ export class PiUtilityAdapter {
       throw error
     } finally {
       pending.ended = true
+      pending.unsubscribeNetwork?.()
       unsubscribe()
       if (this.currentQueryTokens.get(input.sessionId) === queryId) {
         this.currentQueryTokens.delete(input.sessionId)
@@ -287,6 +305,7 @@ export class PiUtilityAdapter {
 
   /** 复用单个 runtime abort 请求，避免 stop 与 drain timeout 重复终止同一 query。 */
   private requestRuntimeAbort(pending: PendingQuery): Promise<void> {
+    pending.unsubscribeNetwork?.()
     if (pending.runtimeFailed) return Promise.resolve()
     pending.runtimeAbortPromise ??= pending.client.call<QueryAbortResponse>(
       AGENT_RUNTIME_METHODS.QUERY_ABORT,
@@ -306,6 +325,7 @@ export class PiUtilityAdapter {
   private forceClosePendingQuery(pending: PendingQuery): Promise<void> {
     if (pending.forceClosePromise) return pending.forceClosePromise
     pending.forcedClose = true
+    pending.unsubscribeNetwork?.()
     pending.forceClosePromise = (async () => {
       try {
         if (pending.accepted && !pending.runtimeFailed) await this.requestRuntimeAbort(pending)
@@ -348,7 +368,7 @@ export class PiUtilityAdapter {
     const payload = event.payload as Record<string, unknown> | undefined
     const queryId = event.queryId
       ?? (typeof payload?.queryId === 'string' ? payload.queryId : undefined)
-    if (!queryId) return
+    if (!queryId || queryId !== sourceQueryToken) return
     const pending = this.pendingQueries.get(queryId)
     if (!pending || pending.ended) return
 
@@ -370,6 +390,11 @@ export class PiUtilityAdapter {
     const callback = payload?.callback
     const callbackPayload = payload?.payload as Record<string, unknown> | undefined
     switch (callback) {
+      case 'network_diagnostic':
+        if (event.sessionId === pending.sessionId && event.bootId === pending.client.currentState.bootId) {
+          networkDiagnostics.record(callbackPayload, pending.input.baseUrl)
+        }
+        break
       case 'session_id':
         pending.input.onSessionId?.(String(callbackPayload?.sdkSessionId ?? ''), callbackPayload?.sessionFile as string | undefined)
         break
@@ -401,6 +426,8 @@ export class PiUtilityAdapter {
 function serializeQueryInput(input: PiAgentQueryOptions): Record<string, unknown> {
   const {
     abortSignal: _abortSignal,
+    networkRecovery: _networkRecovery,
+    onNetworkDiagnostic: _onNetworkDiagnostic,
     canUseTool: _canUseTool,
     customTools,
     onSessionId: _onSessionId,

@@ -8,6 +8,8 @@ const DESIGN_IMAGE_TOOL = 'mcp__nano_banana__generate_image'
 const CANVAS_AGENT_TOOLS = new Set(['canvas_run_agent', 'canvas_delegate', 'canvas_dispatch', 'canvas_resume_orchestration'])
 /** 保留既有批量执行时限；单个专业 Agent 不套用工作流预算。 */
 const CANVAS_EXECUTION_TOOLS = new Set(['canvas_run_workflow', 'canvas_run_nodes'])
+/** 原生影像编码同步等待真实终态；仅这两个工具跟随运行取消和退出。 */
+const VISUAL_ENCODING_TOOLS = new Set(['visual_production_request_preview', 'visual_production_request_export'])
 // 图片生成可能超过两分钟；只放宽可信图片工具，普通主进程能力仍快速暴露故障。
 export const DESIGN_IMAGE_TOOL_TIMEOUT_MS = 10 * 60_000
 // Canvas 长任务按既有工作流总时限收口；批量节点启动也复用同一上限。
@@ -17,7 +19,8 @@ export const CANVAS_EXECUTION_TOOL_TIMEOUT_MS = 15 * 60_000
  * Utility Process 请求主进程的等待时间。
  * 根据协议方法和能力参数返回毫秒时限，undefined 表示由运行生命周期终结。
  * canUseTool 可合法等待用户，canvas_run_agent 可跨多轮读取、压缩和生成；
- * 两者保留取消与进程退出处理，工作流预算仍通过 signal 传播到子 Agent。
+ * evaluateCompletion 是运行完成门禁，可合法等待媒体等外部任务的真实终态。
+ * 这些请求保留取消与进程退出处理，工作流预算仍通过 signal 传播到子 Agent。
  * 批量 Canvas 执行与可信 Design 图片工具保留独立时限，其他能力保持默认故障检测。
  */
 export function getParentRequestTimeoutMs(method: string, payload: unknown): number | undefined {
@@ -26,6 +29,9 @@ export function getParentRequestTimeoutMs(method: string, payload: unknown): num
   // 统计是旁路能力，宿主不可达时最多等待两秒，避免拖住工具取消。
   if (method === AGENT_RUNTIME_METHODS.CAPABILITY_FILE_CHANGE) return 2_000
   if (method === AGENT_RUNTIME_METHODS.CAPABILITY_CAN_USE_TOOL) return undefined
+  // 完成门禁由运行生命周期负责终结，不能把长媒体等待误判为宿主失联。
+  if (method === AGENT_RUNTIME_METHODS.CAPABILITY_EVALUATE_COMPLETION) return undefined
+  if (method === AGENT_RUNTIME_METHODS.CAPABILITY_CUSTOM_TOOL && typeof toolName === 'string' && VISUAL_ENCODING_TOOLS.has(toolName)) return undefined
   if (method === AGENT_RUNTIME_METHODS.CAPABILITY_CUSTOM_TOOL && typeof toolName === 'string' && CANVAS_AGENT_TOOLS.has(toolName)) {
     return undefined
   }

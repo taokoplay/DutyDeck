@@ -24,6 +24,8 @@ describe('Given 主 Agent 影像工具', () => {
     const writes: boolean[] = []
     const snapshot = largeSnapshot()
     snapshot.candidates[0]!.status = 'adopted'
+    /** 采用回执无须重复与本次变更无关的作品长描述和历史候选。 */
+    snapshot.document.brief = '不应重复的作品正文'.repeat(10_000)
     const tools = buildVisualProductionAgentTools({
       sessionId: 'session',
       sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'],
@@ -36,6 +38,10 @@ describe('Given 主 Agent 影像工具', () => {
     expect(calls).toEqual([{ method: 'adopt', input: { sessionId: 'session', productionId: 'production', baseRevision: 2, candidateId: 'candidate' } }])
     expect(writes).toEqual([true])
     expect(result.details).toMatchObject({ production: { revision: 1 }, candidates: [{ id: 'candidate', status: 'adopted' }] })
+    /** 只拼接文本块，保持工具结果的图片联合类型边界。 */
+    const responseText = result.content.flatMap(item => item.type === 'text' ? [item.text] : []).join('')
+    expect(responseText.length).toBeLessThan(1_024)
+    expect(responseText).not.toContain('不应重复的作品正文')
     await expect(adopt.execute('call', { productionId: 'production', baseRevision: 2, candidateId: 'candidate', draft: {} }, undefined, undefined, {} as never)).rejects.toThrow('INVALID_INPUT')
   })
 
@@ -78,6 +84,8 @@ describe('Given 主 Agent 影像工具', () => {
     const readResult = await read.execute('call', { productionId: 'production', episodeId: 'episode' }, undefined, undefined, {} as never)
     expect(JSON.stringify(readResult.details)).toContain('timeline')
     const propose = tools.find(tool => tool.name === 'visual_production_propose_timeline_edit')!
+    expect(JSON.stringify(propose.parameters)).toContain('replaceClipSource')
+    expect(JSON.stringify(propose.parameters)).toContain('insertAudioClip')
     const proposeResult = await propose.execute('call', { productionId: 'production', episodeId: 'episode', expectedRevision: 1, operations: [{ type: 'trimClip', trackId: 'video', clipId: 'clip', sourceIn: 0, sourceOut: 1 }], summary: '缩短开场' }, undefined, undefined, {} as never)
     expect(calls[0]).toEqual({ method: 'loadTimeline', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode' } })
     expect(calls[1]).toEqual({ method: 'proposeTimelineEdit', input: { sessionId: 'session', productionId: 'production', episodeId: 'episode', expectedRevision: 1, operations: [{ type: 'trimClip', trackId: 'video', clipId: 'clip', sourceIn: 0, sourceOut: 1 }], summary: '缩短开场' } })
@@ -113,6 +121,26 @@ describe('Given 主 Agent 影像工具', () => {
       expect(JSON.stringify(result.details)).not.toContain('mediaHash')
       expect(JSON.stringify(result.details)).not.toContain('"clips"')
     }
+  })
+
+  test('When Agent 请求原生候选预览 Then 注入会话并保留冻结版本候选和hash回执', async () => {
+    /** 捕获真实工具边界，确认预览作为写操作注册且不要求采用候选。 */
+    const calls: unknown[] = []
+    const writes: boolean[] = []
+    const input = { productionId: 'production', baseRevision: 7, episodeId: 'episode', expectedTimelineRevision: 4, candidateIds: ['candidate'], range: { start: 0, end: 10 }, settings: { ratio: '9:16', fps: 24, includeVoice: true, includeMusic: false, includeCaptions: false } }
+    const job = { id: 'preview', timelineRevision: 4, sourceHashes: ['a'.repeat(64)], preview: { productionRevision: 7, candidateIds: input.candidateIds, range: input.range } }
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess(write) { writes.push(write) }, execute: (async (method, data) => { calls.push({ method, input: data }); return job }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+    const tool = tools.find(item => item.name === 'visual_production_request_preview')
+    expect(tool).toBeDefined()
+    const result = await tool!.execute('call', input, undefined, undefined, {} as never)
+    expect(calls).toEqual([{ method: 'requestPreview', input: { ...input, sessionId: 'session' } }])
+    expect(writes).toEqual([true])
+    expect(result.details).toEqual(job)
+    /** 模型侧与宿主侧共同拒绝范围越界、重复候选和会话伪造，均不得执行。 */
+    for (const invalid of [{ ...input, candidateIds: [] }, { ...input, candidateIds: ['candidate', 'candidate'] }, { ...input, range: { start: 0, end: 61 } }, { ...input, sessionId: 'other' }]) {
+      await expect(tool!.execute('invalid', invalid, undefined, undefined, {} as never)).rejects.toThrow()
+    }
+    expect(calls).toHaveLength(1)
   })
 
   test('When Agent 请求、读取并取消成片导出 Then 透传精确设置且读取不申请写权限', async () => {
@@ -178,7 +206,7 @@ describe('Given 主 Agent 影像工具', () => {
       calls.push({ method, input })
       return { ...largeSnapshot().candidates[0]!, reviewRequired: true }
     }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
-    const review = { technical: 'passed' as const, motion: 'passed' as const, continuity: 'warning' as const, conclusion: '轻微停留偏长', unchecked: ['未听取完整音轨'], issues: [{ gate: 'continuity' as const, severity: 'warning' as const, message: '切点偏迟', atSeconds: 3.2 }] }
+    const review = { technical: 'passed' as const, motion: 'passed' as const, continuity: 'warning' as const, audio: 'pending' as const, conclusion: '轻微停留偏长，声音待实际听验', unchecked: ['未听取完整音轨'], issues: [{ gate: 'continuity' as const, severity: 'warning' as const, message: '切点偏迟', atSeconds: 3.2 }, { gate: 'audio' as const, severity: 'warning' as const, message: '仅有技术证据，不能判断声线' }] }
     const result = await tools.find(tool => tool.name === 'visual_production_review_candidate')!.execute('call', { productionId: 'production', baseRevision: 1, candidateId: 'candidate', review }, undefined, undefined, {} as never)
     expect(calls).toEqual([{ method: 'reviewCandidate', input: { sessionId: 'session', productionId: 'production', baseRevision: 1, candidateId: 'candidate', review } }])
     expect(result.details).toMatchObject({ reviewRequired: true })
@@ -269,6 +297,10 @@ test('Given 多镜头作品 When 精确读取镜头 Then 只返回目标和已�
   /** 有意在其他镜头写入特征文本，检查该文本不会进入工具响应。 */
   const snapshot = largeSnapshot()
   snapshot.document.shots[0]!.scene = '无关镜头正文'
+  /** 全局长正文不应拉长目标镜头的默认文本游标。 */
+  snapshot.document.brief = '全局创作目标'.repeat(2000)
+  snapshot.document.voice = '全局配音'
+  snapshot.document.music = '全局音乐'
   snapshot.document.shots[2]!.assetIds = ['actor']
   snapshot.document.assets = [{ id: 'actor', name: '角色', type: '角色', locked: true, description: '固定外观', mediaId: null }, { id: 'other', name: '其他资产', type: '道具', locked: false, description: '不要读取', mediaId: null }]
   snapshot.assetVersions.actor = 2
@@ -281,6 +313,9 @@ test('Given 多镜头作品 When 精确读取镜头 Then 只返回目标和已�
   const result = await tool!.execute('call', { productionId: 'production', shotId: 'shot2' }, undefined, undefined, {} as never)
   expect(calls).toEqual([{ method: 'load', input: { sessionId: 'session', productionId: 'production' } }])
   expect(result.details).toMatchObject({ productionId: 'production', revision: 1, shot: { id: 'shot2' }, assets: [{ id: 'actor', version: 2, locked: true }] })
+  expect(result.details).toMatchObject({ productionTextIncluded: false, textPage: { total: 7000, nextOffset: null }, guidance: expect.stringContaining('includeProductionText=true') })
+  expect((result.details as { settings: unknown }).settings).toEqual({ title: '作品', kind: 'film', ratio: '16:9', fps: 24 })
+  expect(JSON.stringify(result.details)).not.toContain('全局创作目标')
   expect((result.details as { media: Array<{ id: string }> }).media.map(item => item.id)).toEqual(['image', 'video', 'audio'])
   expect(JSON.stringify(result.details)).not.toContain('无关镜头正文')
   expect(JSON.stringify(result.details)).not.toContain('不要读取')
@@ -323,7 +358,8 @@ test.each(['普通文本', 'JSON转义文本'])('Given 合法最大镜头与200�
     const restored = { effects: '', shotMusic: '', scene: '', motion: '', dialogue: '', brief: '', voice: '', music: '' }
     const descriptions = new Map<string, string>()
     do {
-      const result = await tool.execute('call', { productionId: 'production', shotId: 'shot0', referenceOffset: offset, referenceLimit: 20, textOffset }, undefined, undefined, {} as never)
+      const result = await tool.execute('call', { productionId: 'production', shotId: 'shot0', referenceOffset: offset, referenceLimit: 20, textOffset, includeProductionText: true }, undefined, undefined, {} as never)
+      expect(result.details).toMatchObject({ productionTextIncluded: true })
       const page = result.details as { shot: typeof snapshot.document.shots[number]; settings: { brief: string; voice: string; music: string }; referencePage: { nextOffset: number | null }; textPage: { nextOffset: number | null }; assets: Array<{ id: string; description: string }> }
       expect(JSON.stringify(page).length).toBeLessThanOrEqual(49152)
       expect(page.shot.assetIds).toEqual(page.assets.map(asset => asset.id))
@@ -357,6 +393,36 @@ test('Given 已保存制作配置 When Agent读取 Then 返回分页启用范围
   expect(calls).toEqual([{ method: 'load', input: { sessionId: 'session', productionId: 'production' } }])
   expect(JSON.stringify(result.details)).not.toContain('画'.repeat(100))
   expect(tools.some(tool => tool.name.includes('save_media'))).toBe(false)
+})
+
+test('Given 大型冻结配置 When 创建或更新任务 Then 回执有界且可按原任务读取冻结参数', async () => {
+  /** 任务配置刻意超过单次回执预算，模拟多模型与复杂工作流同时启用。 */
+  const snapshot = largeSnapshot()
+  const frozen = { revision: 2, defaults: { image: 'source0' }, entries: Array.from({ length: 32 }, (_, index) => ({ id: `source${index}`, name: `模型${index}`, kind: 'image' as const, source: { type: 'model' as const, modelRef: `ref${index}` }, parameters: { prompt: '冻结参数'.repeat(600) } })) }
+  /** 当前配置已变化，读取旧任务必须保留旧 revision，不能悄悄退回当前配置。 */
+  snapshot.mediaConfiguration = { revision: 3, defaults: {}, entries: [] }
+  const job = { id: 'frozen-job', sessionId: 'session', baseRevision: 1, shotId: 'shot0', mediaKind: 'image' as const, instruction: '仅生成一个锚点', status: 'running' as const, stage: 'preparing' as const, createdAt: 1, mediaConfiguration: frozen }
+  snapshot.jobs = [job, { ...job, id: 'other-job', sessionId: 'other' }]
+  const calls: unknown[] = []
+  const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, execute: (async (method, input) => { calls.push({ method, input }); return method === 'load' ? snapshot : job }) as Parameters<typeof buildVisualProductionAgentTools>[0]['execute'] })
+  for (const [name, input] of [
+    ['visual_production_begin_job', { productionId: 'production', baseRevision: 1, shotId: 'shot0', mediaKind: 'image', instruction: '仅生成一个锚点' }],
+    ['visual_production_update_job', { productionId: 'production', baseRevision: 1, jobId: job.id, stage: 'generating' }],
+  ] as const) {
+    const result = await tools.find(tool => tool.name === name)!.execute('call', input, undefined, undefined, {} as never)
+    expect(result.details).toMatchObject({ id: job.id, mediaConfiguration: { revision: 2, defaults: { image: 'source0' }, entryCount: 32 } })
+    expect(JSON.stringify(result.details).length).toBeLessThan(2_000)
+    expect(JSON.stringify(result.details)).not.toContain('冻结参数')
+  }
+  const read = tools.find(tool => tool.name === 'visual_production_read_media_configuration')!
+  const result = await read.execute('call', { productionId: 'production', jobId: job.id, offset: 1, limit: 1 }, undefined, undefined, {} as never)
+  expect(result.details).toMatchObject({ jobId: job.id, revision: 2, inherited: false, total: 32, entries: [frozen.entries[1]], nextOffset: 2 })
+  expect(calls.at(-1)).toEqual({ method: 'load', input: { sessionId: 'session', productionId: 'production' } })
+  await expect(read.execute('call', { productionId: 'production', jobId: 'other-job' }, undefined, undefined, {} as never)).rejects.toThrow('任务不存在或不属于当前会话')
+  await expect(read.execute('call', { productionId: 'production', jobId: 'missing' }, undefined, undefined, {} as never)).rejects.toThrow('任务不存在或不属于当前会话')
+  snapshot.jobs[0] = { ...job, mediaConfiguration: undefined }
+  const inherited = await read.execute('call', { productionId: 'production', jobId: job.id }, undefined, undefined, {} as never)
+  expect(inherited.details).toMatchObject({ inherited: true, total: 0, entries: [] })
 })
 
 test('Given 大目录 When Agent分页 Then 返回能力与真实参考限制', async () => {

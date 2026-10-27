@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { createQueryNetworkState } from './agent-runtime-network-state'
+import type { NetworkRecoveryNotice, NetworkDiagnosticInput } from '@dutydeck/shared'
 import {
   AGENT_RUNTIME_METHODS,
   AGENT_RUNTIME_PROTOCOL_VERSION,
@@ -32,6 +34,8 @@ type ParentPortLike = {
 
 type RuntimeRequest = AgentRuntimeRequest & { payload?: Record<string, unknown> }
 type ActiveQuery = {
+  /** 只接受本query身份与递增代次的网络状态。 */
+  network: ReturnType<typeof createQueryNetworkState>
   queryId: string
   sessionId: string
   sequence: number
@@ -110,6 +114,10 @@ function sendQueryEvent(method: string, payload: unknown): void {
 
 function handleMessage(rawMessage: unknown): void {
   if (!isAgentRuntimeEnvelope(rawMessage)) return
+  if (rawMessage.kind === 'event' && rawMessage.method === AGENT_RUNTIME_METHODS.QUERY_NETWORK_CHANGED) {
+    activeQuery?.network.accept(rawMessage, rawMessage.payload)
+    return
+  }
   if (rawMessage.kind === 'response') {
     resolveParentRequest(rawMessage)
     return
@@ -166,13 +174,17 @@ function handleQueryStart(request: RuntimeRequest): void {
 
   let resolveDone!: () => void
   const done = new Promise<void>((resolve) => { resolveDone = resolve })
-  const active: ActiveQuery = { queryId, sessionId, sequence: 0, done, resolveDone }
+  const active: ActiveQuery = { queryId, sessionId, sequence: 0, done, resolveDone,
+    network: createQueryNetworkState({ bootId, queryId, sessionId }, queryInput.networkRecoveryInitial as NetworkRecoveryNotice | undefined),
+  }
   activeQuery = active
   emitState()
   respond(request, { accepted: true, queryId })
 
   const utilityInput = {
     ...queryInput,
+    networkRecovery: active.network,
+    onNetworkDiagnostic: (diagnostic: NetworkDiagnosticInput) => sendCallback(active, 'network_diagnostic', diagnostic),
     canUseTool: (toolName: string, toolInput: Record<string, unknown>, options: Record<string, unknown>) => requestParent(
       AGENT_RUNTIME_METHODS.CAPABILITY_CAN_USE_TOOL,
       { queryId, sessionId, toolName, input: toolInput, options: serializeCanUseToolOptions(options) },
@@ -255,6 +267,7 @@ async function pumpQuery(active: ActiveQuery, input: PiAgentQueryOptions): Promi
       })
     }
   } finally {
+    active.network.dispose()
     if (activeQuery === active) {
       activeQuery = undefined
       emitState()
@@ -272,6 +285,7 @@ async function handleQueryAbort(request: RuntimeRequest): Promise<void> {
     return
   }
   const query = activeQuery
+  query.network.dispose()
   piAdapter.abort(sessionId)
   const completed = await Promise.race([
     query.done.then(() => true),
@@ -310,6 +324,7 @@ async function handleSetPermissionMode(request: RuntimeRequest): Promise<void> {
 
 async function handleShutdown(request: RuntimeRequest): Promise<void> {
   status = 'stopping'
+  activeQuery?.network.dispose()
   if (activeQuery) piAdapter.abort(activeQuery.sessionId)
   piAdapter.dispose()
   parentRequests.rejectAll(new Error('Agent runtime is shutting down'))

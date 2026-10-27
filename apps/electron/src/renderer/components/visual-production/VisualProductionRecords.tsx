@@ -46,7 +46,7 @@ const RECORD_TAB_LABELS: Record<VisualRecordTab, string> = { all: '全部', runn
 const MEDIA_PHASE_LABELS: Record<string, string> = { prepared: '待执行', queued: '排队中', running: '生成中', completed: '已完成', succeeded: '已完成', failed: '失败', cancelled: '已取消', interrupted: '已中断' }
 /** 视频候选审核状态使用业务语言，不展示英文枚举。 */
 const REVIEW_STATUS_LABELS = { passed: '通过', warning: '有警告', failed: '未通过', pending: '未完成' } as const
-const REVIEW_GATE_LABELS = { technical: '技术', motion: '动作', continuity: '衔接' } as const
+const REVIEW_GATE_LABELS = { technical: '技术', motion: '动作', continuity: '衔接', audio: '声音' } as const
 /** 状态页签按固定顺序渲染，供键盘左右切换。 */
 const RECORD_TABS = Object.keys(RECORD_TAB_LABELS) as VisualRecordTab[]
 /** 空列表明确对应的状态范围，取消和丢弃不归为生成失败。 */
@@ -161,10 +161,10 @@ export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy,
     {candidates.map(item => <div className="vp-record-candidate" key={item.id} data-candidate-id={item.id}>
       <div className="vp-record-heading">{candidates.length > 1 && <span className="vp-record-title">{item.summary}</span>}<span className="vp-badge">{CANDIDATE_LABELS[item.status]}</span><span className="vp-muted">基于版本 {item.baseRevision}</span></div>
       {item.status === 'stale' && <p className="vp-muted">作品已更新，此候选需基于最新版本重新制作。</p>}
-      {item.reviewRequired && <section className="vp-candidate-review" aria-label="视频候选审核">
+      {item.reviewRequired && <section className="vp-candidate-review" aria-label="媒体候选审核">
         <div className="vp-candidate-review-gates">
-          <span className="vp-candidate-review-title">视频审核</span>
-          {(['technical', 'motion', 'continuity'] as const).map(gate => {
+          <span className="vp-candidate-review-title">媒体审核</span>
+          {(['technical', 'motion', 'continuity', ...(item.reviewAudioRequired || item.review?.audio ? ['audio' as const] : [])] as const).map(gate => {
             /** 未有审核记录时三个门禁统一显示未完成，避免缺项被误认为通过。 */
             const status = item.review?.[gate] ?? 'pending'
             return <span key={gate} className="vp-candidate-review-gate" data-status={status}><b>{REVIEW_GATE_LABELS[gate]}</b>{REVIEW_STATUS_LABELS[status]}</span>
@@ -172,7 +172,7 @@ export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy,
         </div>
         {item.review?.conclusion && <p>{item.review.conclusion}</p>}
         {!!item.review?.issues.length && <ul>{item.review.issues.map((issue, index) => <li key={`${issue.gate}:${issue.atSeconds ?? 'all'}:${index}`} data-severity={issue.severity}><span>{REVIEW_GATE_LABELS[issue.gate]}{issue.atSeconds === undefined ? '' : ` · ${issue.atSeconds.toFixed(1)}s`}</span>{issue.message}</li>)}</ul>}
-        {!item.review && <p className="vp-muted">Agent 将自动审核技术、动作和前后镜衔接，完成前不能采用。</p>}
+        {!item.review && <p className="vp-muted">Agent 将审核技术、动作、前后镜衔接和涉及的声音，完成前不能采用。</p>}
         {!!item.review?.unchecked.length && <p className="vp-muted">未检查：{item.review.unchecked.join('；')}</p>}
       </section>}
       {candidateActions(item, true)}

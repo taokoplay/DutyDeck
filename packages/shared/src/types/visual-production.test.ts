@@ -5,6 +5,16 @@ import type { VisualCandidateReviewInput, VisualProductionDraft } from './visual
 /** 最小真实作品，供边界测试独立修改。 */
 const draft = (): VisualProductionDraft => ({ title: '第一支影片', kind: 'film', brief: '', ratio: '16:9', fps: 24, voice: '', music: '', episodes: [{ id: 'ep1', title: '第一集' }], assets: [{ id: 'a1', name: '主角', type: '角色', description: '', locked: false, mediaId: null }], shots: [{ id: 's1', episodeId: 'ep1', title: '开场', duration: 5, scene: '', motion: '', dialogue: '', assetIds: ['a1'], mediaId: null }] })
 
+it('Given 原生候选预览 When 解析 Then 冻结双版本并拒绝无界范围、重复候选和外部路径', () => {
+  /** 原生预览仅接收作品内候选，不接收成片文件。 */
+  const input = { sessionId: 'session', productionId: 'production', baseRevision: 3, episodeId: 'ep1', expectedTimelineRevision: 2, candidateIds: ['candidate'], range: { start: 0, end: 60 }, settings: { ratio: '9:16', fps: 24, includeVoice: true, includeMusic: false, includeCaptions: false } }
+  expect(parseVisualProductionCommand({ method: 'requestPreview', input })).toEqual({ method: 'requestPreview', input })
+  for (const range of [{ start: -1, end: 1 }, { start: 1, end: 1 }, { start: 2, end: 1 }, { start: 0, end: 60.01 }, { start: NaN, end: 2 }, { start: 0, end: Infinity }, { start: 0, end: 1, path: '/tmp/movie.mp4' }]) expect(() => parseVisualProductionCommand({ method: 'requestPreview', input: { ...input, range } })).toThrow()
+  for (const candidateIds of [[], ['same', 'same'], Array.from({ length: 9 }, (_, index) => `c${index}`)]) expect(() => parseVisualProductionCommand({ method: 'requestPreview', input: { ...input, candidateIds } })).toThrow()
+  expect(() => parseVisualProductionCommand({ method: 'requestPreview', input: { ...input, path: '/tmp/movie.mp4' } })).toThrow()
+  expect(VISUAL_PRODUCTION_READ_METHODS).not.toContain('requestPreview')
+})
+
 it('Given 自动采用与多图请求 When 解析 Then 写权限独立且拒绝重复、越界与伪造系统字段', () => {
   /** 自动采用只接收作品身份，调用者不能指定跳过检查的候选或输出数量。 */
   const target = { sessionId: 'session', productionId: 'production' }
@@ -244,6 +254,7 @@ it('Given 视频候选审核 When 解析保存请求 Then 保留三项门禁、�
     technical: 'passed',
     motion: 'warning',
     continuity: 'pending',
+    audio: 'pending',
     conclusion: '动作主体完整，转场处仍有轻微方向偏差。',
     unchecked: ['未听取完整音轨', '仅检查了抽帧'],
     issues: [{ gate: 'motion', severity: 'warning', message: '切点前角色向左移动过多', atSeconds: 4.2 }],
@@ -259,7 +270,8 @@ it('Given 视频候选审核 When 解析保存请求 Then 保留三项门禁、�
     { ...review, motion: 'excellent' },
     { ...review, conclusion: '' },
     { ...review, unchecked: Array.from({ length: 17 }, () => '未检查') },
-    { ...review, issues: [{ gate: 'audio', severity: 'warning', message: '错误门禁', atSeconds: 1 }] },
+    { ...review, audio: 'unknown' },
+    { ...review, issues: [{ gate: 'unknown', severity: 'warning', message: '错误门禁', atSeconds: 1 }] },
     { ...review, issues: [{ gate: 'motion', severity: 'error', message: '', atSeconds: 1 }] },
     { ...review, issues: [{ gate: 'motion', severity: 'warning', message: '越界时间', atSeconds: 601 }] },
     { ...review, extra: true },

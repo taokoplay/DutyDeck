@@ -18,8 +18,10 @@
 import * as React from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Search, X, MessageSquare, Bot, Archive, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { buildAgentHistorySearchPrompt } from '@/lib/agent-history-search-prompt'
 import { searchDialogOpenAtom } from '@/atoms/search-atoms'
 import { conversationsAtom, channelsAtom } from '@/atoms/chat-atoms'
 import {
@@ -357,23 +359,22 @@ export function SearchDialog(): React.ReactElement {
     )
     const channelId = deepseekChannel?.id ?? currentAgentChannelId ?? undefined
 
-    const configDir = '.proma'
-    const prompt = `请帮我在 DutyDeck 的全部会话历史中搜索与以下描述相关的内容：
-
-"${q}"
-
-搜索范围：
-- Chat 会话消息文件：~/${configDir}/conversations/ 目录下所有 .jsonl 文件
-- Agent 会话消息文件：~/${configDir}/agent-sessions/ 目录下所有 .jsonl 文件
-
-要求：
-1. 理解用户描述的语义，不要求关键词完全匹配，根据内容相关性判断
-2. 找到相关会话后，给出会话标题、相关内容摘要，以及文件路径
-3. 按相关性排序，最相关的结果排在最前面`
+    /** 读取主进程最终采用的数据根，兼容默认目录、自定义目录和历史 locator。 */
+    const pathState = await window.electronAPI.getPathManagementState().catch((error) => {
+      console.error('[搜索] 读取当前数据目录失败:', error)
+      toast.error('无法读取当前数据目录，暂时不能启动语义搜索')
+      return null
+    })
+    const activeRoot = pathState?.activeRoot
+    if (!activeRoot) {
+      if (pathState) toast.error('当前数据目录不可用，暂时不能启动语义搜索')
+      return
+    }
 
     const sessionId = await createAgent({ channelId })
     if (!sessionId) return
 
+    const prompt = buildAgentHistorySearchPrompt(q, activeRoot)
     setAgentPendingPrompt({ sessionId, message: prompt })
     setOpen(false)
     setActiveView('conversations')

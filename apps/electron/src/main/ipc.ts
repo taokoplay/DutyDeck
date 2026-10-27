@@ -1,3 +1,6 @@
+import { registerNetworkIpc, assertNetworkSender } from './lib/network-ipc'
+import { networkDiagnostics } from './lib/network-diagnostics'
+import { networkRecoveryService } from './lib/network-recovery-service'
 import { registerAgentPluginManagementIpc } from './lib/agent-modules/plugin-management-ipc'
 import { registerContentPluginIpc } from './lib/agent-plugins/content-plugin-ipc'
 import { createCanvasSessionIdleGuard } from './lib/design/canvas-session-idle-guard'
@@ -2353,6 +2356,32 @@ export async function getAgentPluginHealth(): Promise<AgentPluginHealth[]> {
 }
 
 export function registerIpcHandlers(): void {
+  registerNetworkIpc(ipcMain, {
+    assertSender: (event) => {
+      /** 每次调用重新取得当前主窗口，拒绝附属窗口、旧窗口及子 frame。 */
+      assertNetworkSender(event, getMainWindow())
+    },
+    getStatus: () => networkRecoveryService.getStatus(),
+    requestRecovery: reason => networkRecoveryService.requestRecovery(reason),
+    diagnostics: networkDiagnostics,
+    saveReport: async (report, event) => {
+      /** 由主进程选择保存路径，renderer 只能指定预览 id。 */
+      const owner = getMainWindow()
+      if (!owner || owner.isDestroyed()) throw new Error('主窗口已关闭')
+      const result = await dialog.showSaveDialog(owner, {
+        title: '导出已预览的网络诊断',
+        defaultPath: `network-diagnostics-${report.createdAt}.json`,
+        filters: [{ name: 'JSON 诊断报告', extensions: ['json'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      // 对话框等待期间窗口可能关闭或替换，保存前再次核实发送者。
+      if (owner !== getMainWindow()) throw new Error('主窗口已变更，请重新预览')
+      assertNetworkSender(event, owner)
+      writeTextFileAtomic(result.filePath, JSON.stringify(report, null, 2))
+      return true
+    },
+  })
+
   initializeTokenUsageRecording()
   /** Token 用量只向主窗口开放，CSV 目标由系统保存对话框授权。 */
   registerTokenUsageIpc(ipcMain, {
@@ -5927,6 +5956,8 @@ export function registerIpcHandlers(): void {
     PROXY_IPC_CHANNELS.UPDATE_SETTINGS,
     async (_, config: ProxyConfig): Promise<void> => {
       await saveProxySettings(config)
+      // 保存成功后更新活跃模型请求的下一次连接快照，不重放整轮 Agent。
+      await networkRecoveryService.requestRecovery('proxy-settings')
     }
   )
 

@@ -54,7 +54,7 @@ function mediaId(value: unknown): string | null { return value === null ? null :
  * @returns 独立审核对象；输入请求不包含宿主元数据。
  */
 export function parseVisualCandidateReview(value: unknown, metadata = false): VisualCandidateReview | VisualCandidateReviewInput {
-  const keys = ['technical', 'motion', 'continuity', 'conclusion', 'unchecked', 'issues', ...(metadata ? ['sessionId', 'reviewedAt'] : [])]
+  const keys = ['technical', 'motion', 'continuity', 'audio', 'conclusion', 'unchecked', 'issues', ...(metadata ? ['sessionId', 'reviewedAt'] : [])]
   const review = object(value, keys)
   const gateStatus = (field: string): VisualReviewGateStatus => {
     if (!['pending', 'passed', 'warning', 'failed'].includes(String(review[field]))) invalid(`${field} 审核状态`)
@@ -62,12 +62,12 @@ export function parseVisualCandidateReview(value: unknown, metadata = false): Vi
   }
   const issues = array(review.issues, 32).map(item => {
     const issue = object(item, ['gate', 'severity', 'message', 'atSeconds'])
-    if (!['technical', 'motion', 'continuity'].includes(String(issue.gate)) || !['warning', 'error'].includes(String(issue.severity))) invalid('审核问题类型')
+    if (!['technical', 'motion', 'continuity', 'audio'].includes(String(issue.gate)) || !['warning', 'error'].includes(String(issue.severity))) invalid('审核问题类型')
     if (issue.atSeconds !== undefined && (typeof issue.atSeconds !== 'number' || !Number.isFinite(issue.atSeconds) || issue.atSeconds < 0 || issue.atSeconds > 600)) invalid('审核问题时间')
     return { gate: issue.gate as VisualReviewGate, severity: issue.severity as VisualReviewIssue['severity'], message: string(issue.message, '审核问题', 1000), ...(issue.atSeconds === undefined ? {} : { atSeconds: issue.atSeconds }) }
   })
   const unchecked = array(review.unchecked, 16).map(item => string(item, '未检查范围', 1000))
-  const result = { technical: gateStatus('technical'), motion: gateStatus('motion'), continuity: gateStatus('continuity'), conclusion: string(review.conclusion, '审核总结', 4000), unchecked, issues }
+  const result = { technical: gateStatus('technical'), motion: gateStatus('motion'), continuity: gateStatus('continuity'), ...(review.audio === undefined ? {} : { audio: gateStatus('audio') }), conclusion: string(review.conclusion, '审核总结', 4000), unchecked, issues }
   if (!metadata) return result
   if (typeof review.reviewedAt !== 'number' || !Number.isFinite(review.reviewedAt) || review.reviewedAt < 0) invalid('审核时间')
   return { ...result, sessionId: id(review.sessionId), reviewedAt: review.reviewedAt }
@@ -323,6 +323,7 @@ export function parseVisualProductionMediaExecution(value: unknown): VisualProdu
 
 /** 输入白名单；调用方不能通过附加字段选择目录或伪造系统状态。 */
 const METHOD_FIELDS: Record<VisualProductionMethod, readonly string[]> = {
+  requestPreview: ['baseRevision', 'episodeId', 'expectedTimelineRevision', 'candidateIds', 'range', 'settings'],
   resolveMediaWorkflow: ['source', 'kind'], mediaCatalog: [], saveMediaConfiguration: ['expectedRevision', 'entries', 'defaults'], recordMediaExecution: ['baseRevision', 'jobId', 'runId', 'engine'],
   referenceMedia: ['baseRevision', 'jobId', 'mediaId'], proposeShot: ['baseRevision', 'jobId', 'shotId', 'mediaId', 'alternativeMediaIds', 'summary'], proposeScript: ['baseRevision', 'jobId', 'episodeId', 'script', 'summary'], reviewCandidate: ['baseRevision', 'candidateId', 'review'], updateJob: ['baseRevision', 'jobId', 'stage'],
   list: [], create: ['title', 'kind'], load: [], autoAdoptShots: [], save: ['baseRevision', 'draft'], updateShotPlan: ['baseRevision', 'shotId', 'videoPlan', 'continuityPlan', 'references'], importFile: ['relativePath'], importMedia: ['reference'], mediaContent: ['mediaId'], beginJob: ['baseRevision', 'instruction', 'shotId', 'mediaKind'], recordWorkflowDiscovery: ['baseRevision', 'jobId', 'discovery'], propose: ['baseRevision', 'jobId', 'draft', 'summary'], adopt: ['baseRevision', 'candidateId'], discardCandidate: ['candidateId'], cancelJob: ['jobId'], failJob: ['jobId', 'message'], exportManifest: [], loadTimeline: ['episodeId'], createRoughCut: ['episodeId', 'baseProductionRevision'], saveTimeline: ['episodeId', 'expectedRevision', 'timeline'], proposeTimelineEdit: ['episodeId', 'expectedRevision', 'operations', 'summary'], adoptTimelineEdit: ['episodeId', 'candidateId', 'expectedRevision'], discardTimelineEdit: ['episodeId', 'candidateId'], requestExport: ['episodeId', 'expectedTimelineRevision', 'settings'], listExportJobs: ['episodeId'], cancelExport: ['episodeId', 'exportJobId'],
@@ -435,6 +436,14 @@ export function parseVisualProductionCommand(value: unknown): VisualProductionCo
     case 'proposeTimelineEdit': return result(method, { ...base, episodeId: id(input.episodeId), expectedRevision: expectedRevision(input.expectedRevision, '时间线版本'), operations: parseVisualEditingOperations(input.operations), summary: string(input.summary, '时间线候选说明', 2000) })
     case 'adoptTimelineEdit': return result(method, { ...base, episodeId: id(input.episodeId), candidateId: id(input.candidateId), expectedRevision: expectedRevision(input.expectedRevision, '时间线版本') })
     case 'discardTimelineEdit': return result(method, { ...base, episodeId: id(input.episodeId), candidateId: id(input.candidateId) })
+    case 'requestPreview': {
+      /** 候选数量与片段长度双重设限，防止审片任务变为无界编码。 */
+      const candidateIds = array(input.candidateIds, 8).map(id)
+      if (!candidateIds.length || new Set(candidateIds).size !== candidateIds.length) return invalid('预览候选身份')
+      const range = object(input.range, ['start', 'end'])
+      if (typeof range.start !== 'number' || typeof range.end !== 'number' || !Number.isFinite(range.start) || !Number.isFinite(range.end) || range.start < 0 || range.end <= range.start || range.end - range.start > 60) return invalid('预览时间范围')
+      return result(method, { ...base, baseRevision: revision(input.baseRevision), episodeId: id(input.episodeId), expectedTimelineRevision: expectedRevision(input.expectedTimelineRevision, '预览时间线版本'), candidateIds, range: { start: range.start, end: range.end }, settings: parseVisualEditingExportSettings(input.settings) })
+    }
     case 'requestExport': return result(method, { ...base, episodeId: id(input.episodeId), expectedTimelineRevision: expectedRevision(input.expectedTimelineRevision, '导出时间线版本'), settings: parseVisualEditingExportSettings(input.settings) })
     case 'cancelExport': return result(method, { ...base, episodeId: id(input.episodeId), exportJobId: id(input.exportJobId) })
   }

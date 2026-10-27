@@ -9,6 +9,32 @@ function route(adapterId: string, kind: 'audio' | 'video' | 'image'): UnifiedMed
 }
 
 describe('统一媒体 HTTP 执行器', () => {
+  test('Given 小米 TTS 台词和语气指令 When 生成 Then 最后一条 assistant 仅包含朗读正文', async () => {
+    /** 捕获真实适配器提交体，避免把语气指令误当成朗读内容。 */
+    let submitted: Record<string, unknown> = {}
+    /** 隔离供应商响应，不产生付费调用。 */
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async (_url, init) => {
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return Response.json({ choices: [{ message: { audio: { data: 'dm9pY2U=' } } }] })
+    } }).find(item => item.id === 'xiaomi-speech')!
+    await adapter.generate({ request: { ...request, prompt: '这不是库房……', inputs: { instruction: { kind: 'scalar', value: '年轻男性，低声、迟疑的内心独白。' } } }, route: route('xiaomi-speech', 'audio'), signal: new AbortController().signal })
+    expect(submitted.messages).toEqual([
+      { role: 'user', content: '年轻男性，低声、迟疑的内心独白。' },
+      { role: 'assistant', content: '这不是库房……' },
+    ])
+  })
+
+  test('Given 小米 TTS 无语气指令 When 生成 Then 原样朗读正文且不新增对话回答', async () => {
+    /** 记录无可选参数的最小请求合同。 */
+    let submitted: Record<string, unknown> = {}
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async (_url, init) => {
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return Response.json({ choices: [{ message: { audio: { data: 'dm9pY2U=' } } }] })
+    } }).find(item => item.id === 'xiaomi-speech')!
+    await adapter.generate({ request, route: route('xiaomi-speech', 'audio'), signal: new AbortController().signal })
+    expect(submitted.messages).toEqual([{ role: 'assistant', content: '你好' }])
+  })
+
   test('Given OpenAI Images 返回 b64_json When 生成 Then 解析图片字节', async () => {
     const adapters = createUnifiedMediaHttpAdapters({ fetch: async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('image').toString('base64') }] }), { status: 200 }) })
     const output = await adapters.find((adapter) => adapter.id === 'openai-images')!.generate({ request: { ...request, modelRef: 'media:image:openai-images:image:gpt-image-1' }, route: { ...route('openai-images', 'image'), ref: { kind: 'image', provider: 'openai-images', profileId: 'image', modelId: 'gpt-image-1' }, option: { ...route('openai-images', 'image').option, ref: 'media:image:openai-images:image:gpt-image-1', provider: 'openai-images', modelId: 'gpt-image-1', kind: 'image' } }, signal: new AbortController().signal })

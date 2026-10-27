@@ -184,24 +184,46 @@ export function bindVisualProductionMediaTools(tools: ToolDefinition[], options:
     const prepare = tool.name === 'media_prepare_generation' || tool.name === 'media_prepare_run'
     const discover = tool.name === 'media_discover_workflows'
     const selectWorkflow = tool.name === 'media_use_remote_workflow' || tool.name === 'media_save_local_workflow'
+    /** 精确已存版本的成功检查可恢复任务选择，不必重新发现远端目录。 */
+    const inspectWorkflow = tool.name === 'media_inspect_workflow'
     const execute = tool.name === 'media_execute_generation' || tool.name === 'media_execute_run'
     const observe = ['media_get_generation', 'media_wait_generation', 'media_cancel_generation', 'media_get_run', 'media_wait_run', 'media_cancel_run'].includes(tool.name)
-    if (!prepare && !discover && !selectWorkflow && !execute && !observe) return tool
+    if (!prepare && !discover && !selectWorkflow && !inspectWorkflow && !execute && !observe) return tool
     return {
       ...tool,
-      ...(prepare || discover || selectWorkflow ? { description: `${tool.description} 影像制作须先 begin_job，再按作品制作配置选择来源；多个活动任务时必须提供 visualJobId。`, parameters: { ...tool.parameters, properties: { ...((tool.parameters as TSchema & { properties?: Record<string, TSchema> }).properties ?? {}), visualJobId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })) } } } : {}),
+      ...(prepare || discover || selectWorkflow || inspectWorkflow ? { description: `${tool.description} 影像制作须先 begin_job，再按作品制作配置选择来源；多个活动任务时必须提供 visualJobId。`, parameters: { ...tool.parameters, properties: { ...((tool.parameters as TSchema & { properties?: Record<string, TSchema> }).properties ?? {}), visualJobId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })) } } } : {}),
       async execute(callId, raw, signal, onUpdate, context) {
         signal?.throwIfAborted()
         /** 丢弃包装专属字段后才交原工具严格解析。 */
         const { visualJobId, ...params } = raw as Record<string, unknown>
-        if (discover || selectWorkflow) {
+        if (discover || selectWorkflow || inspectWorkflow) {
           const jobs = await activeJobs()
           const selected = visualJobId ? jobs.find(item => item.job.id === visualJobId) : jobs.length === 1 ? jobs[0] : undefined
+          /** 未开始制作时仍允许只读检查，不把诊断操作变成生成前置任务。 */
+          if (inspectWorkflow && !visualJobId && jobs.length === 0) return tool.execute(callId, params, signal, onUpdate, context)
           if ((visualJobId && !selected) || jobs.length > 1 && !selected) throw new Error(`${VISUAL_MEDIA_JOB_REQUIRED_MESSAGE} 多个活动任务时必须继续提供正确的 visualJobId。`)
           /** 影像模块的生成必须归属本轮镜头任务，否则结果无法进入候选与审片链路。 */
           if (!selected) throw new Error(VISUAL_MEDIA_JOB_REQUIRED_MESSAGE)
           const result = await tool.execute(callId, params, signal, onUpdate, context)
-          const details = result.details as Record<string, unknown> | undefined
+          let details = result.details as Record<string, unknown> | undefined
+          if (inspectWorkflow) {
+            /** 只信宿主解析的完整身份；裸定义、失败检查和不匹配输出均不能选定。 */
+            const identity = details?.savedWorkflow as Record<string, unknown> | undefined
+            const mediaKind = selected.job.mediaKind ?? selected.job.workflowDiscovery?.mediaKind
+            if (!identity || params.definition !== undefined || params.prompt !== undefined
+              || identity.id !== params.workflowId || identity.revision !== params.workflowRevision
+              || typeof identity.id !== 'string' || !identity.id
+              || typeof identity.revision !== 'number' || !Number.isSafeInteger(identity.revision) || identity.revision < 1
+              || typeof identity.hash !== 'string' || !/^[a-f0-9]{64}$/.test(identity.hash)
+              || typeof identity.connectionId !== 'string' || !identity.connectionId
+              || (params.connectionId !== undefined && params.connectionId !== identity.connectionId)
+              || !Array.isArray(details?.issues) || details.issues.length !== 0
+              || !Array.isArray(details.unsupportedReasons) || details.unsupportedReasons.length !== 0
+              || !Array.isArray(details.outputs) || !details.outputs.some(output => output?.mediaType === mediaKind)) return result
+            /** 重用作品配置与可执行性校验，检查成功不代表可越过作品的来源边界。 */
+            await currentOption(selected, { type: 'workflow', connectionId: identity.connectionId, workflowId: identity.id, workflowRevision: identity.revision }, mediaKind)
+            details = identity
+          }
           if (discover) {
             const discovery = details && typeof details.discovery === 'object' && details.discovery ? details.discovery as Record<string, unknown> : {}
             const rawStatus = String(discovery.status ?? 'blocked')
@@ -280,7 +302,7 @@ export function bindVisualProductionMediaTools(tools: ToolDefinition[], options:
           const source: VisualProductionMediaSource = engine === 'model' ? { type: 'model', modelRef: String(params.modelRef) } : { type: 'workflow', connectionId: String(params.connectionId), workflowId: String(params.workflowId), workflowRevision: Number(params.workflowRevision) }
           if (engine === 'workflow' && selected.job.mediaKind === 'video' && source.type === 'workflow') {
             const selectedWorkflow = selected.job.workflowDiscovery?.selectedWorkflow
-            if (!selectedWorkflow || selectedWorkflow.workflowId !== source.workflowId
+            if (!selectedWorkflow || selected.job.workflowDiscovery?.connectionId !== source.connectionId || selectedWorkflow.workflowId !== source.workflowId
               || selectedWorkflow.workflowRevision !== source.workflowRevision) throw new Error('WORKFLOW_DISCOVERY_REQUIRED: 请先发现、检查并选定与预检参数一致的视频工作流')
           }
           const option = await currentOption(selected, source, typeof params.mediaKind === 'string' ? params.mediaKind : undefined)

@@ -96,7 +96,7 @@ export class VisualProductionService {
 
   constructor(private readonly dependencies: VisualProductionServiceDependencies) {
     /** 剪辑文件与作品快照共用当前工作区和调用者存活校验。 */
-    this.editing = new VisualEditingStore({ projectRoot: dependencies.projectRoot, assertCurrent: dependencies.assertCurrent, renderExport: dependencies.renderExport, saveExportArtifact: (snapshot, media, bytes) => this.saveExportArtifact(snapshot, media, bytes) })
+    this.editing = new VisualEditingStore({ projectRoot: dependencies.projectRoot, assertCurrent: dependencies.assertCurrent, getCurrentSnapshot: productionId => this.load(productionId).snapshot, renderExport: dependencies.renderExport, saveExportArtifact: (snapshot, media, bytes) => this.saveExportArtifact(snapshot, media, bytes) })
   }
   /** 固定受管目录；所有层级禁止软链接。 */
   private directory(id?: string, create = false): string {
@@ -172,6 +172,7 @@ export class VisualProductionService {
       if (candidate.status === 'ready' && candidate.baseRevision !== snapshot.document.revision) throw new Error('候选版本索引损坏')
       if (candidate.sourceRevision !== undefined && (!Number.isSafeInteger(candidate.sourceRevision) || candidate.sourceRevision < 1 || candidate.sourceRevision > candidate.baseRevision)) throw new Error('候选原始版本损坏')
       if (candidate.reviewRequired !== undefined && typeof candidate.reviewRequired !== 'boolean') throw new Error('候选审核门禁损坏')
+      if (candidate.reviewAudioRequired !== undefined && (typeof candidate.reviewAudioRequired !== 'boolean' || (candidate.reviewAudioRequired && !candidate.reviewRequired))) throw new Error('候选声音审核门禁损坏')
       if (candidate.review !== undefined) parseVisualCandidateReview(candidate.review, true)
     }
     for (const asset of snapshot.document.assets) if (!Number.isSafeInteger(snapshot.assetVersions[asset.id]) || snapshot.assetVersions[asset.id]! < 1) throw new Error('资产版本索引损坏')
@@ -305,6 +306,7 @@ export class VisualProductionService {
     const selected: VisualCandidate[] = []
     const outputs = new Map<string, Partial<VisualShotOutputs>>()
     for (const candidate of ready) {
+      if (candidate.reviewRequired || candidate.review?.audio === 'failed' || candidate.review?.issues.some(issue => issue.severity === 'error')) continue
       const changes = shotOutputChanges(snapshot.document, candidate.draft, media)
       /** 同镜头连续运行各一张也属于多图；整作品输出数超过改图镜头数时也无法证明每镜唯一。 */
       const job = jobs.get(candidate.jobId)
@@ -340,12 +342,18 @@ export class VisualProductionService {
       if (removable < 0) throw new Error('待采纳候选数量超过预算，请先采纳或丢弃')
       snapshot.candidates.splice(removable, 1)
     }
-    /** 新影片输出必须经过技术、动作和衔接审核，静帧和旧候选保持原流程。 */
+    /** 新影片与独立声音输出分别触发审核，静帧和旧候选保持原流程。 */
     const media = new Map(snapshot.media.map(item => [item.id, item]))
+    /** 复用正式输出索引，整批候选避免重复扫描正式镜头。 */
+    const previousOutputs = new Map(snapshot.document.shots.map(shot => [shot.id, resolveVisualShotOutputs(shot, media)]))
     const candidates: VisualCandidate[] = drafts.map(draft => {
-      const previousVideo = new Map(snapshot.document.shots.map(shot => [shot.id, resolveVisualShotOutputs(shot, media).video]))
-      const reviewRequired = draft.shots.some(shot => previousVideo.get(shot.id) !== resolveVisualShotOutputs(shot, media).video)
-      return { id: randomUUID(), baseRevision: snapshot.document.revision, ...(job.baseRevision === snapshot.document.revision ? {} : { sourceRevision: job.baseRevision }), draft, summary, status: 'ready', jobId: job.id, ...(reviewRequired ? { reviewRequired: true } : {}), createdAt: Date.now() }
+      /** 仅有实际新声音输出时强制听验，纯设定和空槽不触发。 */
+      const reviewAudioRequired = draft.shots.some(shot => {
+        const audio = resolveVisualShotOutputs(shot, media).audio
+        return audio !== null && audio !== previousOutputs.get(shot.id)?.audio
+      })
+      const reviewRequired = reviewAudioRequired || draft.shots.some(shot => (previousOutputs.get(shot.id)?.video ?? null) !== resolveVisualShotOutputs(shot, media).video)
+      return { id: randomUUID(), baseRevision: snapshot.document.revision, ...(job.baseRevision === snapshot.document.revision ? {} : { sourceRevision: job.baseRevision }), draft, summary, status: 'ready', jobId: job.id, ...(reviewRequired ? { reviewRequired: true } : {}), ...(reviewAudioRequired ? { reviewAudioRequired: true } : {}), createdAt: Date.now() }
     })
     snapshot.candidates.push(...candidates)
     job.status = 'candidate'
@@ -453,6 +461,7 @@ export class VisualProductionService {
       case 'adoptTimelineEdit': return this.editing.adopt(snapshot, command.input.episodeId, command.input.candidateId, command.input.expectedRevision)
       case 'discardTimelineEdit': return this.editing.discard(snapshot, command.input.episodeId, command.input.candidateId)
       case 'requestExport': return this.editing.requestExport(snapshot, command.input.episodeId, command.input.expectedTimelineRevision, command.input.settings)
+      case 'requestPreview': return this.editing.requestPreview(snapshot, command.input)
       case 'listExportJobs': return this.editing.listExportJobs(snapshot, command.input.episodeId)
       case 'cancelExport': return this.editing.cancelExport(snapshot, command.input.episodeId, command.input.exportJobId)
       case 'mediaCatalog': return this.mediaCatalog(snapshot)
@@ -674,10 +683,12 @@ export class VisualProductionService {
         const media = new Map(snapshot.media.map(item => [item.id, item]))
         const candidate = snapshot.candidates.find(item => item.id === command.input.candidateId)
         if (!candidate || candidate.status !== 'ready' || candidate.baseRevision !== snapshot.document.revision) throw new Error('候选已过期或不可采纳')
+        if (candidate.review?.audio === 'failed' || candidate.review?.issues.some(issue => issue.severity === 'error')) throw new Error('视频审核存在失败项，不能采用（含声音审核）')
         if (candidate.reviewRequired) {
-          if (!candidate.review) throw new Error('候选需先完成视频审核')
+          if (!candidate.review) throw new Error(candidate.reviewAudioRequired ? '候选需先完成声音审核' : '候选需先完成视频审核')
           if ([candidate.review.technical, candidate.review.motion, candidate.review.continuity].includes('failed') || candidate.review.issues.some(issue => issue.severity === 'error')) throw new Error('视频审核存在失败项，不能采用')
           if ([candidate.review.technical, candidate.review.motion, candidate.review.continuity].includes('pending')) throw new Error('候选视频审核尚未完成')
+          if (candidate.review.audio === 'pending' || (candidate.reviewAudioRequired && !candidate.review.audio)) throw new Error('候选声音审核尚未完成')
         }
         const lockedAssetChanges = this.collectLockedAssetChanges(snapshot.document, candidate.draft)
         if (lockedAssetChanges.length > 0) {

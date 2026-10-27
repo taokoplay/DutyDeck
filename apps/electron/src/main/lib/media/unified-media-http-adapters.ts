@@ -85,8 +85,11 @@ async function generateMiniMaxImage(request: MediaGenerationRequest, route: Unif
 
 /** 小米 TTS 使用 chat/completions 的音频响应。 */
 async function generateXiaomiSpeech(request: MediaGenerationRequest, route: UnifiedMediaModelRoute, signal: AbortSignal, fetchImpl: FetchImpl): Promise<UnifiedMediaGenerationAdapterOutput[]> {
+  /** 小米只朗读最后一条 assistant；user 仅承载可选语气指令。 */
+  const instruction = scalarInput(request.inputs, 'instruction')
   const payload = await postJson(fetchImpl, `${route.baseUrl.replace(/\/+$/, '')}/chat/completions`, route.apiKey, {
-    model: route.ref.modelId, messages: [{ role: 'user', content: request.prompt }], modalities: ['text', 'audio'],
+    model: route.ref.modelId,
+    messages: [...(instruction ? [{ role: 'user', content: instruction }] : []), { role: 'assistant', content: request.prompt }],
     audio: { voice: String(scalarInput(request.inputs, 'voice') ?? 'mimo_default'), format: String(scalarInput(request.inputs, 'format') ?? 'mp3') },
   }, signal)
   const encoded = readNestedString(payload, [['choices', 0, 'message', 'audio', 'data']])

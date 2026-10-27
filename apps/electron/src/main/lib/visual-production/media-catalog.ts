@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { parseMediaWorkflowDefinition } from '@dutydeck/shared'
 import type { MediaInputValue, MediaSettingsSnapshot, UnifiedMediaModelOption, VisualProductionMediaOption, VisualProductionMediaKind, VisualProductionMediaSource, VisualProductionMediaParameter, VisualProductionMediaParameterValue } from '@dutydeck/shared'
+import { getUnifiedMediaModelParameters } from '../media/unified-media-model-parameters'
 
 /** 根据实际已接入 HTTP adapter 描述可消费参数，不推断供应商尚未接入的能力。 */
 export function describeVisualModelConstraints(model: UnifiedMediaModelOption): VisualProductionMediaOption['constraints'] {
@@ -21,8 +22,12 @@ export function describeVisualModelConstraints(model: UnifiedMediaModelOption): 
   }
   if (model.adapterId === 'openai-images') parameters.push({ key: 'size', label: '图片尺寸', type: 'string', defaultValue: '1024x1024' })
   if (model.adapterId === 'xiaomi-speech' || model.adapterId === 'minimax-speech') {
-    parameters.push({ key: 'voice', label: '音色', type: 'string', defaultValue: model.adapterId === 'xiaomi-speech' ? 'mimo_default' : 'female-shaonv' })
-    parameters.push({ key: 'format', label: '音频格式', type: 'string', defaultValue: 'mp3' })
+    /** 声音参数复用执行器合同，避免作品侧漏掉非朗读语气或错误开放格式。 */
+    parameters.push(...getUnifiedMediaModelParameters(model.adapterId, model.modelId).map(parameter => ({
+      key: parameter.name, label: parameter.name === 'voice' ? '音色' : parameter.name === 'format' ? '音频格式' : '语气指令（不朗读）', type: parameter.type,
+      ...(parameter.defaultValue === undefined ? {} : { defaultValue: parameter.defaultValue }),
+      ...(parameter.enum ? { options: [...parameter.enum] } : {}),
+    })))
   }
   return { maxImageReferences, parameters }
 }

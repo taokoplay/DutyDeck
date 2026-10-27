@@ -40,6 +40,8 @@ test('Given 旧图片和并行三种候选 When 依次采用影片音频画面 T
     candidates.push(await f.service.invoke('proposeShot', { ...f.target, baseRevision: 2, jobId: job.id, shotId: 'shot', mediaId: f.media[index]!.id, summary: '候选' }))
   }
   await reviewVideo(f.service, f.target, 2, candidates[0]!.id)
+  /** 配音采用必须经过独立声音审核；夹具只模拟已听验的宿主记录。 */
+  await f.service.invoke('reviewCandidate', { ...f.target, baseRevision: 2, candidateId: candidates[1]!.id, review: { technical: 'passed', motion: 'passed', continuity: 'passed', audio: 'passed', conclusion: '测试配音听验通过', unchecked: [], issues: [] } })
   for (let index = 0; index < candidates.length; index++) {
     const saved = await f.service.invoke('adopt', { ...f.target, baseRevision: 2 + index, candidateId: candidates[index]!.id })
     expect(saved.shotStates.shot!.outputVersion).toBe(2 + index)
@@ -64,6 +66,7 @@ test('Given 过时画面 When 只采用音频 Then 保持需要更新状态', as
   await f.service.invoke('save', { ...f.target, baseRevision: 2, draft: { ...f.draft, shots: f.draft.shots.map(shot => ({ ...shot, scene: '新画面设定' })) } })
   const job = await f.service.invoke('beginJob', { ...f.target, baseRevision: 3, shotId: 'shot', instruction: '配音' })
   const candidate = await f.service.invoke('proposeShot', { ...f.target, baseRevision: 3, jobId: job.id, shotId: 'shot', mediaId: f.media[2]!.id, summary: '配音' })
+  await f.service.invoke('reviewCandidate', { ...f.target, baseRevision: 3, candidateId: candidate.id, review: { technical: 'passed', motion: 'passed', continuity: 'passed', audio: 'passed', conclusion: '测试配音听验通过', unchecked: [], issues: [] } })
   const result = await f.service.invoke('adopt', { ...f.target, baseRevision: 3, candidateId: candidate.id })
   expect(result.shotStates.shot!.needsUpdate).toBe(true)
 })

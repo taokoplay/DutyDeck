@@ -2,6 +2,8 @@ import * as React from 'react'
 import { Film, Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import type { VisualMedia } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
+import { createClipRangePlayback } from './VisualEditingPlayback'
+import type { ClipPlaybackRange } from './VisualEditingPlayback'
 
 /** 同一工作台所有预览共享播放焦点，避免影片和音频同时出声。 */
 const MEDIA_PLAY_EVENT = 'visual-production:media-play'
@@ -14,10 +16,12 @@ function playbackTime(seconds: number): string {
 }
 
 /** 每个预览只在进入视口后读取媒体；释放时回收 Blob URL，避免整库驻留。 */
-export function VisualMediaView({ sessionId, productionId, media, active = true, playing = false, controls = false, film, onEnded, onError, onReady, onPlay, onPause, className = '' }: { sessionId: string; productionId: string; media?: VisualMedia; active?: boolean; playing?: boolean; controls?: boolean; /** 仅分镜主舞台启用宽幅播放器，其余媒体保留原有预览。 */ film?: { ratio: string; duration: number }; onEnded?: () => void; onError?: () => void; onReady?: () => void; onPlay?: () => void; onPause?: () => void; className?: string }): React.ReactElement {
+export function VisualMediaView({ sessionId, productionId, media, active = true, playing = false, controls = false, film, range, onEnded, onError, onReady, onPlay, onPause, className = '' }: { sessionId: string; productionId: string; media?: VisualMedia; active?: boolean; playing?: boolean; controls?: boolean; /** 仅分镜主舞台启用宽幅播放器，其余媒体保留原有预览。 */ film?: { ratio: string; duration: number }; /** 精剪的源媒体入点和出点；省略时完整播放。 */ range?: ClipPlaybackRange; onEnded?: () => void; onError?: () => void; onReady?: () => void; onPlay?: () => void; onPause?: () => void; className?: string }): React.ReactElement {
   const host = React.useRef<HTMLDivElement>(null)
   const audio = React.useRef<HTMLAudioElement>(null)
   const video = React.useRef<HTMLVideoElement>(null)
+  /** 范围变更即新播放周期，不因父级普通刷新重复报告 ended。 */
+  const rangePlayback = React.useMemo(() => createClipRangePlayback(range), [media?.id, range?.start, range?.end])
   const [visible, setVisible] = React.useState(false)
   const [url, setUrl] = React.useState('')
   const [error, setError] = React.useState('')
@@ -48,10 +52,13 @@ export function VisualMediaView({ sessionId, productionId, media, active = true,
     return () => { cancelled = true; if (resource) URL.revokeObjectURL(resource) }
   }, [sessionId, productionId, media?.id, visible, active])
   React.useEffect(() => {
+    if (video.current && video.current.readyState >= 1) rangePlayback.handle('ready', video.current)
+  }, [rangePlayback])
+  React.useEffect(() => {
     if (!video.current) return
     if (playing && active) void video.current.play().catch(() => callbacks.current.onError?.())
     else video.current.pause()
-  }, [playing, active, url])
+  }, [playing, active, url, rangePlayback])
   React.useEffect(() => {
     if (!active) audio.current?.pause()
     const hide = (): void => { if (document.hidden) { audio.current?.pause(); video.current?.pause() } }
@@ -71,6 +78,7 @@ export function VisualMediaView({ sessionId, productionId, media, active = true,
   /** 原生控制条与连续预演均通过同一播放入口获取焦点。 */
   const claimPlayback = (event: React.SyntheticEvent<HTMLMediaElement>): void => {
     if (!active || document.hidden) { event.currentTarget.pause(); return }
+    rangePlayback.handle('play', event.currentTarget)
     window.dispatchEvent(new CustomEvent(MEDIA_PLAY_EVENT, { detail: event.currentTarget }))
     if (film) setPlayback(previous => ({ ...previous, playing: true }))
     callbacks.current.onPlay?.()
@@ -78,7 +86,7 @@ export function VisualMediaView({ sessionId, productionId, media, active = true,
   /** 手动暂停同步连续预演；自然结束由 ended 推进镜头，避免提前取消连播。 */
   const pausePlayback = (event: React.SyntheticEvent<HTMLMediaElement>): void => {
     if (film) setPlayback(previous => ({ ...previous, playing: false }))
-    if (!event.currentTarget.ended) onPause?.()
+    if (!event.currentTarget.ended && !rangePlayback.finished) onPause?.()
   }
   /** 读取成功但解码失败时仍提供可见错误，不留下无法播放的空播放器。 */
   const decodeError = (): void => { setError('无法解码媒体'); callbacks.current.onError?.() }
@@ -99,7 +107,10 @@ export function VisualMediaView({ sessionId, productionId, media, active = true,
     else void host.current?.requestFullscreen().catch(() => setControlError('暂时无法进入全屏'))
   }
   /** 主舞台与普通预览复用媒体读取、资源释放和播放焦点。 */
-  const content = !media ? (film ? <div className="vp-film-empty"><Film size={30} /><h4>本镜头尚无影片</h4><p>生成影片后，在这里预览与确认</p><span>下方画面参考保留构图与视觉设定</span></div> : <span>尚无素材</span>) : error ? <span role="alert">媒体读取失败</span> : !url ? <span>{active ? '加载素材…' : '预览已暂停'}</span> : media.kind === 'video' ? <video ref={video} src={url} controls={controls && !film} playsInline onPlay={claimPlayback} onPause={pausePlayback} onLoadedData={readyVideo} onTimeUpdate={film ? event => { const time = event.currentTarget.currentTime; setPlayback(previous => ({ ...previous, time })) } : undefined} onVolumeChange={film ? event => { const muted = event.currentTarget.muted; setPlayback(previous => ({ ...previous, muted })) } : undefined} onEnded={onEnded} onError={decodeError} /> : media.kind === 'image' ? <img src={url} alt={media.name} onLoad={onReady} onError={decodeError} /> : <audio ref={audio} src={url} controls onPlay={claimPlayback} onPause={pausePlayback} onLoadedData={onReady} onEnded={onEnded} onError={decodeError} />
+  const content = !media ? (film ? <div className="vp-film-empty"><Film size={30} /><h4>本镜头尚无影片</h4><p>生成影片后，在这里预览与确认</p><span>下方画面参考保留构图与视觉设定</span></div> : <span>尚无素材</span>) : error ? <span role="alert">媒体读取失败</span> : !url ? <span>{active ? '加载素材…' : '预览已暂停'}</span> : media.kind === 'video' ? <video ref={video} src={url} controls={controls && !film} playsInline onPlay={claimPlayback} onPause={pausePlayback} onLoadedMetadata={event => { rangePlayback.handle('ready', event.currentTarget) }} onLoadedData={readyVideo} onSeeking={event => { rangePlayback.handle('seeking', event.currentTarget) }} onTimeUpdate={event => {
+    if (rangePlayback.handle('timeupdate', event.currentTarget)) onEnded?.()
+    if (film) { const time = event.currentTarget.currentTime; setPlayback(previous => ({ ...previous, time })) }
+  }} onVolumeChange={film ? event => { const muted = event.currentTarget.muted; setPlayback(previous => ({ ...previous, muted })) } : undefined} onEnded={event => { if (rangePlayback.handle('ended', event.currentTarget)) onEnded?.() }} onError={decodeError} /> : media.kind === 'image' ? <img src={url} alt={media.name} onLoad={onReady} onError={decodeError} /> : <audio ref={audio} src={url} controls onPlay={claimPlayback} onPause={pausePlayback} onLoadedData={onReady} onEnded={onEnded} onError={decodeError} />
   return <div ref={host} className={`${film ? 'vp-film-player' : 'vp-media'} ${className}`}>
     {film ? <><div className="vp-film-theater"><div className="vp-film-meta"><span>{film.ratio} · {film.duration}s</span><span>影片主预览</span></div>{content}</div>
       <div className="vp-film-transport" aria-label="影片播放控制">

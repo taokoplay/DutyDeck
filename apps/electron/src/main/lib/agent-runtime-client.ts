@@ -15,6 +15,7 @@ import {
   createAgentRuntimeResponse,
   isAgentRuntimeEnvelope,
   serializeAgentRuntimeError,
+  type NetworkRecoveryNotice,
   type AgentRuntimeEnvelope,
   type AgentRuntimeError,
   type AgentRuntimeEvent,
@@ -103,6 +104,23 @@ export class AgentRuntimeClient {
 
   get isReady(): boolean {
     return this.state.status === 'ready' && this.port !== undefined
+  }
+
+  /** 只向已经就绪的utility发送网络代次；此路径永不启动或重启进程。 */
+  notifyNetworkChange(notice: NetworkRecoveryNotice, queryId: string): boolean {
+    if (!this.isReady || !this.port) return false
+    try {
+      this.port.postMessage({
+        protocolVersion: AGENT_RUNTIME_PROTOCOL_VERSION,
+        bootId: this.bootId,
+        kind: 'event',
+        method: AGENT_RUNTIME_METHODS.QUERY_NETWORK_CHANGED,
+        sessionId: this.sessionId,
+        queryId,
+        payload: notice,
+      })
+      return true
+    } catch { return false }
   }
 
   setRequestHandler(handler: RuntimeRequestHandler | undefined): void {

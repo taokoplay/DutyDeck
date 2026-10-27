@@ -289,10 +289,18 @@ function evaluateChecks(probed: ProbedMediaFile, requirements: MediaDeliveryRequ
   }
 }
 
-/** 生成覆盖全时长的均匀样本时间，不抽取末尾边界外帧。 */
-function sampleTimes(durationMs: number, requested: number): number[] {
+/** 用视频流边界抽样；缺少时长或帧率时仅取首帧，避免把更长音轨当作视频。 */
+function sampleTimes(durationMs: number | undefined, requested: number, fps: number | null): number[] {
   const count = Math.min(MAX_VISUAL_SAMPLES, Math.max(0, Math.floor(requested)))
-  return Array.from({ length: count }, (_unused, index) => Math.floor(durationMs * (index + 0.5) / count))
+  if (count === 0) return []
+  if (durationMs === undefined || !Number.isFinite(durationMs) || durationMs <= 0
+    || fps === null || !Number.isFinite(fps) || fps <= 0) return [0]
+  if (count < 2) return count === 1 ? [Math.floor(durationMs / 2)] : []
+  /** 在视频流结束前留一帧间隔，不使用容器总时长。 */
+  const frameMs = 1_000 / fps
+  /** 毫秒向下取整，让 ffmpeg 取到该时间之后的实际最后一帧。 */
+  const lastTimeMs = Math.max(0, Math.floor(durationMs - frameMs))
+  return [...new Set(Array.from({ length: count }, (_unused, index) => Math.floor(lastTimeMs * index / (count - 1))))]
 }
 
 /** 将已执行的检查字段转换为可审计条件列表。 */
@@ -367,7 +375,7 @@ export function createMediaDeliveryInspectionService(dependencies: MediaDelivery
 
           const samples: MediaDeliveryVisualSample[] = []
           const times = probed.mediaKind === 'video' && decoded.status === 'ok'
-            ? sampleTimes(probed.metadata.durationMs, requirements.visualSamples?.count ?? 0)
+            ? sampleTimes(probed.visualDurationMs, requirements.visualSamples?.count ?? 0, probed.metadata.fps)
             : []
           let sampleBytes = 0
           for (const timeMs of times) {
@@ -381,7 +389,7 @@ export function createMediaDeliveryInspectionService(dependencies: MediaDelivery
             const sampled = await executeFfmpeg(execute, sampleArgs, {
               timeout: DECODE_TIMEOUT_MS, maxBuffer: MAX_SAMPLE_BYTES + 1, signal,
             })
-            if (sampled.status !== 'ok') throw new Error('MEDIA_INSPECTION_SAMPLING_INCOMPLETE')
+            if (sampled.status !== 'ok' || sampled.stdout.byteLength === 0) throw new Error('MEDIA_INSPECTION_SAMPLING_INCOMPLETE')
             sampleBytes += sampled.stdout.byteLength
             if (sampleBytes > MAX_SAMPLE_BYTES) throw new Error('MEDIA_INSPECTION_RESOURCE_LIMIT')
             samples.push({ timeMs, mediaType: 'image/jpeg', bytes: sampled.stdout })
@@ -393,6 +401,7 @@ export function createMediaDeliveryInspectionService(dependencies: MediaDelivery
             ? ['audio-content']
             : [
                 'full-video-content', 'visual-content',
+                ...(samples.length > 0 && (probed.visualDurationMs === undefined || probed.metadata.fps === null) ? ['video-tail-frame'] : []),
                 ...(probed.metadata.hasAudio ? ['audio-content', 'audio-video-sync'] : []),
               ]
           return {

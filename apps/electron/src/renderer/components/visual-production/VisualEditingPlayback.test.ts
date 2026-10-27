@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { VisualEditingDocument } from '@dutydeck/shared'
-import { getNextVideoClipId } from './VisualEditingPlayback'
+import { createClipRangePlayback, getNextVideoClipId } from './VisualEditingPlayback'
 
 /** 连续播放测试使用的最小时间线，包含非画面轨道以验证只沿视频轨推进。 */
 const timeline: VisualEditingDocument = {
@@ -23,6 +23,44 @@ const timeline: VisualEditingDocument = {
 }
 
 describe('影像剪辑连续播放', () => {
+  it('Given 裁剪范围 When 就绪、越界拖动和到达出点 Then 限制来源区间且只结束一次', () => {
+    const media = { currentTime: 0, duration: 10, paused: false, pause() { this.paused = true } }
+    const control = createClipRangePlayback({ start: 2, end: 5 })
+    expect(control.handle('ready', media)).toBe(false)
+    expect(media.currentTime).toBe(2)
+    media.currentTime = 1
+    control.handle('seeking', media)
+    expect(media.currentTime).toBe(2)
+    media.currentTime = 5.1
+    expect(control.handle('timeupdate', media)).toBe(true)
+    expect(media.currentTime).toBe(5)
+    expect(media.paused).toBe(true)
+    expect(control.handle('ended', media)).toBe(false)
+    expect(control.handle('timeupdate', media)).toBe(false)
+    control.handle('play', media)
+    expect(media.currentTime).toBe(2)
+    expect(control.finished).toBe(false)
+  })
+
+  it('Given 相同素材的新范围 When 重新就绪 Then 使用新入点；未传范围保持默认播放', () => {
+    const media = { currentTime: 7, duration: 8, paused: false, pause() { this.paused = true } }
+    createClipRangePlayback({ start: 3, end: 9 }).handle('ready', media)
+    expect(media.currentTime).toBe(3)
+    media.currentTime = 8
+    expect(createClipRangePlayback({ start: 3, end: 9 }).handle('ended', media)).toBe(true)
+    createClipRangePlayback().handle('ready', media)
+    expect(media.currentTime).toBe(8)
+  })
+
+  it('Given 暂停中拖到出点 When 时间更新 Then 不提前推进且下一次播放回到入点', () => {
+    const media = { currentTime: 7, duration: 10, paused: true, pause() { this.paused = true } }
+    const control = createClipRangePlayback({ start: 2, end: 5 })
+    control.handle('seeking', media)
+    expect(media.currentTime).toBe(5)
+    expect(control.handle('timeupdate', media)).toBe(false)
+    control.handle('play', media)
+    expect(media.currentTime).toBe(2)
+  })
   it('Given 当前画面片段 When 播放结束 Then 返回下一个画面片段并在末尾停止', () => {
     expect(getNextVideoClipId(timeline, null)).toBe('clip-a')
     expect(getNextVideoClipId(timeline, 'clip-a')).toBe('clip-b')

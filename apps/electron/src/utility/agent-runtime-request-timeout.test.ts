@@ -10,9 +10,33 @@ import { ParentRequestRegistry } from './agent-runtime-parent-request-registry'
 const DESIGN_IMAGE_TOOL = 'mcp__nano_banana__generate_image'
 
 describe('Agent utility 主进程请求超时', () => {
+  test.each(['visual_production_request_preview', 'visual_production_request_export'])('Given %s 本机编码 When 超过普通RPC时限 Then 等待真实终态且保留取消', async toolName => {
+    /** 只对精确本机编码能力延长生命周期，伪造协议方法仍使用普通期限。 */
+    const timeoutMs = getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_CUSTOM_TOOL, { toolName })
+    expect(timeoutMs).toBeUndefined()
+    expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_CODEX_OAUTH_REFRESHED, { toolName })).toBe(120_000)
+    expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_CUSTOM_TOOL, { toolName: `${toolName}_other` })).toBe(120_000)
+    for (const cancel of [false, true]) {
+      /** 使用真实注册器覆盖成功及用户取消，有限期限缩成1ms以复现误断。 */
+      const registry = new ParentRequestRegistry()
+      const controller = new AbortController()
+      const sent: string[] = []
+      const pending = registry.wait({ requestId: toolName, method: AGENT_RUNTIME_METHODS.CAPABILITY_CUSTOM_TOOL, timeoutMs: timeoutMs === undefined ? undefined : 1, signal: controller.signal, sendRequest: () => { sent.push('request') }, sendCancel: () => { sent.push('cancel') } }).catch((error: unknown) => error)
+      try {
+        await new Promise<void>(resolve => setTimeout(resolve, 10))
+        expect(registry.size).toBe(1)
+        expect(sent).toEqual(['request'])
+        if (cancel) controller.abort()
+        else registry.resolve(toolName, { status: 'completed' })
+        expect(await pending).toEqual(cancel ? new Error('Main runtime request aborted: agent.capability.customTool') : { status: 'completed' })
+        expect(registry.size).toBe(0)
+        expect(sent).toEqual(cancel ? ['request', 'cancel'] : ['request'])
+      } finally { registry.rejectAll(new Error('测试结束')) }
+    }
+  })
   test.each(['canvas_delegate', 'canvas_dispatch', 'canvas_resume_orchestration'])('Given %s 等待真实子任务 When 解析RPC期限 Then 跟随取消和运行生命周期', toolName => {
     expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_CUSTOM_TOOL, { toolName })).toBeUndefined()
-    expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_EVALUATE_COMPLETION, { toolName })).toBe(120_000)
+    expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_CODEX_OAUTH_REFRESHED, { toolName })).toBe(120_000)
   })
   test('Given Design 图片工具可能长时间生成 When 解析超时 Then 使用独立长时限', () => {
     expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_CUSTOM_TOOL, {
@@ -57,10 +81,61 @@ describe('Agent utility 主进程请求超时', () => {
   })
 
   test('Given 非自定义工具能力携带导演工具名 When 解析超时 Then 不绕过普通故障检测', () => {
-    expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_EVALUATE_COMPLETION, {
+    expect(getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_CODEX_OAUTH_REFRESHED, {
       toolName: 'canvas_run_agent',
     })).toBe(120_000)
   })
+
+  test.each(['成功', '用户取消', '运行时退出', '宿主失败'] as const)(
+    'Given 完成检查等待长媒体超过旧 RPC 时限 When %s Then 依真实终态清理等待',
+    async (ending) => {
+      /** 真实请求注册器，覆盖期限策略与请求生命周期之间的边界。 */
+      const registry = new ParentRequestRegistry()
+      /** 当前 Agent 运行的取消信号。 */
+      const controller = new AbortController()
+      /** 记录请求和取消，检测错误的超时取消及迟到取消。 */
+      const sent: string[] = []
+      /** 有限时限缩为 1ms，以快速复现旧版两分钟误断。 */
+      const timeoutMs = getParentRequestTimeoutMs(AGENT_RUNTIME_METHODS.CAPABILITY_EVALUATE_COMPLETION, {})
+      /** 提前消费失败，避免旧实现超时产生未处理拒绝。 */
+      const pending = registry.wait({
+        requestId: 'media-completion',
+        method: AGENT_RUNTIME_METHODS.CAPABILITY_EVALUATE_COMPLETION,
+        timeoutMs: timeoutMs === undefined ? undefined : 1,
+        signal: controller.signal,
+        sendRequest: () => { sent.push('request') },
+        sendCancel: () => { sent.push('cancel') },
+      }).catch((error: unknown) => error)
+
+      try {
+        await new Promise<void>((resolve) => setTimeout(resolve, 10))
+        expect(sent).toEqual(['request'])
+        expect(registry.size).toBe(1)
+
+        if (ending === '成功') {
+          registry.resolve('media-completion', { action: 'continue', message: '媒体已完成，继续审片' })
+          expect(await pending).toEqual({ action: 'continue', message: '媒体已完成，继续审片' })
+        } else if (ending === '用户取消') {
+          controller.abort()
+          expect(await pending).toEqual(new Error(`Main runtime request aborted: ${AGENT_RUNTIME_METHODS.CAPABILITY_EVALUATE_COMPLETION}`))
+        } else {
+          /** 运行时退出或宿主返回的真实失败，必须原样传递。 */
+          const error = new Error(ending === '运行时退出' ? 'Agent runtime is shutting down' : 'Host completion failed')
+          if (ending === '运行时退出') registry.rejectAll(error)
+          else registry.reject('media-completion', error)
+          expect(await pending).toBe(error)
+        }
+
+        expect(registry.size).toBe(0)
+        expect(registry.resolve('media-completion', { action: 'complete' })).toBe(false)
+        expect(registry.reject('media-completion', new Error('迟到错误'))).toBe(false)
+        controller.abort()
+        expect(sent).toEqual(ending === '用户取消' ? ['request', 'cancel'] : ['request'])
+      } finally {
+        registry.rejectAll(new Error('测试结束'))
+      }
+    },
+  )
 
   test.each(['成功', '用户取消', '运行时退出', '子运行失败'] as const)(
     'Given 导演审核超过旧 RPC 时限 When %s Then 依实际生命周期结束且清理等待',

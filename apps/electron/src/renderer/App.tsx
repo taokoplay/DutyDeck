@@ -27,6 +27,17 @@ export default function App(): React.ReactElement {
   const [isReplayingOnboarding, setIsReplayingOnboarding] = React.useState(false)
   const isWindows = React.useMemo(() => detectIsWindows(), [])
 
+  React.useEffect(() => {
+    /** 仅转发系统在线信号，不从 renderer 发起外网探测或携带地址。 */
+    const handleOnline = (): void => {
+      void window.electronAPI.network.notifyOnline().catch(() => {
+        // 恢复提示失败不影响当前聊天，主进程仍有接口变化与唤醒监测。
+      })
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [])
+
   // 初始化：检查是否需要显示 Onboarding
   // macOS/Linux 上 SDK 自带 claude native binary 不依赖宿主 Node/Git；
   // Windows 上仍需 Git Bash/WSL，由 Onboarding Step 2 与聊天错误卡片引导用户安装。

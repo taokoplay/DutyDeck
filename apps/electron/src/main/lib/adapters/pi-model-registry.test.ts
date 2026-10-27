@@ -258,7 +258,7 @@ describe('Pi 0.87 Codex 目录与运行时', () => {
     expect((await getCodexCatalogModels()).some((entry) => entry.id === modelId)).toBe(true)
   })
 
-  test('Given GPT-6.1 Sol When 构建 Codex 模型 Then 保留 272K 与 Pi 原生推理档位', async () => {
+  test('Given GPT-6.1 Sol When 构建 Codex 模型 Then 保留 Pi 1.4 目录的 500K 与原生推理档位', async () => {
     /** 使用已安装 Pi runtime 的真实模型目录离线构建。 */
     const sdk = await import('@earendil-works/pi-coding-agent')
     /** GPT-6.1 Sol 的模型字段应继续来自 Pi 自带目录。 */
@@ -266,7 +266,8 @@ describe('Pi 0.87 Codex 目录与运行时', () => {
     /** 会话级能力解析应选择 Pi catalog，而非 GPT-6 Sol 专属 profile。 */
     const reasoningCapability = await resolvePiReasoningCapability('openai-codex', 'gpt-6.1-sol')
 
-    expect(model.contextWindow).toBe(272_000)
+    // Pi 1.3 修正 Codex GPT-6.1 Sol 的官方窗口为 500K，不能沿用旧目录的 272K。
+    expect(model.contextWindow).toBe(500_000)
     expect(model.thinkingLevelMap?.off).toBeNull()
     expect(model.thinkingLevelMap?.minimal).toBe('low')
     expect(reasoningCapability?.source).toBe('pi-catalog')

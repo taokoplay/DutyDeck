@@ -20,6 +20,7 @@ const executeTools = [
   'visual_production_propose_timeline_edit',
   'visual_production_adopt_timeline_edit',
   'visual_production_request_export',
+  'visual_production_request_preview',
   'visual_production_cancel_export',
   'visual_production_import_file',
   'visual_production_import_media',

@@ -289,3 +289,20 @@ describe('Agent runtime 生命周期隔离', () => {
     expect(client.currentState.status).toBe('stopped')
   })
 })
+
+test('网络通知不启动停止中的进程，仅ready端口接收带完整身份的event', () => {
+  const client = new AgentRuntimeClient({ sessionId: 'network-client' })
+  const processCount = createdProcesses.length
+  expect(client.notifyNetworkChange({ epoch: 1 }, 'q')).toBe(false)
+  expect(createdProcesses).toHaveLength(processCount)
+  const harness = client as unknown as AgentRuntimeClientHarness & { state: AgentRuntimeState }
+  const port = new FakeRuntimePort()
+  harness.port = port
+  harness.bootId = 'network-boot'
+  harness.state = { status: 'ready', bootId: 'network-boot', pid: 1, active: true, pendingRequests: 0 }
+  expect(client.notifyNetworkChange({ epoch: 2 }, 'q')).toBe(true)
+  expect(port.sent[0]).toMatchObject({ kind: 'event', method: AGENT_RUNTIME_METHODS.QUERY_NETWORK_CHANGED, bootId: 'network-boot', sessionId: 'network-client', queryId: 'q', payload: { epoch: 2 } })
+  harness.state.status = 'stopping'
+  expect(client.notifyNetworkChange({ epoch: 3 }, 'q')).toBe(false)
+  expect(port.sent).toHaveLength(1)
+})

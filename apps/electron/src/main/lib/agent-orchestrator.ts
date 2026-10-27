@@ -108,7 +108,8 @@ import { createInteractionDesignRun } from './interaction-design/agent-run'
 import { createProductionInteractionDesignAccess } from './interaction-design/integration'
 import { buildInteractionDesignAgentTools, INTERACTION_DESIGN_AGENT_TOOL_NAMES, INTERACTION_DESIGN_AGENT_WRITE_TOOL_NAMES } from './interaction-design/agent-tools'
 import { createVisualProductionAgentAccess } from './visual-production/agent-access'
-import { buildVisualMediaStepContinuation, buildVisualReviewStepContinuation, buildVisualWorkflowDiscoveryStepContinuation, createVisualProductionRun } from './visual-production/agent-run'
+import { buildVisualCompletionEvaluation, buildVisualMediaStepContinuation, buildVisualRepairStepContinuation, buildVisualReviewStepContinuation, buildVisualWorkflowDiscoveryStepContinuation, createVisualProductionRun } from './visual-production/agent-run'
+import { VISUAL_PRODUCTION_QUALITY_CONTRACT } from './visual-production/quality-contract'
 import { bindVisualProductionMediaTools } from './visual-production/media-tool-binding'
 import { createProductionVisualProductionAccess, waitForProductionVisualMediaExecution } from './visual-production/integration'
 import { buildVisualProductionAgentTools, VISUAL_PRODUCTION_AGENT_TOOL_NAMES, VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES } from './visual-production/agent-tools'
@@ -198,9 +199,6 @@ function resolveLocalProjectRootForRewind(projectRootPath: string): string {
 import { resolveRuntimeAdditionalDirectories } from './agent-orchestrator-vault-access'
 import { AgentRunJournalStore } from './agent-run-journal'
 import { readPiArtifactSnapshot } from './pi-artifact-reconciliation'
-
-/** 长时影像任务允许的 Host 续行次数；媒体运行阶段由 Host 直接等待，不消耗续行次数。 */
-const VISUAL_MEDIA_COMPLETION_CONTINUATION_LIMIT = 12
 
 // ===== 类型定义 =====
 
@@ -1691,14 +1689,11 @@ export class AgentOrchestrator {
             /** 工作流发现会覆盖同一任务的准备阶段；运行阶段由媒体门禁继续等待和回流候选。 */
             const mediaMessage = discoveryMessage ? null : buildVisualMediaStepContinuation(mediaSteps)
             /** 生成前必须先完成冻结服务的工作流选择，再进入生成后的审片门禁。 */
-            const message = [discoveryMessage, mediaMessage, buildVisualReviewStepContinuation(await visualReviewRun.pendingReviews())].filter(Boolean).join('\n\n')
-            return message
-              ? {
-                  action: 'continue',
-                  message,
-                  ...(mediaSteps.length ? { continuationLimit: VISUAL_MEDIA_COMPLETION_CONTINUATION_LIMIT } : {}),
-                }
-              : { action: 'complete' }
+            const reviewMessage = buildVisualReviewStepContinuation(await visualReviewRun.pendingReviews())
+            /** 先结束生成与取证，再分发失败修正；避免在仍有待审任务时消耗纠偏额度。 */
+            const repairMessage = discoveryMessage || mediaMessage || reviewMessage ? null : buildVisualRepairStepContinuation(await visualReviewRun.takePendingRepairs())
+            const message = [discoveryMessage, mediaMessage, reviewMessage, repairMessage].filter(Boolean).join('\n\n')
+            return buildVisualCompletionEvaluation(message || null)
           }
         : extensions.evaluateCompletion
       /** 主会话建立域范围；受限子任务只接收宿主签发的独立策略。 */
@@ -2677,6 +2672,7 @@ export class AgentOrchestrator {
 完整 draft 仅含 title/kind/brief/ratio/fps/voice/music/episodes/assets/shots，不含系统 id/revision。不得用 Write/Edit 直接改 .dutydeck/visual-production（旧项目兼容 .proma/visual-production），不能用占位符冒充生成成功。静帧预演、单镜头生成及清单导出不代表成片合成；未真实合成不得报告影片已交付。` : undefined,
         visualProductionAccess ? `影像 Agent 最新执行合同（优先于上文关于“候选只能手工采用”和主动轮询的旧限制）：用户给出明确影片目标后，作品创建、剧本、资产、镜头计划、候选提交、精确采纳、媒体生成、审片、粗剪、时间线修改和导出请求都属于可执行步骤，普通操作直接执行，不再逐项请求确认。Agent 可在任务需要推进正式内容时重读最新 revision 并采用精确候选；存在多个有意义的真实替选、需要用户审美判断时，可保留候选并清楚说明差异。媒体任务执行后由 Host 托管等待终态，不要用 media_wait_run 高频刷新进度或维持无交付价值的工具循环；Host 会在成功、失败或取消后自动续行。只有锁定角色或资产的正式变更必须由宿主自动弹出项目原生一次性权限卡；Agent 不得自行宣称已获授权，也不得通过完全自动模式、会话白名单或更换候选绕过。锁定资产候选可以正常提交，审批只绑定当前 candidateId、当前正式 revision 和字段前后值；批准后仍会执行 CAS，用户拒绝、取消或版本变化都不得写正式作品。\n剪辑流程固定为 visual_production_read_timeline → visual_production_create_rough_cut → visual_production_propose_timeline_edit → visual_production_adopt_timeline_edit，并使用本次返回的 timeline revision、candidateId 和 expectedRevision。需要成片时，在正式时间线冻结后调用 visual_production_request_export，再通过 visual_production_list_export_jobs 核对真实终态；只有 completed 且登记真实产物时才能报告成片完成，queued/preparing/rendering、编码器缺失或 failed 都必须如实说明。` : undefined,
         interactionAccess ? '交互设计使用 prototype_* 工具：用户可直接描述要还原的项目页面，Agent 先调用 prototype_list，再读取现有原型、目标页面和当前版本，从路由、组件、主题和实际素材建立最小源码证据闭包；创建页面前必须按 pageId、路由、名称和职责判断目录中是否已有同一业务页面，已有页面复用 pageId，只有确认不存在才新增。现有项目还原必须先盘点并向用户确认页面数量、分组树、状态矩阵、页面流程和源码/素材证据，再 begin_job(mode=project-restore, plan=完整页面规划)，之后按规划提交候选并在基线仍匹配时自动采纳：单页正文先用 prototype_compare_page，再用 prototype_adopt_page；新增页面、跨页、目录或流程变更用 prototype_adopt。采纳后重新读取正式版本并报告实际 revision；CAS 冲突时重新读取，不覆盖人工修改。元素引用是修改上下文，自动保护范围为所属页面。不要用 Write/Edit 直接改 .dutydeck/interaction-design 数据（旧项目兼容 .proma/interaction-design），也不要把结构检查或访问路径记录宣称为视觉一比一验证。不同业务页面分别写入 pages，同页有数据/无数据等状态写入该页 states 并排展示；禁止整套 App 塞一个 HTML、导览页或来源参考页冒充拆分；prototype_import_html 只用于用户明确要求导入的独立 HTML，不能用于现有项目还原。详细流程按 interaction-design Skill。' : undefined,
+        visualProductionAccess ? VISUAL_PRODUCTION_QUALITY_CONTRACT : undefined,
         extensions.systemPromptAppend]
         .filter((section): section is string => Boolean(section?.trim()))
         .join('\n\n')

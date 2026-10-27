@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import type { VisualCandidate, VisualJob, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot } from '@dutydeck/shared'
 import type { VisualProductionExecutor } from './access'
-import { buildVisualMediaStepContinuation, buildVisualReviewStepContinuation, buildVisualWorkflowDiscoveryStepContinuation, createVisualProductionRun } from './agent-run'
+import { buildVisualCompletionEvaluation, buildVisualMediaStepContinuation, buildVisualRepairStepContinuation, buildVisualReviewStepContinuation, buildVisualWorkflowDiscoveryStepContinuation, createVisualProductionRun } from './agent-run'
+import { applyAgentCompletionPolicy } from '../agent-completion-policy'
+import type { SDKMessage } from '@dutydeck/shared'
 
 /** 最小正式作品用于验证本轮候选审片队列。 */
 function snapshot(candidate?: VisualCandidate): VisualProductionSnapshot {
@@ -14,6 +16,93 @@ function snapshot(candidate?: VisualCandidate): VisualProductionSnapshot {
 }
 
 describe('影像 Agent 审片步骤', () => {
+  test('Given 初审纠偏媒体回流 When 转入新候选复审 Then 共用总额度并在第十二次后停止', async () => {
+    /** 使用真实 Host 策略验证跨阶段，不以静态提示词检查代替调度。 */
+    let count = 0
+    for (const stage of ['初审', '纠偏', '媒体回流', '新候选复审']) {
+      const result = await applyAgentCompletionPolicy({ terminalResult: { type: 'result', subtype: 'success', session_id: 'session' } as SDKMessage, continuationCount: count, signal: new AbortController().signal, canContinue: true,
+        evaluateCompletion: async () => buildVisualCompletionEvaluation(stage), continueTask: async () => {} })
+      expect(result.continued).toBe(true)
+      count = result.continuationCount
+    }
+    expect(count).toBe(4)
+    const limited = await applyAgentCompletionPolicy({ terminalResult: { type: 'result', subtype: 'success', session_id: 'session' } as SDKMessage, continuationCount: 12, signal: new AbortController().signal, canContinue: true,
+      evaluateCompletion: async () => buildVisualCompletionEvaluation('仍待审'), continueTask: async () => { throw new Error('不应超过总预算') } })
+    expect(limited.continued).toBe(false)
+    expect(buildVisualCompletionEvaluation(null)).toEqual({ action: 'complete' })
+  })
+
+  test('Given 本轮声音候选 When 声音缺结论或未说明缺口 Then 继续审查而已说明缺口不重复调度', async () => {
+    /** 使用真实运行队列验证新声音门，避免只检查提示词字面。 */
+    const current = snapshot()
+    current.candidates = [{ id: 'audio', jobId: 'job', baseRevision: 2, createdAt: 2, status: 'ready', summary: '待听验配音', draft: current.document, reviewRequired: true, reviewAudioRequired: true,
+      review: { technical: 'passed', motion: 'passed', continuity: 'passed', conclusion: '技术检查完成', unchecked: ['未听验'], issues: [], sessionId: 'session', reviewedAt: 3 } }]
+    const access: VisualProductionExecutor = { workspaceId: 'workspace', assertCurrent() {}, async execute<M extends VisualProductionMethod>(method: M): Promise<VisualProductionResults[M]> {
+      if (method === 'load') return current as VisualProductionResults[M]
+      if (method === 'beginJob') return current.jobs[0] as VisualProductionResults[M]
+      throw new Error(`unexpected ${method}`)
+    } }
+    const run = createVisualProductionRun('session', access, access)
+    await run.execute('beginJob', { sessionId: 'session', productionId: 'production', baseRevision: 2, instruction: '配音' })
+    expect(await run.pendingReviews()).toHaveLength(1)
+    current.candidates[0]!.review!.audio = 'pending'
+    current.candidates[0]!.review!.unchecked = []
+    expect(await run.pendingReviews()).toHaveLength(1)
+    current.candidates[0]!.review!.unchecked = ['   ']
+    expect(await run.pendingReviews()).toHaveLength(1)
+    current.candidates[0]!.review!.unchecked = ['无法实际听验，台词和声线仍待补证；候选不得采用']
+    expect(await run.pendingReviews()).toEqual([])
+    /** 同轮未审候选仍需继续，不能被另一候选的证据缺口说明放行。 */
+    current.candidates.push({ ...current.candidates[0]!, id: 'unreviewed', review: undefined })
+    expect(await run.pendingReviews()).toMatchObject([{ candidateId: 'unreviewed' }])
+    current.candidates.pop()
+    current.candidates[0]!.review!.audio = 'passed'
+    expect(await run.pendingReviews()).toEqual([])
+  })
+
+  test('Given 本轮候选审核失败 When 完成检查 Then 每候选只纠偏一次且最多续行两轮', async () => {
+    /** 正式版本和候选身份都参与修正调度，不扫描其他运行的遗留失败。 */
+    const current = snapshot()
+    const access: VisualProductionExecutor = { workspaceId: 'workspace', assertCurrent() {}, async execute<M extends VisualProductionMethod>(method: M): Promise<VisualProductionResults[M]> {
+      if (method === 'load') return current as VisualProductionResults[M]
+      if (method === 'beginJob') return current.jobs[0] as VisualProductionResults[M]
+      throw new Error(`unexpected ${method}`)
+    } }
+    const run = createVisualProductionRun('session', access, access)
+    await run.execute('beginJob', { sessionId: 'session', productionId: 'production', baseRevision: 2, instruction: '持续优化' })
+    current.candidates = [{ id: 'failed', jobId: 'job', baseRevision: 2, createdAt: 2, status: 'ready', summary: '缺少真实POV', draft: current.document, reviewRequired: true,
+      review: { technical: 'passed', motion: 'failed', continuity: 'pending', conclusion: '关键视角缺失', unchecked: [], issues: [{ gate: 'motion', severity: 'error', message: '裁切不是第一人称', atSeconds: 2 }], sessionId: 'session', reviewedAt: 3 } }]
+    const repairs = await run.takePendingRepairs()
+    expect(repairs).toMatchObject([{ candidateId: 'failed', review: { motion: 'failed' } }])
+    expect(buildVisualRepairStepContinuation(repairs)).toContain('裁切不是第一人称')
+    expect(buildVisualRepairStepContinuation([])).toBeNull()
+    expect(await run.takePendingRepairs()).toEqual([])
+    current.candidates[0]!.id = 'failed-again'
+    expect(await run.takePendingRepairs()).toHaveLength(1)
+    current.candidates[0]!.id = 'third-failure'
+    expect(await run.takePendingRepairs()).toEqual([])
+    /** 旧任务即使存在硬失败，也不属于本轮修正队列。 */
+    const otherRun = createVisualProductionRun('other', access, access)
+    expect(await otherRun.takePendingRepairs()).toEqual([])
+  })
+
+  test('Given 失败候选已过期 When 检查修正 Then 不续行不消耗纠偏轮次', async () => {
+    const current = snapshot()
+    current.candidates = [{ id: 'old', jobId: 'job', baseRevision: 1, createdAt: 2, status: 'ready', summary: '旧失败', draft: current.document, reviewRequired: true,
+      review: { technical: 'failed', motion: 'pending', continuity: 'pending', conclusion: '旧文件损坏', unchecked: [], issues: [], sessionId: 'session', reviewedAt: 3 } }]
+    const access: VisualProductionExecutor = { workspaceId: 'workspace', assertCurrent() {}, async execute<M extends VisualProductionMethod>(method: M): Promise<VisualProductionResults[M]> {
+      if (method === 'load') return current as VisualProductionResults[M]
+      if (method === 'beginJob') return current.jobs[0] as VisualProductionResults[M]
+      throw new Error(`unexpected ${method}`)
+    } }
+    const run = createVisualProductionRun('session', access, access)
+    await run.execute('beginJob', { sessionId: 'session', productionId: 'production', baseRevision: 2, instruction: '优化' })
+    expect(await run.takePendingRepairs()).toEqual([])
+    expect(await run.pendingReviews()).toEqual([])
+    current.candidates[0]!.baseRevision = 2
+    expect(await run.takePendingRepairs()).toHaveLength(1)
+  })
+
   test('Given 本轮提交待审影片 When 审核未完成 Then 同一 Agent 自动继续审片步骤', async () => {
     const current = snapshot()
     const candidate = (reviewed: boolean): VisualCandidate => ({
@@ -40,6 +129,9 @@ describe('影像 Agent 审片步骤', () => {
 
     current.candidates = [candidate(true)]
     expect(await run.pendingReviews()).toHaveLength(1)
+    /** 旧视频无声音门时仍能报告实际缺失的连续性证据，不伪造通过。 */
+    current.candidates[0]!.review!.unchecked = ['相邻镜头媒体不可用，衔接未能复验，保留待审']
+    expect(await run.pendingReviews()).toEqual([])
     current.candidates = [{ ...candidate(true), review: { ...candidate(true).review!, technical: 'failed', issues: [{ gate: 'technical', severity: 'error', message: '损坏' }] } }]
     expect(await run.pendingReviews()).toEqual([])
     current.candidates = [{ ...candidate(true), review: { ...candidate(true).review!, continuity: 'passed' } }]

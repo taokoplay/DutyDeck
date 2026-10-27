@@ -23,9 +23,9 @@ function createBudgetModel(): Model<Api> {
 
 describe('Pi 上下文 token 预算', () => {
   test('Given ASCII 与中文混合文本 When 估算 Then 非 ASCII 字符不会按四分之一低估', () => {
-    expect(estimateTextTokens('a'.repeat(4_000))).toBe(1_000)
+    expect(estimateTextTokens('a'.repeat(4_000))).toBe(1_143)
     expect(estimateTextTokens('中'.repeat(4_000))).toBe(4_000)
-    expect(estimateTextTokens(`${'a'.repeat(2_000)}${'中'.repeat(2_000)}`)).toBe(2_500)
+    expect(estimateTextTokens(`${'a'.repeat(2_000)}${'中'.repeat(2_000)}`)).toBe(2_572)
   })
 
   test('Given 截图中的 935k 中文上下文 When 计算 DeepSeek Flash 请求预算 Then maxTokens 收紧到剩余窗口', () => {
@@ -36,6 +36,10 @@ describe('Pi 上下文 token 预算', () => {
 
     expect(estimateContextTokens(context).tokens).toBe(935_061)
     expect(clampMaxTokensToContext(model, context, model.maxTokens)).toBe(60_843)
+  })
+
+  test.each(['a'.repeat(4_000), `${'a'.repeat(2_000)}${'中'.repeat(2_000)}`])('Given 英文或混合文本 When 压缩与请求分别估算 Then 使用同一预算口径', (content) => {
+    expect(estimateCodingAgentTokens({ role: 'user', content, timestamp: 1 })).toBe(estimateTextTokens(content))
   })
 
   test('Given coding-agent 自动压缩使用同一条消息 When 估算中文消息 Then 压缩阈值与发送预算保持一致', () => {

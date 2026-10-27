@@ -29,10 +29,22 @@ describe('影像作品媒体能力目录', () => {
       { ...model, ref: 'video', kind: 'video', adapterId: 'minimax-video', capabilities: ['text-to-video'] },
     ], empty, 'project')
     expect(options[0]?.constraints.maxImageReferences).toBe(0)
-    expect(options[0]?.constraints.parameters?.map((parameter) => parameter.key)).toEqual(['voice', 'format'])
+    expect(options[0]?.constraints.parameters?.map((parameter) => parameter.key)).toEqual(['voice', 'format', 'instruction'])
     expect(mergeVisualMediaInputs(options[0]!, {}, {}).voice).toEqual({ kind: 'scalar', value: 'mimo_default' })
     expect(options[1]?.constraints.parameters).toEqual([])
     expect(() => validateVisualMediaInputs(options[1]!, { image: reference })).toThrow('VISUAL_MEDIA_REFERENCE_LIMIT_EXCEEDED')
+  })
+  test('Given 小米TTS语气与正文分离 When 影像准备参数 Then 语气透传且其他供应商仍拒绝', () => {
+    /** 同一目录必须跟随真实执行器，不能把语气合并进朗读正文来绕过校验。 */
+    const options = buildVisualProductionMediaCatalog([
+      { ...model, ref: 'xiaomi', kind: 'audio', adapterId: 'xiaomi-speech', capabilities: ['text-to-speech'] },
+      { ...model, ref: 'minimax', kind: 'audio', adapterId: 'minimax-speech', capabilities: ['text-to-speech'] },
+    ], empty, 'project')
+    const inputs = { voice: { kind: 'scalar' as const, value: '白桦' }, format: { kind: 'scalar' as const, value: 'mp3' }, instruction: { kind: 'scalar' as const, value: '克制的内心独白，不加词。' } }
+    expect(mergeVisualMediaInputs(options[0]!, {}, inputs)).toEqual(inputs)
+    expect(() => mergeVisualMediaInputs(options[1]!, {}, inputs)).toThrow('VISUAL_MEDIA_PARAMETER_INVALID')
+    expect(() => mergeVisualMediaInputs(options[0]!, {}, { format: { kind: 'scalar', value: 'wav' } })).toThrow('VISUAL_MEDIA_PARAMETER_INVALID')
+    expect(() => mergeVisualMediaInputs(options[0]!, {}, { instruction: { kind: 'scalar', value: true } })).toThrow('VISUAL_MEDIA_PARAMETER_INVALID')
   })
   test('Given 很多本地模板 When 构建目录 Then 只按连接生成三类路由且名称不拼模板', () => {
     const settings = workflowSettings()

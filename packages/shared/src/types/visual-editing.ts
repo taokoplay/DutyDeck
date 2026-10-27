@@ -107,6 +107,8 @@ export interface VisualEditingTimelineCandidate {
 
 /** Agent 可提出的有限编辑操作。 */
 export type VisualEditingOperation =
+  | { type: 'replaceClipSource'; trackId: string; clipId: string; source: VisualEditingClipSource }
+  | { type: 'insertAudioClip'; trackId: string; kind: 'voice' | 'music'; clipId?: string; source: VisualEditingClipSource; start: number; sourceIn: number; sourceOut: number; volume?: number; label: string }
   | { type: 'moveClip'; trackId: string; clipId: string; toIndex: number }
   | { type: 'splitClip'; trackId: string; clipId: string; at: number }
   | { type: 'trimClip'; trackId: string; clipId: string; sourceIn: number; sourceOut: number }
@@ -130,6 +132,8 @@ export interface VisualEditingExportSettings {
 
 /** 独立的成片导出任务。 */
 export interface VisualEditingExportJob {
+  /** 存在时为未采用候选的本机审片任务；不能视为正式成片或采用证明。 */
+  preview?: { productionRevision: number; candidateIds: string[]; range: { start: number; end: number } }
   /** 任务身份。 */
   id: string
   /** 所属影像作品。 */
@@ -295,9 +299,19 @@ export function parseVisualEditingDocument(value: unknown): VisualEditingDocumen
 
 /** 解析编辑操作；宿主在应用操作前还会核对目标片段和版本。 */
 export function parseVisualEditingOperation(value: unknown): VisualEditingOperation {
-  const data = plainObject(value, ['type', 'trackId', 'clipId', 'toIndex', 'at', 'sourceIn', 'sourceOut', 'volume', 'text', 'start', 'duration'], '编辑操作')
+  const data = plainObject(value, ['type', 'trackId', 'kind', 'clipId', 'toIndex', 'at', 'sourceIn', 'sourceOut', 'volume', 'text', 'start', 'duration', 'label', 'source'], '编辑操作')
   if (typeof data.type !== 'string') throw new Error('VISUAL_EDITING_INVALID: 编辑操作类型')
   assertId(data.trackId, '编辑轨道身份')
+  if (data.type === 'replaceClipSource') { assertId(data.clipId, '编辑片段身份'); return { type: 'replaceClipSource', trackId: data.trackId, clipId: data.clipId, source: clipSource(data.source) } }
+  if (data.type === 'insertAudioClip') {
+    if (data.kind !== 'voice' && data.kind !== 'music') throw new Error('VISUAL_EDITING_INVALID: 音频轨道类型')
+    if (data.clipId !== undefined) assertId(data.clipId, '编辑片段身份')
+    /** 音频源裁切入出点，单位为秒；start 仍表示时间线绝对起点。 */
+    const sourceIn = finiteNumber(data.sourceIn, '音频入点', 0, VISUAL_EDITING_LIMITS.maxDuration)
+    const sourceOut = finiteNumber(data.sourceOut, '音频出点', 0, VISUAL_EDITING_LIMITS.maxDuration)
+    if (sourceOut <= sourceIn) throw new Error('VISUAL_EDITING_INVALID: 音频范围')
+    return { type: 'insertAudioClip', trackId: data.trackId, kind: data.kind, ...(data.clipId === undefined ? {} : { clipId: data.clipId }), source: clipSource(data.source), start: finiteNumber(data.start, '音频开始时间', 0, VISUAL_EDITING_LIMITS.maxDuration), sourceIn, sourceOut, ...(data.volume === undefined ? {} : { volume: finiteNumber(data.volume, '音量', 0, 1) }), label: text(data.label, '音频片段名称', 200, true) }
+  }
   if (data.type === 'moveClip') { assertId(data.clipId, '编辑片段身份'); return { type: 'moveClip', trackId: data.trackId, clipId: data.clipId, toIndex: finiteNumber(data.toIndex, '目标顺序', 0, VISUAL_EDITING_LIMITS.clipsPerTrack) } }
   if (data.type === 'splitClip') { assertId(data.clipId, '编辑片段身份'); return { type: 'splitClip', trackId: data.trackId, clipId: data.clipId, at: finiteNumber(data.at, '分割位置', 0, VISUAL_EDITING_LIMITS.maxDuration) } }
   if (data.type === 'trimClip') { assertId(data.clipId, '编辑片段身份'); return { type: 'trimClip', trackId: data.trackId, clipId: data.clipId, sourceIn: finiteNumber(data.sourceIn, '裁切入点', 0, VISUAL_EDITING_LIMITS.maxDuration), sourceOut: finiteNumber(data.sourceOut, '裁切出点', 0, VISUAL_EDITING_LIMITS.maxDuration) } }
@@ -315,7 +329,7 @@ export function parseVisualEditingOperations(value: unknown): VisualEditingOpera
 
 /** 重新计算线性轨道的开始时间，保持片段顺序与总时长一致。 */
 function reflowTrack(track: VisualEditingTrack): void {
-  if (track.kind === 'caption') return
+  if (track.kind === 'caption' || track.kind === 'voice' || track.kind === 'music') return
   let cursor = 0
   for (const clip of track.clips) { clip.start = cursor; cursor += clip.duration }
 }
@@ -333,8 +347,34 @@ function locateClip(document: VisualEditingDocument, trackId: string, clipId: st
 export function applyVisualEditingOperations(document: VisualEditingDocument, operations: VisualEditingOperation[]): VisualEditingDocument {
   const next = structuredClone(document)
   for (const operation of operations) {
-    if (operation.type === 'moveClip') {
+    if (operation.type === 'insertAudioClip') {
+      if (operation.sourceOut <= operation.sourceIn) throw new Error('VISUAL_EDITING_INVALID: 音频范围')
+      /** 音频片段使用绝对时间定位；同候选中应通过删除后重新插入改变位置。 */
+      let track = next.tracks.find(item => item.id === operation.trackId)
+      if (track && track.kind !== operation.kind) throw new Error('VISUAL_EDITING_INVALID: 音频轨道类型不匹配')
+      if (!track) {
+        track = { id: operation.trackId, kind: operation.kind, clips: [] }
+        next.tracks.push(track)
+      }
+      /** 片段身份集合用于防止 Agent 显式传入重复 ID。 */
+      const used = new Set(track.clips.map(clip => clip.id))
+      /** 未指定身份时由宿主生成稳定且不冲突的候选 ID。 */
+      let clipId = operation.clipId ?? `${operation.kind}-clip-${track.clips.length + 1}`
+      while (used.has(clipId)) {
+        if (operation.clipId) throw new Error('VISUAL_EDITING_INVALID: 音频片段身份重复')
+        clipId = `${clipId}-next`
+      }
+      track.clips.push({ id: clipId, source: clipSource(operation.source), start: operation.start, duration: operation.sourceOut - operation.sourceIn, sourceIn: operation.sourceIn, sourceOut: operation.sourceOut, label: operation.label, ...(operation.volume === undefined ? {} : { volume: operation.volume }) })
+      track.clips.sort((left, right) => left.start - right.start)
+    } else if (operation.type === 'replaceClipSource') {
+      /** 只替换同一镜头媒体绑定，保留既有剪点与片段身份。 */
       const located = locateClip(next, operation.trackId, operation.clipId)
+      const clip = located.track.clips[located.index]!
+      if (!clip.source || located.track.kind === 'caption' || clip.source.shotId !== operation.source.shotId) throw new Error('VISUAL_EDITING_INVALID: 替换来源必须属于原镜头')
+      clip.source = clipSource(operation.source)
+    } else if (operation.type === 'moveClip') {
+      const located = locateClip(next, operation.trackId, operation.clipId)
+      if (located.track.kind === 'voice' || located.track.kind === 'music') throw new Error('VISUAL_EDITING_INVALID: 音频片段不支持顺序移动，请使用删除后插入')
       const [clip] = located.track.clips.splice(located.index, 1)
       if (!clip) throw new Error('VISUAL_EDITING_INVALID: 片段不存在')
       located.track.clips.splice(Math.min(operation.toIndex, located.track.clips.length), 0, clip)

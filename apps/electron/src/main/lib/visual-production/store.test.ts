@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync, symlinkSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { VisualMedia, VisualProductionDraft } from '@dutydeck/shared'
+import type { VisualEditingExportJob, VisualMedia, VisualProductionDraft } from '@dutydeck/shared'
 import { VisualProductionService } from './store'
 import type { VisualLockedAssetApprovalRequest, VisualProductionServiceDependencies } from './store'
 /** 隔离测试项目，不读取用户数据。 */
@@ -41,6 +41,18 @@ async function lockedAssetFixture(
   return { ...context, draft, job, revision: initial.document.revision }
 }
 describe('Given 独立影像作品', () => {
+  test('When 请求原生候选预览 Then 校验正式基线并传递完整快照与命令到剪辑服务', async () => {
+    /** 用局部剪辑端口捕获路由，避免本测试启动真实编码器。 */
+    const { service, target } = await fixture()
+    const calls: unknown[] = []
+    const input = { ...target, baseRevision: 1, episodeId: 'episode', expectedTimelineRevision: 2, candidateIds: ['candidate'], range: { start: 0, end: 5 }, settings: { ratio: '9:16', fps: 24, includeVoice: true, includeMusic: false, includeCaptions: false } }
+    const result: VisualEditingExportJob = { id: 'preview', productionId: target.productionId, episodeId: input.episodeId, timelineRevision: 2, settings: input.settings, status: 'completed', createdAt: 1, updatedAt: 1, sourceHashes: ['a'.repeat(64)], preview: { productionRevision: 1, candidateIds: input.candidateIds, range: input.range } }
+    Object.defineProperty(service, 'editing', { value: { requestPreview(snapshot: unknown, request: unknown) { calls.push({ snapshot, request }); return result } } })
+    expect(await service.invoke('requestPreview', input)).toEqual(result)
+    expect(calls).toMatchObject([{ snapshot: { document: { id: target.productionId, revision: 1 } }, request: input }])
+    await expect(service.invoke('requestPreview', { ...input, baseRevision: 2 })).rejects.toThrow('CONFLICT')
+    expect(calls).toHaveLength(1)
+  })
   test('When 保存正式设定 Then 递增版本且拒绝旧基线', async () => {
     const { service, snapshot, target } = await fixture()
     const saved = await service.invoke('save', { ...target, baseRevision: 1, draft: { ...editable(snapshot.document), brief: '新目标' } })
@@ -63,6 +75,40 @@ describe('Given 独立影像作品', () => {
     expect(adopted.document.brief).toBe('候选目标')
     expect(adopted.document.revision).toBe(2)
     expect(adopted.candidates[0]?.status).toBe('adopted')
+  })
+})
+
+describe('Given 独立声音审核门禁', () => {
+  test.each(['true', true] as const)('When 持久化声音标记为 %s 且缺少总门禁 Then 拒绝损坏索引', async reviewAudioRequired => {
+    /** 在隔离夹具中模拟旧磁盘记录损坏，不能隐式降级为无需审核。 */
+    const { service, snapshot, target, projectRoot } = await fixture()
+    const job = await service.invoke('beginJob', { ...target, baseRevision: 1, instruction: '调整设定' })
+    await service.invoke('propose', { ...target, baseRevision: 1, jobId: job.id, draft: { ...editable(snapshot.document), brief: '候选' }, summary: '设定候选' })
+    const path = join(projectRoot, '.dutydeck', 'visual-production', 'projects', target.productionId, 'snapshot.json')
+    const disk = JSON.parse(readFileSync(path, 'utf8'))
+    disk.candidates[0].reviewAudioRequired = reviewAudioRequired
+    writeFileSync(path, JSON.stringify(disk))
+    await expect(service.invoke('load', target)).rejects.toThrow('候选声音审核门禁损坏')
+  })
+  test.each([undefined, 'pending', 'failed', 'passed', 'warning'] as const)('When 声音审核为 %s Then 只有完成听验才允许采用', async audio => {
+    /** 最小音频签名用于门禁测试，不替代真实听验。 */
+    const { service, snapshot, target, projectRoot } = await fixture()
+    writeFileSync(join(projectRoot, 'voice.mp3'), Buffer.from('ID3test-audio'))
+    const media = await service.invoke('importFile', { ...target, relativePath: 'voice.mp3' })
+    const shot = { id: 'shot', episodeId: snapshot.document.episodes[0]!.id, title: '配音', duration: 4, scene: '', motion: '', dialogue: '醒来', assetIds: [], mediaId: null }
+    const baseline = await service.invoke('save', { ...target, baseRevision: 1, draft: { ...editable(snapshot.document), shots: [shot] } })
+    const job = await service.invoke('beginJob', { ...target, baseRevision: 2, instruction: '配音', shotId: shot.id, mediaKind: 'audio' })
+    const candidate = await service.invoke('proposeShot', { ...target, baseRevision: 2, jobId: job.id, shotId: shot.id, mediaId: media.id, summary: '独立配音' })
+    expect(candidate).toMatchObject({ reviewRequired: true, reviewAudioRequired: true, status: 'ready' })
+    await expect(service.invoke('adopt', { ...target, baseRevision: 2, candidateId: candidate.id })).rejects.toThrow()
+    await service.invoke('reviewCandidate', { ...target, baseRevision: 2, candidateId: candidate.id, review: { technical: 'passed', motion: 'passed', continuity: 'passed', ...(audio ? { audio } : {}), conclusion: '声音审核', unchecked: [], issues: [] } })
+    if (audio === 'passed' || audio === 'warning') {
+      const adopted = await service.invoke('adopt', { ...target, baseRevision: 2, candidateId: candidate.id })
+      expect(adopted.document.shots[0]?.outputs?.audio).toBe(media.id)
+    } else {
+      await expect(service.invoke('adopt', { ...target, baseRevision: 2, candidateId: candidate.id })).rejects.toThrow()
+      expect((await service.invoke('load', target)).document).toEqual(baseline.document)
+    }
   })
 })
 
@@ -106,6 +152,37 @@ describe('Given 视频候选审核门禁', () => {
     const candidate = await service.invoke('proposeShot', { ...target, baseRevision: 2, jobId: job.id, shotId: shot.id, mediaId: video.id, summary: '损坏影片' })
     await service.invoke('reviewCandidate', { ...target, baseRevision: 2, candidateId: candidate.id, review: { technical: 'failed', motion: 'pending', continuity: 'pending', conclusion: '文件无法完整解码。', unchecked: ['未做内容审核'], issues: [{ gate: 'technical', severity: 'error', message: '尾部解码失败', atSeconds: 2.1 }] } })
     await expect(service.invoke('adopt', { ...target, baseRevision: 2, candidateId: candidate.id })).rejects.toThrow('视频审核存在失败项')
+  })
+
+  /** 分别验证内容门禁失败与 error 问题均独立阻断采用，技术通过不能覆盖内容缺失。 */
+  test.each([
+    { gate: 'motion', status: 'failed', withError: false },
+    { gate: 'continuity', status: 'failed', withError: false },
+    { gate: 'motion', status: 'warning', withError: true },
+    { gate: 'audio', status: 'failed', withError: false },
+    { gate: 'audio', status: 'warning', withError: true },
+  ] as const)('When $gate=$status 且 withError=$withError Then 拒绝采用并保留正式内容', async ({ gate, status, withError }) => {
+    const { service, target, projectRoot } = await fixture()
+    /** 最小容器只验证内容审核状态的持久化与采用门禁，不代替真实解码测试。 */
+    writeFileSync(join(projectRoot, 'frame.png'), Buffer.from('89504e470d0a1a0a00000000', 'hex'))
+    writeFileSync(join(projectRoot, 'clip.mp4'), Buffer.from('0000ftypisom0000'))
+    const image = await service.invoke('importFile', { ...target, relativePath: 'frame.png' })
+    const video = await service.invoke('importFile', { ...target, relativePath: 'clip.mp4' })
+    const current = await service.invoke('load', target)
+    /** 必需内容来自用户视角和连续性约束，不由宿主解析自然语言推断。 */
+    const shot = { id: 'shot', episodeId: current.document.episodes[0]!.id, title: '镜头', duration: 4, scene: '第一人称看见身前绑腕', motion: '睁眼后低头看手', dialogue: '', assetIds: [], mediaId: image.id }
+    const baseline = await service.invoke('save', { ...target, baseRevision: 1, draft: { ...editable(current.document), shots: [shot] } })
+    const job = await service.invoke('beginJob', { ...target, baseRevision: 2, instruction: '制作影片', shotId: shot.id })
+    const candidate = await service.invoke('proposeShot', { ...target, baseRevision: 2, jobId: job.id, shotId: shot.id, mediaId: video.id, summary: '缺少必需内容的候选' })
+    await service.invoke('reviewCandidate', {
+      ...target, baseRevision: 2, candidateId: candidate.id,
+      review: { technical: 'passed', motion: 'passed', continuity: 'passed', [gate]: status, conclusion: '实际视角或绑腕状态不符合必需内容。', unchecked: ['未听验'], issues: withError ? [{ gate, severity: 'error', message: '缺少必需的真实第一人称视角。' }] : [] },
+    })
+    await expect(service.invoke('adopt', { ...target, baseRevision: 2, candidateId: candidate.id })).rejects.toThrow('视频审核存在失败项')
+    const after = await service.invoke('load', target)
+    expect(after.document).toEqual(baseline.document)
+    expect(after.shotStates).toEqual(baseline.shotStates)
+    expect(after.candidates.find(item => item.id === candidate.id)?.status).toBe('ready')
   })
 })
 

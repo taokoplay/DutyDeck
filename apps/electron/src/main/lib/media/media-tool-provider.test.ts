@@ -1071,6 +1071,31 @@ describe('媒体 Agent 工具提供器', () => {
     expect(page.nextOffset).toBeLessThan(100)
   })
 
+  test('Given 精确已存模板 When 检查兼容性 Then 返回宿主读取的身份且不扫描目录', async () => {
+    /** 用合法图片连线隔离身份回执与结构校验。 */
+    const f = fixture()
+    const definition: MediaWorkflowDefinition = { schemaVersion: 1, prompt: {
+      '1': { class_type: 'LoadImage', inputs: { image: '' } },
+      '2': workflow.prompt['2']!,
+    }, bindings: [{ key: 'source', nodeId: '1', input: 'image', kind: 'image', loader: 'LoadImage' }], outputs: workflow.outputs }
+    f.dependencies.configuration.getWorkflow = (id, revision, projectId) => {
+      expect([id, revision, projectId]).toEqual(['saved', 3, 'project-1'])
+      return { id, revision, name: '已存模板', projectId: null, hash: 'c'.repeat(64), createdAt: 1, definition }
+    }
+    f.dependencies.resources.getSchema = async () => ({ LoadImage: { input: { required: { image: [['source.png']] } }, output: ['IMAGE', 'MASK'] }, SaveImage: schema.SaveImage! })
+    f.dependencies.resources.list = async () => { throw new Error('不应扫描目录') }
+    const run = createMediaToolRun(f.dependencies, context)
+    const result = await executeTool(run.piCustomTools, 'media_inspect_workflow', { workflowId: 'saved', workflowRevision: 3, connectionId: 'gpu', limit: 1 })
+    expect(result.details).toMatchObject({ savedWorkflow: { id: 'saved', revision: 3, hash: 'c'.repeat(64), connectionId: 'gpu' }, issues: [], unsupportedReasons: [], nextOffset: 1 })
+    /** 同一合法定义由模型直接提交时，不得签发已存身份。 */
+    const raw = await executeTool(run.piCustomTools, 'media_inspect_workflow', { definition, connectionId: 'gpu' })
+    expect(raw.details).not.toHaveProperty('savedWorkflow')
+    f.dependencies.resources.getSchema = async () => ({})
+    const incompatible = await executeTool(run.piCustomTools, 'media_inspect_workflow', { workflowId: 'saved', workflowRevision: 3, connectionId: 'gpu' })
+    expect(incompatible.details).not.toHaveProperty('savedWorkflow')
+    await expect(executeTool(run.piCustomTools, 'media_inspect_workflow', { workflowId: 'saved', workflowRevision: 3, connectionId: 'missing' })).rejects.toThrow()
+  })
+
   test('Given 完整定义或原始 API prompt When 分页检查 Then 都返回节点摘要且不回显整图', async () => {
     const f = fixture()
     const run = createMediaToolRun(f.dependencies, context)
