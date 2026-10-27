@@ -226,8 +226,8 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
     id,
     title: Type.String({ minLength: 1, maxLength: 120 }),
     purpose: Type.Union(['hook', 'setup', 'inciting-incident', 'rising-action', 'reveal', 'turn', 'resolution', 'tag'].map(value => Type.Literal(value))),
-    dramaticQuestion: Type.String({ maxLength: 4000 }),
-    synopsis: Type.String({ maxLength: 8000 }),
+    dramaticQuestion: Type.String({ maxLength: 4000, description: '观众在此节拍会追问的问题，以及本段推进后信息怎样变化。' }),
+    synopsis: Type.String({ maxLength: 8000, description: '人物目标、阻力、行动与结果的因果概述；线索和反转须有前置依据，不另造既定事实。' }),
     visualAction: Type.String({ maxLength: 8000 }),
     dialogue: Type.String({ maxLength: 8000 }),
     sound: Type.String({ maxLength: 4000 }),
@@ -236,8 +236,8 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
   })
   const episodeScript = Type.Object({
     logline: Type.String({ maxLength: 2000 }), audiencePromise: Type.String({ maxLength: 4000 }),
-    hook: Type.String({ maxLength: 4000 }), turningPoint: Type.String({ maxLength: 4000 }), payoff: Type.String({ maxLength: 4000 }),
-    targetDurationSeconds: Type.Number({ minimum: 0, maximum: 3600 }), productionNotes: Type.String({ maxLength: 16000 }),
+    hook: Type.String({ maxLength: 4000, description: '用户要求的开头时间窗内实际看到/听到的事件、观众疑问与对应起始镜头，不能只写气氛。' }), turningPoint: Type.String({ maxLength: 4000, description: '改变局势或已有理解的转折，并说明铺垫与线索依据。' }), payoff: Type.String({ maxLength: 4000, description: '先兑现本集阶段结果，再按题材与用户要求留下具体尾钩；不强制所有作品悬疑化。' }),
+    targetDurationSeconds: Type.Number({ minimum: 0, maximum: 3600, description: '用户要求的本集成片目标秒数，须与各镜最终剪辑时长累计核对。' }), productionNotes: Type.String({ maxLength: 16000, description: '本集简短分区记录：需求→字段→镜头→验收、既定规则与未知假设、角色知情范围、伏笔回收、时长核算及高风险镜头；不复制全部分镜或塞入作品简介。' }),
     beats: Type.Array(scriptBeat, { maxItems: 100 }),
   })
   /** 连贯性合同在工具层显式建模，Agent 不能只写一段自由文本说明转场。 */
@@ -269,7 +269,7 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
     type: Type.Union(['角色', '场景', '产品', '道具', '风格', '品牌', '声音'].map(value => Type.Literal(value))),
     description: Type.String({ maxLength: 8000 }),
   })
-  const draft = Type.Object({ title: Type.String(), kind, brief: Type.String(), ratio: Type.String(), fps: Type.Number(), voice: Type.String(), music: Type.String(), episodes: Type.Array(Type.Object({ id, title: Type.String(), script: Type.Optional(episodeScript) })), assets: Type.Array(Type.Object({ id, name: Type.String(), type: Type.Union(['角色', '场景', '产品', '道具', '风格', '品牌', '声音'].map(value => Type.Literal(value))), description: Type.String(), locked: Type.Boolean(), mediaId })), shots: Type.Array(Type.Object({ id, episodeId: id, title: Type.String(), duration: Type.Number(), scene: Type.String(), motion: Type.String(), dialogue: Type.String(), soundDesign: Type.Optional(Type.Object({ effects: Type.String({ maxLength: 8000 }), music: Type.String({ maxLength: 8000 }) })), continuityPlan, videoPlan: Type.Optional(shotVideoPlan), assetIds: Type.Array(id), mediaId, outputs: Type.Optional(Type.Object({ image: mediaId, video: mediaId, audio: mediaId })) })) })
+  const draft = Type.Object({ title: Type.String(), kind, brief: Type.String({ description: '作品简介：用一至三段简洁概括题材、主角处境、核心冲突和作品看点，可补充受众与风格；完整分集剧情与叙事节拍写入 episodes[].script，逐镜动作、对白、声音与连续性写入 shots[] 对应字段，比例、帧率、配音和音乐使用专用字段。brief 不承载完整剧本、逐秒镜头表、制作进度或交付清单。' }), ratio: Type.String(), fps: Type.Number(), voice: Type.String(), music: Type.String(), episodes: Type.Array(Type.Object({ id, title: Type.String(), script: Type.Optional(episodeScript) })), assets: Type.Array(Type.Object({ id, name: Type.String(), type: Type.Union(['角色', '场景', '产品', '道具', '风格', '品牌', '声音'].map(value => Type.Literal(value))), description: Type.String(), locked: Type.Boolean(), mediaId })), shots: Type.Array(Type.Object({ id, episodeId: id, title: Type.String(), duration: Type.Number({ description: '本镜目标剪辑时长（秒），须容纳动作、台词、停顿与反应，不直接照抄模型生成片长。' }), scene: Type.String({ description: '可见主体、环境、景别/视角、构图和稳定风格的画面描述与场景提示词。' }), motion: Type.String({ description: '按时间展开的主要动作、起止状态和镜头运动；复杂动作写明中间态，不能只写情绪。' }), dialogue: Type.String({ description: '精确朗读文本与说话者/画内对白、内心声或旁白身份；避免把导演说明混入朗读正文。' }), soundDesign: Type.Optional(Type.Object({ effects: Type.String({ maxLength: 8000 }), music: Type.String({ maxLength: 8000 }) })), continuityPlan, videoPlan: Type.Optional(shotVideoPlan), assetIds: Type.Array(id), mediaId, outputs: Type.Optional(Type.Object({ image: mediaId, video: mediaId, audio: mediaId })) })) })
   const definitions: Array<{ name: string; method: VisualProductionMethod; description: string; fields: Record<string, TSchema>; write?: boolean }> = [
     { name: 'visual_production_list', method: 'list', description: '列出当前 Agent 项目下的影像作品。原画布与交互设计保持独立。', fields: {} },
     { name: 'visual_production_read', method: 'load', description: '读取正式作品。候选仅返回摘要；大型作品默认概览，使用section=episodes/assets/shots和offset/limit分页读取，nextOffset为空时结束。终态历史仅保留近期。先读当前版本再修改。', fields: { ...target, section: Type.Optional(Type.Union(['overview', 'episodes', 'assets', 'shots'].map(value => Type.Literal(value)))), offset: Type.Optional(Type.Integer({ minimum: 0, maximum: 10000 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })) } },

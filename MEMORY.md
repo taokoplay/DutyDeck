@@ -1,5 +1,9 @@
 # MEMORY.md
 
+- 2026-10-27（影像采用后的界面同步核对）：正式写入通过 access.onChanged→主窗口 CHANGED→VisualProductionWorkspace.load 刷新；只提交候选不会替换正式脚本或镜头。镜头视频采用后显示新正式媒体，但既有精剪 clip 绑定 mediaId/hash/outputVersion，需显式更新时间线，已导出文件需重新导出；不能承诺改脚本即自动替换所有下游界面内容。Nowledge 定向检索连接拒绝。
+
+- 2026-10-27（既有影像局部优化边界核对）：审查与优化按用户任务范围区分；单镜 job 有宿主硬校验，不能修改其他镜头或提交整集剧本，但自然语言“仅审查”及多镜目标集合尚不是独立强制权限。正式修改保留已采用媒体，镜头设定/资产变化以 needsUpdate 标记；当前仅改 episode.script 不会自动使其全部映射镜头或首尾帧/视频逐级失效，不能宣称已有完整依赖重建链。Nowledge 定向检索连接拒绝，结论以 execution/quality/creative 合同及 store 实现为据。
+
 - 2026-10-27（v0.20.17 发布准备）：应用与 bun.lock 版本已从 0.20.16 递增到 0.20.17，新增 release-notes/v0.20.17.md；发布合同测试 37 项/136 断言通过，validate-release-version 输出与 v0.20.17 一致。隔离临时仓库布局完成 macOS arm64 Electron Builder `--dir` 打包（未签名），安装包冒烟确认版本 0.20.17、Electron 43.3.0、Pi 1.4.0、原生 helpers、CLI 和 mobile-dist 均存在且可加载。远端最新正式标签为 v0.20.16，v0.20.17 尚不存在；待推送当前分支与 tag 触发 GitHub Actions Release。Nowledge 定向检索因 127.0.0.1:14242 连接拒绝未同步。
 
 - 2026-10-27（开发主界面 ERR_ABORTED 定位）：提交前 electron:build 与现有 Dev 共用 dist，08:09:31 起 electronmon 监听到 runtime/preload 连续变化，hook.js:48 的 reloadIgnoringCache 中断主界面初始导航，08:09:36 日志明确记录 ERR_ABORTED(-3)。index.ts 的 did-fail-load 已忽略 -3，但初始 loadMainRenderer().catch 仍无条件打开错误页，导致正常导航取消被误判并覆盖后续加载。独立读取 5174 返回 HTTP 200，右侧 CSP 为开发警告，与此次故障无因果证据；本轮仅定位，未修业务代码。后续应统一导航取消/过期加载处理，并隔离 Dev 与验证构建产物。Nowledge 定向检索仍连接拒绝。

@@ -414,11 +414,11 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
         {view.tab === 'project' && <div className="vp-section">
           <section className="vp-card">
             <div className="vp-row">
-              <strong>作品目标</strong>
+              <strong>作品简介</strong>
               <Button variant="outline" size="sm" onClick={() => openEditor('project', document.id)}>
                 <Settings2 size={14} />编辑设定</Button>
             </div>
-            <p className="vp-summary mt-3">{document.brief || '尚未填写目标，可以在设定中编辑，或引用到 Agent 对话完善。'}</p>
+            <p className="vp-summary mt-3">{document.brief || '尚未填写简介，可以在设定中编辑，或引用到 Agent 对话完善。'}</p>
             <div className="vp-row mt-4">
               <span className="vp-badge">{KIND_LABELS[document.kind]}</span>
               <span className="vp-badge">{document.ratio}</span>{document.kind !== 'image' && <span className="vp-badge">{document.fps} fps</span>}</div>
@@ -596,7 +596,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
             {editor.kind === 'project' && <>
               <label>作品名称<Input required maxLength={120} value={editor.draft.title} onChange={event => changeEditor(draft => { draft.title = event.target.value })} />
               </label>
-              <label>作品目标<Textarea rows={4} value={editor.draft.brief} onChange={event => changeEditor(draft => { draft.brief = event.target.value })} />
+              <label>作品简介<Textarea rows={4} value={editor.draft.brief} onChange={event => changeEditor(draft => { draft.brief = event.target.value })} />
               </label>
               <div className="vp-grid">
                 <label>画面比例<Select value={editor.draft.ratio} onValueChange={value => changeEditor(draft => { draft.ratio = value })}>

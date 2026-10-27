@@ -83,7 +83,7 @@ export function VisualScriptWorkspace(props: VisualScriptWorkspaceProps): React.
         <h2>先把整集拍摄逻辑写成剧本</h2>
         <p>当前作品已有 {shots.length} 个镜头和制作正文，但叙事因果、观众问题、节拍与镜头映射尚未成为正式合同。先用 Agent 从现有内容整理，或手动建立第一版。</p>
         <div className="vp-script-empty-actions"><Button disabled={busy} onClick={onGenerate}><Sparkles size={14} />从现有作品整理剧本</Button><Button variant="outline" disabled={busy} onClick={beginEdit}><Plus size={14} />手动建立</Button></div>
-        <div className="vp-script-shadow-brief"><span>现有创作依据</span><p>{document.brief || '作品目标尚未填写。'}</p></div>
+        <div className="vp-script-shadow-brief"><span>现有创作依据</span><p>{document.brief || '作品简介尚未填写。'}</p></div>
       </section>
       <aside className="vp-script-empty-shots">
         <div className="vp-script-section-heading"><h3>现有镜头稿</h3><span>{shots.length} 个镜头</span></div>

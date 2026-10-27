@@ -16,7 +16,7 @@ function snapshot(): VisualProductionSnapshot {
   return {
     document: {
       schemaVersion: 1, id: 'production', revision: 1, createdAt: 1, updatedAt: 1,
-      title: '测试影片', kind: 'film', brief: '作品目标。', ratio: '9:16', fps: 24, voice: '', music: '',
+      title: '测试影片', kind: 'film', brief: '作品简介。', ratio: '9:16', fps: 24, voice: '', music: '',
       episodes: [{ id: 'episode', title: '第一集' }],
       assets: [], shots,
     },

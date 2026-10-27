@@ -4,6 +4,24 @@ import type { VisualProductionResults } from '@dutydeck/shared'
 import { parseVisualProductionDraft } from '@dutydeck/shared'
 
 describe('Given 主 Agent 影像工具', () => {
+  test('When 注册作品候选工具 Then brief 明确为简介且说明剧本与镜头的填写位置', () => {
+    /** 使用真实注册结果检查模型收到的字段说明，而非界面标签。 */
+    const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess() {}, async execute<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { return largeSnapshot() as unknown as VisualProductionResults[M] } })
+    /** 整作品候选是 Agent 填写 brief 的实际入口。 */
+    const propose = tools.find(tool => tool.name === 'visual_production_propose')!
+    /** 仅检查可序列化 schema，确保说明实际发送给模型。 */
+    const parameters = JSON.parse(JSON.stringify(propose.parameters)) as { properties: { draft: { properties: { brief: { description?: string } } } } }
+    expect(parameters.properties.draft.properties.brief.description).toContain('作品简介')
+    expect(parameters.properties.draft.properties.brief.description).toContain('episodes[].script')
+    expect(parameters.properties.draft.properties.brief.description).toContain('shots[]')
+    /** 模型提交剧本的实际入口应能识别规则与评审依据的落盘位置。 */
+    const script = tools.find(tool => tool.name === 'visual_production_propose_script')!
+    /** 检查经过序列化后真正发送给模型的字段描述。 */
+    const scriptParameters = JSON.parse(JSON.stringify(script.parameters)) as { properties: { script: { properties: { productionNotes: { description?: string }; hook: { description?: string } } } } }
+    expect(scriptParameters.properties.script.properties.productionNotes.description).toContain('角色知情范围')
+    expect(scriptParameters.properties.script.properties.hook.description).toContain('时间窗')
+  })
+
   test('When 注册工具 Then 提供受控候选采纳但不提供整作品直接保存且写操作检查权限', async () => {
     const writes: boolean[] = []
     const tools = buildVisualProductionAgentTools({ sessionId: 'session', sdk: { defineTool: (definition: unknown) => definition } as Parameters<typeof buildVisualProductionAgentTools>[0]['sdk'], assertAccess: write => { writes.push(write) }, async execute<M extends keyof VisualProductionResults>(): Promise<VisualProductionResults[M]> { return largeSnapshot() as unknown as VisualProductionResults[M] } })

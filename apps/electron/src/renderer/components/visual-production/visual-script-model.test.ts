@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+import { getBuiltinAgentModulePrompt } from '@dutydeck/shared'
 import type { VisualEpisodeScript, VisualProductionSnapshot, VisualShot } from '@dutydeck/shared'
 import { buildVisualScriptOverview, buildVisualScriptPrompt } from './visual-script-model'
 
@@ -74,5 +75,18 @@ describe('剧本到整集拍摄流程', () => {
     expect(prompt).toContain('3 个镜头')
     expect(prompt).toContain('人物身份与符号漂移')
     expect(prompt).toContain('动作中间态未定义')
+  })
+
+  it('Given 用户从脚本页发起重构 When 生成请求 Then 包含创作评审规则且无效集数不生成请求', () => {
+    /** 脚本入口也必须携带规则，不能只依赖用户记住补充提示。 */
+    const document = fixture().document
+    const prompt = buildVisualScriptPrompt(document, 'episode')
+    expect(prompt).toContain('需求→字段→镜头→验收')
+    expect(prompt).toContain('角色知情范围')
+    expect(prompt).toContain('剪辑时长')
+    /** 按钮只携带任务摘要；完整创作规则由模块注入一次，避免重复占用上下文。 */
+    const context = `${getBuiltinAgentModulePrompt('visual-production.system.v1')}\n${prompt}`
+    expect(context.split('<visual_creation>').length - 1).toBe(1)
+    expect(buildVisualScriptPrompt(document, 'missing')).toBeNull()
   })
 })

@@ -56,7 +56,7 @@ export function buildVisualScriptOverview(snapshot: VisualProductionSnapshot, ep
       totalShotCount: shots.length,
       shotDurationSeconds: roundSeconds(duration),
       targetDurationSeconds: 0,
-      issues: ['尚无结构化剧本；当前剧情只能从作品目标与镜头正文反推。'],
+      issues: ['尚无结构化剧本；当前剧情只能从作品简介与镜头正文反推。'],
       stages: [
         { id: 'script', label: '剧本', status: 'missing', detail: '未写入正式版本' },
         { id: 'storyboard', label: '分镜', status: shots.length ? 'warning' : 'missing', detail: shots.length ? `${shots.length} 个镜头尚未映射到叙事节拍` : '尚无镜头' },
@@ -137,7 +137,9 @@ export function buildVisualScriptPrompt(document: VisualProductionDocument, epis
   const duration = roundSeconds(shots.reduce((sum, shot) => sum + shot.duration, 0))
   return `请为影像作品「${document.title}」的「${episode.title}」生成或重构结构化剧本候选。先读取作品 ${document.id} 的 brief、全部资产与本集 ${shots.length} 个镜头（当前分镜总时长 ${duration} 秒），再创建本轮影像任务并调用 visual_production_propose_script（proposeScript）提交候选。
 
-剧本必须从整集拍摄流程出发，补齐：1. 一句话故事与观众承诺；2. 前几秒钩子和注意力承诺；3. 有因果关系的节拍，而不是事件清单；4. 每个节拍唯一的戏剧问题、视觉动作方向、对白/旁白意图、声音与连续性；5. 核心转折、阶段结果和尾钩；6. 目标时长与每个节拍映射到的真实 shotId。
+按影像模块创作指引建立“需求→字段→镜头→验收”清单，写入 productionNotes；核对故事规则、角色知情范围、伏笔回收、生成时长与剪辑时长。硬约束冲突先说明影响，不静默调整时长、镜头数或风格；未知项标为假设，评审逐项说明符合、需修改或未经验证的依据。
+
+剧本必须补齐一句话故事与观众承诺、用户要求时间窗内的钩子、有因果关系的节拍、核心转折、阶段结果和必要尾钩；每个节拍说明戏剧问题、视觉动作、对白/声音意图和连续性，映射到真实 shotId。先评估既有规则、伏笔回收、台词与动作的时间预算，再写候选；不得为了满足格式而捏造剧情事实。
 
 重点检查当前视频可能出现的缺点：人物身份与符号漂移、空间方位或越轴、手部与道具接触错误、动作中间态未定义、首尾帧不能证明过程、台词时长与镜头时长不匹配、声音和转场缺少叙事依据、静帧或单镜候选中被误写成完整成片。精确 scene、motion、dialogue、soundDesign、continuityPlan、videoPlan 和 assetIds 仍写镜头；continuityPlan 必须给出入场、出场、复杂动作中间锚点和声音接续，剧本只提供上游依据；不得修改正式镜头、媒体或把未生成内容写成已完成。提交候选后向用户说明剧本解决的具体制作风险。`
 }
