@@ -49,7 +49,7 @@ import {
   parseMediaWorkflowDefinition,
   validateMediaWorkflowFieldBindings,
 } from '@dutydeck/shared'
-import { mediaSettingsFocusAtom } from '@/atoms/settings-tab'
+import { mediaSettingsFocusAtom, type MediaSettingsFocus } from '@/atoms/settings-tab'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -64,18 +64,20 @@ import { copyTextToClipboard } from '@/lib/clipboard'
 import { AudioGenerationSettings } from './AudioGenerationSettings'
 import { ImageGenerationSettings } from './ImageGenerationSettings'
 import { MediaSettingsPage } from './MediaSettingsPage'
+import { LibTvSettings } from './LibTvSettings'
 import { SettingsCard, SettingsRow } from './primitives'
 
 /** Renderer 可读取的工作流文件上限。 */
 export const MEDIA_WORKFLOW_IMPORT_MAX_BYTES = 2 * 1024 * 1024
 
-/** 媒体设置的四个平级页面。 */
-export type MediaSettingsTab = 'image-models' | 'audio-generation' | 'connections' | 'workflows'
+/** 媒体设置的平级页面。 */
+export type MediaSettingsTab = 'libtv' | 'image-models' | 'audio-generation' | 'connections' | 'workflows'
 
 /** 媒体设置一级导航的稳定值与用户可见文案。 */
 export const MEDIA_SETTINGS_TABS: ReadonlyArray<{ value: MediaSettingsTab; label: string }> = [
   { value: 'image-models', label: '生成模型' },
   { value: 'audio-generation', label: '音频生成' },
+  { value: 'libtv', label: 'LibTV' },
   { value: 'connections', label: '服务链接' },
   { value: 'workflows', label: '本地工作流' },
 ]
@@ -86,9 +88,9 @@ export const DEFAULT_MEDIA_SETTINGS_TAB: MediaSettingsTab = 'image-models'
 /** 将旧生图入口的聚焦意图映射到新的一级分区。 */
 export function resolveMediaSettingsTabForFocus(
   currentTab: MediaSettingsTab,
-  focusedSection: 'image-models' | null,
+  focusedSection: MediaSettingsFocus | null,
 ): MediaSettingsTab {
-  return focusedSection === 'image-models' ? 'image-models' : currentTab
+  return focusedSection ?? currentTab
 }
 
 /** 连接表单的独立本地草稿。 */
@@ -1285,7 +1287,7 @@ export function MediaSettings({ onOpenWorkflowInCanvas }: MediaSettingsProps = {
 
   React.useEffect(() => { void loadSettings() }, [loadSettings])
   React.useEffect(() => {
-    if (focusedSection !== 'image-models') return
+    if (!focusedSection) return
     setActiveTab((currentTab) => resolveMediaSettingsTabForFocus(currentTab, focusedSection))
     setFocusedSection(null)
   }, [focusedSection, setFocusedSection])
@@ -1429,7 +1431,7 @@ export function MediaSettings({ onOpenWorkflowInCanvas }: MediaSettingsProps = {
       {formError && !connectionDraft && !workflowDraft && <MediaError message={formError} />}
     </>
   )
-  /** 所有媒体配置页面在各自标题下方展示同一全局授权策略。 */
+  /** 原生媒体配置共享生成授权；LibTV 的 MCP 调用由 Agent 权限管理。 */
   const authorizationControl = (
     <MediaAuthorizationControl
       mode={snapshot?.authorizationMode ?? 'ask'}
@@ -1443,6 +1445,8 @@ export function MediaSettings({ onOpenWorkflowInCanvas }: MediaSettingsProps = {
   return (
     <div className="min-w-0 max-w-full space-y-6">
       {/** 生图走独立供应商配置：与 LLM 渠道、旧统一媒体目录彻底解耦。 */}
+      {activeTab === 'libtv' && <LibTvSettings navigation={navigation} />}
+
       {activeTab === 'image-models' && <ImageGenerationSettings navigation={navigation} headerContent={authorizationControl}>{notices}</ImageGenerationSettings>}
 
       {activeTab === 'audio-generation' && createMediaSettingsAudioGenerationElement({ navigation, headerContent: authorizationControl, children: notices })}

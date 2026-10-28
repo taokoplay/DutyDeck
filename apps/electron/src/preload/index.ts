@@ -213,6 +213,8 @@ import type {
   AgentQueuedMessageSnapshot,
   PendingRequestsSnapshot,
   VaultCandidate,
+  VaultDirectoryPage,
+  VaultDirectoryPageRequest,
   VaultDeleteInput,
   VaultTreeEntry,
   VaultFocus,
@@ -711,6 +713,7 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   selectVault: (options?: { inboxPath?: string; allowAgentWrites?: boolean }) => Promise<VaultSummary | null>
   authorizeDiscoveredVault: (rootPath: string, options?: { inboxPath?: string; allowAgentWrites?: boolean }) => Promise<VaultSummary>
   listVaultFiles: () => Promise<VaultTreeEntry[]>
+  listVaultDirectory: (relativePath: string, request?: VaultDirectoryPageRequest) => Promise<VaultDirectoryPage>
   readVaultFile: (relativePath: string) => Promise<VaultReadResult>
   resolveVaultMedia: (noteRelativePath: string, src: string) => Promise<import('@dutydeck/shared').ResolvedFileUrl | null>
   saveVaultPastedImage: (input: VaultSavePastedImageInput) => Promise<{ src: string } | null>
@@ -969,7 +972,7 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   refreshMcpConnections: (workspaceSlug: string) => Promise<WorkspaceMcpConfig>
 
   /** 原子切换 MCP 启用状态，并在启用时条件持久化验证结果。 */
-  setMcpEnabledAndValidate: (workspaceSlug: string, name: string, enabled: boolean) => Promise<import('@dutydeck/shared').McpConnectionMutationResult>
+  setMcpEnabledAndValidate: (workspaceSlug: string, name: string, enabled: boolean, options?: import('@dutydeck/shared').McpConnectionMutationOptions) => Promise<import('@dutydeck/shared').McpConnectionMutationResult>
 
   /** 原子新增 MCP，并在初始启用时条件持久化验证结果。 */
   installMcpAndValidate: (workspaceSlug: string, name: string, entry: import('@dutydeck/shared').McpServerEntry) => Promise<import('@dutydeck/shared').McpInstallMutationResult>
@@ -2299,6 +2302,7 @@ const electronAPI: ElectronAPI = {
   selectVault: (options?: { inboxPath?: string; allowAgentWrites?: boolean }) => ipcRenderer.invoke(VAULT_IPC_CHANNELS.SELECT, options),
   authorizeDiscoveredVault: (rootPath: string, options?: { inboxPath?: string; allowAgentWrites?: boolean }) => ipcRenderer.invoke(VAULT_IPC_CHANNELS.AUTHORIZE_CANDIDATE, rootPath, options),
   listVaultFiles: () => ipcRenderer.invoke(VAULT_IPC_CHANNELS.LIST_FILES),
+  listVaultDirectory: (relativePath: string, request?: { cursor?: string; limit?: number }) => ipcRenderer.invoke(VAULT_IPC_CHANNELS.LIST_DIRECTORY, relativePath, request),
   readVaultFile: (relativePath: string) => ipcRenderer.invoke(VAULT_IPC_CHANNELS.READ_FILE, relativePath),
   resolveVaultMedia: (noteRelativePath: string, src: string) => ipcRenderer.invoke(VAULT_IPC_CHANNELS.RESOLVE_MEDIA, noteRelativePath, src),
   saveVaultPastedImage: (input: VaultSavePastedImageInput) => ipcRenderer.invoke(VAULT_IPC_CHANNELS.SAVE_PASTED_IMAGE, input),
@@ -2663,8 +2667,8 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.REFRESH_MCP_CONNECTIONS, workspaceSlug) as Promise<WorkspaceMcpConfig>
   },
 
-  setMcpEnabledAndValidate: (workspaceSlug: string, name: string, enabled: boolean) => {
-    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.SET_MCP_ENABLED_AND_VALIDATE, workspaceSlug, name, enabled) as Promise<import('@dutydeck/shared').McpConnectionMutationResult>
+  setMcpEnabledAndValidate: (workspaceSlug: string, name: string, enabled: boolean, options?: import('@dutydeck/shared').McpConnectionMutationOptions) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.SET_MCP_ENABLED_AND_VALIDATE, workspaceSlug, name, enabled, options) as Promise<import('@dutydeck/shared').McpConnectionMutationResult>
   },
 
   installMcpAndValidate: (workspaceSlug: string, name: string, entry: import('@dutydeck/shared').McpServerEntry) => {

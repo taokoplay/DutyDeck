@@ -13,6 +13,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
+import { lstat as lstatAsync, readdir as readdirAsync } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type {
@@ -31,6 +32,12 @@ import type {
 import { getDefaultVaultDir, getVaultConfigPath, resolveDefaultVaultDir } from './config-paths'
 import { readJsonFileSafe, writeJsonFileAtomic, writeTextFileAtomic } from './safe-file'
 import { isValidImageBytes } from './image-content-validation'
+import {
+  createVaultDirectorySnapshot,
+  paginateVaultDirectoryEntries,
+  type VaultDirectoryPage,
+  type VaultDirectoryPageRequest,
+} from './vault-directory-pagination'
 
 const MAX_VAULT_FILE_BYTES = 2 * 1024 * 1024
 const MAX_VAULT_FILES = 5_000
@@ -238,6 +245,8 @@ export function getVaultUserContext(sessionId: string): VaultUserContextSnapshot
 
 export interface VaultFileSystem {
   listFiles(): VaultTreeEntry[]
+  /** 异步读取一个目录的有限页，不递归扫描整个 Vault。 */
+  listDirectoryPage(relativePath: string, request?: VaultDirectoryPageRequest): Promise<VaultDirectoryPage>
   readFile(relativePath: string): VaultReadResult
   resolveMedia(noteRelativePath: string, src: string): string | null
   savePastedImage(input: VaultSavePastedImageInput): { src: string } | null
@@ -304,6 +313,48 @@ export function createVaultFileSystem(rootPath: string): VaultFileSystem {
 
     walk(root, 0)
     return entries.sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+  }
+
+  /**
+   * 只读取当前目录并在分页前让出主进程事件循环；cursor 绑定完整目录快照。
+   */
+  const listDirectoryPage = async (
+    relativePath: string,
+    request: VaultDirectoryPageRequest = {},
+  ): Promise<VaultDirectoryPage> => {
+    const target = getSafeVaultFolderTarget(root, relativePath)
+    if (!existsSync(target.absolutePath)) throw new Error('Vault 文件夹不存在')
+    const targetStats = await lstatAsync(target.absolutePath)
+    if (!targetStats.isDirectory()) throw new Error('Vault 目标不是文件夹')
+
+    /** 当前目录的有效 Markdown 文件和子文件夹，不递归进入子目录。 */
+    const entries: VaultTreeEntry[] = []
+    const dirEntries = await readdirAsync(target.absolutePath, { withFileTypes: true })
+    for (const entry of dirEntries) {
+      if (entry.name.startsWith(HIDDEN_DIRECTORY_PREFIX) || entry.isSymbolicLink()) continue
+      const childRelativePath = target.relativePath ? `${target.relativePath}/${entry.name}` : entry.name
+      const childAbsolutePath = join(target.absolutePath, entry.name)
+      if (entry.isDirectory()) {
+        entries.push({ kind: 'folder', relativePath: childRelativePath, name: entry.name })
+        continue
+      }
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md')) continue
+      try {
+        const stats = await lstatAsync(childAbsolutePath)
+        if (!stats.isFile()) continue
+        entries.push({
+          kind: 'file',
+          relativePath: childRelativePath,
+          name: entry.name,
+          size: stats.size,
+          modifiedAt: stats.mtimeMs,
+        })
+      } catch {
+        // 遍历期间条目可能消失，跳过后继续读取同一页。
+      }
+    }
+    const snapshot = createVaultDirectorySnapshot(entries)
+    return paginateVaultDirectoryEntries(entries, request, snapshot)
   }
 
   const readFile = (relativePath: string): VaultReadResult => {
@@ -500,7 +551,7 @@ export function createVaultFileSystem(rootPath: string): VaultFileSystem {
     unlinkSync(revalidated.absolutePath)
   }
 
-  return { listFiles, readFile, resolveMedia, savePastedImage, writeFile, createUntitledNote, createUntitledNoteInFolder, createFolder, renameFile, deleteFile }
+  return { listFiles, listDirectoryPage, readFile, resolveMedia, savePastedImage, writeFile, createUntitledNote, createUntitledNoteInFolder, createFolder, renameFile, deleteFile }
 }
 
 

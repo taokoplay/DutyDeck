@@ -16,7 +16,7 @@ import {
   ProjectKnowledgeTabShell,
   selectKnowledgeMaintenanceSession,
 } from './ProjectKnowledgeTab'
-import { buildAutomaticKnowledgePlanSelection, KnowledgeWorkflowPanel, KnowledgeWorkflowDialog } from './KnowledgeWorkflowPanel'
+import { buildAutomaticKnowledgePlanSelection, KnowledgeWorkflowPanel, KnowledgeWorkflowProgress } from './KnowledgeWorkflowPanel'
 
 /** 创建固定知识条目，测试只覆盖用户可观察的目录信息。 */
 function createEntry(overrides: Partial<KnowledgeEntry> = {}): KnowledgeEntry {
@@ -179,16 +179,18 @@ describe('项目知识库两步工作流', () => {
     }
   }
 
-  test('Given 已确认分组 When 返回阅读页面 Then 整理流程只显示弹窗入口而不再堆放第二份目录', () => {
-    /** 进度详情在用户打开弹窗后展示，阅读首页不包含大纲正文。 */
-    const html = renderToStaticMarkup(<KnowledgeWorkflowDialog
+  test('Given 已确认分组 When 返回阅读页面 Then 进度仅在页内按需展开且不提供弹窗入口', () => {
+    /** 默认收起详情，整理不要求打开进度界面。 */
+    const html = renderToStaticMarkup(<KnowledgeWorkflowProgress
       workflow={createWorkflow({ proposal: undefined, approved: { ...createWorkflow().proposal!, confirmedAt: 2 } })}
       entries={[]} pendingAction={null} error={null} onConfirm={noop} onPause={noop} onSelectEntryId={noop}
     />)
     expect(html).toContain('整理进度')
-    expect(html).toContain('aria-haspopup="dialog"')
-    expect(html).not.toContain('知识库大纲')
-    expect(html).not.toContain('暂停生成')
+    expect(html).toContain('<details')
+    expect(html).not.toContain('<details open')
+    expect(html).not.toContain('aria-haspopup="dialog"')
+    expect(html).not.toContain('role="dialog"')
+    expect(html).toContain('知识库大纲')
   })
 
   test('Given Agent 提交多个分组 When 构造自动接管载荷 Then 原样提交全部分组', () => {
@@ -220,7 +222,9 @@ describe('项目知识库两步工作流', () => {
     expect(html).toContain('1 个信息缺口')
     expect(html).toContain('2 份预计产出')
     expect(html).toContain('查看 Agent 选定的范围明细')
-    expect(html).toContain('让 Agent 直接整理')
+    expect(html).not.toContain('让 Agent 直接整理')
+    // 正文读取会清空页内错误，待接管提案仍须保留恢复入口。
+    expect(html).toContain('重试整理')
     expect(html).not.toContain('确认知识库范围')
     expect(html).not.toContain('调整清单')
     expect(html).not.toContain('选择分组')

@@ -112,6 +112,8 @@ export async function configureWorkspaceMcp(
       const requestedEntry: McpServerEntry = {
         ...buildWorkspaceMcpEntry(input),
         ...(input.oauth === undefined && existing?.oauth ? { oauth: existing.oauth } : {}),
+        // Agent 省略未暴露的预设超时字段时保留原值，避免普通更新丢失长任务调用上限。
+        ...(input.toolTimeout === undefined && existing?.toolTimeout !== undefined ? { toolTimeout: existing.toolTimeout } : {}),
       }
       if (existing && hasWorkspaceMcpTransportChanged(existing, requestedEntry) && input.replaceExisting !== true) {
         throw new Error(`MCP「${name}」已存在且连接配置不同；请先向用户说明影响并在确认后以 replaceExisting=true 重试`)

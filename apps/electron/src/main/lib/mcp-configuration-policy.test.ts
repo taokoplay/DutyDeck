@@ -110,3 +110,19 @@ describe('工作区 MCP 配置策略', () => {
     expect(hasWorkspaceMcpTransportChanged(previous, next)).toBe(true)
   })
 })
+
+describe('MCP 工具超时配置边界', () => {
+  test.each(['http', 'sse', 'stdio'] as const)('Given %s 长耗时工具 When 构建配置 Then 保留独立工具超时和原启动超时', (type) => {
+    const entry = buildWorkspaceMcpEntry({ name: 'libtv', type, command: 'server', url: 'https://example.test/mcp', timeout: 30, toolTimeout: 1200 })
+    expect(entry.toolTimeout).toBe(1200)
+    expect(entry.timeout).toBe(30)
+    expect(hasWorkspaceMcpTransportChanged(entry, { ...entry, toolTimeout: 60 })).toBe(true)
+  })
+  test.each([0, -1, 1201, Infinity, NaN])('Given 非法工具超时 %s When 构建配置 Then 拒绝保存', (toolTimeout) => {
+    expect(() => buildWorkspaceMcpEntry({ name: 'libtv', type: 'http', url: 'https://example.test/mcp', toolTimeout })).toThrow('工具超时')
+  })
+  test('Given 未配置或有效小数 When 构建配置 Then 保持默认或原值', () => {
+    expect(buildWorkspaceMcpEntry({ name: 'libtv', type: 'http', url: 'https://example.test/mcp' }).toolTimeout).toBeUndefined()
+    expect(buildWorkspaceMcpEntry({ name: 'libtv', type: 'http', url: 'https://example.test/mcp', toolTimeout: 0.5 }).toolTimeout).toBe(0.5)
+  })
+})

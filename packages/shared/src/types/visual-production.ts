@@ -207,7 +207,7 @@ export interface VisualProductionDraft {
   title: string
   /** 作品用途。 */
   kind: VisualProductionKind
-  /** 作品目标与受众。 */
+  /** 作品简介，概括核心内容、题材与受众。 */
   brief: string
   /** 输出宽高比例。 */
   ratio: string

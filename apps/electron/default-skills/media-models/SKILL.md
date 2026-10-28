@@ -2,7 +2,7 @@
 name: media-models
 description: 根据 DutyDeck 当前配置且可执行的媒体模型，生成或编辑图片、视频、语音、歌曲和音频；触发前先发现真实能力，不使用过期模型名、固定供应商或旧 Proma 生图 Skill。仅在本轮已选择画布模块时才转交 canvas-production。
 group: proma
-version: "1.0.2"
+version: "1.0.3"
 ---
 
 # 统一媒体模型
@@ -19,6 +19,8 @@ version: "1.0.2"
 - 用户明确要求修改项目代码时，执行普通代码任务，不用媒体 Skill 替代实现。
 
 ## 第一步：发现所有真实模型
+
+用户明确指定 LibTV / Liblib 时先读取 `libtv-media`。LibTV 使用官方远程 MCP，不在统一模型目录；不能因 `media_list_models` 没有 LibTV 就声称它不支持生成，也不能构造虚假的 `media:...:libtv:...` 引用。不得绕过影像作品或画布任务的绑定、审查与采用门禁；没有受管资产时只能交付 LibTV 远端结果，不能宣称已成为作品候选或画布资产。
 
 每次新的媒体任务都先调用 `media_list_models`，并按 `nextOffset` 分页直到返回 `nextOffset: null`。这个工具返回统一图片、音频和视频目录中的稳定 `ref`、`kind`、`capabilities`、`available`、`adapterId` 、`parameters` 参数约束和不可用原因。
 

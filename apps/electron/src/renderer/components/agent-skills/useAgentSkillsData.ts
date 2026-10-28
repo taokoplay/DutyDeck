@@ -15,7 +15,7 @@ import {
   currentAgentWorkspaceIdAtom,
   workspaceCapabilitiesVersionAtom,
 } from '@/atoms/agent-atoms'
-import type { BuiltinMcpServerSummary, CliIntegrationStatus, McpServerEntry, SkillMeta, WorkspaceCapabilities, WorkspaceMcpConfig } from '@dutydeck/shared'
+import type { BuiltinMcpServerSummary, CliIntegrationStatus, McpConnectionMutationOptions, McpServerEntry, SkillMeta, WorkspaceCapabilities, WorkspaceMcpConfig } from '@dutydeck/shared'
 import type { CatalogCliProbeState } from './integration-catalog'
 
 const CLI_STATUS_CACHE_TTL_MS = 5 * 60 * 1000
@@ -65,7 +65,7 @@ export interface AgentSkillsData {
   deleteSkill: (slug: string, name: string) => Promise<boolean>
   updateSkill: (slug: string) => Promise<void>
   refreshMcpConfig: () => Promise<void>
-  toggleMcp: (name: string, enabled: boolean) => Promise<{ success: boolean; message: string }>
+  toggleMcp: (name: string, enabled: boolean, options?: McpConnectionMutationOptions) => Promise<{ success: boolean; message: string }>
   installMcp: (name: string, entry: McpServerEntry) => Promise<boolean>
   toggleBuiltinMcp: (id: string, enabled: boolean) => Promise<void>
   deleteMcp: (name: string) => Promise<void>
@@ -256,7 +256,7 @@ export function useAgentSkillsData(workspaceId?: string): AgentSkillsData {
   }, [workspaceSlug])
 
   const mcpToggleRequestRef = React.useRef(new Map<string, number>())
-  const toggleMcp = React.useCallback(async (name: string, enabled: boolean): Promise<{ success: boolean; message: string }> => {
+  const toggleMcp = React.useCallback(async (name: string, enabled: boolean, options?: McpConnectionMutationOptions): Promise<{ success: boolean; message: string }> => {
     const requestId = (mcpToggleRequestRef.current.get(name) ?? 0) + 1
     mcpToggleRequestRef.current.set(name, requestId)
     mcpToggleIntentsRef.current.set(name, enabled)
@@ -270,7 +270,7 @@ export function useAgentSkillsData(workspaceId?: string): AgentSkillsData {
     })
 
     try {
-      const result = await window.electronAPI.setMcpEnabledAndValidate(workspaceSlug, name, enabled)
+      const result = await window.electronAPI.setMcpEnabledAndValidate(workspaceSlug, name, enabled, options)
       if (mcpToggleRequestRef.current.get(name) !== requestId) return result.verification
 
       mcpConfigMutationRevisionRef.current += 1

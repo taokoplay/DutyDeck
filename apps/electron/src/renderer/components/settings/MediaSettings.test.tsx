@@ -5,12 +5,12 @@ import type { MediaAuthorizationMode, MediaRemoteDescriptor, MediaRemoteWorkflow
 import * as mediaSettingsModule from './MediaSettings'
 
 interface ExpectedMediaSettingsModule {
-  MEDIA_SETTINGS_TABS: ReadonlyArray<{ value: 'image-models' | 'audio-generation' | 'connections' | 'workflows'; label: string }>
+  MEDIA_SETTINGS_TABS: ReadonlyArray<{ value: 'libtv' | 'image-models' | 'audio-generation' | 'connections' | 'workflows'; label: string }>
   DEFAULT_MEDIA_SETTINGS_TAB: 'image-models'
   resolveMediaSettingsTabForFocus: (
-    currentTab: 'image-models' | 'audio-generation' | 'connections' | 'workflows',
-    focusedSection: 'image-models' | null,
-  ) => 'image-models' | 'audio-generation' | 'connections' | 'workflows'
+    currentTab: 'libtv' | 'image-models' | 'audio-generation' | 'connections' | 'workflows',
+    focusedSection: 'image-models' | 'libtv' | null,
+  ) => 'libtv' | 'image-models' | 'audio-generation' | 'connections' | 'workflows'
   selectLocalMediaWorkflows: (workflows: readonly MediaWorkflowVersion[], archivedIds?: readonly string[]) => MediaWorkflowVersion[]
   formatMediaError: (error: unknown) => string
   buildSaveMediaConnectionInput: (draft: {
@@ -51,8 +51,8 @@ interface ExpectedMediaSettingsModule {
   }
   RemoteWorkflowContent: (props: { remote: MediaRemoteWorkflow; onImport: () => void }) => React.ReactElement
   MediaSettingsTabsView: (props: {
-    activeTab: 'image-models' | 'audio-generation' | 'connections' | 'workflows'
-    onTabChange: (tab: 'image-models' | 'audio-generation' | 'connections' | 'workflows') => void
+    activeTab: 'libtv' | 'image-models' | 'audio-generation' | 'connections' | 'workflows'
+    onTabChange: (tab: 'libtv' | 'image-models' | 'audio-generation' | 'connections' | 'workflows') => void
     focusActiveTab?: boolean
   }) => React.ReactElement
   MediaAuthorizationControl: (props: {
@@ -394,16 +394,17 @@ describe('MediaSettings 已确认交互合同', () => {
     expect(result.error).toBe('远端离线')
   })
 
-  test('Given 媒体设置 When 渲染一级导航 Then 展示四个确认分区和值', () => {
+  test('Given 媒体设置 When 渲染一级导航 Then 展示原生媒体及 LibTV 分区和值', () => {
     const { MEDIA_SETTINGS_TABS, MediaSettingsTabsView } = getExpectedModule()
     expect(MEDIA_SETTINGS_TABS).toEqual([
       { value: 'image-models', label: '生成模型' },
       { value: 'audio-generation', label: '音频生成' },
+      { value: 'libtv', label: 'LibTV' },
       { value: 'connections', label: '服务链接' },
       { value: 'workflows', label: '本地工作流' },
     ])
     const html = renderToStaticMarkup(<MediaSettingsTabsView activeTab="image-models" onTabChange={() => undefined} />)
-    for (const label of ['生成模型', '音频生成', '服务链接', '本地工作流']) expect(html).toContain(label)
+    for (const label of ['生成模型', '音频生成', 'LibTV', '服务链接', '本地工作流']) expect(html).toContain(label)
     /** 图片与视频合并后不能再退回只描述图片的旧标题。 */
     expect(html).not.toContain('生图模型')
     expect(html).not.toContain('服务连接')
@@ -418,7 +419,7 @@ describe('MediaSettings 已确认交互合同', () => {
     expect(resolveMediaSettingsTabForFocus('audio-generation', null)).toBe('audio-generation')
   })
 
-  test('Given 四分区导航 When 逐个触发真实 Tabs 回调 Then 回传稳定值并只聚焦活动页签', () => {
+  test('Given 媒体分区导航 When 逐个触发真实 Tabs 回调 Then 回传稳定值并只聚焦活动页签', () => {
     const { MEDIA_SETTINGS_TABS, MediaSettingsTabsView } = getExpectedModule()
     /** 收集组件真实 onValueChange 绑定回传的分区值。 */
     const changes: Array<(typeof MEDIA_SETTINGS_TABS)[number]['value']> = []
@@ -426,7 +427,7 @@ describe('MediaSettings 已确认交互合同', () => {
     /** 根节点就是生产 Radix Tabs，直接触发其真实值转换回调。 */
     const tabs = view as React.ReactElement<{ onValueChange: (value: string) => void; children: React.ReactNode }>
     for (const tab of MEDIA_SETTINGS_TABS) tabs.props.onValueChange(tab.value)
-    expect(changes).toEqual(['image-models', 'audio-generation', 'connections', 'workflows'])
+    expect(changes).toEqual(['image-models', 'audio-generation', 'libtv', 'connections', 'workflows'])
 
     /** 列表和 trigger 均来自组件真实输出，不复刻单独映射函数。 */
     const list = React.Children.only(tabs.props.children) as React.ReactElement<{ className: string; children: React.ReactNode }>
@@ -437,7 +438,7 @@ describe('MediaSettings 已确认交互合同', () => {
     expect(triggers.filter((trigger) => trigger.props.autoFocus).map((trigger) => trigger.props.value)).toEqual(['audio-generation'])
 
     const html = renderToStaticMarkup(view)
-    expect((html.match(/role="tab"/g) ?? []).length).toBe(4)
+    expect((html.match(/role="tab"/g) ?? []).length).toBe(5)
     expect(html).toContain('role="tablist"')
   })
 
@@ -521,4 +522,8 @@ describe('MediaSettings 已确认交互合同', () => {
     expect(resolveEditedMediaConnection(connections, { id: 'connection-a' })).toEqual(connections[0])
     expect(resolveEditedMediaConnection(connections, null)).toBeUndefined()
   })
+})
+
+test('Given 影像制作请求 LibTV 设置 When 解析媒体聚焦 Then 直接打开 LibTV 分区', () => {
+  expect(mediaSettingsModule.resolveMediaSettingsTabForFocus('connections', 'libtv')).toBe('libtv')
 })

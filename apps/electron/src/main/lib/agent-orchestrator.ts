@@ -443,6 +443,7 @@ export class AgentOrchestrator {
           ...(Object.keys(mergedEnv).length > 0 && { env: mergedEnv }),
           required: true,
           startup_timeout_sec: entry.timeout ?? 30,
+          ...(entry.toolTimeout !== undefined ? { tool_timeout_sec: entry.toolTimeout } : {}),
         }
       } else if ((type === 'http' || type === 'sse') && entry.url) {
         let oauthHeaders: Record<string, string> | undefined
@@ -459,6 +460,7 @@ export class AgentOrchestrator {
           ...(Object.keys(headers).length > 0 && { headers }),
           ...(proxyUrl && { proxyUrl }),
           startup_timeout_sec: entry.timeout ?? 30,
+          ...(entry.toolTimeout !== undefined ? { tool_timeout_sec: entry.toolTimeout } : {}),
           required: true,
         }
       } else {

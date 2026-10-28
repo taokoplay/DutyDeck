@@ -1043,6 +1043,8 @@ export interface McpServerEntry {
   headers?: Record<string, string>
   /** 启动超时（秒），仅 stdio 类型有效，默认 30 */
   timeout?: number
+  /** 单次工具调用超时（秒），有效范围大于 0 且不超过 1200；省略时默认 60，不影响启动和工具发现。 */
+  toolTimeout?: number
   /** 是否启用 */
   enabled: boolean
   /** 非敏感 OAuth 元数据；token 与 client secret 不写入工作区配置。 */
@@ -1092,6 +1094,12 @@ export interface McpConnectionMutationResult {
     success: boolean
     message: string
   }
+}
+
+/** 专用集成在原子切换时复核目标，拒绝设置页读取之后发生的同名连接替换。 */
+export interface McpConnectionMutationOptions {
+  /** 预期的远程传输类型与精确 URL；只复核身份，不允许借此修改连接。 */
+  expectedTarget: { type: 'http' | 'sse'; url: string }
 }
 
 export interface McpInstallMutationResult extends McpConnectionMutationResult {

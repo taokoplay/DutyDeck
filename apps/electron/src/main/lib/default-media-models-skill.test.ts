@@ -15,7 +15,7 @@ test('Given 统一媒体 Skill When 校验模型发现 Then 覆盖全部目录�
 
   expect(skill).toMatch(/^name: media-models$/m)
   expect(skill).toMatch(/^group: proma$/m)
-  expect(skill).toMatch(/^version: "1\.0\.2"$/m)
+  expect(skill).toMatch(/^version: "1\.0\.3"$/m)
   for (const rule of [
     'media_list_models',
     'media_list_api_models',
@@ -30,6 +30,13 @@ test('Given 统一媒体 Skill When 校验模型发现 Then 覆盖全部目录�
     'voice-cloning',
     'text-to-music',
   ]) expect(skill).toContain(rule)
+})
+
+test('Given 用户指定 LibTV When 选择执行链 Then 转交官方远程工具且不伪造统一模型引用', () => {
+  const skill = readMediaModelsSkill()
+  expect(skill).toContain('libtv-media')
+  expect(skill).toContain('不在统一模型目录')
+  expect(skill).toContain('不得绕过影像作品或画布任务的绑定、审查与采用门禁')
 })
 
 test('Given 媒体生成请求 When 校验旧路由和执行边界 Then 禁止过期 Skill 并保留异步终态合同', () => {

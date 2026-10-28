@@ -1,3 +1,4 @@
+import { createLibTvMcpEntry, LIBTV_MCP_SERVER_NAME, LIBTV_MARKETPLACE_URL } from '@dutydeck/shared'
 import type { McpOAuthProvider, McpServerEntry } from '@dutydeck/shared'
 
 export type CatalogIntegrationKind = 'mcp' | 'cli' | 'guided' | 'credential'
@@ -267,6 +268,13 @@ export function isCatalogIntegrationVisible(integration: CatalogIntegration): bo
 }
 
 export const MCP_INTEGRATION_CATALOG: CatalogIntegration[] = [
+  {
+    id: 'libtv-mcp', name: 'LibTV', iconSlug: 'lucide-cloud', kind: 'mcp', authentication: 'oauth', oauthProvider: 'libtv', serverName: LIBTV_MCP_SERVER_NAME,
+    description: '通过官方 LibTV 授权，让 Agent 生成图片和视频、管理项目并导出作品。生成可能消耗 LibTV 积分。',
+    capabilities: ['图片与视频', '项目与素材', '作品导出'],
+    setupUrl: LIBTV_MARKETPLACE_URL,
+    entry: createLibTvMcpEntry(),
+  },
   {
     id: 'github-mcp', name: 'GitHub', iconSlug: 'github', kind: 'mcp', authentication: 'oauth', oauthProvider: 'github', serverName: 'github',
     description: '让 Agent 在你的 GitHub 上读取代码上下文，并处理协作与代码质量工作流。',

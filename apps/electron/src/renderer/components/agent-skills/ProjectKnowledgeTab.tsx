@@ -42,7 +42,7 @@ import { useCreateSession } from '@/hooks/useCreateSession'
 import { useOpenSession } from '@/hooks/useOpenSession'
 import { cn } from '@/lib/utils'
 import { WorkspaceMemoryTab } from './WorkspaceMemoryTab'
-import { KnowledgeWorkflowDialog } from './KnowledgeWorkflowPanel'
+import { buildAutomaticKnowledgePlanSelection, KnowledgeWorkflowProgress } from './KnowledgeWorkflowPanel'
 import { KnowledgeFileTree } from './KnowledgeFileTree'
 import type { KnowledgePlanSelection } from './KnowledgeWorkflowPanel'
 import { startKnowledgePolling, waitForKnowledgeScan } from './project-knowledge-poll'
@@ -780,6 +780,8 @@ export function ProjectKnowledgeTab({
   const knowledgeActionGenerationRef = React.useRef(0)
   /** 每次更新新建整理会话；清单调整与确认后生成继续沿用本轮会话。 */
   const knowledgeWorkflowSessionIdRef = React.useRef<string | null>(null)
+  /** 同一项目的同版提案只接管一次，避免快照通知或视图切换重复提交。 */
+  const attemptedKnowledgeProposalsRef = React.useRef(new Set<string>())
 
   /** 统一刷新权威快照；代际不一致时丢弃迟到响应。 */
   const loadSnapshot = React.useCallback(async (): Promise<void> => {
@@ -825,6 +827,7 @@ export function ProjectKnowledgeTab({
     readGenerationRef.current += 1
     knowledgeActionGenerationRef.current += 1
     knowledgeWorkflowSessionIdRef.current = null
+    attemptedKnowledgeProposalsRef.current.clear()
     setSnapshot(null)
     setResult(null)
     setSelectedRead(null)
@@ -1309,6 +1312,17 @@ export function ProjectKnowledgeTab({
     }
   }, [dispatchKnowledgeWorkflow, executeKnowledgeAction, snapshot?.workflow?.proposal, workspaceId])
 
+  /** 提案到达即接管，切到来源或收起进度仍继续；失败仅展示页内错误。 */
+  React.useEffect(() => {
+    const proposal = snapshot?.workflow?.proposal
+    if (!workspaceId || snapshot?.projectId !== workspaceId || !snapshot.initialized || !proposal?.groups.length || knowledgeActionPending !== null || actionPending || snapshot?.scan.status === 'running') return
+    /** 项目与提案版本共同标识一次自动整理，避免重复派发。 */
+    const proposalKey = `${workspaceId}:${proposal.id}:${proposal.revision}`
+    if (attemptedKnowledgeProposalsRef.current.has(proposalKey)) return
+    attemptedKnowledgeProposalsRef.current.add(proposalKey)
+    void handleConfirmKnowledgePlan(buildAutomaticKnowledgePlanSelection(proposal))
+  }, [workspaceId, snapshot?.projectId, snapshot?.initialized, snapshot?.workflow?.proposal, snapshot?.scan.status, knowledgeActionPending, actionPending, handleConfirmKnowledgePlan])
+
   /** 暂停或继续已确认工作流，以主进程返回状态为准。 */
   const handlePauseKnowledgeWorkflow = React.useCallback(async (paused: boolean): Promise<void> => {
     if (!workspaceId) return
@@ -1388,9 +1402,9 @@ export function ProjectKnowledgeTab({
     for (const item of result?.items ?? []) entriesById.set(item.entry.id, item.entry)
     return [...entriesById.values()]
   }, [result?.items, snapshot?.entries])
-  /** 整理流程只通过工具栏弹窗入口展示，主区域始终留给目录和正文。 */
+  /** 进度在页内按需展开，自动接管独立于进度组件的挂载。 */
   const workflow = snapshot?.initialized && snapshot.workflow ? (
-    <KnowledgeWorkflowDialog
+    <KnowledgeWorkflowProgress
       workflow={snapshot.workflow}
       entries={workflowEntries}
       pendingAction={combinedKnowledgeAction}

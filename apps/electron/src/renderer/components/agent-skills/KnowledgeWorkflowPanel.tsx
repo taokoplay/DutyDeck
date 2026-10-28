@@ -3,7 +3,6 @@ import { Check, FileText, Folder, Loader2, Pause, Play } from 'lucide-react'
 import type { KnowledgeEntry, KnowledgePlan, KnowledgePlanSource, KnowledgeWorkflow } from '@dutydeck/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
 /** 自动接管时提交的最小分组身份和名称。 */
 export interface KnowledgePlanSelection {
@@ -17,7 +16,7 @@ export interface KnowledgeWorkflowPanelProps {
   entries: KnowledgeEntry[]
   pendingAction: string | null
   error: string | null
-  /** 返回 false 表示自动接管失败，需要打开进度面板提供重试入口。 */
+  /** 返回 false 表示自动接管失败，由页内错误和重试入口反馈。 */
   onConfirm: (groups: KnowledgePlanSelection[]) => Promise<boolean> | boolean | void
   onPause: (paused: boolean) => void
   /** 仅重新处理用户选中的大纲项。 */
@@ -37,55 +36,18 @@ export function buildAutomaticKnowledgePlanSelection(proposal: KnowledgePlan): K
   })
 }
 
-/** 整理流程放入独立弹窗；新提案会直接接管，不再要求用户逐组勾选和改名。 */
-export function KnowledgeWorkflowDialog(props: KnowledgeWorkflowPanelProps): React.ReactElement | null {
-  /** 用户主动查看进度时打开，自动接管不会抢先弹出复杂表单。 */
-  const [open, setOpen] = React.useState(false)
-  /** 同一提案版本只自动尝试一次，避免轮询快照重复触发确认。 */
-  const attemptedProposalRef = React.useRef(new Set<string>())
-  /** 异步接管结果只在组件仍挂载时更新弹窗。 */
-  const mountedRef = React.useRef(true)
-  React.useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
-  }, [])
-  React.useEffect(() => {
-    const proposal = props.workflow.proposal
-    if (!proposal || proposal.groups.length === 0 || props.pendingAction !== null) return
-    const proposalKey = `${proposal.id}:${proposal.revision}`
-    if (attemptedProposalRef.current.has(proposalKey)) return
-    attemptedProposalRef.current.add(proposalKey)
-    /** 自动确认后同一调用链会提交生成任务；失败时打开可审计的简化进度面板。 */
-    void Promise.resolve(props.onConfirm(buildAutomaticKnowledgePlanSelection(proposal)))
-      .then((succeeded) => {
-        if (mountedRef.current && succeeded === false) setOpen(true)
-      })
-      .catch(() => {
-        if (mountedRef.current) setOpen(true)
-      })
-  }, [props.onConfirm, props.pendingAction, props.workflow.proposal?.id, props.workflow.proposal?.revision])
-
+/** 页内进度默认折叠；自动整理由外层控制器启动，不依赖用户查看详情。 */
+export function KnowledgeWorkflowProgress(props: KnowledgeWorkflowPanelProps): React.ReactElement | null {
   if (!props.workflow.proposal && !props.workflow.approved) return null
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" size="sm" variant="outline">
-          {props.workflow.proposal ? 'Agent 接管中' : props.workflow.paused ? '整理已暂停' : '整理进度'}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="flex max-h-[85dvh] w-[calc(100%-2rem)] max-w-2xl flex-col overflow-hidden p-0">
-        <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-5 pr-12">
-          <DialogTitle>知识库整理</DialogTitle>
-          <DialogDescription>Agent 会自动确认整理范围并继续生成；这里只展示进度，需要时再查看明细。</DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 overflow-y-auto scrollbar-thin">
-          <KnowledgeWorkflowPanelView {...props} onSelectEntryId={(entryId, revision) => {
-            props.onSelectEntryId(entryId, revision)
-            setOpen(false)
-          }} />
-        </div>
-      </DialogContent>
-    </Dialog>
+    <details className="order-last basis-full rounded-md border border-border" aria-label="知识库整理进度">
+      <summary className="cursor-pointer px-3 py-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {props.error ? '整理失败，查看详情' : props.workflow.proposal ? 'Agent 接管中' : props.workflow.paused ? '整理已暂停' : '整理进度'}
+      </summary>
+      <div className="max-h-[40dvh] overflow-y-auto scrollbar-thin border-t border-border">
+        <KnowledgeWorkflowPanelView {...props} />
+      </div>
+    </details>
   )
 }
 
@@ -185,7 +147,7 @@ function KnowledgeWorkflowPanelView({
       {proposal && (
         <div className="space-y-3 rounded-md border border-border bg-background p-3">
           <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs leading-5">
-            <p className="font-medium text-foreground">Agent 已规划好整理范围，正在自动继续</p>
+            <p className="font-medium text-foreground">{error ? '整理未能继续，请重试' : 'Agent 已规划好整理范围，正在自动继续'}</p>
             <p className="mt-1 text-muted-foreground">
               范围确认和后续大纲、正文生成由同一个 Agent 连续完成，不需要逐组设置。原始来源、缺口和产出仍保留在下方明细中。
             </p>
@@ -230,7 +192,7 @@ function KnowledgeWorkflowPanelView({
             <p className="text-xs text-muted-foreground">{busy ? '正在把范围交给 Agent 继续处理…' : '自动接管失败时，可在这里重新提交。'}</p>
             <Button type="button" size="sm" disabled={busy || automaticGroups.length === 0} onClick={() => { void onConfirm(automaticGroups) }}>
               {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
-              让 Agent 直接整理
+              重试整理
             </Button>
           </div>
         </div>

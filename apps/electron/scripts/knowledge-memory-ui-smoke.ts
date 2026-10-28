@@ -33,7 +33,7 @@ async function waitFor(window: BrowserWindow, expression: string, message: strin
 
 /** 点击精确文本的可见按钮或 Radix Tab。 */
 async function click(window: BrowserWindow, label: string): Promise<void> {
-  const expression = `[...document.querySelectorAll('button,[role="tab"]')].find((element) => element.textContent?.trim() === ${JSON.stringify(label)} && element.getBoundingClientRect().width > 0)`
+  const expression = `[...document.querySelectorAll('button,[role="tab"],summary')].find((element) => element.textContent?.trim() === ${JSON.stringify(label)} && element.getBoundingClientRect().width > 0)`
   await waitFor(window, expression, `缺少可见入口：${label}`)
   const point = await window.webContents.executeJavaScript(`(async () => {
     const element = ${expression};
@@ -102,30 +102,25 @@ async function verifyKnowledgeExecutionRoutes(window: BrowserWindow, fixtureUrl:
   })
   await window.webContents.executeJavaScript('window.__knowledgeMemorySmoke.blockExecution()')
   await click(window, '整理进度')
-  await waitFor(window, `document.querySelector('[role="dialog"]')?.textContent?.includes('本段额度已用完')`, '阻塞通知未刷新')
-  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[role="dialog"]')?.textContent?.includes('已保存 1/1 篇')`), true)
-  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[role="dialog"]')?.textContent?.includes('内容达标 0 篇')`), true)
-  await window.webContents.executeJavaScript(`document.querySelector('[role="dialog"] details summary')?.click()`)
-  await waitFor(window, `document.querySelector('[role="dialog"] details[open]')?.textContent?.includes('会员权益口径冲突')`, '准入详情未展开')
-  await waitFor(window, `(() => { const d = document.querySelector('[role=\"dialog\"]'); return d && Number.parseFloat(getComputedStyle(d).opacity) >= 0.99 && !document.body.textContent?.includes('正在更新知识') })()`, '执行弹窗仍在动画或目录加载中')
+  await waitFor(window, `document.querySelector('[aria-label="知识库整理进度"]')?.textContent?.includes('本段额度已用完')`, '阻塞通知未刷新')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[aria-label="知识库整理进度"]')?.textContent?.includes('已保存 1/1 篇')`), true)
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[aria-label="知识库整理进度"]')?.textContent?.includes('内容达标 0 篇')`), true)
+  await window.webContents.executeJavaScript(`document.querySelector('[aria-label="知识库整理进度"] details summary')?.click()`)
+  await waitFor(window, `document.querySelector('[aria-label="知识库整理进度"] details[open]')?.textContent?.includes('会员权益口径冲突')`, '准入详情未展开')
+  await waitFor(window, `(() => { const d = document.querySelector('[aria-label=\"知识库整理进度\"]'); return d && Number.parseFloat(getComputedStyle(d).opacity) >= 0.99 && !document.body.textContent?.includes('正在更新知识') })()`, '进度仍在加载中')
   await captureScreenshot(window, '/private/tmp/knowledge-memory-ui-smoke-execution.png')
   await click(window, '仅重试此项')
   await waitFor(window, `window.__knowledgeMemorySmoke.state.executionCalls.length === 2`, '局部重试未提交执行')
   assert.deepEqual(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.state.executionCalls[1].itemIds`), ['outline-product-principles'])
   assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.workflowState().pendingPrompt`), null, '执行路径重复发送普通提示')
-  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
-  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
-  await waitFor(window, `!document.querySelector('[role="dialog"]')`, '进度弹窗未关闭')
+  await click(window, '整理进度')
   await click(window, '来源资料')
   await click(window, '更新来源')
   await waitFor(window, `window.__knowledgeMemorySmoke.state.knowledgeCalls.filter((call) => call === 'scan').length === 2`, '来源复扫未执行')
   assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.state.executionCalls.length`), 2, '来源复扫不应触发执行')
 
   await window.loadURL(`${fixtureUrl}?case=planning`)
-  await waitFor(window, `document.querySelector('[role="dialog"]')`, '规划提案弹窗未就绪')
-  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
-  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
-  await waitFor(window, `!document.querySelector('[role="dialog"]')`, '规划弹窗未关闭')
+  await waitFor(window, `document.querySelector('[aria-label="知识目录"]')`, '规划页面未就绪')
   await click(window, '更新知识库')
   await waitFor(window, `window.__knowledgeMemorySmoke.workflowState().pendingPrompt`, '规划未投递普通会话')
   assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.state.createdSessions.length`), 1)
@@ -133,13 +128,39 @@ async function verifyKnowledgeExecutionRoutes(window: BrowserWindow, fixtureUrl:
   assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.state.executionCalls.length`), 0)
 }
 
+/** 无需展开进度即自动接管，来源页的提案通知也只派发一次；失败不弹窗。 */
+async function verifyAutomaticKnowledgeHandoff(window: BrowserWindow, fixtureUrl: string): Promise<void> {
+  await window.loadURL(`${fixtureUrl}?case=automatic`)
+  await waitFor(window, `window.__knowledgeMemorySmoke.state.executionCalls.length === 1`, '自动整理未进入宿主队列')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[role="dialog"]')`), null)
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[aria-label="知识库整理进度"]').open`), false)
+  await click(window, '来源资料')
+  await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.publishProposal()`)
+  await waitFor(window, `window.__knowledgeMemorySmoke.state.executionCalls.length === 2`, '来源页收到新提案后未自动接管')
+  await click(window, '返回知识库')
+  await click(window, '整理进度')
+  await click(window, '整理进度')
+  assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.state.knowledgeCalls.filter(call => call === 'confirm').length`), 2)
+  assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.state.executionCalls.length`), 2)
+  assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.workflowState().pendingPrompt`), null)
+
+  await window.loadURL(`${fixtureUrl}?case=automatic&confirm-error=1`)
+  await waitFor(window, `document.body.innerText.includes('fixture 范围提交失败')`, '接管失败未显示页内错误')
+  assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[role="dialog"]')`), null)
+  await click(window, '整理失败，查看详情')
+  await waitFor(window, `document.querySelector('[aria-label="打开产品原则.md"]')`, '失败场景目录未就绪')
+  await window.webContents.executeJavaScript(`document.querySelector('[aria-label="打开产品原则.md"]')?.click()`)
+  await waitFor(window, `document.querySelector('[aria-label="资料正文预览"]')`, '失败后无法查看正文')
+  await waitFor(window, `document.querySelector('[aria-label="知识库整理进度"] > summary')?.textContent?.trim() === 'Agent 接管中'`, '正文读取未清理旧错误')
+  await click(window, '重试整理')
+  await waitFor(window, `window.__knowledgeMemorySmoke.state.executionCalls.length === 1`, '失败后手动重试未启动整理')
+  assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.state.knowledgeCalls.filter(call => call === 'confirm').length`), 2)
+}
+
 /** 创建失败必须展示错误，不把维护任务发送到原对话。 */
 async function verifyConversationCreationFailure(window: BrowserWindow, fixtureUrl: string): Promise<void> {
   await window.loadURL(`${fixtureUrl}?session-error=1`)
-  await waitFor(window, `document.querySelector('[role="dialog"]')`, '失败场景未就绪')
-  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
-  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
-  await waitFor(window, `!document.querySelector('[role="dialog"]')`, '失败场景弹窗未关闭')
+  await waitFor(window, `document.querySelector('[aria-label="知识目录"]')`, '失败场景未就绪')
   await click(window, '更新知识库')
   await waitFor(window, `document.body.textContent?.includes('无法创建项目知识整理会话')`, '新建失败未显示错误')
   assert.equal(await window.webContents.executeJavaScript(`window.__knowledgeMemorySmoke.workflowState().pendingPrompt`), null, '新建失败后任务错误回退到当前对话')
@@ -153,10 +174,11 @@ async function verifyMainFlow(window: BrowserWindow, fixtureUrl: string): Promis
   assert.deepEqual(await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('[role="tab"]'), element => element.textContent?.trim())`), ['知识库', '记忆'])
   assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[role="tab"][data-state="active"]')?.textContent?.trim()`), '知识库')
   await click(window, '整理已暂停')
-  await waitFor(window, `document.querySelector('[role="dialog"]')?.textContent?.includes('产品原则')`, '大纲未展示已提炼文档')
+  await waitFor(window, `document.querySelector('[aria-label="知识库整理进度"]')?.textContent?.includes('产品原则')`, '大纲未展示已提炼文档')
   await waitFor(window, `window.__knowledgeMemorySmoke.hasPendingSearch()`, '未建立知识目录延迟请求')
   await window.webContents.executeJavaScript(`document.querySelector('[aria-label="打开产品原则"]')?.click()`)
   await waitFor(window, `document.querySelector('[aria-label="资料正文预览"]')`, '知识正文未打开')
+  await click(window, '整理已暂停')
   assert.equal(await window.webContents.executeJavaScript(`(() => {
     const directory = document.querySelector('[aria-label="知识目录"]')?.getBoundingClientRect();
     const article = document.querySelector('[aria-label="资料正文预览"]')?.getBoundingClientRect();
@@ -418,6 +440,7 @@ async function runElectronSmoke(app: import('electron').App, BrowserWindowCtor: 
   try {
     await verifyKnowledgeReadingIsolation(window, fixtureUrl)
     await verifyKnowledgeSupplement(window, fixtureUrl)
+    await verifyAutomaticKnowledgeHandoff(window, fixtureUrl)
     await verifyKnowledgeExecutionRoutes(window, fixtureUrl)
     await verifyConversationCreationFailure(window, fixtureUrl)
     await verifyMainFlow(window, fixtureUrl)

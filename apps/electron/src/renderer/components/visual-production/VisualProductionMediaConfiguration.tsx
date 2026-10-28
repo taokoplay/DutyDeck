@@ -3,7 +3,7 @@ import { useSetAtom } from 'jotai'
 import { Plus, RefreshCw, Settings2 } from 'lucide-react'
 import { parseMediaModelRef } from '@dutydeck/shared'
 import type { VisualProductionMediaConfiguration, VisualProductionMediaEntry, VisualProductionMediaOption } from '@dutydeck/shared'
-import { settingsOpenAtom, settingsTabAtom } from '@/atoms/settings-tab'
+import { mediaSettingsFocusAtom, settingsOpenAtom, settingsTabAtom } from '@/atoms/settings-tab'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -42,6 +42,7 @@ function groupEntries<T extends VisualProductionMediaEntry>(entries: T[]): T[][]
 export function VisualProductionMediaConfigurationPanel({ sessionId, productionId, configuration, active, busy, onSave }: ConfigurationProps): React.ReactElement {
   /** 全局设置保持现有统一入口。 */
   const setSettingsOpen = useSetAtom(settingsOpenAtom)
+  const setMediaSettingsFocus = useSetAtom(mediaSettingsFocusAtom)
   const setSettingsTab = useSetAtom(settingsTabAtom)
   /** 只缓存无凭据的能力目录，切换作品通过父级 key 销毁。 */
   const [catalog, setCatalog] = React.useState<VisualProductionMediaOption[]>([])
@@ -105,10 +106,15 @@ export function VisualProductionMediaConfigurationPanel({ sessionId, productionI
   const filteredOptions = catalog.filter(item => (filter === 'all' || item.kind === filter) && `${item.name} ${sourceLabel(item)}`.toLowerCase().includes(search.toLowerCase()))
   /** 进入已有媒体设置，凭据仍由全局配置管理。 */
   const openSettings = (): void => { setAdding(false); setSettingsTab('media'); setSettingsOpen(true) }
+  /** 定位到官方 LibTV 授权设置，连接后通过当前工作区 Agent 使用。 */
+  const openLibTvSettings = (): void => {
+    setMediaSettingsFocus('libtv')
+    openSettings()
+  }
   /** 读取真实适配器支持的参数，无声明时不生成假参数表单。 */
   const parameterFields = editing ? optionFor(editing)?.constraints.parameters ?? [] : []
   return <section className="vp-section vp-media-configuration" hidden={!active} aria-label="制作配置">
-    <div className="vp-row"><strong>制作配置</strong><Button size="sm" variant="ghost" disabled={loading || busy} onClick={() => void refresh()}><RefreshCw size={14} />刷新目录</Button><Button size="sm" variant="outline" onClick={openSettings}><Settings2 size={14} />全局媒体设置</Button></div>
+    <div className="vp-row"><strong>制作配置</strong><Button size="sm" variant="ghost" disabled={loading || busy} onClick={() => void refresh()}><RefreshCw size={14} />刷新目录</Button><Button size="sm" variant="outline" onClick={openSettings}><Settings2 size={14} />全局媒体设置</Button><Button size="sm" variant="outline" onClick={openLibTvSettings}>LibTV 设置</Button></div>
     <p className="vp-muted">复用已配置的模型和 ComfyUI 服务。工作流由 Agent 按任务选择，生成前验证工作流与服务匹配。服务配置可用不代表已经验证输出能力。</p>
     {!configuration && !draft && <p className="vp-media-config-note">当前继承全局可用目录。保存后，仅允许使用此处加入的能力；空列表表示禁止新媒体生成。</p>}
     {error && <p className="vp-error" role="alert">{error}</p>}

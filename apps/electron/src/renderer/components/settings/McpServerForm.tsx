@@ -84,6 +84,8 @@ interface McpFormValues {
   isBuiltin: boolean
   /** OAuth 公开元数据不在此表单编辑，保存其他字段时原样保留。 */
   oauth?: McpOAuthConfiguration
+  /** 编辑其他字段时保留预设的工具调用上限。 */
+  toolTimeout?: number
   command: string
   argsText: string
   envText: string
@@ -99,6 +101,7 @@ function buildEntryFromValues(values: McpFormValues, includeTestResult = false):
     enabled: values.enabled,
     ...(values.isBuiltin && { isBuiltin: true }),
     ...(values.oauth && { oauth: values.oauth }),
+    ...(values.toolTimeout !== undefined && { toolTimeout: values.toolTimeout }),
     ...(includeTestResult && values.testResult && {
       lastTestResult: {
         ...values.testResult,
@@ -132,6 +135,8 @@ export function McpServerForm({ server, workspaceSlug, onSaved, onChanged, onCan
   const isBuiltin = server?.entry.isBuiltin === true
   /** 当前条目的公开 OAuth 元数据。 */
   const oauth = server?.entry.oauth
+  /** 工具调用超时由连接预设管理，表单编辑时原样保留。 */
+  const toolTimeout = server?.entry.toolTimeout
 
   // 表单状态
   const [name, setName] = React.useState(server?.name ?? '')
@@ -177,13 +182,13 @@ export function McpServerForm({ server, workspaceSlug, onSaved, onChanged, onCan
 
   // 保留最新表单值，供 unmount 时 flush 待保存变更
   const latestValuesRef = React.useRef({
-    name, transportType, command, url, argsText, envText, headersText, timeoutStr, enabled, testResult, isBuiltin, oauth,
+    name, transportType, command, url, argsText, envText, headersText, timeoutStr, enabled, testResult, isBuiltin, oauth, toolTimeout,
   })
   React.useEffect(() => {
     latestValuesRef.current = {
-      name, transportType, command, url, argsText, envText, headersText, timeoutStr, enabled, testResult, isBuiltin, oauth,
+      name, transportType, command, url, argsText, envText, headersText, timeoutStr, enabled, testResult, isBuiltin, oauth, toolTimeout,
     }
-  }, [name, transportType, command, url, argsText, envText, headersText, timeoutStr, enabled, testResult, isBuiltin, oauth])
+  }, [name, transportType, command, url, argsText, envText, headersText, timeoutStr, enabled, testResult, isBuiltin, oauth, toolTimeout])
 
   // 监听配置改变，清空测试结果（避免展示过期的测试结果）
   React.useEffect(() => {
@@ -213,6 +218,7 @@ export function McpServerForm({ server, workspaceSlug, onSaved, onChanged, onCan
         testResult,
         isBuiltin,
         oauth,
+        toolTimeout,
         command,
         argsText,
         envText,

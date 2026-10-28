@@ -14,6 +14,8 @@ export interface ConfigureWorkspaceMcpInput {
   args?: string[]
   url?: string
   timeout?: number
+  /** 单次工具调用超时秒数，与连接启动超时分离。 */
+  toolTimeout?: number
   enabled?: boolean
   oauth?: McpOAuthConfiguration
   /** 已向用户说明影响并确认覆盖已有连接时显式传入。 */
@@ -67,6 +69,11 @@ function normalizeOAuthConfiguration(oauth: McpOAuthConfiguration | undefined): 
 /** 将 Agent 输入收敛为无凭据的 MCP transport 配置。 */
 export function buildWorkspaceMcpEntry(input: ConfigureWorkspaceMcpInput): McpServerEntry {
   const timeout = input.timeout == null ? undefined : Math.max(1, Math.floor(input.timeout))
+  /** 拒绝无界等待；保留合法小数，单位转换只在 SDK 调用处进行。 */
+  const toolTimeout = input.toolTimeout
+  if (toolTimeout !== undefined && (typeof toolTimeout !== 'number' || !Number.isFinite(toolTimeout) || toolTimeout <= 0 || toolTimeout > 1200)) {
+    throw new Error('MCP 工具超时必须大于 0 且不超过 1200 秒')
+  }
   const oauth = normalizeOAuthConfiguration(input.oauth)
   if (input.type === 'stdio') {
     const command = input.command?.trim()
@@ -78,6 +85,7 @@ export function buildWorkspaceMcpEntry(input: ConfigureWorkspaceMcpInput): McpSe
       command,
       ...(args && args.length > 0 ? { args } : {}),
       ...(timeout ? { timeout } : {}),
+      ...(toolTimeout !== undefined ? { toolTimeout } : {}),
       ...(oauth ? { oauth } : {}),
       enabled: input.enabled !== false,
     }
@@ -98,6 +106,7 @@ export function buildWorkspaceMcpEntry(input: ConfigureWorkspaceMcpInput): McpSe
     type: input.type,
     url,
     ...(timeout ? { timeout } : {}),
+    ...(toolTimeout !== undefined ? { toolTimeout } : {}),
     ...(oauth ? { oauth } : {}),
     enabled: input.enabled !== false,
   }
@@ -129,7 +138,7 @@ export function hasSensitiveConnectionBindingConflict(previous: McpServerEntry, 
 
 /** 比较 Agent 有权管理的非敏感 transport 字段。 */
 export function hasWorkspaceMcpTransportChanged(previous: McpServerEntry, next: McpServerEntry): boolean {
-  if (previous.type !== next.type || previous.timeout !== next.timeout || JSON.stringify(previous.oauth) !== JSON.stringify(next.oauth)) return true
+  if (previous.type !== next.type || previous.timeout !== next.timeout || previous.toolTimeout !== next.toolTimeout || JSON.stringify(previous.oauth) !== JSON.stringify(next.oauth)) return true
   if (next.type === 'stdio') {
     const previousArgs = previous.args ?? []
     const nextArgs = next.args ?? []

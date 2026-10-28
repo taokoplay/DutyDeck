@@ -71,3 +71,13 @@ test('Given 小红书 MCP 目录项 When 上游 transport 和登录契约仍需�
   expect(xiaohongshu.agentPrompt).toContain('真实 MCP handshake 和 listTools 验证')
   expect(xiaohongshu.agentPrompt).toContain('不要代替我输入密码、验证码或读取/导出 Cookie')
 })
+
+
+test('Given LibTV 官方目录 When 连接 Then 使用 HTTP MCP 与 OAuth，默认禁用并提示积分消耗', () => {
+  const integration = MCP_INTEGRATION_CATALOG.find(item => item.id === 'libtv-mcp')
+  if (!integration || integration.kind !== 'mcp') throw new Error('缺少 LibTV MCP 目录项')
+  expect(integration.authentication).toBe('oauth')
+  expect(integration.oauthProvider).toBe('libtv')
+  expect(integration.entry).toMatchObject({ type: 'http', url: 'https://mcp.liblib.tv/mcp', enabled: false, oauth: { provider: 'libtv', registrationEndpoint: 'https://mcp.liblib.tv/register' } })
+  expect(integration.description).toContain('积分')
+})

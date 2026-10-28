@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, CircleHelp, Folder, FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { VaultCandidate, VaultFileEntry, VaultFocus, VaultReadResult, VaultSummary, VaultTreeEntry } from '@dutydeck/shared'
+import type { VaultCandidate, VaultDirectoryPage, VaultFileEntry, VaultFocus, VaultReadResult, VaultSummary, VaultTreeEntry } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -47,7 +47,7 @@ import { getVaultEditorKey, shouldRemountVaultEditor } from './vault-editor-life
 import { getVaultDocumentController } from './vault-document-controller'
 import { buildVaultTree, getInitialVaultExpandedFolders, getVaultFolderAncestors, hasSameVaultTreeEntries, type VaultFolderNode } from './vault-tree-model'
 import { getVaultSidebarDisplayWidth, getVaultSidebarToggleLabel } from './vault-sidebar-layout'
-import { isVaultFileNotFoundError, openVaultWikiLink } from './vault-wikilinks'
+import { isVaultFileNotFoundError, openVaultWikiLink, resolveVaultWikiLink } from './vault-wikilinks'
 
 const VAULT_NAME = 'Vault'
 const VAULT_SIDEBAR_MIN_WIDTH = 180
@@ -74,6 +74,10 @@ function VaultFileList({
   focusedFolder,
   onSelect,
   onFocusFolder,
+  onLoadFolder,
+  onLoadMoreRoot,
+  rootHasMore,
+  rootLoading,
   onDelete,
   onCreateNote,
   onCreateFolder,
@@ -85,6 +89,10 @@ function VaultFileList({
   focusedFolder: string | null
   onSelect: (relativePath: string) => void
   onFocusFolder: (relativePath: string) => void
+  onLoadFolder: (relativePath: string) => void
+  onLoadMoreRoot: () => void
+  rootHasMore: boolean
+  rootLoading: boolean
   onDelete: (file: VaultFileEntry) => void
   onCreateNote: (folderPath: string) => void
   onCreateFolder: (folderPath: string) => void
@@ -162,6 +170,7 @@ function VaultFileList({
                     aria-label={`${expanded ? '收起' : '展开'}文件夹 ${child.name}`}
                     onClick={() => {
                       onFocusFolder(child.relativePath)
+                      if (!expanded) onLoadFolder(child.relativePath)
                       setExpandedFolders((current) => {
                         const next = new Set(current)
                         if (next.has(child.relativePath)) next.delete(child.relativePath)
@@ -245,7 +254,19 @@ function VaultFileList({
     <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 scrollbar-thin titlebar-no-drag">
       {!hasEntries
         ? <p className="px-4 py-6 text-center text-xs leading-relaxed text-muted-foreground">没有可显示的 Markdown 笔记或文件夹</p>
-        : renderEntries(tree, 0)}
+        : <>
+          {renderEntries(tree, 0)}
+          {rootHasMore && (
+            <button
+              type="button"
+              disabled={rootLoading}
+              onClick={onLoadMoreRoot}
+              className="mt-2 flex h-8 w-full items-center justify-center rounded-md text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              {rootLoading ? '正在加载…' : '加载更多根目录条目'}
+            </button>
+          )}
+        </>}
     </div>
   )
 }
@@ -653,6 +674,11 @@ export function VaultView({ embedded = false, sessionId }: { embedded?: boolean;
   const [vaultSwitcherOpen, setVaultSwitcherOpen] = React.useState(false)
   const [candidatesLoading, setCandidatesLoading] = React.useState(false)
   const [entries, setEntries] = React.useState<VaultTreeEntry[]>([])
+  /** 每个已读取目录的下一页 cursor；不把完整目录树一次性放进 renderer。 */
+  const directoryCursorsRef = React.useRef(new Map<string, string | undefined>())
+  /** 防止同一目录被重复展开时并发请求。 */
+  const directoryLoadingRef = React.useRef(new Set<string>())
+  const [directoryLoadingPath, setDirectoryLoadingPath] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [fileLoading, setFileLoading] = React.useState(false)
   const [editorReopenVersion, setEditorReopenVersion] = React.useState(0)
@@ -693,6 +719,44 @@ export function VaultView({ embedded = false, sessionId }: { embedded?: boolean;
   const registerEditorFlush = React.useCallback((flush: VaultEditorFlush | null): void => {
     editorFlushRef.current = flush
   }, [])
+
+  /** 合并一个目录页，按路径去重并保留其他已展开目录。 */
+  const mergeVaultDirectoryPage = React.useCallback((page: VaultDirectoryPage): void => {
+    setEntries((current) => {
+      const byPath = new Map(current.map((entry) => [entry.relativePath, entry]))
+      for (const entry of page.entries) byPath.set(entry.relativePath, entry)
+      return [...byPath.values()].sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+    })
+  }, [])
+
+  /** 读取一个目录的一页并记录下一页位置；所有目录请求都经过同一节流边界。 */
+  const loadVaultDirectoryPage = React.useCallback(async (relativePath: string, cursor?: string): Promise<VaultDirectoryPage | null> => {
+    if (directoryLoadingRef.current.has(relativePath)) return null
+    directoryLoadingRef.current.add(relativePath)
+    setDirectoryLoadingPath(relativePath)
+    try {
+      const page = await window.electronAPI.listVaultDirectory(relativePath, { cursor, limit: 256 })
+      directoryCursorsRef.current.set(relativePath, page.nextCursor)
+      mergeVaultDirectoryPage(page)
+      return page
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '无法读取 Vault 文件夹')
+      return null
+    } finally {
+      directoryLoadingRef.current.delete(relativePath)
+      setDirectoryLoadingPath((current) => current === relativePath ? null : current)
+    }
+  }, [mergeVaultDirectoryPage])
+
+  /** 展开目录时连续读取其余分页；深层扫描只由用户主动展开触发。 */
+  const loadVaultFolder = React.useCallback(async (relativePath: string): Promise<void> => {
+    let cursor = directoryCursorsRef.current.get(relativePath)
+    while (true) {
+      const page = await loadVaultDirectoryPage(relativePath, cursor)
+      if (!page?.nextCursor) return
+      cursor = page.nextCursor
+    }
+  }, [loadVaultDirectoryPage])
 
   React.useEffect(() => {
     selectedFileRef.current = selectedFile
@@ -763,19 +827,14 @@ export function VaultView({ embedded = false, sessionId }: { embedded?: boolean;
     try {
       const nextConfig = await window.electronAPI.getVaultConfig()
       setConfig(nextConfig)
-      const nextEntries = nextConfig ? await window.electronAPI.listVaultFiles() : []
-      setEntries((current) => hasSameVaultTreeEntries(current, nextEntries) ? current : nextEntries)
+      directoryCursorsRef.current.clear()
+      setEntries([])
+      if (nextConfig) await loadVaultDirectoryPage('')
       if (!nextConfig) {
         selectFile(null)
         setReadResult(null)
       } else if (selectedFileRef.current) {
         const relativePath = selectedFileRef.current
-        if (!nextEntries.some((entry) => entry.kind === 'file' && entry.relativePath === relativePath)) {
-          selectFile(null)
-          setReadResult(null)
-          toast.message('已打开的笔记不存在')
-          return
-        }
         const requestId = ++readRequestRef.current
         try {
           const result = await window.electronAPI.readVaultFile(relativePath)
@@ -794,7 +853,7 @@ export function VaultView({ embedded = false, sessionId }: { embedded?: boolean;
     } finally {
       if (showLoading) setLoading(false)
     }
-  }, [selectFile, setReadResult])
+  }, [loadVaultDirectoryPage, selectFile, setReadResult])
 
   React.useEffect(() => {
     const showLoading = initialRefreshRef.current
@@ -882,16 +941,34 @@ export function VaultView({ embedded = false, sessionId }: { embedded?: boolean;
     const noteFiles = entries
       .filter((entry) => entry.kind === 'file')
       .map((entry) => entry.relativePath)
-    void openVaultWikiLink({
+    const openWithEntries = async (files: readonly string[]): Promise<boolean> => openVaultWikiLink({
       target,
       source: readResult.relativePath,
-      files: noteFiles,
+      files,
       onOpen: openFile,
       /** 目标缺失或同名歧义时保留当前笔记并给出可操作提示。 */
-      onMissing: (missingTarget) => {
-        toast.error(`无法定位笔记“${missingTarget}”，请检查名称或使用完整的 Vault 内路径`)
-      },
+      onMissing: () => false,
     })
+    void (async () => {
+      if (resolveVaultWikiLink(target, readResult.relativePath, noteFiles)) {
+        await openWithEntries(noteFiles)
+        return
+      }
+      // 懒加载树中可能尚未包含深层目标；仅在用户点击无法解析的双链时回退一次完整索引。
+      try {
+        const allEntries = await window.electronAPI.listVaultFiles()
+        setEntries((current) => {
+          const byPath = new Map(current.map((entry) => [entry.relativePath, entry]))
+          for (const entry of allEntries) byPath.set(entry.relativePath, entry)
+          return [...byPath.values()].sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+        })
+        if (!await openWithEntries(allEntries.filter((entry) => entry.kind === 'file').map(entry => entry.relativePath))) {
+          toast.error(`无法定位笔记“${target}”，请检查名称或使用完整的 Vault 内路径`)
+        }
+      } catch {
+        toast.error(`无法定位笔记“${target}”，请检查名称或使用完整的 Vault 内路径`)
+      }
+    })()
   }, [entries, openFile, readResult])
 
   const selectVaultManually = async (): Promise<void> => {
@@ -1177,6 +1254,13 @@ export function VaultView({ embedded = false, sessionId }: { embedded?: boolean;
                 focusedFolder={focusedFolder}
                 onSelect={(path) => { setFocusedFolder(null); void openFile(path) }}
                 onFocusFolder={(relativePath) => { setFocusedFolder(relativePath); updateAgentFocus({ kind: 'folder', relativePath }) }}
+                onLoadFolder={(relativePath) => { void loadVaultFolder(relativePath) }}
+                onLoadMoreRoot={() => {
+                  const cursor = directoryCursorsRef.current.get('')
+                  if (cursor) void loadVaultDirectoryPage('', cursor)
+                }}
+                rootHasMore={directoryCursorsRef.current.has('') && directoryCursorsRef.current.get('') !== undefined}
+                rootLoading={directoryLoadingPath === ''}
                 onDelete={setDeleteTarget}
                 onCreateNote={(folderPath) => { void createNoteInFolder(folderPath) }}
                 onCreateFolder={openCreateFolderDialog}

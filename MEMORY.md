@@ -1,10 +1,20 @@
 # MEMORY.md
 
+- 2026-10-28（全部剩余改动提交前验证）：用户明确要求将当前工作区全部剩余内容提交本地 Git，范围包含 LibTV 官方 MCP/OAuth 与设置入口、MCP 工具超时、Vault 异步目录分页、知识库页内自动整理及影像任务身份/文本范围契约。提交检查修正 Vault cursor 解码缺少 number 类型收窄，并补缺失/null/字符串/负数/小数偏移回归；167 项定向测试与 47 项关联测试全部通过（1587 断言），全仓 typecheck、隔离 Electron 知识库/记忆 UI smoke 与 diff check 通过，凭据模式扫描无命中。OAuth 回调端口测试在解除沙箱限制后通过；未进行真实 LibTV 账号授权、付费生成或打包发布，本轮只提交不 push。Nowledge 定向检索 14242 连接拒绝，未同步。
+
 - 2026-10-28（电脑控制提交前平台门禁核对）：提交范围限定本轮电脑控制、Driver安装与页面布局，其他任务改动按差异块保留。发现Agent入口仍残留仅macOS判断，已把真实平台统一传入工具注册资格判定，允许darwin/win32、拒绝linux，后台/委派等来源限制继续生效；新增三平台BDD回归先失败后通过，最终76项/269断言通过。Windows仍未做真实桌面输入验收；Nowledge定向检索14242连接拒绝。
 
 - 2026-10-28（电脑控制设置页视觉统一）：按其他设置页移除组件内部二次限宽与p-6留白，复用SettingsSection/Card/Row及主题变量，分为控制开关、Cua Driver、系统权限、当前操作；安装/检测/路径选择就近排列，权限拆行显示，官方说明降为辅助链接，长路径与窄窗口换行。仅安装按钮显示阶段文案，冲突按钮保留名称并禁用；沿用现有IPC/状态订阅与独立停止，不新增后台请求或依赖。6项/25断言与带真实Tailwind主题的隔离Electron UI回归通过，覆盖深浅色、480px窄窗、Windows术语、失败重试和停止；全仓typecheck仍仅有既有Vault分页40/41行错误。预览图在/private/tmp/dutydeck-computer-use-layout-20261028，均为模拟状态，不代表实际安装成功；未打包发布。Nowledge定向检索14242连接拒绝，未同步。
 
 - 2026-10-28（Cua Driver 用户点击安装/更新）：设置页已接通固定官方0.38.0安装入口，展示下载/安装/核验及失败重试；脚本经固定SHA-256与512KiB硬限验证，沿用应用代理，Windows后续下载仍使用系统网络。升级前撤销并等待本应用桌面运行退出，安装期间拒绝路径/权限/Agent调用交错；完成后重新检测标准目录的真实版本并原子保存路径，不自动启用电脑控制或授予权限。Windows优先官方LOCALAPPDATA/Programs/Cua/cua-driver/bin目录，禁用自动启动与PATH修改。应用退出取消下载和安装进程树，等待清理后再退出，页面切换保留进度；版本核验迟到结果不能写配置或误报成功。73项/262断言、独立Electron界面smoke、main/preload/renderer隔离构建与退出专项复核通过；全仓typecheck仅剩既有Vault分页40/41行cursor.offset错误。本轮未执行真实安装、Windows未实机验证，未打包发布；本机仍为上轮0.17.0。Nowledge定向检索14242连接拒绝，未同步。
+
+- 2026-10-28（影像多作品目标与文本交付）：用户“国风”会话本轮已正确读取《妖巷》，但仅输出聊天剧本，未调用 begin_job/propose/adopt，不能归因为已写错作品。可见工作台的默认作品现按 session 发布，普通消息冻结作品 ID，加载/后台刷新期间保留身份；显式对象引用优先。自动来源标记 current-view，执行时重读该作品最新版本，正文明确其他作品/新建时优先正文；显式引用仍严格版本校验，自动上下文不预开整作品媒体范围。新增本轮交付核验：written 必须有真实正式写入回执，候选/只读/受阻分别声明；无 job 的文字交付也会触发核查，文本 job 续行不再误导生成影片。292项关联回归、最终28项/108断言、真实临时存储双作品候选采用链与隔离Electron UI smoke通过；全仓typecheck仅剩既有Vault分页40/41行错误。Dev 5174返回200且主进程watch产物含新工具；未请求真实模型/媒体、未补写用户已有聊天稿、未提交发布。Nowledge定向检索14242连接拒绝，未同步。
+
+- 2026-10-28（单预览改动Dev验看）：按用户要求以`bun run dev`启动开发版；5174返回200，原生Electron窗口实读URL为127.0.0.1:5174，已在“大胤刑警影像创作→剪辑成片”确认“正式时间线/待审声画”切换且默认仅正式预演。启动日志位于`/private/tmp/dutydeck-dev-20261028-preview.log`；既有LAN Bridge 29889占用仍存在。Nowledge定向检索连接拒绝。
+
+- 2026-10-28（剪辑页单预览区域）：用户指出剪辑页同时出现两个视频影响使用；正式时间线片段预演与待审声画产物改为同一区域切换，默认正式时间线，后台任务刷新不抢占选择，切集重置。保留待审范围、非正式标识、生成状态和失败信息；未选来源不挂载或读取媒体，切换及隐藏停止旧播放，不改变候选采用、精剪或导出合同。9项相关测试与隔离Electron完整工作台回归通过，回归使用临时合成视频、只读模拟IPC，不接触真实作品；全仓typecheck仅报既有Vault分页40/41行cursor.offset可空错误。当前实读窗口加载/Applications下安装版，仍为旧双预览，未打包或发布；Nowledge定向检索14242连接拒绝，未同步。
+
+- 2026-10-28（iCloud库调研保存失败，只读诊断）：截图会话 `74fc24c1-0635-4eeb-b7b4-18393242010b` 的运行 `:3:1793156215916` 于10:56–15:41执行；Pi 原始文件 `sdk-config/sessions/2026-10-26T15-19-54-420Z_01a178cb-f334-72df-bf9a-708da9b068db.jsonl` 末条明确 `ENOSPC: no space left on device, write`，此前Swift测试同时报Cocoa640/POSIX28。历史df仅余346MiB，删除构建缓存后591MiB，重跑后再次失败；本轮df约3.8GiB。Journal有291条assistant、395组工具开始/结果，但本轮展示JSONL仅用户输入及通用保存错误、无终态；不能据此认定工具未执行或Pi原始历史丢失。展示按整轮批量保存、底层异常统一为“追加 SDKMessage 失败”、Journal终态未落盘使旧告警在切换/重启后重复出现。21项恢复/Journal测试通过；未修改业务代码、清理磁盘、续接、放弃或改写真实会话。仅更新本条记忆；Nowledge定向搜索14242连接拒绝。
 
 - 2026-10-28（Cua Driver 升级尝试）：用户授权升级独立 Cua Driver；官方检查确认 0.38.0 可用，但 `cua-driver update --apply` 与官方安装脚本下载 GitHub 发布包均因本机到 `github.com:443` 连接超时而未完成。清理了失败安装留下的陈旧锁和临时目录；本机仍为 `cua-driver 0.17.0`，`doctor --json` 正常。待网络可达后再用官方安装器重试，不能宣称已升级。
 
@@ -14,17 +24,36 @@
 
 - 2026-10-28（电脑控制第一阶段已实施）：普通用户 Pi 主会话新增专用桌面工具、设置页、最近观察预览与独立紧急停止，默认关闭且首期 macOS 后台语义控件；观察与动作使用不可白名单化的逐次审批。租约仅本应用主进程互斥，不隔离其他客户端或既有 Bash/MCP；停止先撤权并等待调用退出，不能回滚已交给 OS 的输入。配置走中央数据根；首次实际工具才惰性检测 Driver。Cua 0.38 的 get_window_state 必须显式 tree_format=elements；模型工具 schema 需 object 根，否则 Pi Anthropic 转换会丢失顶层 union 参数。预览缓存仅内存，交给模型的图像/控件文字随既有 Pi 会话历史保存。43 项功能/184断言、55项关联权限/251断言、三供应商离线 payload、假 Driver 子进程集成、独立 Electron UI smoke 与临时目录构建通过；高并发验证曾一次集成超时，隔离及完整复跑通过，未提高超时或重试动作。全仓 typecheck 仅剩既有 Vault 分页40/41行错误，编排另有既有媒体文案断言1项失败。本机 Driver 0.17.0 未升级，真实桌面/系统权限未验收；视频流、OCR、App经验仍为后续。计划在 docs/superpowers/plans/2026-10-28-computer-use.md；Nowledge 14242 连接拒绝，未同步。
 
+- 2026-10-28（Windows 安装更新方式）：DutyDeck Windows 使用 NSIS 安装器，`oneClick=false` 且允许选择安装目录；运行新 `.exe` 会显示旧版本/安装位置摘要并覆盖安装，保留 `D:\proma-data\.proma` 等业务数据。electron-updater 检查 GitHub Release；仅存在于 Actions artifact 的包不会自动出现在更新检查中，需手动运行安装包，或发布 Release 资产与更新元数据后走应用内更新。
+
 - 2026-10-28（Proma Computer Use 专项，只读）：0.21.45 安装包的实际桌面执行依赖外部 Cua Driver，随包 `cua-driver-cli` Skill 通过现有 Bash/PowerShell 或已有 MCP 调用；Proma 提供独立配置/升级会话、计算器 6×7 验收、ComputerUsePreview 与 macOS Apple Vision OCR。用户预览与模型观察分离，原生流限制 960×960/10fps、隐藏停轨道、失败回退截图；Driver 与 Proma 屏幕录制授权需分别验证。发送前确认、后台操作及单一桌面控制流主要是 Skill 约定，已读宿主入口未见 Cua 业务语义专用审批或全桌面执行互斥，不能宣称硬保证。DutyDeck 定向检索未见同等专用链路；建议先 Driver/能力状态/宿主执行边界，再配置预览，最后 OCR/App 经验，遵循中央数据根与 Pi runtime。完整报告与 renderer 原片段在 `/private/tmp/proma-computer-use-analysis-20261028/`；未安装 Driver、未启动目标、未实测桌面控制、未修改业务代码。Nowledge 定向检索 127.0.0.1:14242 连接拒绝，未同步。
 
-- 2026-10-28（影像多作品目标与文本交付）：用户“国风”会话本轮已正确读取《妖巷》，但仅输出聊天剧本，未调用 begin_job/propose/adopt，不能归因为已写错作品。可见工作台的默认作品现按 session 发布，普通消息冻结作品 ID，加载/后台刷新期间保留身份；显式对象引用优先。自动来源标记 current-view，执行时重读该作品最新版本，正文明确其他作品/新建时优先正文；显式引用仍严格版本校验，自动上下文不预开整作品媒体范围。新增本轮交付核验：written 必须有真实正式写入回执，候选/只读/受阻分别声明；无 job 的文字交付也会触发核查，文本 job 续行不再误导生成影片。292项关联回归、最终28项/108断言、真实临时存储双作品候选采用链与隔离Electron UI smoke通过；全仓typecheck仅剩既有Vault分页40/41行错误。Dev 5174返回200且主进程watch产物含新工具；未请求真实模型/媒体、未补写用户已有聊天稿、未提交发布。Nowledge定向检索14242连接拒绝，未同步。
+- 2026-10-28（Windows 0.20.19 包已交付）：GitHub Actions run 40528914532 全部通过；下载并解压 `DutyDeck-0.20.19-windows-x64.exe`，本地 SHA-256 为 `f71502cf116984f0093ab33b5101a71cad831bbdff6faf83dd04c1b15f1e8fd8`，与 CI 随包校验文件一致。通过 UU 文件传输将安装包和 `.sha256` 发送到 `YUGUTOU-PC` 的 `D:\proma-data`，远端显示“已发送”；尚未在远端安装或复测。Nowledge 搜索因本机 127.0.0.1:14242 连接拒绝。
 
-- 2026-10-28（单预览改动Dev验看）：按用户要求以`bun run dev`启动开发版；5174返回200，原生Electron窗口实读URL为127.0.0.1:5174，已在“大胤刑警影像创作→剪辑成片”确认“正式时间线/待审声画”切换且默认仅正式预演。启动日志位于`/private/tmp/dutydeck-dev-20261028-preview.log`；既有LAN Bridge 29889占用仍存在。Nowledge定向检索连接拒绝。
+- 2026-10-27（Windows 修复包交付执行）：用户明确要求“直接发一个新的包”。本轮证实 gh 在沙箱内的“token invalid”是网络假象，联网执行身份有效；不能以该输出要求用户重新登录。从 ece00f37/v0.20.18 创建隔离工作树 `/Users/xutaoyu/.codex/worktrees/windows-visual-scope-fix/DutyDeck`，提交 `4b4a3e36`、分支 `codex/windows-visual-scope-0-20-19`，仅携带影像任务范围修复、回归、0.20.19 版本说明、Windows CI 回归/校验值及旧测试 @proma/shared→@dutydeck/shared 包名修正；39 项/957断言及独立 Kimi 2项/8断言通过，全仓 typecheck 通过。Windows CI `https://github.com/taokoplay/DutyDeck/actions/runs/40528914532` 正在构建，尚未产出或交付。补充纠正：UU 画面中“shotId 必填”只是模型聊天断言，不能作为运行时 schema 必填或版本身份的证据；真实 Pi schema 回归证明字段可选。
 
-- 2026-10-28（剪辑页单预览区域）：用户指出剪辑页同时出现两个视频影响使用；正式时间线片段预演与待审声画产物改为同一区域切换，默认正式时间线，后台任务刷新不抢占选择，切集重置。保留待审范围、非正式标识、生成状态和失败信息；未选来源不挂载或读取媒体，切换及隐藏停止旧播放，不改变候选采用、精剪或导出合同。9项相关测试与隔离Electron完整工作台回归通过，回归使用临时合成视频、只读模拟IPC，不接触真实作品；全仓typecheck仅报既有Vault分页40/41行cursor.offset可空错误。当前实读窗口加载/Applications下安装版，仍为旧双预览，未打包或发布；Nowledge定向检索14242连接拒绝，未同步。
+- 2026-10-27（影像任务失败的归因澄清）：旧 begin_job schema 的 `shotId` 本就可省略，与后端字段名及省略语义一致，不能称为前后端字段错位；缺口在整作品文本任务的范围说明与显式空值表达。统一执行提示只详细描述单镜视频 begin_job，未同样展开无镜头文本分支，存在诱导误用风险，但无原始失败参数，不能断言其为实际触发原因或 Skill 加载错误。上一轮 null 支持与错误指引属于已验证的契约补强，不能等同于 Windows 故障机根因闭环。
+
+- 2026-10-27（Windows 影像写入报错的任务范围修复）：用户截图及补充错误为 `VISUAL_PRODUCTION_INVALID: 对象身份无效`、`镜头不存在`，发生于 `visual_production_begin_job`；未取得原始工具入参，不能认定 Windows 文件系统故障根因。Agent 入口现明确整作品/整集任务省略 `shotId` 或传 `null`，仅在该入口把 null 转为省略；非法或不存在镜头仍拒绝并给出可执行纠正指引，不静默扩大任务范围，纯文本任务提示省略 mediaKind。真实存储候选采用链路与既有回归共104项/1182断言通过，Main/Agent runtime 隔离编译通过；全仓 typecheck 被本轮未修改的 Vault 分页 cursor.offset 可空错误阻断（40/41行）。未发布 Windows 安装包、未故障机复测。Nowledge 定向检索连接拒绝。
 
 - 2026-10-27（影像采用后的界面同步核对）：正式写入通过 access.onChanged→主窗口 CHANGED→VisualProductionWorkspace.load 刷新；只提交候选不会替换正式脚本或镜头。镜头视频采用后显示新正式媒体，但既有精剪 clip 绑定 mediaId/hash/outputVersion，需显式更新时间线，已导出文件需重新导出；不能承诺改脚本即自动替换所有下游界面内容。Nowledge 定向检索连接拒绝。
 
 - 2026-10-27（既有影像局部优化边界核对）：审查与优化按用户任务范围区分；单镜 job 有宿主硬校验，不能修改其他镜头或提交整集剧本，但自然语言“仅审查”及多镜目标集合尚不是独立强制权限。正式修改保留已采用媒体，镜头设定/资产变化以 needsUpdate 标记；当前仅改 episode.script 不会自动使其全部映射镜头或首尾帧/视频逐级失效，不能宣称已有完整依赖重建链。Nowledge 定向检索连接拒绝，结论以 execution/quality/creative 合同及 store 实现为据。
+
+- 2026-10-27（多 Agent 会话并发语义核查）：不同 Agent 会话可并发运行；`AgentOrchestrator.activeSessions` 按 sessionId 独立占用运行槽，`PiUtilityAdapter` 为每个活动会话创建独立 utility runtime，未发现全局 Agent 并发上限。同一会话禁止并行请求，普通后续消息进入队列或当前运行注入；多会话同时改同一工作区文件仍有内容冲突和资源竞争风险。当前主界面以单个 main BrowserWindow 承载多个会话/Tab，未核实为多主窗口模式。
+
+- 2026-10-27（影像创作与评审指引优化）：用户用《妖巷》评估后要求优化；完整创作指引由影像模块单次注入，脚本按钮仅携带本次任务清单。沿用 productionNotes/资产与镜头字段追踪需求、故事规则、角色知情范围、伏笔回收、时长预算和制作风险；保持题材中立。旧执行覆盖说明合并为唯一合同，动态提示只陈述实际工具与模式，保留授权、锁定、版本、证据及导出边界。系统侧静态提示约减少 11.9% 字符（非延迟实测）；最终 12 文件 116 项/1302 断言通过，主进程与 runtime 隔离编译成功，全仓 typecheck 仍被未改动 Vault cursor.offset 可空错误阻断。未验证 Dev 加载或真实模型创作效果，未改真实作品、生成媒体、提交或发布；Nowledge 定向检索因本机 14242 连接拒绝未同步。
+
+- 2026-10-27（Dev 按用户要求重启）：通过仓库 `bun run dev` 完整启动，Vite 5174 返回 HTTP 200，项目 Electron 新进程与原生窗口、历史和文件面板均已实读确认加载；本轮日志在 `/private/tmp/dutydeck-dev-20261027-restart.log`。正式版保持运行，LAN Bridge 29889 冲突仍存在；恢复的 FrameCraft 会话提示一个未完成运行，本轮未自动恢复或放弃。重启不等于修复前轮已定位的 Skill key 冲突；Nowledge 定向检索连接拒绝。
+
+- 2026-10-27（Dev 控制台错误诊断，仅查看）：通过项目内 Electron.app 的 DevTools 实读确认 `TurnSkillUsageSummary` 重复 key `media-models`（当前同条累计 16 次）；共享 `mergeSkillActivations` 按 slug/moduleId/moduleVersion/activationMode 保留来源，UI 仅按 slug 作 key，最小调用复现 2 条激活对应 1 个唯一 UI key。后续修复须对齐完整身份并保留模块来源，不能简单按 slug 删除条目。另见 Dev 日志 `/private/tmp/dutydeck-dev-20261026.log`：正式版 PID 95044 占用 TCP 29889，Dev LAN Bridge 每分钟自愈仍 EADDRINUSE；文件授权解析存在 ENOENT 请求，含普通文本 `running / preparing` 和缩略路径，需独立核对文件引用识别。仅完成诊断，未修业务代码、未重启或改真实配置；Nowledge 定向检索连接拒绝。
+
+- 2026-10-27（Agent 简介填写合同补齐）：界面改名不会改变模型填写方式；补齐整作品候选工具 draft.brief 的模型可见 schema description 和影像统一质量合同，要求简洁简介、分集剧本与镜头字段各司其职。保留旧长 brief 的兼容读取及有效约束，用户仅改简介时不自动迁移或重写其他正式内容；提示合同不等于真实模型效果验收；55 项相关测试通过，全仓类型检查仍受本轮未修改的 Vault 分页 cursor.offset 可空错误阻断，运行中 Dev 是否加载新代码未验证。
+
+- 2026-10-27（影像作品简介命名纠正）：用户明确项目页 brief 应称“作品简介”；统一项目展示、编辑设定、候选详情、脚本提示和校验错误的命名，保留既有 brief 字段与作品内容，不迁移数据。27 项定向测试通过；全仓类型检查受本轮未修改的 vault-directory-pagination.ts 第 40/41 行 cursor.offset 可空错误阻断，其余 9 个工作区通过。Nowledge Mem 定向检索因本机 14242 连接拒绝未同步。
+
+- 2026-10-27（Vault 异步目录分页已实施）：Vault 新增按目录读取的异步 `listDirectoryPage`，默认每页最多 256 条；cursor 绑定目录快照，目录变化或非法 cursor fail closed。初次打开只读取根目录第一页，展开文件夹才读取该目录，根目录可继续加载；旧 `listVaultFiles` 仍保留兼容，未加载深层双链时仅在用户点击失败目标后回退一次全量索引。新增共享类型、四层 IPC、分页/服务回归；5 项分页测试、共享 typecheck、Main/preload bundle、Renderer build 通过。全量 Electron tsc 仍不适合作为快速反馈（本轮超过 10 分钟无输出后停止），Renderer 实际构建已成功（缓存后约 37 秒）。
+
 
 - 2026-10-27（v0.20.17 发布准备）：应用与 bun.lock 版本已从 0.20.16 递增到 0.20.17，新增 release-notes/v0.20.17.md；发布合同测试 37 项/136 断言通过，validate-release-version 输出与 v0.20.17 一致。隔离临时仓库布局完成 macOS arm64 Electron Builder `--dir` 打包（未签名），安装包冒烟确认版本 0.20.17、Electron 43.3.0、Pi 1.4.0、原生 helpers、CLI 和 mobile-dist 均存在且可加载。远端最新正式标签为 v0.20.16，v0.20.17 尚不存在；待推送当前分支与 tag 触发 GitHub Actions Release。Nowledge 定向检索因 127.0.0.1:14242 连接拒绝未同步。
 
@@ -2435,3 +2464,10 @@
 
 - 2026-10-27（影像模块迭代的用户边界与原生审片闭环）：用户明确要在 DutyDeck Dev 原会话通过 Agent 调试并改进影像模块，不能用外部脚本合成影片或 localhost 审片页替代模块能力。新增原生待审声画预览：冻结作品/时间线版本、候选身份及源 hash，在作品库登记真实编码产物并在剪辑页播放；预览与正式导出分开，未采用或审核失败候选可用于诊断，但不放宽正式采用门禁。真实 Dev 原会话 cdc399d9-8905-46fb-9b15-b5d1be2fcf23 已通过对话仅调用一次预览，job cde81e81-2c7d-4748-8a56-89b60f5ca764 completed；10.5 秒、720×1280、24fps、H.264/AAC 产物 hash a5d48a7615a48a3aa651988e30828aaf611bec574129bd53ecdf066806506c81 经完整解码、非静音与 hash/字节数验证，Dev 内显示绑腕候选且播放到终点。正式作品 v38、时间线 v2 与基线内容一致，三个候选仍 ready；本轮无新增云端生成。
 - 2026-10-27（原生预览验证与未闭合能力）：定向 12 文件 186 项测试/1487 断言、全仓 typecheck、renderer build 通过；修复正式片段预演忽略 sourceIn/sourceOut，精确的预览/导出 RPC 改跟随运行生命周期等待。取消等待不保证立即终止 FFmpeg。候选声音目前从镜头起点进入，尚未读取脚本自定义入点；静帧不自动实现黑场、睁眼、虚焦渐清或真实 POV 动态，环境声/音效及连续听验仍缺，不能把非静音声轨或预览播放成功视为影片验收。Agent 质量合同已覆盖剧本、动作/连续性、声音分类、授权账本、证据审查与定向修正；仅提示词不构成效果已实现。长历史整理实测仍慢。Nowledge 定向检索因 127.0.0.1:14242 连接拒绝未同步；未提交或发布。
+- 2026-10-27（LibTV 官方接入与早期判断纠正）：用户明确要求接入 `https://github.com/liblib-ai/marketplace.git`。官方 `plugins/libtv/.mcp.json` 提供 Remote MCP `https://mcp.liblib.tv/mcp`，已纠正此前仅加功能更新网页按钮的方案；不能再把“未找到 REST API”等同于“没有可执行生成能力”。复用现有 Pi MCP 与加密 OAuth，在当前工作区通过 Agent 使用，认证后动态发现工具参数；不虚构固定模型/任务协议，不加入统一模型选择器。远端生成结果在实际导入前不视为 DutyDeck 作品或画布资产，也不绕过作品审核门禁。已完成定向回归、模拟 OAuth 全流程、本地 Dev 页面及三进程构建验证，尚未进行真实账号授权或收费生成；全仓类型检查仅被既有 Vault 分页可空类型错误阻断。Nowledge 定向检索因本机 `127.0.0.1:14242` 连接拒绝未同步。
+
+- 2026-10-27（Windows《妖巷》故障日志取证与字段对齐）：通过 UU 文件传输取回 `D:\proma-data\.proma\agent-sessions\97016eee-5029-444a-bfb3-fe111d2da01d.jsonl`，确认故障不是 Windows 文件写入权限：作品 `26608999-32b8-451f-841f-06430733dd22` 当时 0 个镜头，模型对 `visual_production_begin_job` 反复传 `shotId` 为 `/`、空格、`all`、集 ID、`shot-01` 等，分别触发 `VISUAL_PRODUCTION_INVALID: 对象身份无效` 或 `镜头不存在`。真实 provider 为 `openai-responses/gpt-6.1-sol`；本地 Pi 1.4.0 Responses 转换器默认 `strict=false` 且保留 Optional，不会把 shotId 强制为必填。根因是整集文本合同缺少显式分支，加上 Agent schema 的通用 id 比 shared 内部 ID 规则宽，模型被允许尝试错误占位符；未发现 Windows 文件系统根因。已在工作树补强：内部 ID pattern、外部 connection/media asset 独立 schema、整集文本合同及 null 归一化；新增真实服务回归与 Responses schema 回归 5 项，相关测试通过。Windows 旧安装包尚未加载新版本复测。
+
+- 2026-10-27（Windows 复测与打包阻塞）：本地 `electron:build` 在将 Swift/Clang module cache 指向可写临时目录后完整退出 0；影像相关 30 项/948 断言通过。`dist:win` 已完成跨平台 JS、Renderer、CLI、原生 helper 和移动端构建，但 `bun install --os=win32 --cpu=x64` 受受限网络阻断，无法下载 6 个 Windows 依赖（@napi-rs/canvas、sharp、esbuild、rollup）；因此没有生成新 Windows 安装包。UU 远程画面仍运行旧版本，聊天中显示 `shotId` 为必填，尚未加载本轮修复。
+
+- 2026-10-27（知识库整理取消弹窗）：用户明确要求触发后直接让 Agent 整理，成功和失败均不弹窗；自动接管从进度组件移到知识库控制层，提案按项目/id/revision 去重，来源页收到提案也继续处理。进度仅页内按需展开，保留暂停、继续、局部重试及失败后查看正文仍可重试的恢复入口；不新增模型调用，沿用既有会话队列、宿主确认和文件版本保护。59 项相关测试/266 断言、隔离 Electron UI smoke、临时目录 Renderer 构建与 diff check 通过；全仓 typecheck 仍被本轮未改的 Vault 分页 cursor.offset 可空错误阻断。未调用真实模型整理、未发布；Nowledge 定向检索连接拒绝。

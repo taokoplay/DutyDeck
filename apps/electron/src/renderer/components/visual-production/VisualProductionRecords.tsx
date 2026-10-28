@@ -204,7 +204,7 @@ export function VisualProductionRecords({ sessionId, snapshot, paneActive, busy,
           <div className="vp-row"><Button variant="ghost" size="sm" onClick={backToRecords}><ChevronLeft size={14} />返回记录</Button><span className="vp-badge">{CANDIDATE_LABELS[candidate.status]}</span></div>
           <p className="vp-summary">{candidate.summary}</p>
           {!candidateShotId && <>
-            <section className="vp-card"><h3>作品设定</h3><p>{candidate.draft.title} · {VISUAL_KIND_LABELS[candidate.draft.kind]} · {candidate.draft.ratio} · {candidate.draft.fps} fps</p><p className="vp-summary">{candidate.draft.brief || '未填写作品目标'}</p><p className="vp-muted">配音：{candidate.draft.voice || '未设置'} · 音乐：{candidate.draft.music || '未设置'}</p></section>
+            <section className="vp-card"><h3>作品设定</h3><p>{candidate.draft.title} · {VISUAL_KIND_LABELS[candidate.draft.kind]} · {candidate.draft.ratio} · {candidate.draft.fps} fps</p><p className="vp-summary">{candidate.draft.brief || '未填写作品简介'}</p><p className="vp-muted">配音：{candidate.draft.voice || '未设置'} · 音乐：{candidate.draft.music || '未设置'}</p></section>
             <section className="vp-card"><h3>集数（{candidate.draft.episodes.length}）</h3>{candidate.draft.episodes.map(item => <p key={item.id}>{item.title}</p>)}</section>
             {candidate.draft.episodes.some(item => item.script) && <section className="vp-card"><h3>结构化剧本</h3>{candidate.draft.episodes.filter(item => item.script).map(item => <div key={item.id} className="vp-card">
               <strong>{item.title}</strong><p className="vp-summary">{item.script!.logline || '未填写一句话故事'}</p>

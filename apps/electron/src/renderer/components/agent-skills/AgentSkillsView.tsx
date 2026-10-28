@@ -10,6 +10,7 @@
  */
 
 import * as React from 'react'
+import { createLibTvMcpEntry, isLibTvMcpEntry, LIBTV_MCP_SERVER_NAME, LIBTV_MCP_URL } from '@dutydeck/shared'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { toast } from 'sonner'
 import { Blocks, ChevronDown, ChevronRight, Search, Plus, Store, FolderOpen, Check, Sparkles, Loader2 } from 'lucide-react'
@@ -114,6 +115,10 @@ export function AgentSkillsView({
   sessionId,
 }: { embedded?: boolean; componentTab?: 'skills' | 'mcp'; workspaceId?: string; sessionId?: string } = {}): React.ReactElement {
   const data = useAgentSkillsData(workspaceId)
+  /** LibTV 授权完成前切换工作区或卸载时，禁止继续启用旧工作区连接。 */
+  const libTvScopeRef = React.useRef({ slug: data.workspaceSlug })
+  if (libTvScopeRef.current.slug !== data.workspaceSlug) libTvScopeRef.current = { slug: data.workspaceSlug }
+  React.useEffect(() => () => { libTvScopeRef.current = { slug: '' } }, [])
   const bumpCapabilities = useSetAtom(workspaceCapabilitiesVersionAtom)
   const store = useStore()
   const setDrafts = useSetAtom(agentSessionDraftsAtom)
@@ -305,6 +310,9 @@ export function AgentSkillsView({
 
   const installCatalogMcp = React.useCallback(async (integration: CatalogMcpIntegration): Promise<void> => {
     if (installingCatalogMcpId) return
+    /** 作用域对象身份也区分 A → B → A 的返回，旧请求不得恢复。 */
+    const libTvScope = libTvScopeRef.current
+    const isCurrentLibTvScope = (): boolean => integration.serverName !== LIBTV_MCP_SERVER_NAME || libTvScopeRef.current === libTvScope
     if (integration.authentication !== 'none' && !integration.oauthProvider) {
       await guideCatalogMcp(integration)
       return
@@ -312,19 +320,29 @@ export function AgentSkillsView({
     if (integration.authentication === 'oauth' && integration.oauthProvider && integration.entry.url) {
       setInstallingCatalogMcpId(integration.id)
       try {
-        const existing = data.mcpConfig.servers[integration.serverName]
+        /** LibTV 连接必须读取当前配置并验证官方身份，不能沿用同名第三方地址。 */
+        const currentConfig = integration.serverName === LIBTV_MCP_SERVER_NAME
+          ? await window.electronAPI.getWorkspaceMcpConfig(data.workspaceSlug)
+          : data.mcpConfig
+        if (!isCurrentLibTvScope()) return
+        const existing = currentConfig.servers[integration.serverName]
+        if (integration.serverName === LIBTV_MCP_SERVER_NAME && existing && !isLibTvMcpEntry(existing)) {
+          throw new Error('存在同名非官方 LibTV 配置，请在 MCP 管理中处理；不会覆盖已有服务。')
+        }
         if (!existing) {
           const installed = await data.installMcp(integration.serverName, integration.entry)
-          if (!installed) return
+          if (!installed || !isCurrentLibTvScope()) return
         }
-        /** 以安装后的当前配置为准，避免目录模板覆盖用户后续修订。 */
-        const configuredEntry = data.mcpConfig.servers[integration.serverName]
+        /** 以主进程读取的配置为准，避免目录模板覆盖用户后续修订。 */
+        const configuredEntry = existing
         const serverUrl = configuredEntry?.type === 'http' || configuredEntry?.type === 'sse'
           ? configuredEntry.url
           : integration.entry.url
         if (!serverUrl) throw new Error('当前 MCP 缺少可授权的远程地址')
-        /** OAuth 元数据优先使用工作区当前值。 */
-        const oauth = configuredEntry?.oauth ?? integration.entry.oauth
+        /** LibTV 固定使用官方 OAuth 元数据，其他目录保留工作区配置。 */
+        const oauth = integration.serverName === LIBTV_MCP_SERVER_NAME
+          ? createLibTvMcpEntry().oauth
+          : configuredEntry?.oauth ?? integration.entry.oauth
         if (oauth && !oauth.clientId && !oauth.registrationEndpoint) {
           throw new Error('OAuth 配置缺少公开 clientId 或 registrationEndpoint；请让 Agent 根据官方文档补全后再授权')
         }
@@ -349,7 +367,10 @@ export function AgentSkillsView({
           serverUrl,
           ...(oauth ? { oauth } : {}),
         })
-        const verification = await data.toggleMcp(integration.serverName, true)
+        if (!isCurrentLibTvScope()) return
+        const verification = await data.toggleMcp(integration.serverName, true,
+          integration.serverName === LIBTV_MCP_SERVER_NAME ? { expectedTarget: { type: 'http', url: LIBTV_MCP_URL } } : undefined)
+        if (!isCurrentLibTvScope()) return
         if (!verification.success) {
           throw new Error(verification.message || 'MCP 握手或工具发现失败，请检查授权后重试')
         }
@@ -384,6 +405,16 @@ export function AgentSkillsView({
   /** 对任意含公开 OAuth 元数据的远程 MCP 发起用户显式授权。 */
   const authorizeMcp = React.useCallback(async (name: string, entry: McpServerEntry): Promise<void> => {
     if (installingCatalogMcpId) return
+    /** 授权操作绑定发起时的工作区。 */
+    const libTvScope = libTvScopeRef.current
+    /** LibTV 不信任同名服务携带的第三方 OAuth 元数据。 */
+    if (name === LIBTV_MCP_SERVER_NAME) {
+      if (!isLibTvMcpEntry(entry)) {
+        toast.error('LibTV 配置冲突', { description: '同名服务不是官方连接，请先在 MCP 管理中处理。' })
+        return
+      }
+      entry = { ...entry, oauth: createLibTvMcpEntry().oauth }
+    }
     if ((entry.type !== 'http' && entry.type !== 'sse') || !entry.url || !entry.oauth) {
       toast.error('当前 MCP 没有可用的 OAuth 配置')
       return
@@ -411,8 +442,10 @@ export function AgentSkillsView({
         serverUrl: entry.url,
         oauth: entry.oauth,
       })
+      if (name === LIBTV_MCP_SERVER_NAME && libTvScopeRef.current !== libTvScope) return
       /** 授权成功后执行真实握手和工具发现，失败仍保持关闭。 */
-      const verification = await data.toggleMcp(name, true)
+      const verification = await data.toggleMcp(name, true,
+        name === LIBTV_MCP_SERVER_NAME ? { expectedTarget: { type: 'http', url: LIBTV_MCP_URL } } : undefined)
       if (!verification.success) throw new Error(verification.message || 'OAuth 已完成，但 MCP 握手或工具发现失败')
       toast.success(`${name} 已完成授权`, { description: 'OAuth token 已安全保存，并已通过真实连接验证。' })
     } catch (error) {

@@ -217,3 +217,34 @@ describe('工作区 MCP 配置服务', () => {
     ])
   })
 })
+
+describe('已有 MCP 工具超时的配置保留', () => {
+  test.each([false, true])('Given LibTV 已配置 1200 秒 When Agent 省略超时并设置 replaceExisting=%s Then 普通更新与显式替换均保留调用上限', async (replaceExisting) => {
+    workspaceConfigs.set('project-a', {
+      servers: { libtv: { type: 'http', url: 'https://example.test/mcp', enabled: true, toolTimeout: 1200 } },
+    })
+    /** 记录验证阶段拿到的真实条目，确保保存前后的调用配置一致。 */
+    let validatedTimeout: number | undefined
+    validationImplementation = async (name, entry) => {
+      validatedTimeout = entry.toolTimeout
+      return { name, valid: true }
+    }
+    const result = await configureWorkspaceMcp('project-a', {
+      name: 'libtv', type: 'http', url: 'https://example.test/mcp', replaceExisting,
+    })
+    expect(result.availableNextRun).toBe(true)
+    expect(validatedTimeout).toBe(1200)
+    expect(savedConfigs).toHaveLength(2)
+    expect(savedConfigs.map((config) => config.servers.libtv?.toolTimeout)).toEqual([1200, 1200])
+  })
+
+  test('Given 已有工具超时 When 明确配置新值并确认替换 Then 使用新值而非强制保留旧值', async () => {
+    workspaceConfigs.set('project-a', {
+      servers: { libtv: { type: 'http', url: 'https://example.test/mcp', enabled: true, toolTimeout: 1200 } },
+    })
+    await configureWorkspaceMcp('project-a', {
+      name: 'libtv', type: 'http', url: 'https://example.test/mcp', toolTimeout: 300, replaceExisting: true,
+    })
+    expect(workspaceConfigs.get('project-a')?.servers.libtv?.toolTimeout).toBe(300)
+  })
+})

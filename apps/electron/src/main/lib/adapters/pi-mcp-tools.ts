@@ -53,6 +53,8 @@ interface PiMcpServerConfig {
   env?: unknown
   url?: unknown
   headers?: unknown
+  /** 单次工具调用的秒级上限，与握手超时相互独立。 */
+  tool_timeout_sec?: unknown
   startup_timeout_sec?: unknown
   timeout?: unknown
   proxyUrl?: unknown
@@ -366,11 +368,22 @@ class PiMcpClientManager {
   }
 
   async callTool(serverName: string, config: PiMcpServerConfig, toolName: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<McpCallToolResult> {
+    /** 仅接受有界的秒数；损坏或手工编辑的配置回退 SDK 默认超时。 */
+    const seconds = config.tool_timeout_sec
+    const toolTimeoutMs = typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0 && seconds <= 1200
+      ? seconds * 1000
+      : undefined
     return this.executeWithSessionRecovery(serverName, config, signal, (connection) =>
       connection.client.callTool(
         { name: toolName, arguments: args },
         undefined,
-        { signal, timeout: DEFAULT_MCP_REQUEST_TIMEOUT_MS, resetTimeoutOnProgress: true },
+        {
+          signal,
+          timeout: toolTimeoutMs ?? DEFAULT_MCP_REQUEST_TIMEOUT_MS,
+          resetTimeoutOnProgress: true,
+          // 显式配置的上限不能被进度通知无限续期；未配置时保持原有行为。
+          ...(toolTimeoutMs !== undefined ? { maxTotalTimeout: toolTimeoutMs } : {}),
+        },
       ))
   }
 

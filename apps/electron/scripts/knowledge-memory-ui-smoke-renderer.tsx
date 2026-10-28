@@ -256,7 +256,14 @@ const knowledgeApi: ProjectKnowledgeApi = {
       truncated: false,
     }
   },
-  confirmProjectKnowledgePlan: async () => structuredClone(snapshot),
+  confirmProjectKnowledgePlan: async () => {
+    state.knowledgeCalls.push('confirm')
+    if (new URLSearchParams(location.search).has('confirm-error') && state.knowledgeCalls.filter((call) => call === 'confirm').length === 1) throw new Error('fixture 范围提交失败')
+    snapshot.workflow!.approved = { ...snapshot.workflow!.proposal!, confirmedAt: 3 }
+    snapshot.workflow!.proposal = undefined
+    snapshot.revision += 1
+    return structuredClone(snapshot)
+  },
   pauseProjectKnowledgeWorkflow: async (input) => {
     snapshot.workflow!.paused = input.paused
     snapshot.revision += 1
@@ -297,9 +304,13 @@ const knowledgeApi: ProjectKnowledgeApi = {
 
 /** 创建失败场景仍走首次规划入口，不把已批准生成错误地退回 prompt。 */
 if (new URLSearchParams(location.search).has('session-error') || new URLSearchParams(location.search).get('case') === 'planning') {
+  snapshot.workflow = { paused: false }
+}
+
+/** 自动接管场景预置真实形状的待审提案，其余资料保留内存夹具。 */
+if (new URLSearchParams(location.search).get('case') === 'automatic') {
   snapshot.workflow!.proposal = structuredClone(snapshot.workflow!.approved!)
   snapshot.workflow!.approved = undefined
-  snapshot.workflow!.execution = undefined
 }
 
 /** 使用打开时正文作为 CAS 基线；不匹配时模拟真实主进程拒绝覆盖。 */
@@ -371,6 +382,12 @@ Object.defineProperty(window, '__knowledgeMemorySmoke', {
   configurable: true,
   value: {
     state,
+    /** 在来源页模拟 Agent 提交新版本，验证接管不依赖进度组件。 */
+    publishProposal: (): void => {
+      snapshot.workflow!.proposal = { ...snapshot.workflow!.approved!, revision: snapshot.workflow!.approved!.revision + 1 }
+      snapshot.revision += 1
+      for (const listener of knowledgeListeners) listener({ workspaceId: workspace.id })
+    },
     profilePath,
     initialProfile,
     /** 读取真实 Jotai 导航与投递状态，模拟 Agent 消费任务但不调用模型。 */

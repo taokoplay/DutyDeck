@@ -707,6 +707,7 @@ import { movePathSafely } from './lib/file-move-service'
 import { subscribeWorkspaceMemoryChanges } from './lib/workspace-memory-change-watcher'
 import { confirmWorkspaceMemoryWindowClose, markWorkspaceMemoryWindowReady } from './lib/workspace-memory-window'
 import { deleteMcpCredential, startMcpOAuth, saveMcpApiKey, saveMcpOAuthClientSecret } from './lib/mcp-oauth-service'
+import { assertMcpExpectedTarget } from './lib/mcp-expected-target'
 
 /**
  * 每次保存或刷新都会推进工作区代数，使较早的异步 MCP 刷新不能回写较新的配置。
@@ -1859,6 +1860,7 @@ export function getMcpEntryFingerprint(entry: import('@dutydeck/shared').McpServ
     headers: sortedEntries(entry.headers),
     env: sortedEntries(entry.env),
     timeout: entry.timeout ?? null,
+    toolTimeout: entry.toolTimeout ?? null,
     enabled: entry.enabled,
     isBuiltin: entry.isBuiltin ?? false,
   }
@@ -6642,9 +6644,10 @@ export function registerIpcHandlers(): void {
   // generation, while fingerprint matching protects this entry's validation writeback.
   ipcMain.handle(
     AGENT_IPC_CHANNELS.SET_MCP_ENABLED_AND_VALIDATE,
-    async (_, workspaceSlug: string, name: string, enabled: boolean): Promise<import('@dutydeck/shared').McpConnectionMutationResult> => {
+    async (_, workspaceSlug: string, name: string, enabled: boolean, options?: import('@dutydeck/shared').McpConnectionMutationOptions): Promise<import('@dutydeck/shared').McpConnectionMutationResult> => {
       const current = getWorkspaceMcpConfig(workspaceSlug)
       const entry = current.servers[name]
+      assertMcpExpectedTarget(entry, options)
       if (!entry) throw new Error('找不到 MCP 配置')
 
       const entryWithoutTestResult = { ...entry }
@@ -10109,6 +10112,16 @@ export function registerIpcHandlers(): void {
 
 
   ipcMain.handle(VAULT_IPC_CHANNELS.LIST_FILES, async () => getConfiguredVaultFileSystem().listFiles())
+  ipcMain.handle(VAULT_IPC_CHANNELS.LIST_DIRECTORY, async (_, relativePath: unknown, request: unknown) => {
+    if (typeof relativePath !== 'string') throw new Error('Vault 文件夹路径无效')
+    const pageRequest = request && typeof request === 'object' ? request as { cursor?: unknown; limit?: unknown } : {}
+    if (pageRequest.cursor !== undefined && typeof pageRequest.cursor !== 'string') throw new Error('Vault cursor 无效')
+    if (pageRequest.limit !== undefined && typeof pageRequest.limit !== 'number') throw new Error('Vault 分页大小无效')
+    return getConfiguredVaultFileSystem().listDirectoryPage(relativePath, {
+      ...(pageRequest.cursor !== undefined ? { cursor: pageRequest.cursor } : {}),
+      ...(pageRequest.limit !== undefined ? { limit: pageRequest.limit } : {}),
+    })
+  })
 
   ipcMain.handle(VAULT_IPC_CHANNELS.READ_FILE, async (_, relativePath: unknown) => {
     if (typeof relativePath !== 'string') throw new Error('Vault relativePath 必填')

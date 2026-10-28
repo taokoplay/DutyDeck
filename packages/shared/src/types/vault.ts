@@ -41,6 +41,19 @@ export interface VaultFolderEntry {
 /** Entries used to build the Vault sidebar tree. */
 export type VaultTreeEntry = VaultFileEntry | VaultFolderEntry
 
+/** 单个 Vault 文件夹的分页读取请求；cursor 只由主进程生成。 */
+export interface VaultDirectoryPageRequest {
+  cursor?: string
+  limit?: number
+}
+
+/** 单个 Vault 文件夹的分页读取结果。 */
+export interface VaultDirectoryPage {
+  entries: VaultTreeEntry[]
+  nextCursor?: string
+  snapshot: string
+}
+
 /** A user-selected location in a Vault. Paths are always relative to its authorized root. */
 export interface VaultFocus {
   kind: 'file' | 'folder'
@@ -98,6 +111,7 @@ export const VAULT_IPC_CHANNELS = {
   SELECT: 'vault:select',
   AUTHORIZE_CANDIDATE: 'vault:authorize-candidate',
   LIST_FILES: 'vault:list-files',
+  LIST_DIRECTORY: 'vault:list-directory',
   READ_FILE: 'vault:read-file',
   RESOLVE_MEDIA: 'vault:resolve-media',
   SAVE_PASTED_IMAGE: 'vault:save-pasted-image',

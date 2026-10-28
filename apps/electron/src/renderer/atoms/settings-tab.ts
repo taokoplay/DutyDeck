@@ -16,7 +16,7 @@ import type { TabType } from './tab-atoms'
 /** `migration` 继续作为“路径与迁移”的稳定 id，避免已有导航状态失效。 */
 export type SettingsTab = 'computer-use' | 'general' | 'token-usage' | 'channels' | 'media' | 'vision-relay' | 'proxy' | 'appearance' | 'about' | 'onboarding' | 'prompts' | 'tools' | 'bots' | 'shortcuts' | 'voice-input' | 'migration' | 'storage' | 'plugins'
 export type ToolSettingsFocus = 'web-search' | 'nano-banana' | 'custom-tools'
-export type MediaSettingsFocus = 'image-models'
+export type MediaSettingsFocus = 'image-models' | 'libtv'
 export type ChannelSettingsFocus = MediaSettingsFocus
 
 /** 当前设置标签页（不持久化，每次打开设置默认显示渠道） */

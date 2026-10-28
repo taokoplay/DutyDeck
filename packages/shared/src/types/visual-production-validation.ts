@@ -235,7 +235,7 @@ export function parseVisualProductionDraft(value: unknown): VisualProductionDraf
     if (beat.shotIds.some(shotId => shotEpisodeIds.get(shotId) !== episode.id)) invalid('剧本节拍引用其他集或不存在的镜头')
   }
   /** 规范结果最后执行总量预算，不接受局部上限叠加后的无界作品。 */
-  const result: VisualProductionDraft = { title: string(draft.title, '作品名称', 120), kind: productionKind, brief: string(draft.brief, '作品目标', 16000, true), ratio: draft.ratio as string, fps: draft.fps as number, voice: string(draft.voice, '配音要求', 4000, true), music: string(draft.music, '音乐要求', 4000, true), episodes, assets, shots }
+  const result: VisualProductionDraft = { title: string(draft.title, '作品名称', 120), kind: productionKind, brief: string(draft.brief, '作品简介', 16000, true), ratio: draft.ratio as string, fps: draft.fps as number, voice: string(draft.voice, '配音要求', 4000, true), music: string(draft.music, '音乐要求', 4000, true), episodes, assets, shots }
   if (JSON.stringify(result).length > VISUAL_PRODUCTION_LIMITS.totalChars) invalid('作品总文本超出预算')
   return result
 }
