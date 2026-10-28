@@ -1,3 +1,4 @@
+import { ComputerUseSettings } from './ComputerUseSettings';
 /**
  * SettingsPanel - 设置面板
  *
@@ -89,6 +90,7 @@ const BASE_TABS: TabItem[] = [
   { id: "token-usage", label: "Token 统计", icon: <BarChart3 size={16} /> },
   { id: "media", label: "媒体生成", icon: <Images size={16} /> },
   { id: "vision-relay", label: "视觉助手", icon: <Eye size={16} /> },
+  { id: "computer-use", label: "电脑控制", icon: <Eye size={16} /> },
   { id: "prompts", label: "提示词管理", icon: <BookOpen size={16} /> },
   { id: "plugins", label: "插件管理", icon: <Puzzle size={16} /> },
   { id: "proxy", label: "代理设置", icon: <Globe size={16} /> },
@@ -131,6 +133,8 @@ const TAIL_TABS: TabItem[] = [
 /** 根据标签页 id 渲染对应内容 */
 function renderTabContent(tab: SettingsTab): React.ReactElement {
   switch (tab) {
+    case "computer-use":
+      return <ComputerUseSettings />;
     case "plugins":
       return <PluginCenter />;
     case "general":

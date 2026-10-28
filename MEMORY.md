@@ -1,5 +1,21 @@
 # MEMORY.md
 
+- 2026-10-28（电脑控制提交前平台门禁核对）：提交范围限定本轮电脑控制、Driver安装与页面布局，其他任务改动按差异块保留。发现Agent入口仍残留仅macOS判断，已把真实平台统一传入工具注册资格判定，允许darwin/win32、拒绝linux，后台/委派等来源限制继续生效；新增三平台BDD回归先失败后通过，最终76项/269断言通过。Windows仍未做真实桌面输入验收；Nowledge定向检索14242连接拒绝。
+
+- 2026-10-28（电脑控制设置页视觉统一）：按其他设置页移除组件内部二次限宽与p-6留白，复用SettingsSection/Card/Row及主题变量，分为控制开关、Cua Driver、系统权限、当前操作；安装/检测/路径选择就近排列，权限拆行显示，官方说明降为辅助链接，长路径与窄窗口换行。仅安装按钮显示阶段文案，冲突按钮保留名称并禁用；沿用现有IPC/状态订阅与独立停止，不新增后台请求或依赖。6项/25断言与带真实Tailwind主题的隔离Electron UI回归通过，覆盖深浅色、480px窄窗、Windows术语、失败重试和停止；全仓typecheck仍仅有既有Vault分页40/41行错误。预览图在/private/tmp/dutydeck-computer-use-layout-20261028，均为模拟状态，不代表实际安装成功；未打包发布。Nowledge定向检索14242连接拒绝，未同步。
+
+- 2026-10-28（Cua Driver 用户点击安装/更新）：设置页已接通固定官方0.38.0安装入口，展示下载/安装/核验及失败重试；脚本经固定SHA-256与512KiB硬限验证，沿用应用代理，Windows后续下载仍使用系统网络。升级前撤销并等待本应用桌面运行退出，安装期间拒绝路径/权限/Agent调用交错；完成后重新检测标准目录的真实版本并原子保存路径，不自动启用电脑控制或授予权限。Windows优先官方LOCALAPPDATA/Programs/Cua/cua-driver/bin目录，禁用自动启动与PATH修改。应用退出取消下载和安装进程树，等待清理后再退出，页面切换保留进度；版本核验迟到结果不能写配置或误报成功。73项/262断言、独立Electron界面smoke、main/preload/renderer隔离构建与退出专项复核通过；全仓typecheck仅剩既有Vault分页40/41行cursor.offset错误。本轮未执行真实安装、Windows未实机验证，未打包发布；本机仍为上轮0.17.0。Nowledge定向检索14242连接拒绝，未同步。
+
+- 2026-10-28（Cua Driver 升级尝试）：用户授权升级独立 Cua Driver；官方检查确认 0.38.0 可用，但 `cua-driver update --apply` 与官方安装脚本下载 GitHub 发布包均因本机到 `github.com:443` 连接超时而未完成。清理了失败安装留下的陈旧锁和临时目录；本机仍为 `cua-driver 0.17.0`，`doctor --json` 正常。待网络可达后再用官方安装器重试，不能宣称已升级。
+
+- 2026-10-28（电脑控制 Windows 协议层接入）：依据随 Proma 分发的 cua-driver-cli 规范，Driver 适配接受 `cua-driver.exe`，候选路径为用户 `.local\bin`、`LOCALAPPDATA\CuaDriver`、`Program Files\CuaDriver`；版本仍要求0.38.0+。Service/Agent/IPC/设置复用现有租约、逐次审批、UI Automation控件树和屏幕捕获，不新增原生注入；Windows UI 显示“UI Automation/屏幕捕获”，文件选择器过滤exe，模型提示同步支持Windows。58项/207断言、Electron UI smoke、main/renderer构建通过；全仓typecheck仍仅剩未修改Vault分页40/41行。没有Windows主机或exe，尚未验证真实UIA、UIPI/UAC、安全桌面、锁屏/远程桌面、后台输入和截图，不能宣称Windows端到端完成。Nowledge检索14242连接拒绝。
+
+- 2026-10-28（电脑控制权限预检完善）：仅用户主动点击时读取一个窗口的控件及320×320截图，页面/模型只接收状态摘要，临时图像结束即清理。窗口列表不等于辅助功能授权；无窗口/控件/预检能力保持unknown，截图通过须身份一致、非空捕获标识、有界PNG读取及完整解码。预检互斥并与活动控制隔离，换路径/关闭会取消，迟到结果不覆盖新状态，重检安装清旧证据；紧急停止保持独立。权限专项12项/23断言、全部电脑控制56项/210断言、独立Electron UI smoke及main/runtime/preload/renderer构建通过；全仓typecheck仅剩未修改的Vault分页40/41行cursor.offset可空错误。真实Driver复读仍0.17.0，未升级，系统权限与输入端到端未验；视频流/OCR/App经验仍未做。Nowledge定向检索14242连接拒绝，未同步。
+
+- 2026-10-28（电脑控制第一阶段已实施）：普通用户 Pi 主会话新增专用桌面工具、设置页、最近观察预览与独立紧急停止，默认关闭且首期 macOS 后台语义控件；观察与动作使用不可白名单化的逐次审批。租约仅本应用主进程互斥，不隔离其他客户端或既有 Bash/MCP；停止先撤权并等待调用退出，不能回滚已交给 OS 的输入。配置走中央数据根；首次实际工具才惰性检测 Driver。Cua 0.38 的 get_window_state 必须显式 tree_format=elements；模型工具 schema 需 object 根，否则 Pi Anthropic 转换会丢失顶层 union 参数。预览缓存仅内存，交给模型的图像/控件文字随既有 Pi 会话历史保存。43 项功能/184断言、55项关联权限/251断言、三供应商离线 payload、假 Driver 子进程集成、独立 Electron UI smoke 与临时目录构建通过；高并发验证曾一次集成超时，隔离及完整复跑通过，未提高超时或重试动作。全仓 typecheck 仅剩既有 Vault 分页40/41行错误，编排另有既有媒体文案断言1项失败。本机 Driver 0.17.0 未升级，真实桌面/系统权限未验收；视频流、OCR、App经验仍为后续。计划在 docs/superpowers/plans/2026-10-28-computer-use.md；Nowledge 14242 连接拒绝，未同步。
+
+- 2026-10-28（Proma Computer Use 专项，只读）：0.21.45 安装包的实际桌面执行依赖外部 Cua Driver，随包 `cua-driver-cli` Skill 通过现有 Bash/PowerShell 或已有 MCP 调用；Proma 提供独立配置/升级会话、计算器 6×7 验收、ComputerUsePreview 与 macOS Apple Vision OCR。用户预览与模型观察分离，原生流限制 960×960/10fps、隐藏停轨道、失败回退截图；Driver 与 Proma 屏幕录制授权需分别验证。发送前确认、后台操作及单一桌面控制流主要是 Skill 约定，已读宿主入口未见 Cua 业务语义专用审批或全桌面执行互斥，不能宣称硬保证。DutyDeck 定向检索未见同等专用链路；建议先 Driver/能力状态/宿主执行边界，再配置预览，最后 OCR/App 经验，遵循中央数据根与 Pi runtime。完整报告与 renderer 原片段在 `/private/tmp/proma-computer-use-analysis-20261028/`；未安装 Driver、未启动目标、未实测桌面控制、未修改业务代码。Nowledge 定向检索 127.0.0.1:14242 连接拒绝，未同步。
+
 - 2026-10-28（影像多作品目标与文本交付）：用户“国风”会话本轮已正确读取《妖巷》，但仅输出聊天剧本，未调用 begin_job/propose/adopt，不能归因为已写错作品。可见工作台的默认作品现按 session 发布，普通消息冻结作品 ID，加载/后台刷新期间保留身份；显式对象引用优先。自动来源标记 current-view，执行时重读该作品最新版本，正文明确其他作品/新建时优先正文；显式引用仍严格版本校验，自动上下文不预开整作品媒体范围。新增本轮交付核验：written 必须有真实正式写入回执，候选/只读/受阻分别声明；无 job 的文字交付也会触发核查，文本 job 续行不再误导生成影片。292项关联回归、最终28项/108断言、真实临时存储双作品候选采用链与隔离Electron UI smoke通过；全仓typecheck仅剩既有Vault分页40/41行错误。Dev 5174返回200且主进程watch产物含新工具；未请求真实模型/媒体、未补写用户已有聊天稿、未提交发布。Nowledge定向检索14242连接拒绝，未同步。
 
 - 2026-10-28（单预览改动Dev验看）：按用户要求以`bun run dev`启动开发版；5174返回200，原生Electron窗口实读URL为127.0.0.1:5174，已在“大胤刑警影像创作→剪辑成片”确认“正式时间线/待审声画”切换且默认仅正式预演。启动日志位于`/private/tmp/dutydeck-dev-20261028-preview.log`；既有LAN Bridge 29889占用仍存在。Nowledge定向检索连接拒绝。

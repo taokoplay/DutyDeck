@@ -116,6 +116,7 @@ for (const key of Object.keys(process.env)) {
 import { createApplicationMenu } from './menu'
 import { disposeAgentPluginHost, registerIpcHandlers, startAgentPluginHost } from './ipc'
 import { shutdownLocalModelRuntime } from './lib/local-model-runtime-singleton'
+import { shutdownComputerUse } from './lib/computer-use/runtime'
 import { startProjectKnowledgeObservation } from './lib/project-knowledge-observer'
 import { getDefaultDesignJobManager } from './lib/design/design-job-manager'
 import { createTray, destroyTray, getTray, setTrayFlash } from './tray'
@@ -1325,7 +1326,24 @@ if (!isSafeStorageMigrationHelper) {
     }
   })
 
-  app.on('before-quit', () => {
+  /** 取消安装时先保留主进程，避免独立安装进程在应用退出后继续写盘。 */
+  let computerUseShutdownStarted = false
+  /** 第二次退出事件跳过异步等待，继续既有服务清理。 */
+  let computerUseShutdownComplete = false
+  app.on('before-quit', event => {
+    if (!computerUseShutdownComplete) {
+      if (computerUseShutdownStarted) { event.preventDefault(); return }
+      /** 未使用过电脑控制时返回 null，不改变原有退出顺序。 */
+      const pending = shutdownComputerUse()
+      if (pending) {
+        event.preventDefault()
+        computerUseShutdownStarted = true
+        setQuitting()
+        void pending.catch(error => { console.error('[退出] 电脑控制清理失败:', error) }).finally(() => { computerUseShutdownComplete = true; app.quit() })
+        return
+      }
+      computerUseShutdownComplete = true
+    }
     /** 每项独立隔离，Design journal 故障不能跳过 Agent、浏览器或 watcher 释放。 */
     runShutdownCleanupSteps([
       { name: '退出状态', run: setQuitting },

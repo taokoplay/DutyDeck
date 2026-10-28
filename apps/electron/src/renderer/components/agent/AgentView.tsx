@@ -1,3 +1,4 @@
+import { ComputerUseStatus } from '../computer-use/ComputerUseStatus'
 import { currentVisualProductionReferenceAtomFamily, snapshotVisualProductionReferences, visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
 import { removeSentVisualProductionReferences, restoreVisualProductionReferences, visualProductionReferenceKey } from '@dutydeck/shared'
@@ -3416,6 +3417,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           hasChannel={Boolean(agentChannelId)}
           hasModel={hasAvailableModel}
         />
+        <ComputerUseStatus sessionId={sessionId} />
         <AgentModuleCommandReceipt sessionId={sessionId} />
         <AgentRunRecoveryNotice sessionId={sessionId} running={streaming || isStopping} />
 

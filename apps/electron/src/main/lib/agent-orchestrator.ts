@@ -3,6 +3,10 @@ import { createTokenUsageObserver } from './token-usage-observer'
 import { agentTokenUsageContext } from './token-usage-context'
 import { createAgentRunFileChanges } from './agent-run-file-changes-service'
 import { writeAgentRunFileChanges } from './agent-run-file-change-store'
+import { computerUseService } from './computer-use/runtime'
+import { buildComputerUseTools, COMPUTER_USE_PROMPT, isComputerUseRunEligible } from './computer-use/tools'
+import { createComputerUseApproval } from './computer-use/approval'
+import type { ComputerUseRun } from './computer-use/service'
 /**
  * AgentOrchestrator — Agent 编排层
  *
@@ -1420,6 +1424,8 @@ export class AgentOrchestrator {
     let activeModulePromptFragments: string[] = []
     /** 本轮独占本地推理资源，直到 adapter 完全收尾后再交给下一任务。 */
     let localModelLease: LocalModelLease | undefined
+    /** 本轮桌面租约只由主进程持有，finally 仅释放自己的实例。 */
+    let computerUseRun: ComputerUseRun | undefined
 
     try {
       console.log(`[Agent 编排] 启动 Pi runtime — 模型: ${modelId || DEFAULT_MODEL_ID}, resume: ${existingSdkSessionId ?? '无'}`)
@@ -1992,6 +1998,37 @@ export class AgentOrchestrator {
       const getPermissionMode = (): DutyDeckPermissionMode =>
         this.sessionPermissionModes.get(sessionId) ?? initialPermissionMode
 
+      /** 受限恢复、后台任务与内部子会话不得从普通工具汇总继承真实桌面能力。 */
+      const computerUseEligible = isComputerUseRunEligible({
+        platform: process.platform,
+        ordinary: Boolean(sessionMeta && isOrdinaryTopLevelAgentSession(sessionMeta)),
+        toolMode: runToolMode,
+        triggeredBy: input.triggeredBy,
+        restricted: Boolean(extensions.allowedToolNames && extensions.allowedToolNamesMode !== 'extend') || extensions.skillsMode === 'disabled' || Boolean(automationContext),
+        recovery: Boolean(extensions.piResumeContinuation),
+      })
+      /** 关闭状态与不支持的平台不注册桌面工具，也不探测或启动 Driver。 */
+      const computerUseTools = computerUseEligible && computerUseService.getSnapshot().config.enabled
+        ? (() => {
+            computerUseRun = computerUseService.createRun({ sessionId, signal: runIdentity.signal, assertActive: runIdentity.assertActive, getPermissionMode })
+            return buildComputerUseTools({
+              run: computerUseRun, signal: runIdentity.signal, assertActive: runIdentity.assertActive, getPermissionMode,
+              approve: createComputerUseApproval({
+                sessionId, service: permissionService, assertActive: runIdentity.assertActive, getPermissionMode,
+                publishRequested: request => {
+                  runIdentity.assertActive()
+                  recordPermissionRequested(request)
+                  this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_request', request } })
+                },
+                publishResolved: (requestId, behavior) => {
+                  recordPermissionResolved(requestId, behavior)
+                  this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'permission_resolved', requestId, behavior } })
+                },
+              }),
+            })
+          })()
+        : []
+
       // ExitPlanMode 拦截器：plan 模式下走 UI 审批流程
       const handleExitPlanMode = (toolInput: Record<string, unknown>, signal: AbortSignal): Promise<ExitPlanPermissionResult> => {
         return exitPlanService.handleExitPlanMode(
@@ -2139,6 +2176,13 @@ export class AgentOrchestrator {
           /** Design 上下文预检失败转为稳定 deny，禁止进入付费图片执行器。 */
           const message = error instanceof Error ? error.message : String(error)
           return { behavior: 'deny', message }
+        }
+
+        /** 桌面工具仍遵守运行次数和扩展守卫，单次审批则在真实 execute 内独立执行。 */
+        if (toolName.startsWith('ComputerUse')) {
+          return computerUseTools.some(tool => tool.name === toolName)
+            ? { behavior: 'allow', updatedInput: input }
+            : { behavior: 'deny', message: '当前运行没有电脑控制能力。' }
         }
 
         /** 知识写工具经过通用参数、次数和扩展守卫，计划模式不会隐式写入。 */
@@ -2667,6 +2711,7 @@ export class AgentOrchestrator {
       }) + (automationContext ? `\n\n## 定时任务执行上下文\n\n${automationContext}` : '')
       /** 单次可信运行场景放在通用规则之后，使专用会话覆盖普通入口分流语义。 */
       const systemPromptAppend = [baseSystemPrompt,
+        computerUseTools.length ? COMPUTER_USE_PROMPT : undefined,
         visualContextPrompt,
         activeModulePromptFragments.length > 0
           ? `<active_agent_modules>\n本轮消息已选择以下模块。模块提示只补充任务路由，宿主权限、项目指令和会话边界优先级更高。\n${activeModulePromptFragments.map((fragment) => `- ${fragment}`).join('\n')}\n模块激活：${activeModuleActivations.map((activation) => `${activation.moduleId} (${activation.mode})`).join(', ')}\n</active_agent_modules>`
@@ -2763,7 +2808,7 @@ export class AgentOrchestrator {
       }
       const assembledPiCustomTools = (runToolMode === 'server-ops-read' || runToolMode === 'server-ops-write'
         ? piBuiltinTools
-        : [...piBuiltinTools, ...piMcpTools, ...(extensions.piCustomTools ?? [])])
+        : [...piBuiltinTools, ...piMcpTools, ...computerUseTools, ...(extensions.piCustomTools ?? [])])
         .filter((tool) => !moduleToolPolicy.denyTool((tool as { name: string }).name))
       /** 媒体工具来自扩展集合，必须在最终汇总后绑定作品范围与执行上下文。 */
       const piCustomTools = visualProductionAccess && visualProductionRun
@@ -3582,6 +3627,9 @@ export class AgentOrchestrator {
       failRun(recoveryFailure, getAgentSessionMessages(sessionId), { startedAt: streamStartedAt })
 
     } finally {
+      /** 先撤销并等待本轮桌面调用，再释放运行槽；旧 run 不能清理下一轮租约。 */
+      try { await computerUseRun?.dispose() }
+      catch (error) { console.warn('[电脑控制] 本轮清理失败:', error instanceof Error ? error.message : '未知错误') }
       localModelLease?.release()
       await runFileChanges?.finish()
       /** 旧 run 收尾时若新 generation 已占槽，不得清理新运行的审批状态。 */

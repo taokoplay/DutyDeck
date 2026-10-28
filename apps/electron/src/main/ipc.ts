@@ -1,3 +1,5 @@
+import { registerComputerUseIpc } from './lib/computer-use/ipc'
+import { computerUseService } from './lib/computer-use/runtime'
 import { registerNetworkIpc, assertNetworkSender } from './lib/network-ipc'
 import { networkDiagnostics } from './lib/network-diagnostics'
 import { networkRecoveryService } from './lib/network-recovery-service'
@@ -2356,6 +2358,16 @@ export async function getAgentPluginHealth(): Promise<AgentPluginHealth[]> {
 }
 
 export function registerIpcHandlers(): void {
+  registerComputerUseIpc(ipcMain, computerUseService, getMainWindow, async () => {
+    /** 仅通过主窗口文件选择器获取 Driver 路径。 */
+    const owner = getMainWindow()
+    if (!owner || owner.isDestroyed()) throw new Error('主窗口已关闭')
+    const result = await dialog.showOpenDialog(owner, {
+      title: '选择 Cua Driver 可执行文件', properties: ['openFile'],
+      filters: process.platform === 'win32' ? [{ name: 'Cua Driver', extensions: ['exe'] }] : undefined,
+    })
+    return result.canceled ? null : result.filePaths[0] ?? null
+  })
   registerNetworkIpc(ipcMain, {
     assertSender: (event) => {
       /** 每次调用重新取得当前主窗口，拒绝附属窗口、旧窗口及子 frame。 */
