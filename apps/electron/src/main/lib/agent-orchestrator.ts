@@ -1676,7 +1676,8 @@ export class AgentOrchestrator {
         },
       }) : undefined
       if (visualProductionAccess) visualProductionRun = createVisualProductionRun(sessionId, visualProductionAccess,
-        createProductionVisualProductionAccess(sessionId, { canWrite: () => getPermissionMode() !== 'plan' }))
+        createProductionVisualProductionAccess(sessionId, { canWrite: () => getPermissionMode() !== 'plan' }),
+        (visualProductionReferences ?? []).map(reference => reference.productionId))
       /** 只有启用影像创作模块时才包装完成门禁；其他模块保留原回调实例。 */
       const visualReviewRun = visualProductionRun
       const completionEvaluation = visualReviewRun
@@ -1693,7 +1694,10 @@ export class AgentOrchestrator {
             const reviewMessage = buildVisualReviewStepContinuation(await visualReviewRun.pendingReviews())
             /** 先结束生成与取证，再分发失败修正；避免在仍有待审任务时消耗纠偏额度。 */
             const repairMessage = discoveryMessage || mediaMessage || reviewMessage ? null : buildVisualRepairStepContinuation(await visualReviewRun.takePendingRepairs())
-            const message = [discoveryMessage, mediaMessage, reviewMessage, repairMessage].filter(Boolean).join('\n\n')
+            /** 领域阶段结束后再核验交付；计划模式不强制进入保存流程。 */
+            const deliveryMessage = discoveryMessage || mediaMessage || reviewMessage || repairMessage || getPermissionMode() === 'plan'
+              ? null : visualReviewRun.pendingDelivery()
+            const message = [discoveryMessage, mediaMessage, reviewMessage, repairMessage, deliveryMessage].filter(Boolean).join('\n\n')
             return buildVisualCompletionEvaluation(message || null)
           }
         : extensions.evaluateCompletion
@@ -1839,6 +1843,7 @@ export class AgentOrchestrator {
         }) : []),
         ...(visualProductionAccess ? buildVisualProductionAgentTools({
           sessionId, sdk: piSdk, execute: (method, request, signal) => visualProductionRun!.execute(method, request, signal),
+          completeTask: request => visualProductionRun!.completeTask(request),
           assertAccess: (write) => {
             visualProductionAccess.assertCurrent()
             if (write && getPermissionMode() === 'plan') throw new Error('计划模式不能修改影像作品')

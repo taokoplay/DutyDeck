@@ -1,5 +1,5 @@
 import { mergeVisualProductionReferences, resolveVisualShotOutputs, withVisualShotOutput } from '@dutydeck/shared'
-import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
+import { currentVisualProductionReferenceAtomFamily, resolveCurrentVisualProductionReference, visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import * as React from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { ChevronLeft, ChevronRight, Film, FolderOpen, Plus, RefreshCw, ScrollText, Settings2, X } from 'lucide-react'
@@ -71,6 +71,12 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   const setPrompt = useSetAtom(agentPendingPromptAtom)
   /** 引用仅修改当前会话独立chip，不接触正文草稿。 */
   const setReferences = useSetAtom(visualProductionReferencesAtomFamily(sessionId))
+  /** 只发布当前会话可见的作品，不改动用户添加的对象引用。 */
+  const setCurrentReference = useSetAtom(currentVisualProductionReferenceAtomFamily(sessionId))
+  /** 快照来源包括项目和会话，防止相同作品 ID 掩盖旧会话快照。 */
+  const [snapshotContext, setSnapshotContext] = React.useState<string | null>(null)
+  /** 列表展示信息仅在当前项目与会话内复用，避免切会话时沿用旧标题。 */
+  const [summariesContext, setSummariesContext] = React.useState<string | null>(null)
   const [summaries, setSummaries] = React.useState<VisualProductionSummary[]>([])
   const [snapshot, setSnapshot] = React.useState<VisualProductionSnapshot | null>(null)
   const [directory, setDirectory] = React.useState(false)
@@ -136,6 +142,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
   latest.current = { busy, document, snapshot }
   const updateView = React.useCallback((patch: Partial<VisualProductionView>): void => { setViews(previous => ({ ...previous, [projectId]: { ...EMPTY_VIEW, ...previous[projectId], ...patch } })) }, [projectId, setViews])
   const accept = React.useCallback((next: VisualProductionSnapshot): void => {
+    setSnapshotContext(currentContext.current)
     setSnapshot(previous => previous?.document.id === next.document.id && previous.document.revision === next.document.revision ? { ...next, document: previous.document } : next)
     setSummaries(previous => {
       const summary: VisualProductionSummary = { id: next.document.id, title: next.document.title, kind: next.document.kind, revision: next.document.revision, episodeCount: next.document.episodes.length, assetCount: next.document.assets.length, shotCount: next.document.shots.length, updatedAt: next.document.updatedAt }
@@ -148,6 +155,7 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
     try {
       const next = await window.electronAPI.visualProduction.invoke('list', { sessionId })
       if (!listGate.current.accepts(ticket) || !currentContext.current.startsWith(`${identity}:`)) return
+      setSummariesContext(identity)
       setSummaries(next)
       if (!view.productionId && next[0]) updateView({ productionId: next[0].id })
     } catch (cause) { if (listGate.current.accepts(ticket)) setError(String(cause)) }
@@ -167,6 +175,18 @@ export function VisualProductionWorkspace({ projectId, sessionId, paneActive = t
     } catch (cause) { if (gate.current.accepts(ticket) && currentContext.current === target && scope.current.accepts(epoch)) setError(String(cause)) }
     finally { if (gate.current.accepts(ticket) && currentContext.current === target && scope.current.accepts(epoch)) setLoading(false) }
   }, [sessionId, view.productionId, accept])
+  /** 布局阶段同步选中身份；加载不清空目标，隐藏才撤销，正文与版本由宿主重读。 */
+  React.useLayoutEffect(() => {
+    /** 列表只按当前作用域的精确 ID 提供标题，不猜测第一项或匹配名称。 */
+    const summary = summariesContext === `${projectId}:${sessionId}` ? summaries.find(item => item.id === view.productionId) : undefined
+    const title = summary?.title ?? '正在加载作品'
+    const selected = view.productionId ? { workspaceId: projectId, productionId: view.productionId, productionRevision: summary?.revision ?? 1, target: { kind: 'production' as const }, title, productionTitle: title, source: 'current-view' as const } : null
+    const reference = resolveCurrentVisualProductionReference(paneActive, context, snapshotContext, document ? buildVisualReference(projectId, document) : null, selected)
+    if (!reference) return
+    setCurrentReference(reference)
+    /** 仅撤销本面板发布的快照，避免双面板隐藏时清掉另一可见面板。 */
+    return () => { setCurrentReference(current => current === reference ? null : current) }
+  }, [paneActive, context, snapshotContext, projectId, sessionId, view.productionId, summariesContext, summaries, document, setCurrentReference])
   React.useEffect(() => () => scope.current.invalidate(), [])
   React.useEffect(() => { void refreshList(); return () => { listGate.current.next() } }, [refreshList])
   React.useEffect(() => {

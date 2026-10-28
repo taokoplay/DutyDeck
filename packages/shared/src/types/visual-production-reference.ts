@@ -6,6 +6,8 @@ export interface VisualProductionReference {
   productionId: string
   /** 引用时的正式作品版本，发送时必须仍一致。 */
   productionRevision: number
+  /** 缺省为用户显式引用；工作台默认上下文固定作品身份，执行时解析最新版本。 */
+  source?: 'current-view'
   /** 明确目标；目标丢失不能降级为整部作品。 */
   target: { kind: 'production' } | { kind: 'shot'; shotId: string } | { kind: 'asset'; assetId: string }
   /** 对象展示名，宿主读取权威值覆盖。 */
@@ -31,12 +33,15 @@ export function parseVisualProductionReferences(value: unknown): VisualProductio
     if (!record.target || typeof record.target !== 'object' || Array.isArray(record.target)) throw new Error('影像引用目标无效。')
     /** 目标合同保持区分，不把无效子对象转换为作品。 */
     const target = record.target as Record<string, unknown>
+    /** 自动来源只表达整作品默认上下文，不能让旧镜头/资产引用跳过版本核验。 */
+    if (record.source !== undefined && (record.source !== 'current-view' || target.kind !== 'production')) throw new Error('影像上下文来源无效。')
     const targetId = target.kind === 'shot' ? target.shotId : target.assetId
     if (target.kind !== 'production' && (target.kind !== 'shot' && target.kind !== 'asset' || typeof targetId !== 'string' || !targetId.trim() || targetId.length > 1024 || /[\u0000-\u001f]/u.test(targetId))) throw new Error('影像引用目标无效。')
     return {
       workspaceId: text('workspaceId'), productionId: text('productionId'), productionRevision: record.productionRevision as number,
       target: target.kind === 'production' ? { kind: 'production' } : target.kind === 'shot' ? { kind: 'shot', shotId: targetId as string } : { kind: 'asset', assetId: targetId as string },
       title: text('title'), productionTitle: text('productionTitle'),
+      ...(record.source === 'current-view' ? { source: 'current-view' as const } : {}),
     }
   })
 }

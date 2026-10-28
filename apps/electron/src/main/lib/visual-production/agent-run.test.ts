@@ -16,6 +16,23 @@ function snapshot(candidate?: VisualCandidate): VisualProductionSnapshot {
 }
 
 describe('影像 Agent 审片步骤', () => {
+  test('Given 整集文本job无媒体范围 When 候选尚未提交 Then 继续文本保存而非要求生成影片', async () => {
+    const current = snapshot()
+    current.jobs = [{ id: 'job', sessionId: 'session', baseRevision: 2, instruction: '写入首集剧本和分镜', status: 'running', createdAt: 1 }]
+    const access: VisualProductionExecutor = { workspaceId: 'workspace', assertCurrent() {}, async execute<M extends VisualProductionMethod>(method: M): Promise<VisualProductionResults[M]> {
+      if (method === 'load') return current as VisualProductionResults[M]
+      if (method === 'beginJob') return current.jobs[0] as VisualProductionResults[M]
+      throw new Error(`unexpected ${method}`)
+    } }
+    const run = createVisualProductionRun('session', access, access)
+    await run.execute('beginJob', { sessionId: 'session', productionId: 'production', baseRevision: 2, instruction: '写入首集' })
+    const message = buildVisualMediaStepContinuation(await run.pendingMediaSteps())
+    expect(message).toContain('文本')
+    expect(message).toContain('visual_production_propose_script')
+    expect(message).toContain('visual_production_adopt_candidate')
+    expect(message).not.toContain('visual_production_propose_shot')
+    expect(message).not.toContain('导入全部输出')
+  })
   test('Given 初审纠偏媒体回流 When 转入新候选复审 Then 共用总额度并在第十二次后停止', async () => {
     /** 使用真实 Host 策略验证跨阶段，不以静态提示词检查代替调度。 */
     let count = 0

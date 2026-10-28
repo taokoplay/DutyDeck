@@ -20,6 +20,12 @@ function fixture() {
   return runtime
 }
 describe('影像首轮范围准备', () => {
+  test('Given 当前工作台默认作品 When 准备首轮 Then 不预开整作品视觉范围或加载媒体索引', async () => {
+    const result = await prepareVisualTaskContext(fixture(), 'r', [{ ...reference, source: 'current-view', target: { kind: 'production' } }])
+    expect(result.policy.initialContextId).toBeUndefined()
+    expect(result.policy.legacyMedia).toBeUndefined()
+    expect(result.prompt).toBe('')
+  })
   test('Given 单个明确引用 When 首次请求准备 Then绑定版本范围与可追溯旧图hash但不读图片', async () => {
     const result = await prepareVisualTaskContext(fixture(), 'r', [reference])
     expect(result.policy.initialContextId).toBe('scope-shot')

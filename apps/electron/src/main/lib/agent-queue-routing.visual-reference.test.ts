@@ -4,12 +4,23 @@ import type { WebContents } from 'electron'
 import { routeAgentSubmitOrEnqueue } from './agent-queue-routing'
 import { AgentQueueCoordinator } from './agent-queue-coordinator'
 import type { PreparedAgentQueueRun } from './agent-queue-coordinator'
+import { prepareVisualProductionReferences } from './visual-production/reference-preparation'
+import type { VisualProductionDocument } from '@dutydeck/shared'
 
 /** 引用在排队过程中固定版本。 */
 const reference: VisualProductionReference = { workspaceId: 'w', productionId: 'p', productionRevision: 3, target: { kind: 'shot', shotId: 's' }, title: '镜头', productionTitle: '作品' }
 /** 不访问真实会话或窗口的入队输入。 */
 const input: AgentDeferredQueueMessageInput = { sessionId: 's', queueMessageId: 'm', userMessage: '', channelId: 'c', visualProductionReferences: [reference] }
 describe('影像引用新运行队列边界', () => {
+  test('Given 当前作品普通消息排队 When 前轮采用增加revision Then 新运行保留原作品ID并读取最新正式版本', async () => {
+    const automatic: VisualProductionReference = { ...reference, source: 'current-view', target: { kind: 'production' } }
+    let queued: AgentDeferredQueueMessageInput | undefined
+    await routeAgentSubmitOrEnqueue({ ...input, visualProductionReferences: [automatic], dispatch: 'now' }, { isActive: () => true, prepareNow: () => { throw new Error('排队前不能固定新运行版本') }, injectPrepared: async () => { throw new Error('不能注入旧运行') }, enqueue: candidate => { queued = candidate }, onStaleActive() {} })
+    expect(queued?.visualProductionReferences).toEqual([automatic])
+    const document = { id: 'p', revision: 4, title: '最新作品', shots: [], assets: [] } as unknown as VisualProductionDocument
+    const prepared = await prepareVisualProductionReferences(queued!, { workspaceId: 'w', assertCurrent() {}, load: async id => { expect(id).toBe('p'); return document } })
+    expect(prepared.references[0]).toMatchObject({ productionId: 'p', productionRevision: 4, source: 'current-view' })
+  })
   test('Given 活跃运行 When 带影像引用立即发送 Then 等待新运行而非混入旧图片上下文', async () => {
     let injected = 0
     let queued: AgentDeferredQueueMessageInput | undefined

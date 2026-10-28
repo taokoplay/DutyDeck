@@ -1,4 +1,4 @@
-import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
+import { currentVisualProductionReferenceAtomFamily, snapshotVisualProductionReferences, visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
 import { removeSentVisualProductionReferences, restoreVisualProductionReferences, visualProductionReferenceKey } from '@dutydeck/shared'
 import type { VisualProductionReference } from '@dutydeck/shared'
@@ -605,6 +605,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   /** 当前普通 Agent composer 的 Canvas 引用，按 session atom 隔离。 */
   /** 当前会话的影像引用与正文草稿独立管理。 */
   const [visualProductionReferences, setVisualProductionReferences] = useAtom(visualProductionReferencesAtomFamily(sessionId))
+  /** 当前作品仅作为发送上下文显示，不让空白消息变成可发送。 */
+  const currentVisualProductionReference = useAtomValue(currentVisualProductionReferenceAtomFamily(sessionId))
+  const automaticVisualProductionReference = visualProductionReferences.length === 0 && currentVisualProductionReference?.workspaceId === currentWorkspaceId ? currentVisualProductionReference : null
   const [canvasNodeReferences, setCanvasNodeReferences] = useAtom(agentCanvasNodeReferencesAtomFamily(sessionId))
   /** Canvas metadata 只用于友好标题，缺失时 chip 统一回退“画布”。 */
   const canvasSessionsByProject = useAtomValue(canvasSessionsByProjectAtom)
@@ -2248,12 +2251,14 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     /** 同步读取当前 session 引用，避免 Canvas 动作与 React render 间隙发送旧数组。 */
     const canvasNodeReferencesSnapshot = store.get(agentCanvasNodeReferencesAtomFamily(sessionId))
     /** 按发送瞬间快照固化影像目标。 */
-    const visualProductionReferencesSnapshot = store.get(visualProductionReferencesAtomFamily(sessionId))
+    const explicitVisualProductionReferencesSnapshot = store.get(visualProductionReferencesAtomFamily(sessionId))
+    /** 自动目标与显式引用共用冻结后的发送载荷，队列也不会跟随后续切换。 */
+    const visualProductionReferencesSnapshot = snapshotVisualProductionReferences(explicitVisualProductionReferencesSnapshot, store.get(currentVisualProductionReferenceAtomFamily(sessionId)), currentWorkspaceId)
     if (!messagesLoaded || (
       !effectiveText
       && pendingFilesSnapshot.length === 0
       && canvasNodeReferencesSnapshot.length === 0
-      && visualProductionReferencesSnapshot.length === 0
+      && explicitVisualProductionReferencesSnapshot.length === 0
     ) || !agentChannelId || !hasAvailableModel) return
     if (isStopping) {
       toast.info('正在停止上一轮 Agent', { description: '请等待停止完成后再发送消息。' })
@@ -2345,13 +2350,13 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       }
       setQueuedMessages((prev) => [...prev, message])
       void window.electronAPI.submitOrEnqueueAgentMessage(queuedInput)
-        .then(() => clearSentComposerReferences(canvasNodeReferencesSnapshot, visualProductionReferencesSnapshot))
+        .then(() => clearSentComposerReferences(canvasNodeReferencesSnapshot, explicitVisualProductionReferencesSnapshot))
         .catch((error) => {
           console.error('[AgentView] 主进程消息提交失败:', error)
           setQueuedMessages((prev) => removeQueuedMessage(prev, message.id))
           restoreFailedInputContent(effectiveText)
           restoreQueuedAttachmentsToPending(message.attachments)
-        if (message.visualProductionReferences?.length) setVisualProductionReferences(current => restoreVisualProductionReferences(current, message.visualProductionReferences ?? []))
+        if (explicitVisualProductionReferencesSnapshot.length) setVisualProductionReferences(current => restoreVisualProductionReferences(current, explicitVisualProductionReferencesSnapshot))
           if (quotedSelection) {
             setQuotedSelectionMap((prev) => {
               const map = new Map(prev)
@@ -2409,7 +2414,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       })
       sendPlainTextAgentMessage(message).then((outcome) => {
         if (outcome === 'submitted') {
-          clearSentComposerReferences(canvasNodeReferencesSnapshot, visualProductionReferencesSnapshot)
+          clearSentComposerReferences(canvasNodeReferencesSnapshot, explicitVisualProductionReferencesSnapshot)
         }
       }).catch((error) => {
         console.error('[AgentView] 追加消息失败:', error)
@@ -2434,7 +2439,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           })
         }
         restoreQueuedAttachmentsToPending(message.attachments)
-        if (message.visualProductionReferences?.length) setVisualProductionReferences(current => restoreVisualProductionReferences(current, message.visualProductionReferences ?? []))
+        if (explicitVisualProductionReferencesSnapshot.length) setVisualProductionReferences(current => restoreVisualProductionReferences(current, explicitVisualProductionReferencesSnapshot))
         if (message.canvasNodeReferences && message.canvasNodeReferences.length > 0) {
           setCanvasNodeReferences((current) => restoreMissingCanvasNodeReferences(current, message.canvasNodeReferences ?? []))
         }
@@ -2563,7 +2568,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     }
 
     /** IPC 会等待整轮 Agent 结束，引用必须在请求接管时清理，避免运行期间被重复发送。 */
-    clearSentComposerReferences(canvasNodeReferencesSnapshot, visualProductionReferencesSnapshot)
+    clearSentComposerReferences(canvasNodeReferencesSnapshot, explicitVisualProductionReferencesSnapshot)
     window.electronAPI.sendAgentMessage(input)
       .catch((error) => {
         console.error('[AgentView] 发送消息失败:', error)
@@ -2584,7 +2589,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             return map
           })
         }
-        setVisualProductionReferences(current => restoreVisualProductionReferences(current, visualProductionReferencesSnapshot))
+        setVisualProductionReferences(current => restoreVisualProductionReferences(current, explicitVisualProductionReferencesSnapshot))
         /** 若用户期间已重新选择同一节点的新版本，以当前引用为准，只补回缺失引用。 */
         setCanvasNodeReferences((current) => (
           restoreMissingCanvasNodeReferences(current, canvasNodeReferencesSnapshot)
@@ -3555,8 +3560,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
               sessionAttachedDirs={sessionMentionPaths}
               sendWithCmdEnter={sendWithCmdEnter}
               onAgentHistoryQuoteClick={handleAgentHistoryQuoteClick}
-              accessory={canvasNodeReferences.length > 0 || visualProductionReferences.length > 0 ? (
+              accessory={canvasNodeReferences.length > 0 || visualProductionReferences.length > 0 || automaticVisualProductionReference ? (
                 <div className="px-3 pt-2.5 pb-1">
+                  {automaticVisualProductionReference && <p className="mb-1 truncate text-xs text-muted-foreground" title={automaticVisualProductionReference.productionTitle}>当前作品：{automaticVisualProductionReference.productionTitle}</p>}
                   <VisualProductionReferenceChips references={visualProductionReferences} onRemove={reference => setVisualProductionReferences(current => current.filter(item => visualProductionReferenceKey(item) !== visualProductionReferenceKey(reference)))} />
                   <CanvasNodeReferenceChips
                     references={canvasNodeReferences}

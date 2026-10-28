@@ -4,15 +4,18 @@ import { Value } from 'typebox/value'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { parseVisualProductionCommand, resolveVisualShotOutputs, VISUAL_SHOT_ACTION_PHASES, VISUAL_SHOT_AUDIO_TRANSITIONS } from '@dutydeck/shared'
 import type { VisualEditingTimelineSnapshot, VisualJob, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot } from '@dutydeck/shared'
+import type { VisualTaskDelivery } from './delivery-check'
 /** 工具只能使用主运行时固定的会话身份。 */
 export interface VisualProductionAgentToolOptions {
   sessionId: string
   sdk: Pick<typeof import('@earendil-works/pi-coding-agent'), 'defineTool'>
   execute<M extends VisualProductionMethod>(method: M, input: VisualProductionInputs[M], signal?: AbortSignal): Promise<VisualProductionResults[M]>
   assertAccess(write: boolean): void | Promise<void>
+  /** 主运行时核验交付；不新增 IPC，也不直接改写作品。 */
+  completeTask?(input: VisualTaskDelivery): unknown
 }
 /** 纯读取不产生持久状态。 */
-export const VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES = ['visual_production_open_context', 'visual_production_inspect_media', 'visual_production_close_context', 'visual_production_list', 'visual_production_read', 'visual_production_read_script', 'visual_production_read_shot', 'visual_production_export_manifest', 'visual_production_media_catalog', 'visual_production_read_media_configuration', 'visual_production_read_timeline', 'visual_production_list_export_jobs'] as const
+export const VISUAL_PRODUCTION_AGENT_READ_TOOL_NAMES = ['visual_production_complete_task', 'visual_production_open_context', 'visual_production_inspect_media', 'visual_production_close_context', 'visual_production_list', 'visual_production_read', 'visual_production_read_script', 'visual_production_read_shot', 'visual_production_export_manifest', 'visual_production_media_catalog', 'visual_production_read_media_configuration', 'visual_production_read_timeline', 'visual_production_list_export_jobs'] as const
 /** 候选、媒体导入和明确授权的候选采纳需要写权限。 */
 export const VISUAL_PRODUCTION_AGENT_WRITE_TOOL_NAMES = ['visual_production_record_observation', 'visual_production_create', 'visual_production_begin_job', 'visual_production_update_shot_plan', 'visual_production_record_workflow_discovery', 'visual_production_propose', 'visual_production_propose_script', 'visual_production_propose_shot', 'visual_production_review_candidate', 'visual_production_adopt_candidate', 'visual_production_create_rough_cut', 'visual_production_propose_timeline_edit', 'visual_production_adopt_timeline_edit', 'visual_production_request_export', 'visual_production_request_preview', 'visual_production_cancel_export', 'visual_production_reference_media', 'visual_production_update_job', 'visual_production_fail_job', 'visual_production_cancel_job', 'visual_production_import_file', 'visual_production_import_media'] as const
 /** 宿主权限包装使用精确工具白名单。 */
@@ -302,7 +305,7 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
     { name: 'visual_production_import_media', method: 'importMedia', description: '按媒体服务返回的可信身份复制素材，校验项目、版本与 hash；不直接引用旧画布路径。', fields: { ...target, reference: Type.Object({ assetId: id, revision, hash: Type.String(), mediaKind: Type.Union([Type.Literal('image'), Type.Literal('video'), Type.Literal('audio')]) }) }, write: true },
     { name: 'visual_production_export_manifest', method: 'exportManifest', description: '导出当前正式版 JSON 制作清单，不代表已经渲染或交付视频文件。', fields: target },
   ]
-  return definitions.map(definition => {
+  const tools = definitions.map(definition => {
     const parameters = Type.Object(definition.fields, { additionalProperties: false })
     return options.sdk.defineTool({ name: definition.name, label: definition.name, description: definition.description, parameters,
       async execute(_callId, input, signal) {
@@ -418,4 +421,25 @@ export function buildVisualProductionAgentTools(options: VisualProductionAgentTo
       },
     })
   })
+  /** 完成交付是本轮内存状态，不经过领域命令解析或持久化服务。 */
+  const completionParameters = Type.Object({
+    outcome: Type.Union(['written', 'candidate', 'read-only', 'blocked'].map(value => Type.Literal(value))),
+    productionIds: Type.Array(id, { maxItems: 32, uniqueItems: true }),
+    reason: Type.String({ minLength: 1, maxLength: 2000 }),
+  }, { additionalProperties: false })
+  tools.push(options.sdk.defineTool({
+    name: 'visual_production_complete_task', label: 'visual_production_complete_task',
+    description: '结束影像任务前核验交付。written 仅用于本轮真实正式写入，candidate 仅用于本轮已提交候选；read-only 用于无需保存的讨论/审查，blocked 说明尚未完成原因。productionIds 必须是准确目标，reason 对照用户原要求说明完成范围。此工具不会保存正文、采用候选、增加权限或触发生成；聊天文字和启动 job 不能证明已写入。',
+    parameters: completionParameters,
+    async execute(_callId, input, signal) {
+      signal?.throwIfAborted()
+      await options.assertAccess(false)
+      signal?.throwIfAborted()
+      if (!Value.Check(completionParameters, input)) throw new Error('VISUAL_PRODUCTION_INVALID_INPUT')
+      if (!options.completeTask) throw new Error('本轮未启用影像交付核验')
+      const result = options.completeTask(input as VisualTaskDelivery)
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result }
+    },
+  }))
+  return tools
 }

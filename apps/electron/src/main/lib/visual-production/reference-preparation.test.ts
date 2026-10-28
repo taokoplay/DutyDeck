@@ -7,6 +7,19 @@ const document = { id: 'p', revision: 3, title: '权威作品', shots: [{ id: 's
 /** Renderer 提供的标题不得当成权威指令。 */
 const reference: VisualProductionReference = { workspaceId: 'w', productionId: 'p', productionRevision: 3, target: { kind: 'shot', shotId: 's' }, title: '伪标题', productionTitle: '伪作品' }
 describe('影像引用接管前校验', () => {
+  test('Given 排队的当前作品上下文 When 前轮已更新版本 Then 保持作品身份并解析最新正式版本，不冒充显式范围', async () => {
+    const automatic = { ...reference, source: 'current-view', target: { kind: 'production' }, productionRevision: 1 }
+    const prepared = await prepareVisualProductionReferences({ sessionId: 'session', visualProductionReferences: [automatic] }, { workspaceId: 'w', assertCurrent() {}, load: async () => document })
+    expect(prepared.references[0]).toMatchObject({ source: 'current-view', productionId: 'p', productionRevision: 3, title: '权威作品' })
+    expect(prepared.prompt).toContain('默认作品')
+    expect(prepared.prompt).toContain('正文明确指定其他作品')
+    expect(prepared.prompt).not.toContain('以下为用户显式引用')
+    /** 自动来源不能伪造为子对象引用、跨工作区或删除作品后的静默回退。 */
+    for (const changed of [{ ...automatic, target: { kind: 'shot', shotId: 's' } }, { ...automatic, workspaceId: 'other' }]) {
+      await expect(prepareVisualProductionReferences({ sessionId: 'session', visualProductionReferences: [changed] }, { workspaceId: 'w', assertCurrent() {}, load: async () => document })).rejects.toThrow()
+    }
+    await expect(prepareVisualProductionReferences({ sessionId: 'session', visualProductionReferences: [automatic] }, { workspaceId: 'w', assertCurrent() {}, load: async () => { throw new Error('作品已删除') } })).rejects.toThrow('作品已删除')
+  })
   test('Given 有效引用 When 接管 Then 替换不可信标题并只提供只读范围', async () => {
     const prepared = await prepareVisualProductionReferences({ sessionId: 'session', visualProductionReferences: [reference] }, { workspaceId: 'w', assertCurrent() {}, load: async () => document })
     expect(prepared.references[0]?.title).toBe('权威镜头')

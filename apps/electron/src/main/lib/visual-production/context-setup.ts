@@ -14,7 +14,9 @@ export async function prepareVisualTaskContext(runtime: VisualTaskContextRuntime
   const policy: VisualTaskContextPolicy = { runId }
   const legacyMedia = new Map<string, { mediaId: string; hash: string }>()
   let prompt = ''
-  for (const reference of references) {
+  /** 默认作品只传身份提示；尚未明确检查目标时不预开整个作品的媒体上下文。 */
+  const explicitReferences = references.filter(reference => reference.source !== 'current-view')
+  for (const reference of explicitReferences) {
     signal?.throwIfAborted()
     const opened = await runtime.open({ productionId: reference.productionId, productionRevision: reference.productionRevision,
       target: reference.target, objective: '根据用户本次消息检查引用对象；对象引用本身不授权生成或修改。' }, signal)
@@ -22,13 +24,13 @@ export async function prepareVisualTaskContext(runtime: VisualTaskContextRuntime
     const scope = await runtime.describe(contextId, signal)
     if (scope.workspaceId !== reference.workspaceId) throw new Error('VISUAL_CONTEXT_WORKSPACE_CHANGED')
     for (const media of scope.media) legacyMedia.set(media.hash, { mediaId: media.id, hash: media.hash })
-    if (references.length === 1) {
+    if (explicitReferences.length === 1) {
       policy.initialContextId = contextId
       prompt = `宿主已为本次引用准备视觉范围；这不代表已经看过图片。按用户目标选取 mediaId 调用 inspect_media，记录结论后 close_context。\n${JSON.stringify(scope)}`
     } else await runtime.close({ contextId })
   }
   if (legacyMedia.size) policy.legacyMedia = [...legacyMedia.values()]
-  if (references.length > 1) prompt = '用户引用了多个对象。请依据当前意图调用 visual_production_open_context 选择主目标；跨镜头比较用显式 continuityShotIds。不同作品/资产逐范围检查，保留有版本的观察，不能默认采用最后一个引用。'
+  if (explicitReferences.length > 1) prompt = '用户引用了多个对象。请依据当前意图调用 visual_production_open_context 选择主目标；跨镜头比较用显式 continuityShotIds。不同作品/资产逐范围检查，保留有版本的观察，不能默认采用最后一个引用。'
   if (prompt.length > 48 * 1024) throw new Error('VISUAL_CONTEXT_PROMPT_LIMIT: 请减少本次引用或缩小检查范围')
   return { policy, prompt }
 }

@@ -1,6 +1,8 @@
 import type { VisualCandidate, VisualCandidateReview, VisualProductionInputs, VisualProductionMethod, VisualProductionResults, VisualProductionSnapshot, VisualJob } from '@dutydeck/shared'
 import type { VisualProductionExecutor } from './access'
 import type { AgentCompletionEvaluation } from '../agent-completion-policy'
+import { createVisualDeliveryCheck } from './delivery-check'
+import type { VisualTaskDelivery } from './delivery-check'
 
 /**
  * 影像各阶段共用总续行预算，避免纠偏后的复审退回通用三次额度。
@@ -63,6 +65,8 @@ export interface PendingVisualMediaStep {
   jobId: string
   shotId?: string
   instruction: string
+  /** 缺省且无媒体运行的任务按文本合同推进，不能误导为收费生成。 */
+  mediaKind?: VisualJob['mediaKind']
   stage?: VisualJob['stage']
   mediaRunId?: string
   mediaPhase?: string
@@ -111,6 +115,9 @@ export function buildVisualWorkflowDiscoveryStepContinuation(
  */
 export function buildVisualMediaStepContinuation(pending: readonly PendingVisualMediaStep[]): string | null {
   if (!pending.length) return null
+  /** 任务范围来自宿主冻结字段，不从自然语言指令猜测创作类别。 */
+  const textTasks = pending.filter(item => !item.mediaKind && !item.mediaRunId)
+  const mediaTasks = pending.filter(item => item.mediaKind || item.mediaRunId)
   const targets = pending.slice(0, 8).map(item => {
     const shot = item.shotId ? `镜头 ${item.shotId} · ` : ''
     const media = item.mediaRunId
@@ -118,11 +125,15 @@ export function buildVisualMediaStepContinuation(pending: readonly PendingVisual
       : '尚未记录媒体运行'
     return `- ${shot}任务 ${item.jobId} · ${item.stage ?? '阶段未知'} · ${media}`
   }).join('\n')
-  return `本轮仍有 ${pending.length} 个影像任务未进入候选、失败或取消终态，不能以普通成功终态结束。Host 托管等待负责长时媒体任务：不要为了刷新进度重复调用 media_wait_run，也不要重复准备或执行收费请求。工作流发现未完成时先完成发现和选择；媒体运行成功后导入全部输出并调用 visual_production_propose_shot 提交该镜头候选；确认失败时调用 visual_production_fail_job 保存原因；只有候选已提交并完成必要的同回合审片后才能结束。最终回复只说明镜头、当前阶段、候选或失败结果及下一步；除非用户明确要求诊断，不展示 runId、内部工具名或工作流版本。\n${targets}`
+  const textInstruction = textTasks.length ? '无媒体类别且没有媒体运行的文本任务，读取准确作品和最新版本，新增镜头与资产用完整 draft 经 visual_production_propose 提交，只改已有集剧本用 visual_production_propose_script；按原授权 visual_production_adopt_candidate 采用。仅要求草稿时保留候选，受阻时 visual_production_fail_job 记录具体原因；不为文本任务启动媒体生成。' : ''
+  const mediaInstruction = mediaTasks.length ? 'Host 托管等待负责长时媒体任务：不要为了刷新进度重复调用 media_wait_run，也不要重复准备或执行收费请求。工作流发现未完成时先完成发现和选择；媒体运行成功后导入全部输出并调用 visual_production_propose_shot 提交该镜头候选；确认失败时调用 visual_production_fail_job 保存原因；只有候选已提交并完成必要的同回合审片后才能结束。' : ''
+  return `本轮仍有 ${pending.length} 个影像任务未进入候选、失败或取消终态，不能以普通成功终态结束。${textInstruction}${mediaInstruction}最终回复只说明目标、当前阶段、候选或失败结果及下一步；除非用户明确要求诊断，不展示 runId、内部工具名或工作流版本。\n${targets}`
 }
 
 /** 单轮主会话只结算本轮签发的任务；不扫描、接管其他运行的任务。 */
-export function createVisualProductionRun(sessionId: string, access: VisualProductionExecutor, cleanup: VisualProductionExecutor) {
+export function createVisualProductionRun(sessionId: string, access: VisualProductionExecutor, cleanup: VisualProductionExecutor, productionIds: readonly string[] = []) {
+  /** 本轮交付核验与媒体任务队列分开，覆盖完全没启动 job 的漏保存。 */
+  const delivery = createVisualDeliveryCheck(productionIds)
   /** 本轮实际 beginJob 返回的可信身份，不采纳模型提供的任意任务。 */
   const ownedJobs = new Map<string, { job: VisualJob; productionId: string }>()
   /** 同一失败候选只分发一次，避免忽略建议时原地循环。 */
@@ -130,6 +141,10 @@ export function createVisualProductionRun(sessionId: string, access: VisualProdu
   /** 只对实际分发修正步骤计数，空队列与过期候选不消耗额度。 */
   let repairRounds = 0
   return {
+    /** 交付声明只核验宿主已观察到的结果，不产生持久化副作用。 */
+    completeTask(input: VisualTaskDelivery) { return delivery.complete(input) },
+    /** 返回待补的交付核验步骤；纯聊天无影像范围时为空。 */
+    pendingDelivery() { return delivery.pending() },
     /** 只向主进程工具包装器提供本轮签发身份；返回副本防止外部改写冻结配置。 */
     mediaJobs() { return structuredClone([...ownedJobs.values()]) },
     /**
@@ -248,6 +263,7 @@ export function createVisualProductionRun(sessionId: string, access: VisualProdu
           jobId: job.id,
           ...(job.shotId ? { shotId: job.shotId } : {}),
           instruction: job.instruction,
+          ...(job.mediaKind ? { mediaKind: job.mediaKind } : {}),
           ...(job.stage ? { stage: job.stage } : {}),
           ...(execution ? { mediaRunId: execution.runId, mediaPhase: execution.phase, mediaEngine: execution.engine } : {}),
         })
@@ -298,6 +314,7 @@ export function createVisualProductionRun(sessionId: string, access: VisualProdu
         if (!owned || owned.productionId !== input.productionId || input.sessionId !== sessionId) throw new Error('影像任务不属于本轮 Agent 运行')
       }
       const result = await access.execute(method, input, signal)
+      delivery.record(method, input, result)
       if (method === 'beginJob') {
         const job = result as VisualJob
         if ('productionId' in input) ownedJobs.set(job.id, { job, productionId: input.productionId })
