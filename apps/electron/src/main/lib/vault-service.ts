@@ -40,6 +40,29 @@ import {
 } from './vault-directory-pagination'
 
 const MAX_VAULT_FILE_BYTES = 2 * 1024 * 1024
+/** 读取结果指纹缓存上限：只服务当前打开笔记与其邻近切换，避免长期驻留正文。 */
+const MAX_CACHED_READ_RESULTS = 8
+/** 单个已读文件的指纹与结果；mtime + size 变化即视为内容可能已变更。 */
+interface CachedVaultRead {
+  mtimeMs: number
+  size: number
+  result: VaultReadResult
+}
+const readResultCache = new Map<string, CachedVaultRead>()
+/** 记录一次读取结果，并按插入顺序淘汰最旧条目。 */
+function rememberReadResult(absolutePath: string, result: VaultReadResult, stats: { mtimeMs: number; size: number }): void {
+  readResultCache.delete(absolutePath)
+  readResultCache.set(absolutePath, { mtimeMs: stats.mtimeMs, size: stats.size, result })
+  while (readResultCache.size > MAX_CACHED_READ_RESULTS) {
+    const oldest = readResultCache.keys().next()
+    if (oldest.done) break
+    readResultCache.delete(oldest.value)
+  }
+}
+/** 写入/重命名/删除后丢弃该路径缓存，避免同毫秒写入命中旧正文。 */
+function invalidateReadResult(absolutePath: string): void {
+  readResultCache.delete(absolutePath)
+}
 const MAX_VAULT_FILES = 5_000
 const MAX_VAULT_FOLDERS = 1_000
 const MAX_VAULT_DEPTH = 16
@@ -363,13 +386,20 @@ export function createVaultFileSystem(rootPath: string): VaultFileSystem {
     const stats = lstatSync(target.absolutePath)
     if (!stats.isFile()) throw new Error('Vault 目标不是普通文件')
     if (stats.size > MAX_VAULT_FILE_BYTES) throw new Error('Vault 文件超过 2 MB 读取上限')
+    /** 渲染层每秒轮询当前笔记；指纹未变时复用上次结果，避免重复读盘与哈希。 */
+    const cached = readResultCache.get(target.absolutePath)
+    if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+      return cached.result
+    }
     const content = readFileSync(target.absolutePath, 'utf-8')
-    return {
+    const result: VaultReadResult = {
       relativePath: target.relativePath,
       content,
       sha256: sha256(content),
       modifiedAt: stats.mtimeMs,
     }
+    rememberReadResult(target.absolutePath, result, stats)
+    return result
   }
 
   const resolveMedia = (noteRelativePath: string, src: string): string | null => {
@@ -443,6 +473,8 @@ export function createVaultFileSystem(rootPath: string): VaultFileSystem {
     // Directory creation introduces new ancestors, so validate again before the atomic write.
     const revalidated = getSafeVaultTarget(root, target.relativePath)
     writeTextFileAtomic(revalidated.absolutePath, input.content)
+    /** 刚写入的正文必须重新读取，不能命中写入前的指纹。 */
+    invalidateReadResult(revalidated.absolutePath)
     const result = readFile(revalidated.relativePath)
     return { ok: true, relativePath: result.relativePath, sha256: result.sha256, modifiedAt: result.modifiedAt }
   }
@@ -528,6 +560,8 @@ export function createVaultFileSystem(rootPath: string): VaultFileSystem {
     mkdirSync(dirname(target.absolutePath), { recursive: true })
     const revalidatedTarget = getSafeVaultTarget(root, target.relativePath)
     renameSync(source.absolutePath, revalidatedTarget.absolutePath)
+    invalidateReadResult(source.absolutePath)
+    invalidateReadResult(revalidatedTarget.absolutePath)
     return readFile(revalidatedTarget.relativePath)
   }
 
@@ -548,6 +582,7 @@ export function createVaultFileSystem(rootPath: string): VaultFileSystem {
     const revalidated = getSafeVaultTarget(root, target.relativePath)
     const revalidatedStats = lstatSync(revalidated.absolutePath)
     if (!revalidatedStats.isFile()) throw new Error('Vault 目标不是普通文件')
+    invalidateReadResult(revalidated.absolutePath)
     unlinkSync(revalidated.absolutePath)
   }
 

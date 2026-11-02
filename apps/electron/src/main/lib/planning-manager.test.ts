@@ -24,7 +24,7 @@ test('Given a fresh planning database When planning data changes Then isolation,
     import { DatabaseSync } from 'node:sqlite'
     import * as manager from ${JSON.stringify(managerModulePath)}
 
-    const configDir = join(process.env.HOME, '.proma')
+    const configDir = join(process.env.HOME, '.DutyDeck')
     mkdirSync(configDir, { recursive: true })
     const now = Date.now()
 

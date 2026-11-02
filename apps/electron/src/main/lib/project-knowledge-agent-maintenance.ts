@@ -776,7 +776,8 @@ export function createProjectKnowledgeAgentMaintenance(
         ...input,
         workspaceId: options.workspaceId,
         ...(input.userQuote ? {
-          userEvidence: { sessionId: initialUserSource!.sessionId, messageId: initialUserEvidence!.uuid, quote: input.userQuote, sha256: createHash('sha256').update(initialUserEvidence!.text, 'utf8').digest('hex') },
+          userEvidence: { sessionId: initialUserSource!.sessionId, messageId: initialUserEvidence!.uuid, quote: input.userQuote,
+            sha256: createHash('sha256').update(JSON.stringify({ role: initialUserEvidence!.role, uuid: initialUserEvidence!.uuid, text: initialUserEvidence!.text })).digest('hex') },
         } : {}),
       })
     })

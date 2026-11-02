@@ -123,7 +123,7 @@ describe('Agent completion payload', () => {
     const payload = buildPayload(
       { sessionId: ordinarySession.id, triggeredBy: 'user' },
       () => ordinarySession,
-      { messages: [], stoppedByUser: false, startedAt: 10 },
+      { stoppedByUser: false, startedAt: 10 },
     )
 
     expect(payload.session).toEqual({
@@ -133,7 +133,8 @@ describe('Agent completion payload', () => {
       createdAt: 1,
       updatedAt: 2,
     })
-    expect(payload.messages).toEqual([])
+    /** completion 不再携带整份历史；历史由渲染层按需读取。 */
+    expect(payload).not.toHaveProperty('messages')
     expect(payload.startedAt).toBe(10)
   })
 
@@ -162,7 +163,7 @@ describe('Agent completion payload', () => {
     const payload = completionPayload.buildAuthoritativeAgentStreamCompletePayload(
       { sessionId: 'blocked-session', triggeredBy: 'user' },
       () => undefined,
-      { messages: [], stoppedByUser: false, resultSubtype: 'error_during_execution', terminalReason: 'completion_blocked' },
+      { stoppedByUser: false, resultSubtype: 'error_during_execution', terminalReason: 'completion_blocked' },
     )
 
     expect(payload.terminalReason).toBe('completion_blocked')

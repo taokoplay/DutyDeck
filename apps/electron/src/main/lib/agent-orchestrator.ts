@@ -68,7 +68,7 @@ import { isStaleActiveQueueError } from './agent-queue-routing'
 import { decryptApiKey, getChannelById, listChannels, persistCodexOAuthCredentials, persistXaiOAuthCredentials, resolveChannelRuntimeApiKey, resolveCodexOAuthCredentials, resolveXaiOAuthCredentials } from './channel-manager'
 import pkg from '../../../package.json' with { type: 'json' }
 import { getEffectiveProxyUrl } from './proxy-settings-service'
-import { appendSDKMessages, updateAgentSessionMeta, getAgentSessionMeta, isAgentSessionDeleting, getAgentSessionMessages, removeSDKErrorMessage, updateSDKUserMessageSkillActivations, rewindPiAgentSession, resolveAgentCwd, getActiveWorktreePath, getAgentCwdMode, getSessionWorkbenchLayout } from './agent-session-manager'
+import { appendSDKMessages, updateAgentSessionMeta, getAgentSessionMeta, isAgentSessionDeleting, removeSDKErrorMessage, updateSDKUserMessageSkillActivations, rewindPiAgentSession, resolveAgentCwd, getActiveWorktreePath, getAgentCwdMode, getSessionWorkbenchLayout } from './agent-session-manager'
 import type { SDKMessageAppendReceipt } from './agent-session-manager'
 import { getPersistedAgentMessageReceipt, readPersistedAgentEvidence } from './agent-session-manager'
 import { getAgentWorkspace, getProjectFilesPath, getWorkspaceMcpConfig, getWorkspaceAttachedDirectories, getWorkspaceAttachedFiles, getWorkspaceAgentsMdPath, readWorkspaceAgentsMd, getWorkspaceMemoryGuidance, isWorkspaceProjectKnowledgeMaintenanceApproved } from './agent-workspace-manager'
@@ -1360,22 +1360,20 @@ export class AgentOrchestrator {
       } : {}),
     })
     const completeRun = (
-      messages?: AgentMessage[],
       opts?: AgentRunCompleteOptions,
     ): void => {
       appendRunJournal('run_completed', { resultSubtype: opts?.resultSubtype ?? 'success', moduleIds: input.moduleIds ?? [] }, 'terminal:completed')
       releaseActiveRun()
-      terminalNotifier.onComplete(messages, opts)
+      terminalNotifier.onComplete(undefined, opts)
     }
     const failRun = (
       error: string,
-      messages?: AgentMessage[],
       opts?: AgentRunCompleteOptions,
     ): void => {
       appendRunJournal('run_failed', { error, recoverableInterruption }, `terminal:failed:${runGeneration}`)
       releaseActiveRun()
       terminalNotifier.onError(error)
-      terminalNotifier.onComplete(messages, opts)
+      terminalNotifier.onComplete(undefined, opts)
     }
 
     // 3. 构建 Pi runtime 环境（代理与 Windows shell 配置）。
@@ -3020,7 +3018,7 @@ export class AgentOrchestrator {
           persistRunSDKMessages(accumulatedMessages, Date.now() - queryStartedAt)
           try { updateAgentSessionMeta(sessionId, { stoppedByUser: wasStoppedByUser }) } catch { /* 会话可能已删除 */ }
           await runFileChanges?.finish()
-          completeRun(getAgentSessionMessages(sessionId), { stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt })
+          completeRun({ stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt })
           return
         }
 
@@ -3280,7 +3278,7 @@ export class AgentOrchestrator {
                 try { updateAgentSessionMeta(sessionId, {}) } catch { /* 忽略 */ }
                 // 此处会提前结束迭代，必须直接传递错误终态，不能等未消费的 SDK result 补齐。
                 await runFileChanges?.finish()
-                completeRun(getAgentSessionMessages(sessionId), {
+                completeRun({
                   startedAt: streamStartedAt,
                   resultSubtype: 'error_during_execution',
                   resultErrors: [errorContent],
@@ -3432,7 +3430,7 @@ export class AgentOrchestrator {
           if (!isLatestRunGeneration(this.latestRunGenerations, sessionId, runGeneration)) {
             const wasStoppedByUser = this.consumeStoppedByUser(sessionId, runGeneration)
             await runFileChanges?.finish()
-            completeRun([], { stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt })
+            completeRun({ stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt })
             return
           }
 
@@ -3448,7 +3446,7 @@ export class AgentOrchestrator {
           if (!wasStoppedByUser && visibleRunMessageCount === 0) {
             const errorContent = this.persistEmptyResponseError(sessionId, capturedResultSubtype, capturedResultErrors)
             await runFileChanges?.finish()
-            failRun(errorContent, getAgentSessionMessages(sessionId), {
+            failRun(errorContent, {
               startedAt: streamStartedAt,
               resultSubtype: EMPTY_RESPONSE_RESULT_SUBTYPE,
               resultErrors: [errorContent],
@@ -3464,7 +3462,7 @@ export class AgentOrchestrator {
 
           // 发送完成信号
           await runFileChanges?.finish()
-          completeRun(getAgentSessionMessages(sessionId), { stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt, resultSubtype: capturedResultSubtype, terminalReason: capturedTerminalReason, resultErrors: capturedResultErrors })
+          completeRun({ stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt, resultSubtype: capturedResultSubtype, terminalReason: capturedTerminalReason, resultErrors: capturedResultErrors })
 
           return
 
@@ -3478,7 +3476,7 @@ export class AgentOrchestrator {
               try { updateAgentSessionMeta(sessionId, { stoppedByUser: wasStoppedByUser }) } catch { /* 会话可能已删除 */ }
             }
             await runFileChanges?.finish()
-            completeRun([], { stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt })
+            completeRun({ stoppedByUser: wasStoppedByUser, startedAt: streamStartedAt })
             return
           }
 
@@ -3602,7 +3600,7 @@ export class AgentOrchestrator {
 
           await runFileChanges?.finish()
 
-          failRun(userFacingError, getAgentSessionMessages(sessionId), { startedAt: streamStartedAt })
+          failRun(userFacingError, { startedAt: streamStartedAt })
 
           // 保留 Pi session ID，确保网络或上游临时失败后的下一轮可继续 resume。
           if (existingSdkSessionId) {
@@ -3626,7 +3624,7 @@ export class AgentOrchestrator {
       } as unknown as SDKMessage
       appendSDKMessages(sessionId, [recoveryError])
       await runFileChanges?.finish()
-      failRun(recoveryFailure, getAgentSessionMessages(sessionId), { startedAt: streamStartedAt })
+      failRun(recoveryFailure, { startedAt: streamStartedAt })
 
     } finally {
       /** 先撤销并等待本轮桌面调用，再释放运行槽；旧 run 不能清理下一轮租约。 */

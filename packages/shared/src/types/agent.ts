@@ -1703,14 +1703,13 @@ export interface AgentStreamErrorPayload {
 
 /**
  * Agent 流式完成事件载荷（主进程 → 渲染进程）
- * 包含已持久化的消息列表，避免异步重新加载的竞态窗口。
+ * 只承载终态身份与轻量 metadata；历史消息由渲染层按需单独获取，
+ * 避免每轮结束为完成事件全量读取并序列化整份会话 JSONL。
  */
 export interface AgentStreamCompletePayload {
   sessionId: string
   /** 触发来源：用于区分顶层会话与父 Agent 委派的子会话完成 */
   triggeredBy?: AgentSendInput['triggeredBy']
-  /** 已持久化的完整消息列表 */
-  messages?: AgentMessage[]
   /** 是否由用户手动中止 */
   stoppedByUser?: boolean
   /** 本轮流式开始时间戳（用于展示与旧协议兼容）。 */

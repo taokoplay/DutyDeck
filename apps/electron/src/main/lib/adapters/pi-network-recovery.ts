@@ -80,7 +80,7 @@ export function createRecoveringPiStream(provider: StreamFn, config: PiNetworkRe
       options?.signal?.removeEventListener('abort', abort)
       if (force) {
         controller.abort()
-        void dispatcher?.destroy().catch(() => {})
+        void closePiRequestProxyDispatcher(dispatcher, { force: true })
       } else {
         void closePiRequestProxyDispatcher(dispatcher)
       }

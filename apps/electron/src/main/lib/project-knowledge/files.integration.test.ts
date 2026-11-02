@@ -26,6 +26,11 @@ function fixture(overrides: Partial<ProjectKnowledgeServiceDependencies> = {}) {
   return { project, dependencies, service: createProjectKnowledgeService(dependencies) }
 }
 
+/** 与宿主持久化消息一致的用户证据身份摘要。 */
+function userEvidenceDigest(text: string): string {
+  return createHash('sha256').update(JSON.stringify({ role: 'user', uuid: 'message', text })).digest('hex')
+}
+
 /** 从真实扫描材料建立一个任意业务分组，返回正文写入基线。 */
 async function prepare(context: ReturnType<typeof fixture>) {
   writeFileSync(join(context.project.projectRoot, 'notes.md'), '# 活动资料\n\n社区周末活动面向亲子家庭。')
@@ -106,7 +111,7 @@ describe('真实知识文件与服务整链', () => {
     const context = fixture({ revalidateUserEvidence: async (workspaceId, evidence) => {
       expect(workspaceId).toBe('workspace')
       if (!existsSync(messagePath)) return 'unavailable'
-      return createHash('sha256').update(readFileSync(messagePath, 'utf8')).digest('hex') === evidence.sha256 ? 'current' : 'changed'
+      return userEvidenceDigest(readFileSync(messagePath, 'utf8')) === evidence.sha256 ? 'current' : 'changed'
     } })
     const input = await prepare(context)
     messagePath = join(context.project.projectRoot, 'original-message.txt')
@@ -118,7 +123,7 @@ describe('真实知识文件与服务整链', () => {
       const existing = snapshot.entries.find((entry) => entry.document)
       await context.service.writeDocument({ ...input, outlineRevision: snapshot.workflow!.outline!.revision,
         expectedRevision: existing?.revision ?? null, evidence: mixed ? input.evidence : [],
-        userEvidence: { sessionId: 'session', messageId: 'message', quote: '社区周末活动面向亲子家庭。', sha256: createHash('sha256').update(readFileSync(messagePath, 'utf8')).digest('hex') },
+        userEvidence: { sessionId: 'session', messageId: 'message', quote: '社区周末活动面向亲子家庭。', sha256: userEvidenceDigest(readFileSync(messagePath, 'utf8')) },
         admission: { contentType: 'plan', importance: 'normal', purpose: '活动策划', scope: '当前活动',
           claims: [{ statement: '社区周末活动面向亲子家庭。', evidenceIndexes: mixed ? [0] : [], usesUserEvidence: true }],
           coverage: [{ topic: '受众', status: 'covered', reason: '用户声明' }], issues: [], outcome: 'eligible' },

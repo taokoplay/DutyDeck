@@ -5,7 +5,7 @@
  * 存储在 ~/.proma/settings.json
  */
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, statSync } from 'node:fs'
 import { getSettingsPath } from './config-paths'
 import { writeJsonFileAtomic } from './safe-file'
 import { DEFAULT_THEME_MODE, normalizeProductivityToolsSettings } from '../../types'
@@ -31,6 +31,26 @@ export function sanitizeWindowsTerminalProfile(input: unknown): AppSettings['las
 }
 
 /**
+ * 设置文件读取缓存。
+ *
+ * 设置读取遍布主进程（约 60 处调用点），此前每次调用都同步 readFileSync + JSON.parse，
+ * 在键盘事件需要经主进程转发的同步路径上反复阻塞。这里按 mtime + size 校验缓存：
+ * 既避免重复解析，也允许外部直接改写 settings.json 后被正确感知。
+ * 调用方只读取字段，不得原地修改返回值（否则会污染后续读取）。
+ */
+let settingsCache: { data: AppSettings; mtimeMs: number; size: number } | null = null
+
+/** 按当前文件状态记录缓存；stat 失败时丢弃缓存而不是保留可疑数据。 */
+function cacheSettings(data: AppSettings): void {
+  try {
+    const stat = statSync(getSettingsPath())
+    settingsCache = { data, mtimeMs: stat.mtimeMs, size: stat.size }
+  } catch {
+    settingsCache = null
+  }
+}
+
+/**
  * 获取应用设置
  *
  * 如果文件不存在，返回默认设置。
@@ -39,6 +59,7 @@ export function getSettings(): AppSettings {
   const filePath = getSettingsPath()
 
   if (!existsSync(filePath)) {
+    settingsCache = null
     return {
       themeMode: DEFAULT_THEME_MODE,
       onboardingCompleted: false,
@@ -53,6 +74,16 @@ export function getSettings(): AppSettings {
       agentThinking: { type: 'adaptive' },
       productivityTools: normalizeProductivityToolsSettings(undefined),
     }
+  }
+
+  /** 命中缓存时省掉一次同步读盘与 JSON 解析；stat 失败按未命中处理。 */
+  try {
+    const stat = statSync(filePath)
+    if (settingsCache && settingsCache.mtimeMs === stat.mtimeMs && settingsCache.size === stat.size) {
+      return settingsCache.data
+    }
+  } catch {
+    settingsCache = null
   }
 
   try {
@@ -106,6 +137,7 @@ export function getSettings(): AppSettings {
         console.warn('[设置] 归一化旧应用图标偏好失败:', error)
       }
     }
+    cacheSettings(normalizedSettings)
     return normalizedSettings
   } catch (error) {
     console.error('[设置] 读取失败:', error)
@@ -124,6 +156,11 @@ export function getSettings(): AppSettings {
       productivityTools: normalizeProductivityToolsSettings(undefined),
     }
   }
+}
+
+/** 仅供测试与数据根切换时丢弃缓存，避免跨根残留。 */
+export function resetSettingsCache(): void {
+  settingsCache = null
 }
 
 /**
@@ -154,5 +191,7 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
     throw new Error('写入应用设置失败')
   }
 
+  /** 写入后立即刷新缓存，避免同进程下一次读取回落到旧值。 */
+  cacheSettings(updated)
   return updated
 }

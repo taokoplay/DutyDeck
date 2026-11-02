@@ -18,7 +18,7 @@ describe('工作区写操作守卫', () => {
     })
 
     expect(() => acquireWorkspaceOperation('workspace-design-async', 'relocation'))
-      .toThrow('项目仍有 Design 写入正在进行，无法迁移')
+      .toThrow('项目仍有写入正在进行，无法迁移')
     finishWrite?.()
     await running
     const releaseRelocation = acquireWorkspaceOperation('workspace-design-async', 'relocation')

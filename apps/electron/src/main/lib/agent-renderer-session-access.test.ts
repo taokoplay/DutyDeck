@@ -438,6 +438,7 @@ const RENDERER_HANDLER_POLICIES: Record<FullChannelKey, RendererHandlerPolicy> =
     'DELETE_FILE',
     'GET_CONFIG',
     'LIST_CANDIDATES',
+    'LIST_DIRECTORY',
     'LIST_FILES',
     'READ_FILE',
     'RENAME_FILE',

@@ -109,6 +109,11 @@ async function fixture(initialize = true, workflowEnabled = false) {
   return { project, service, state, maintenance, seed }
 }
 
+/** 与 Agent session manager 共用的用户证据身份摘要合同。 */
+function evidenceDigest(record: Pick<PersistedAgentEvidenceRecord, 'role' | 'uuid' | 'text'>): string {
+  return createHash('sha256').update(JSON.stringify({ role: record.role, uuid: record.uuid, text: record.text })).digest('hex')
+}
+
 /** 构造引用单一来源的草稿候选。 */
 function candidate(entry: KnowledgeEntry, content = '项目采用本地优先。') {
   return {
@@ -259,7 +264,7 @@ describe('当前 Agent 受控维护项目知识', () => {
     await f.maintenance.writeDocument!(input)
     expect(f.state.workflowCalls).toEqual(['document:w1:decision'])
     expect(f.state.lastDocumentInput?.userEvidence).toEqual({
-      sessionId: 's1', messageId: 'u1', quote: '资料库只保存项目事实', sha256: createHash('sha256').update(f.state.userEvidence!.text, 'utf8').digest('hex'),
+      sessionId: 's1', messageId: 'u1', quote: '资料库只保存项目事实', sha256: evidenceDigest(f.state.userEvidence!),
     })
     f.state.beforeWrite = () => { f.state.userEvidence = { ...f.state.userEvidence!, text: '用户已修改原消息', sha256: 'changed' } }
     await expect(f.maintenance.writeDocument!(input)).rejects.toThrow('证据已变化')
@@ -535,7 +540,7 @@ describe('任务绑定用户证据续接', () => {
     await expect(f.maintenance.writeDocument!(input)).rejects.toThrow('本轮读取')
     f.maintenance.observeUserEvidence!(['task-evidence'])
     await f.maintenance.writeDocument!(input)
-    expect(f.state.lastDocumentInput?.userEvidence).toEqual({ sessionId: 'original-session', messageId: 'original-message', quote: input.userQuote, sha256: createHash('sha256').update(f.state.taskEvidence!.message.text, 'utf8').digest('hex') })
+    expect(f.state.lastDocumentInput?.userEvidence).toEqual({ sessionId: 'original-session', messageId: 'original-message', quote: input.userQuote, sha256: evidenceDigest(f.state.taskEvidence!.message) })
     await expect(f.maintenance.writeDocument!({ ...input, userEvidenceId: 'invented' })).rejects.toThrow('本轮读取')
     f.state.beforeWrite = () => { f.state.taskEvidence = undefined }
     await expect(f.maintenance.writeDocument!(input)).rejects.toThrow('证据已变化')

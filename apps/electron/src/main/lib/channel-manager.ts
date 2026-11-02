@@ -6,7 +6,7 @@
  * 数据持久化到 ~/.proma/channels.json。
  */
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, statSync } from 'node:fs'
 import { safeStorage } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { getChannelsPath } from './config-paths'
@@ -420,6 +420,25 @@ function applyPresetModelCandidateUpdates(config: ChannelsConfig): { config: Cha
 }
 
 /**
+ * 渠道配置读取缓存。
+ *
+ * readConfig 在渠道 CRUD、连接测试与桥接服务里被高频调用，此前每次都同步读盘并解析。
+ * 按 mtime + size 校验：既避免重复解析，也允许外部直接改写 channels.json 后被感知。
+ * 调用方只读取字段，不得原地修改返回值。
+ */
+let configCache: { data: ChannelsConfig; mtimeMs: number; size: number } | null = null
+
+/** 按当前文件状态记录缓存；stat 失败时丢弃缓存而不是保留可疑数据。 */
+function cacheConfig(data: ChannelsConfig): void {
+  try {
+    const stat = statSync(getChannelsPath())
+    configCache = { data, mtimeMs: stat.mtimeMs, size: stat.size }
+  } catch {
+    configCache = null
+  }
+}
+
+/**
  * 读取渠道配置文件
  *
  * 读取时自动将旧版本配置迁移到 CONFIG_VERSION，并在发生变更时回写。
@@ -428,7 +447,18 @@ function readConfig(): ChannelsConfig {
   const configPath = getChannelsPath()
 
   if (!existsSync(configPath)) {
+    configCache = null
     return { version: CONFIG_VERSION, channels: [] }
+  }
+
+  /** 命中缓存时省掉一次同步读盘与迁移计算。 */
+  try {
+    const stat = statSync(configPath)
+    if (configCache && configCache.mtimeMs === stat.mtimeMs && configCache.size === stat.size) {
+      return configCache.data
+    }
+  } catch {
+    configCache = null
   }
 
   /** 已完成解析与内存迁移的渠道配置。 */
@@ -472,6 +502,8 @@ function writeConfig(config: ChannelsConfig): void {
     console.error('[渠道管理] 写入配置文件失败:', error)
     throw new Error('写入渠道配置失败')
   }
+  /** 写入后立即刷新缓存，避免同进程下一次读取回落到旧值。 */
+  cacheConfig(config)
 }
 
 /**

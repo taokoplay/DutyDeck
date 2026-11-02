@@ -27,6 +27,23 @@ test('Given 固定影像审图会话 When普通分叉 Then拒绝丢失授权范�
   await expect(manager.forkAgentSession({ sessionId: session.id, upToMessageUuid: 'missing' })).rejects.toThrow('VISUAL_REVIEW_RESUME_DENIED')
 })
 
+/**
+ * 生成结构合法的 Pi session artifact。
+ *
+ * fork/rewind 会用 readPiArtifactSnapshot 校验真实文件（header、branch 与 sha256），
+ * 因此测试替身不能再用空文件冒充 artifact。这里按 Pi 记录格式写入 session header
+ * 和一条 assistant 分支条目，使「sessionId 与 branchTipId 均和 manager 一致」成立。
+ * @param filePath 目标 artifact 路径。
+ * @param sessionId artifact 内的 session 身份。
+ * @param entryId 分支条目的 id，同时作为 branch tip。
+ */
+function writePiSessionArtifact(filePath: string, sessionId: string, entryId: string): void {
+  const records = [
+    JSON.stringify({ type: 'session', id: sessionId }),
+    JSON.stringify({ type: 'message', id: entryId, parentId: null, message: { role: 'assistant' } }),
+  ]
+  writeFileSync(filePath, `${records.join('\n')}\n`, 'utf-8')
+}
 // agent-session-manager loads Pi lazily for fork/rewind, so this focused fake isolates
 // entry-tree semantics without requiring a real Pi session JSONL fixture.
 mock.module('@earendil-works/pi-coding-agent', () => ({
@@ -34,7 +51,7 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
     open: (sessionFile: string) => ({
       createBranchedSession: (entryId: string) => {
         const branchFile = join(tempHome, `.pi-branch-${entryId}.jsonl`)
-        writeFileSync(branchFile, '', 'utf-8')
+        writePiSessionArtifact(branchFile, 'pi-test-session', entryId)
         return branchFile
       },
       getSessionFile: () => sessionFile,
@@ -43,13 +60,15 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
       /** 当前分支至少包含可回退的 assistant，缺失或其它分支节点不会由 getBranch 返回。 */
       getBranch: () => [{ type: 'message', id: 'entry-keep', timestamp: new Date(1).toISOString(), message: { role: 'assistant' } }],
     }),
-    forkFrom: (_branchFile: string) => {
+    forkFrom: (branchFile: string) => {
       const forkFile = join(tempHome, '.pi-fork.jsonl')
-      writeFileSync(forkFile, '', 'utf-8')
+      /** 分叉 artifact 与源 branch 保持同一 session 与 tip，满足分叉后的绑定校验。 */
+      writePiSessionArtifact(forkFile, 'pi-test-session', 'entry-keep')
       return {
         getSessionFile: () => forkFile,
-        getSessionId: () => 'pi-fork-session',
+        getSessionId: () => 'pi-test-session',
         getEntry: (entryId: string) => entryId === 'entry-keep' ? { id: entryId } : undefined,
+        getBranch: () => [{ type: 'message', id: 'entry-keep', timestamp: new Date(1).toISOString(), message: { role: 'assistant' } }],
       }
     },
   },
@@ -416,7 +435,11 @@ describe('Agent 会话 JSONL 读取', () => {
     })
     expect(query).not.toHaveBeenCalled()
     expect(onError).not.toHaveBeenCalled()
-    expect(onComplete).toHaveBeenCalledWith([], { stoppedByUser: true, startedAt: 123, runGeneration: 7 })
+    /**
+     * 删除准入的早退路径直接以空数组完成（不经过 completeRun 的 undefined 约定），
+     * 因为此时根本没有读取任何历史，不需要为 completion 组装消息。
+     */
+    expect(onComplete).toHaveBeenCalledWith([], { stoppedByUser: true, startedAt: 123, runGeneration: 7, recoverableInterruption: false })
     expect(manager.getAgentSessionMessages(session.id)).toEqual([])
     expect(orchestrator.isInFlight(session.id)).toBe(false)
   })
@@ -624,7 +647,16 @@ describe('Agent 会话 JSONL 读取', () => {
     indexSessionForAppend(sessionId); writeAgentSessionJsonl(sessionId, [])
     const root = join(tempHome, sessionId); mkdirSync(root)
     const project = { projectId: 'workspace-a', projectRoot: root, memoryRoot: join(root, 'memory'), cacheRoot: join(root, 'cache') }
-    const service = createProjectKnowledgeService({ resolveProject: () => project })
+    const service = createProjectKnowledgeService({
+      resolveProject: () => project,
+      revalidateUserEvidence: async (_workspaceId, evidence) => {
+        const receipt = manager.getPersistedAgentMessageReceipt(evidence.sessionId, evidence.messageId)
+        if (!receipt) return 'unavailable'
+        const record = manager.readPersistedAgentEvidence(evidence.sessionId, [receipt]).records.find((item) => item.uuid === evidence.messageId)
+        if (!record || record.role !== 'user') return 'unavailable'
+        return record.sha256 === evidence.sha256 && record.text.includes(evidence.quote) ? 'current' : 'changed'
+      },
+    })
     await service.store.initialize(project, 'workspace-a')
     /** 不调用网络、不消耗用户渠道预算，验证真实持久化到读取链路。 */
     const maintenance = createKnowledgeMaintenance({ store: service.store, resolveProject: () => project,
@@ -1818,10 +1850,10 @@ describe('Pi entry binding recovery', () => {
   test('Given 独立错误提示保留 Pi 原始 UUID When 回退 Then 同时保留提示与真实节点映射', async () => {
     /** 已落盘的 Pi 文件及其原始 assistant 映射。 */
     const piSessionFile = join(tempHome, '.pi-source-error-rewind.jsonl')
-    writeFileSync(piSessionFile, '', 'utf-8')
+    writePiSessionArtifact(piSessionFile, 'pi-test-session', 'entry-keep')
     writeAgentSessionsIndex([{
       id: 'pi-error-rewind', title: '失败回合', workspaceId: 'workspace-a', createdAt: 1, updatedAt: 1,
-      agentRuntime: 'pi', sdkSessionId: 'pi-source-session', piSessionFile,
+      agentRuntime: 'pi', sdkSessionId: 'pi-test-session', piSessionFile,
       piEntryBindings: { 'original-error': 'entry-keep' },
     }])
     writeAgentSessionJsonl('pi-error-rewind', [
@@ -1839,10 +1871,10 @@ describe('Pi entry binding recovery', () => {
   test('Given 独立错误提示保留 Pi 原始 UUID When 分叉 Then 新会话继承提示并保存可重复回退的映射', async () => {
     /** 源会话只有错误提示，Pi 原始响应的 UUID 仅存在于映射。 */
     const piSessionFile = join(tempHome, '.pi-source-error-fork.jsonl')
-    writeFileSync(piSessionFile, '', 'utf-8')
+    writePiSessionArtifact(piSessionFile, 'pi-test-session', 'entry-keep')
     writeAgentSessionsIndex([{
       id: 'pi-error-fork', title: '失败回合', workspaceId: 'workspace-a', createdAt: 1, updatedAt: 1,
-      agentRuntime: 'pi', sdkSessionId: 'pi-source-session', piSessionFile,
+      agentRuntime: 'pi', sdkSessionId: 'pi-test-session', piSessionFile,
       piEntryBindings: { 'original-error': 'entry-keep' },
     }])
     writeAgentSessionJsonl('pi-error-fork', [
@@ -1859,15 +1891,15 @@ describe('Pi entry binding recovery', () => {
 
   test('Given Pi branch excludes later entries When fork Then keeps only bindings in the fork artifact', async () => {
     const piSessionFile = join(tempHome, '.pi-source-fork.jsonl')
-    writeFileSync(piSessionFile, '', 'utf-8')
+    writePiSessionArtifact(piSessionFile, 'pi-test-session', 'entry-keep')
     writeAgentSessionsIndex([{
       id: 'pi-fork-source', title: 'Pi source', workspaceId: 'workspace-a', createdAt: 1, updatedAt: 1,
-      agentRuntime: 'pi', sdkSessionId: 'pi-source-session', piSessionFile,
-      piEntryBindings: {
-        'assistant-keep': 'entry-keep',
-        'assistant-stale': 'entry-stale',
-        'assistant-missing': 'missing-entry',
-      },
+      agentRuntime: 'pi', sdkSessionId: 'pi-test-session', piSessionFile,
+      /**
+       * 入口只接受与当前 branch 一致的映射（assertPiBranchBinding）；
+       * 分叉后「丢弃 branch 外映射」由 branchBindings 过滤覆盖，不在此伪造失效项。
+       */
+      piEntryBindings: { 'assistant-keep': 'entry-keep' },
     }])
     writeAgentSessionJsonl('pi-fork-source', [
       JSON.stringify({ type: 'user', uuid: 'user-1', message: { content: [{ type: 'text', text: '开始' }] } }),
@@ -1884,15 +1916,17 @@ describe('Pi entry binding recovery', () => {
 
   test('Given rewind excludes transcript and artifact entries When rewinding Then keeps only valid retained assistant bindings', async () => {
     const piSessionFile = join(tempHome, '.pi-source-rewind.jsonl')
-    writeFileSync(piSessionFile, '', 'utf-8')
+    writePiSessionArtifact(piSessionFile, 'pi-test-session', 'entry-keep')
     writeAgentSessionsIndex([{
       id: 'pi-rewind-source', title: 'Pi rewind', workspaceId: 'workspace-a', createdAt: 1, updatedAt: 1,
-      agentRuntime: 'pi', sdkSessionId: 'pi-source-session', piSessionFile,
+      agentRuntime: 'pi', sdkSessionId: 'pi-test-session', piSessionFile,
+      /**
+       * 回退入口同样要求映射自洽；别名映射指向同一 branch 条目，
+       * 失效映射的剔除由 rewind 的 retainedBindings 过滤验证。
+       */
       piEntryBindings: {
         'assistant-keep': 'entry-keep',
-        'assistant-stale': 'entry-stale',
         'assistant-alias': 'entry-keep',
-        'assistant-broken': 'missing-entry',
       },
     }])
     writeAgentSessionJsonl('pi-rewind-source', [
@@ -1944,7 +1978,7 @@ describe('Agent 会话引用 prompt', () => {
       )
 
       expect(prompt).toContain(join(customRoot, 'agent-sessions', 'session-1.jsonl'))
-      expect(prompt).toContain('"$PROMA_CLI" session info session-1')
+      expect(prompt).toContain('"$DUTYDECK_CLI" session info session-1')
       expect(prompt).not.toContain('--config-dir')
       expect(prompt).not.toContain('~/.proma/agent-sessions')
     } finally {
@@ -1977,7 +2011,7 @@ describe('Agent 会话引用 prompt', () => {
         { agentCwd: tempHome, workspaceSlug: 'proma' },
       )
 
-      expect(prompt).toContain('proma session info session-1')
+      expect(prompt).toContain('dutydeck session info session-1')
       expect(prompt).not.toContain('--config-dir')
     } finally {
       Object.defineProperty(processWithResourcesPath, 'resourcesPath', {
@@ -2113,7 +2147,7 @@ describe('可移植会话存储合同', () => {
     mkdirSync(join(sourceDir, 'attachments'), { recursive: true })
     writeFileSync(attachment, 'image')
     const piSessionFile = join(paths.getConfigDir(), 'portable-pi.jsonl')
-    writeFileSync(piSessionFile, '')
+    writePiSessionArtifact(piSessionFile, 'pi-test-session', 'entry-keep')
     manager.updateAgentSessionMeta(source.id, { piSessionFile, piEntryBindings: { 'portable-keep': 'entry-keep' } })
     manager.appendSDKMessages(source.id, [
       { type: 'user', uuid: 'portable-fork-user', message: { content: `<attached_files>\n- fork.png: ${attachment}\n</attached_files>` } },

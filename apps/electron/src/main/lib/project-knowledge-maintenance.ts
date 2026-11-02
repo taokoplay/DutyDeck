@@ -6,6 +6,7 @@ import type { KnowledgeEntryCommit, ProjectKnowledgeStore, ResolvedKnowledgeProj
 import { emptyKnowledgeMaintenance } from './project-knowledge-maintenance-types'
 import type { KnowledgeMaintenanceJob, KnowledgeMaintenanceRecord } from './project-knowledge-maintenance-types'
 import { containsKnowledgeSecret } from './project-knowledge/sensitive-text'
+import { assessKnowledgeAdmission } from './project-knowledge/admission'
 import {
   buildSourceDistillationPrompt,
   createSourceDistillationBatches,
@@ -543,11 +544,24 @@ export function createKnowledgeMaintenance(dependencies: KnowledgeMaintenanceDep
             && record.text.includes(old.title) && baseline.entries[old.id] === old.revision
             && (old.source.kind === 'conversation' || old.source.kind === 'managed')
           const conflict = entries.some((entry) => entry.title === candidate.title && entry.state === 'confirmed') && !canReplace
+          /** 明确用户原话自动确认时，同时保存可复核的用户证据和准入回执。 */
+          const userEvidence = explicitStatement && record.role === 'user'
+            ? { sessionId: job.sessionId, messageId: record.uuid, quote: record.text, sha256: record.sha256 }
+            : undefined
+          const admission = explicitStatement && userEvidence
+            ? assessKnowledgeAdmission({
+              contentType: candidate.kind === 'decision' ? 'decision' : 'fact', importance: 'normal',
+              purpose: '在后续对话中复用已确认的项目决定', scope: '当前项目',
+              claims: [{ statement: content, evidenceIndexes: [], usesUserEvidence: true }],
+              coverage: [{ topic: candidate.title, status: 'covered', reason: '用户原话逐字确认' }], issues: [], outcome: 'eligible',
+            }, content, [], userEvidence)
+            : undefined
           const entryBase: Omit<KnowledgeEntry, 'revision'> = {
             id: sourceId.slice(0, 32), title: candidate.title, category: candidate.category, kind: candidate.kind,
             state: explicitStatement && !conflict ? 'confirmed' : 'draft', freshness: 'current',
             summary: `${conflict ? '待核对：与已有同主题知识不同。' : ''}${content.slice(0, 320)}`,
             source: { kind: 'conversation', id: sourceId, sessionId: job.sessionId, messageIds: [record.uuid], revision: record.sha256 },
+            userEvidence, admission,
             byteSize: Buffer.byteLength(content), indexedBytes: Buffer.byteLength(content), truncated: false, metadataOnly: false, updatedAt: now(),
           }
           const entry = { ...entryBase, revision: createHash('sha256').update(JSON.stringify(entryBase) + content).digest('hex') }

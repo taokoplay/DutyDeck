@@ -375,7 +375,8 @@ describe('Agent sendMessage 准入顺序合同', () => {
     /** 正常完成实际调用。 */
     const finalCompletionBody = source.slice(finalCompletionStart, finalCompletionEnd)
 
-    expect(typedErrorBody).toContain('completeRun(getAgentSessionMessages(sessionId), {')
+    /** completion 不再携带历史消息数组，调用签名只剩终态 options。 */
+    expect(typedErrorBody).toContain('completeRun({')
     expect(typedErrorBody).toContain("resultSubtype: 'error_during_execution'")
     expect(typedErrorBody).toContain('resultErrors: [errorContent]')
     expect(typedErrorBody).not.toContain("resultSubtype: 'success'")
@@ -464,7 +465,9 @@ describe('Agent sendMessage 准入顺序合同', () => {
 
     expect(source).toContain('waitForMediaExecution: (input, signal) => waitForProductionVisualMediaExecution(sessionId, input, signal)')
     expect(source).toContain('const mediaSteps = discoveryMessage ? [] : await visualReviewRun.waitForPendingMedia(signal)')
-    expect(source).toContain('媒体任务执行后由 Host 托管等待终态，不要用 media_wait_run 高频刷新进度')
+    /** 面向 Agent 的轮询约束属于视觉生产工具运行时；编排器只验证完成门禁接线。 */
+    const visualAgentRunSource = readFileSync(join(import.meta.dir, 'visual-production', 'agent-run.ts'), 'utf8')
+    expect(visualAgentRunSource).toContain('Host 托管等待负责长时媒体任务')
   })
 
   test('Given 非媒体高风险工具 When 存在媒体自动审批策略 Then 仍走各自逐次审批分支', () => {

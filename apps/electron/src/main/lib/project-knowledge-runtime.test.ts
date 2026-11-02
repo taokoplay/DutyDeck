@@ -23,6 +23,11 @@ let writable = true
 let leases = 0
 let receiptLookups: string[] = []
 
+/** 与生产 runtime 一致，证据摘要绑定角色、消息 UUID 和正文。 */
+function evidenceDigest(record: Pick<PersistedAgentEvidenceRecord, 'role' | 'uuid' | 'text'>): string {
+  return createHash('sha256').update(JSON.stringify({ role: record.role, uuid: record.uuid, text: record.text })).digest('hex')
+}
+
 mock.module('./agent-workspace-manager', () => ({
   getAgentWorkspace: (id: string) => id === 'w1' ? { id, slug: 'project', projectRootPath: projectRoot } : undefined,
 }))
@@ -55,7 +60,7 @@ beforeEach(() => {
   supplementControl = undefined
   /** 固定用户原文及真实内容散列。 */
   const text = '决定：项目数据保存在本地。'
-  userEvidence = { uuid: 'u1', role: 'user', text, sha256: createHash('sha256').update(text).digest('hex'), byteOffset: 0, byteLength: Buffer.byteLength(text) }
+  userEvidence = { uuid: 'u1', role: 'user', text, sha256: evidenceDigest({ uuid: 'u1', role: 'user', text }), byteOffset: 0, byteLength: Buffer.byteLength(text) }
 })
 afterEach(() => { rmSync(configRoot, { recursive: true, force: true }) })
 
@@ -77,7 +82,7 @@ describe('知识库 runtime 与当前 Agent Skill 链路', () => {
     test(`Given ${mode} 补充控制消息 When 规划和写入 Then 引用按钮之前的真实用户事实并拒绝控制提示`, async () => {
       /** 控制提示模拟点击按钮后落盘的用户形态消息，不得成为事实来源。 */
       const text = `[knowledge-supplement:${mode}]\n请维护知识库`
-      supplementControl = { uuid: 'supplement-control', role: 'user', text, sha256: createHash('sha256').update(text).digest('hex'), byteOffset: 100, byteLength: Buffer.byteLength(text) }
+      supplementControl = { uuid: 'supplement-control', role: 'user', text, sha256: evidenceDigest({ uuid: 'supplement-control', role: 'user', text }), byteOffset: 100, byteLength: Buffer.byteLength(text) }
       const service = getProjectKnowledgeService()
       const maintenance = service.createAgentMaintenance({ sessionId: 's1', userMessageId: supplementControl.uuid, assertRunActive: () => undefined, canMutate: () => true })
       const proposed = await maintenance.proposePlan!({ title: '数据知识', rootRelativePath: 'knowledge',

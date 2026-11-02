@@ -336,7 +336,8 @@ test('Given 引擎按需安装 When 打包应用 Then 仅携带版本信息且�
 
 test('Windows 构建与发布在打包前执行稳定目录原生回归', () => {
   /** Windows 上必须真实运行的 helper/host 定向测试命令。 */
-  const stableDirectoryTests = 'bun test apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts'
+  /** --isolate 防止 mock.module 在 Windows 定向回归的多文件运行间相互泄漏。 */
+  const stableDirectoryTests = 'bun test --isolate apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts'
   /** Windows 准备流程的首个构建步骤；原生测试必须在此之前完成。 */
   const packagePrepare = 'bun run build'
   /** 独立 Windows 构建工作流。 */

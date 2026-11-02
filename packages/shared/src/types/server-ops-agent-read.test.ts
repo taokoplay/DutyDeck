@@ -33,7 +33,8 @@ describe('运维只读授权合同', () => {
     expect(parsed.resources).not.toBe(grant.resources)
     expect(parseServerOpsAgentReadAccess({ ...grant, revision: 1, grantedAt: 1, expiresAt: 1_800_001 })).toEqual({ ...grant, revision: 1, grantedAt: 1, expiresAt: 1_800_001 })
     expect(parseServerOpsAgentReadAccess(null)).toBeNull()
-    expect(() => parseServerOpsAgentReadAccess({ ...grant, revision: 1, grantedAt: 1 })).toThrow('SERVER_OPS_READ_ACCESS_INVALID')
+    /** 永久授权省略 expiresAt；仅保留过期时间非法的边界。 */
+    expect(parseServerOpsAgentReadAccess({ ...grant, revision: 1, grantedAt: 1 })).toEqual({ ...grant, revision: 1, grantedAt: 1 })
     expect(() => parseServerOpsAgentReadAccess({ ...grant, revision: 1, grantedAt: 1, expiresAt: 1 })).toThrow('SERVER_OPS_READ_ACCESS_INVALID')
   })
   test('Given 未知字段、重复资源、空表授权或非布尔权限 Then 拒绝', () => {

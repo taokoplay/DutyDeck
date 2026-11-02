@@ -439,7 +439,7 @@ describe('LanBridgeAuthService 生命周期与协议安全', () => {
       import { homedir } from 'node:os'
       import { join } from 'node:path'
       import { getLanBridgeAuthService } from ${JSON.stringify(authModuleUrl)}
-      const configDir = join(homedir(), '.proma')
+      const configDir = join(homedir(), '.DutyDeck')
       const existsBeforeGetter = existsSync(configDir)
       const firstService = getLanBridgeAuthService()
       const secondService = getLanBridgeAuthService()

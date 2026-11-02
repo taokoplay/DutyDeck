@@ -6,12 +6,30 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } 
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { skipIfUpToDate, writeNativeBuildStamp, type NativeBuildStampInput } from './native-build-stamp'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const appDir = resolve(scriptDir, '..')
 const source = resolve(appDir, 'native/stable-directory/stable-directory-helper.cc')
 const executableName = process.platform === 'win32' ? 'stable-directory-helper.exe' : 'stable-directory-helper'
 const output = resolve(appDir, 'resources/stable-directory', executableName)
+
+/** 工具链身份参与指纹：切换编译器也要重编译。 */
+const compilerIdentity = process.platform === 'darwin'
+  ? 'xcrun clang++'
+  : process.platform === 'linux' ? (process.env.CXX || 'g++') : 'cl'
+/** 增量构建判定输入；源码、脚本或工具链变化才重新编译。 */
+const stampInput: NativeBuildStampInput = {
+  name: 'stable-directory-native',
+  outputPath: output,
+  inputs: [
+    source,
+    resolve(scriptDir, 'build-stable-directory-native.ts'),
+    resolve(scriptDir, 'native-build-stamp.ts'),
+  ],
+  factors: [`compiler=${compilerIdentity}`, 'flags=-O2 -std=c++17'],
+}
+skipIfUpToDate(stampInput)
 
 /** 在 Windows PATH 未初始化时定位 Visual Studio 开发者命令脚本。 */
 function findVisualStudioDeveloperCommand(): string {
@@ -89,4 +107,5 @@ if (process.platform === 'darwin') {
 }
 
 if (process.platform !== 'win32') chmodSync(output, 0o755)
+writeNativeBuildStamp(stampInput)
 console.log(`[stable-directory-native] built ${output}`)

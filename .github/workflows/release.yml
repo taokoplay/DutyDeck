@@ -259,11 +259,11 @@ jobs:
         run: bun run build:plugins
 
       - name: 测试稳定目录 helper
-        run: bun test apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts
+        run: bun test --isolate apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts
 
       - name: 在真实 Electron 中验证运维项目创建
         timeout-minutes: 5
-        run: bun test apps/electron/scripts/server-ops-project-smoke.test.ts
+        run: bun test --isolate apps/electron/scripts/server-ops-project-smoke.test.ts
 
       - name: 捕获 Electron 二进制路径
         working-directory: apps/electron

@@ -123,7 +123,8 @@ export function getProjectKnowledgeService(): ProjectKnowledgeRuntime {
       if (!receipt) return 'unavailable'
       const message = readPersistedAgentEvidence(evidence.sessionId, [receipt]).records.find((record) => record.uuid === evidence.messageId)
       if (!message || message.role !== 'user' || isKnowledgeControlPrompt(message.text)) return 'unavailable'
-      const fingerprint = createHash('sha256').update(message.text, 'utf8').digest('hex')
+      /** readPersistedAgentEvidence 返回正文身份摘要，包含角色与消息 UUID；使用同一摘要算法复核。 */
+      const fingerprint = createHash('sha256').update(JSON.stringify({ role: message.role, uuid: message.uuid, text: message.text })).digest('hex')
       return fingerprint === evidence.sha256 && message.text.includes(evidence.quote) ? 'current' : 'changed'
     },
     controlledSources: {

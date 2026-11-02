@@ -7,6 +7,7 @@ import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { skipIfUpToDate, writeNativeBuildStamp, type NativeBuildStampInput } from './native-build-stamp'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const appDir = resolve(scriptDir, '..')
@@ -21,7 +22,31 @@ const nodeGypRoot = process.platform === 'darwin'
     ? resolve(process.env.LOCALAPPDATA ?? homedir(), 'node-gyp/Cache')
     : resolve(homedir(), '.cache/node-gyp')
 const nodeRoot = resolve(nodeGypRoot, nodeVersion)
+
 const nodeHeaders = resolve(nodeRoot, 'include/node')
+
+/**
+ * 增量构建判定输入。
+ * 显式指定 SERVER_OPS_CONFIG_LOCK_OUTPUT 时（多产物或测试构建）不复用默认标记，始终重建。
+ */
+const usesDefaultOutput = !process.env.SERVER_OPS_CONFIG_LOCK_OUTPUT
+const stampInput: NativeBuildStampInput = {
+  name: 'server-ops-config-lock',
+  outputPath: output,
+  inputs: [
+    source,
+    resolve(dirname(source), 'binding.gyp'),
+    resolve(scriptDir, 'build-server-ops-config-lock.ts'),
+    resolve(scriptDir, 'native-build-stamp.ts'),
+  ],
+  factors: [
+    `compiler=${process.platform === 'darwin' ? 'xcrun clang++' : process.platform === 'win32' ? 'node-gyp' : (process.env.CXX || 'g++')}`,
+    'flags=-O2 -std=c++17 -DNAPI_VERSION=8',
+    `nodeHeaders=${nodeHeaders}`,
+    `nodeVersion=${nodeVersion}`,
+  ],
+}
+if (usesDefaultOutput) skipIfUpToDate(stampInput)
 
 /**
  * 通过现有 node-gyp 构建 Windows addon，并将结果复制到固定资源路径。
@@ -76,4 +101,5 @@ if (process.platform === 'darwin') {
   throw new Error(`Unsupported config lock platform: ${process.platform}`)
 }
 
+if (usesDefaultOutput) writeNativeBuildStamp(stampInput)
 console.log(`[server-ops-config-lock] built ${output}`)

@@ -230,13 +230,23 @@ describe('Server Ops SQL 查询历史 Store', () => {
       now: () => sequence,
       transaction: (callback) => callback(),
     })
-    for (sequence = 0; sequence < 1_001; sequence += 1) {
-      store.save(createInput(`SELECT ${sequence}`, `source-${sequence}`, 'app'))
+    /** 预置合法的 1000 条旧历史，只让本次保存真正覆盖全局淘汰边界。 */
+    snapshot = {
+      version: 1,
+      entries: Array.from({ length: 1_000 }, (_, index) => ({
+        id: `history-${index}`,
+        sourceId: `source-${index + 1}`,
+        database: 'app',
+        sql: `SELECT ${index + 1}`,
+        createdAt: index + 1,
+      })),
     }
+    sequence = 1_000
+    store.save(createInput('SELECT 1001', 'source-1001', 'app'))
     const sourceIds = readSnapshotSourceIds(snapshot)
     expect(sourceIds).toHaveLength(1_000)
-    expect(sourceIds[0]).toBe('source-1000')
-    expect(sourceIds.at(-1)).toBe('source-1')
+    expect(sourceIds[0]).toBe('source-1001')
+    expect(sourceIds.at(-1)).toBe('source-999')
   })
 
   test('Given 安全写入失败 When 保存 Then 旧历史保持可读且错误向上传播', () => {

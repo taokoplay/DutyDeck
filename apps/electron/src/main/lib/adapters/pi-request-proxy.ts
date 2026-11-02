@@ -129,10 +129,15 @@ export function getPiRequestProxyDispatcher(): Dispatcher | undefined {
   return requestDispatcherStorage.getStore()
 }
 
-export async function closePiRequestProxyDispatcher(dispatcher: Dispatcher | undefined): Promise<void> {
-  const close = (dispatcher as (Dispatcher & { close?: () => Promise<void> }) | undefined)?.close
-  if (!close) return
-  await close.call(dispatcher).catch((error: unknown) => {
+/** 关闭或强制销毁请求级 dispatcher；不同 undici 版本只保证其中一种生命周期方法存在。 */
+export async function closePiRequestProxyDispatcher(dispatcher: Dispatcher | undefined, options?: { force?: boolean }): Promise<void> {
+  if (!dispatcher) return
+  const candidate = dispatcher as Dispatcher & { close?: () => unknown; destroy?: () => unknown }
+  const operation = options?.force ? (candidate.destroy ?? candidate.close) : candidate.close
+  if (!operation) return
+  try {
+    await Promise.resolve(operation.call(dispatcher))
+  } catch (error: unknown) {
     console.warn('[Pi SDK] 关闭请求级代理 dispatcher 失败:', error)
-  })
+  }
 }

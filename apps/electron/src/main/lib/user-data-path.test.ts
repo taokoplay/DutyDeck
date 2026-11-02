@@ -30,20 +30,21 @@ describe('Electron userData 兼容路径', () => {
     expect(result.path).toBe(join(root, '@dutydeck/electron'))
   })
 
-  test('只有旧目录时复用旧目录，保留旧版 renderer 偏好', () => {
+  test('只有旧目录时仍使用 DutyDeck 目录，避免与 Proma 共享 Electron 锁', () => {
     const root = createRoot()
     writeLocalStorage(join(root, '@proma/electron'))
     const result = resolveUserDataPath(root, '@dutydeck/electron', '@proma/electron')
-    expect(result.source).toBe('legacy')
-    expect(result.path).toBe(join(root, '@proma/electron'))
+    expect(result.source).toBe('current')
+    expect(result.path).toBe(join(root, '@dutydeck/electron'))
   })
 
-  test('新目录为空而旧目录有偏好时仍复用旧目录', () => {
+  test('新目录为空而旧目录有偏好时仍使用 DutyDeck 目录', () => {
     const root = createRoot()
     mkdirSync(join(root, '@dutydeck/electron'), { recursive: true })
     writeLocalStorage(join(root, '@proma/electron'))
     const result = resolveUserDataPath(root, '@dutydeck/electron', '@proma/electron')
-    expect(result.source).toBe('legacy')
+    expect(result.source).toBe('current')
+    expect(result.path).toBe(join(root, '@dutydeck/electron'))
   })
 
   test('两个目录都有 renderer 数据时保留当前 DutyDeck 目录', () => {

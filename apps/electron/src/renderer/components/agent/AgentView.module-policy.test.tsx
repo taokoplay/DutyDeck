@@ -5,6 +5,7 @@ import * as React from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { AgentSendInput } from '@dutydeck/shared'
+import { snapshotVisualProductionReferences } from '@/atoms/visual-production-reference-atoms'
 
 interface MinimalEventTarget {
   addEventListener: () => void
@@ -94,6 +95,8 @@ for (const streaming of [false, true]) {
       pendingFilesRef: { current: [] }, messagesRefreshingRef: { current: false },
       agentSessionDraftsAtom: 'drafts', agentSessionsAtom: 'sessions', stoppedByUserSessionsAtom: 'stopped',
       agentCanvasNodeReferencesAtomFamily: () => 'refs', visualProductionReferencesAtomFamily: () => 'refs',
+      snapshotVisualProductionReferences: (explicit: readonly unknown[], current: unknown, workspaceId: string | null | undefined) => snapshotVisualProductionReferences(explicit as never, current as never, workspaceId),
+      currentVisualProductionReferenceAtomFamily: () => 'current-reference',
       store: { get: (key: string) => key === 'drafts' ? new Map() : [], set: noOp },
       synchronizeCanvasBeforeSend: async () => {}, createBaseAdditionalDirectories: () => new Set(),
       consumeQuotedSelection: () => undefined, getMediaAttachments: () => undefined,

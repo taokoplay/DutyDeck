@@ -6,6 +6,7 @@ import { chmodSync, existsSync, mkdirSync, rmSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { skipIfUpToDate, writeNativeBuildStamp, type NativeBuildStampInput } from './native-build-stamp'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const appDir = resolve(scriptDir, '..')
@@ -18,6 +19,28 @@ const nodeApiHeaders = resolve(homedir(), 'Library/Caches/node-gyp', nodeVersion
 const devElectronApp = resolve(appDir, 'node_modules/electron/dist/Electron.app')
 const devElectronInfo = resolve(devElectronApp, 'Contents/Info.plist')
 const entitlements = resolve(appDir, 'resources/entitlements.mac.plist')
+
+/**
+ * 增量构建判定输入。
+ * Electron.app 的 Info.plist 与 entitlements 也参与指纹：它们的变更同样需要重签名。
+ */
+const stampInput: NativeBuildStampInput = {
+  name: 'eventkit-native',
+  outputPath: output,
+  inputs: [
+    source,
+    entitlements,
+    resolve(scriptDir, 'build-eventkit-native.ts'),
+    resolve(scriptDir, 'native-build-stamp.ts'),
+  ],
+  factors: [
+    'compiler=xcrun clang++',
+    'flags=-O2 -std=c++17 -DNAPI_VERSION=8 -fobjc-arc -bundle',
+    `napiHeaders=${napiHeaders}`,
+    `nodeApiHeaders=${nodeApiHeaders}`,
+  ],
+}
+skipIfUpToDate(stampInput)
 
 if (process.platform !== 'darwin') {
   console.log('[eventkit-native] skipped (macOS only)')
@@ -44,4 +67,5 @@ if (existsSync(devElectronInfo)) {
   // macOS 26+ 还会检查 EventKit entitlement；开发态 Electron 也必须带与成品相同的权限。
   execFileSync('codesign', ['--force', '--deep', '--sign', '-', '--entitlements', entitlements, devElectronApp], { stdio: 'inherit' })
 }
+writeNativeBuildStamp(stampInput)
 console.log(`[eventkit-native] built ${output}`)

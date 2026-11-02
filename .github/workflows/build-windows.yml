@@ -39,22 +39,22 @@ jobs:
         run: bun run build:plugins
 
       - name: Test stable directory helper
-        run: bun test apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts
+        run: bun test --isolate apps/electron/src/main/lib/stable-directory-native-host.test.ts apps/electron/scripts/build-stable-directory-native.test.ts
 
       - name: Test Server Ops project creation in Electron
         timeout-minutes: 5
-        run: bun test apps/electron/scripts/server-ops-project-smoke.test.ts
+        run: bun test --isolate apps/electron/scripts/server-ops-project-smoke.test.ts
 
       - name: Test data root recovery
         run: >-
-          bun test
+          bun test --isolate
           apps/electron/src/main/lib/data-root-recovery.test.ts
           apps/electron/src/main/lib/data-root-startup-check.test.ts
           apps/electron/src/main/lib/path-management-ipc.test.ts
 
       - name: Test utility process lifecycle
         run: >-
-          bun test
+          bun test --isolate
           apps/electron/src/main/lib/utility-process-startup.test.ts
           apps/electron/src/main/lib/utility-process-lifecycle.test.ts
           apps/electron/src/main/lib/agent-runtime-client-lifecycle.test.ts

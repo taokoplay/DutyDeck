@@ -18,23 +18,32 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 const response = (content = '采用短信登录', quote = '决定：采用短信登录', messageId = 'u1') => JSON.stringify({ candidates: [{
   title: '登录方式', content, category: 'decisions', kind: 'decision', messageId, quote,
 }] })
+/** 与 Agent 会话管理器相同的正文证据身份摘要。 */
+const evidenceHash = (role: 'user' | 'assistant', uuid: string, text: string) => createHash('sha256').update(JSON.stringify({ role, uuid, text })).digest('hex')
 
 /** 存储是真实文件；模型与会话只模拟远端输出和权威会话边界。 */
 async function fixture(callModel: () => Promise<string> = async () => response()) {
   const root = mkdtempSync(join(tmpdir(), 'knowledge-maintenance-')); roots.push(root)
   const project = { projectId: 'w1', projectRoot: root, memoryRoot: join(root, 'memory'), cacheRoot: join(root, 'cache') }
   mkdirSync(project.memoryRoot)
-  const service = createProjectKnowledgeService({ resolveProject: () => project })
-  await service.store.initialize(project, 'w1')
   const state: { session: AgentSessionMeta | undefined; now: number; calls: number; records: PersistedAgentEvidenceRecord[]; sourceBodies: Map<string, string>; truncatedSources: Set<string> } = {
     session: { id: 's1', workspaceId: 'w1', title: '会话', createdAt: 1, updatedAt: 1 }, now: 1000, calls: 0,
     sourceBodies: new Map(),
     truncatedSources: new Set(),
     records: [
-      { uuid: 'u1', role: 'user', text: '决定：采用短信登录', sha256: 'u-hash', byteOffset: 0, byteLength: 50 },
-      { uuid: 'a1', role: 'assistant', text: '已了解你的决定', sha256: 'a-hash', byteOffset: 50, byteLength: 50 },
+      { uuid: 'u1', role: 'user', text: '决定：采用短信登录', sha256: evidenceHash('user', 'u1', '决定：采用短信登录'), byteOffset: 0, byteLength: 50 },
+      { uuid: 'a1', role: 'assistant', text: '已了解你的决定', sha256: evidenceHash('assistant', 'a1', '已了解你的决定'), byteOffset: 50, byteLength: 50 },
     ],
   }
+  const service = createProjectKnowledgeService({
+    resolveProject: () => project,
+    revalidateUserEvidence: async (_workspaceId, evidence) => {
+      const record = state.records.find((item) => item.uuid === evidence.messageId)
+      if (!record || record.role !== 'user') return 'unavailable'
+      return record.sha256 === evidence.sha256 && record.text.includes(evidence.quote) ? 'current' : 'changed'
+    },
+  })
+  await service.store.initialize(project, 'w1')
   const dependencies = {
     store: service.store, resolveProject: () => project, getSession: () => state.session,
     readEvidence: () => ({ sessionId: 's1', records: state.records, truncated: false, skipped: 0 }),
@@ -474,8 +483,8 @@ describe('项目知识持续维护', () => {
     /** 用户第二轮明确纠正的真实落盘证据。 */
     const correctedText = '纠正：登录方式改为邮箱'
     f.state.records = [
-      { uuid: 'u2', role: 'user', text: correctedText, sha256: 'u2-hash', byteOffset: 100, byteLength: 50 },
-      { uuid: 'a2', role: 'assistant', text: '已按纠正更新', sha256: 'a2-hash', byteOffset: 150, byteLength: 50 },
+      { uuid: 'u2', role: 'user', text: correctedText, sha256: evidenceHash('user', 'u2', correctedText), byteOffset: 100, byteLength: 50 },
+      { uuid: 'a2', role: 'assistant', text: '已按纠正更新', sha256: evidenceHash('assistant', 'a2', '已按纠正更新'), byteOffset: 150, byteLength: 50 },
     ]
     modelResponse = JSON.stringify({ candidates: [{
       title: '登录方式', content: '登录方式改为邮箱', category: 'decisions', kind: 'decision',
@@ -521,8 +530,8 @@ describe('项目知识持续维护', () => {
     /** 第二轮只是讨论建议，不构成明确纠正。 */
     const suggestionText = '可以考虑把登录改为邮箱验证码'
     f.state.records = [
-      { uuid: 'u2', role: 'user', text: suggestionText, sha256: 'u2-hash', byteOffset: 100, byteLength: 50 },
-      { uuid: 'a2', role: 'assistant', text: '这是一个未采纳建议', sha256: 'a2-hash', byteOffset: 150, byteLength: 50 },
+      { uuid: 'u2', role: 'user', text: suggestionText, sha256: evidenceHash('user', 'u2', suggestionText), byteOffset: 100, byteLength: 50 },
+      { uuid: 'a2', role: 'assistant', text: '这是一个未采纳建议', sha256: evidenceHash('assistant', 'a2', '这是一个未采纳建议'), byteOffset: 150, byteLength: 50 },
     ]
     modelResponse = JSON.stringify({ candidates: [{
       title: '登录方式', content: '建议使用邮箱验证码', category: 'decisions', kind: 'decision',
@@ -576,8 +585,8 @@ describe('项目知识持续维护', () => {
     /** 第二轮明确纠正证据。 */
     const correctedText = '纠正：登录方式改为邮箱'
     f.state.records = [
-      { uuid: 'u2', role: 'user', text: correctedText, sha256: 'u2-hash', byteOffset: 100, byteLength: 50 },
-      { uuid: 'a2', role: 'assistant', text: '等待整理', sha256: 'a2-hash', byteOffset: 150, byteLength: 50 },
+      { uuid: 'u2', role: 'user', text: correctedText, sha256: evidenceHash('user', 'u2', correctedText), byteOffset: 100, byteLength: 50 },
+      { uuid: 'a2', role: 'assistant', text: '等待整理', sha256: evidenceHash('assistant', 'a2', '等待整理'), byteOffset: 150, byteLength: 50 },
     ]
     /** 启动会固定旧条目 baseline 的第二轮任务。 */
     const correctedTurn: KnowledgeCompletedTurn = {

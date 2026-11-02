@@ -22,8 +22,8 @@ import type { LegacySafeStorageSnapshot } from './lib/safe-storage-migration'
 /** 当前进程是否仅负责读取旧 Safe Storage；helper 不得注册业务单实例或启动窗口。 */
 const isSafeStorageMigrationHelper = process.argv.includes(SAFE_STORAGE_MIGRATION_HELPER_ARG)
 
-// 开发模式使用独立的 userData 目录，避免与打包版共享 Chromium SingletonLock；
-// 打包版则在新旧目录之间按已有 renderer 数据选择兼容路径。
+// 开发模式与打包版都使用 DutyDeck 独立的 userData 目录，避免与 Proma
+// 共享 Chromium SingletonLock；旧 Proma 目录只由显式迁移流程读取。
 // 加密身份与 userData 都必须在任何会读取它们的模块加载之前固定。
 /** 当前进程应使用的正式或开发身份。 */
 const appIdentity = resolveAppIdentity(

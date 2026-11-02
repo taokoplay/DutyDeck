@@ -58,8 +58,8 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
-  rmSync(join(tempHome, '.proma'), { recursive: true, force: true })
-  mkdirSync(join(tempHome, '.proma'), { recursive: true })
+  rmSync(join(tempHome, '.DutyDeck'), { recursive: true, force: true })
+  mkdirSync(join(tempHome, '.DutyDeck'), { recursive: true })
 })
 
 afterAll(() => {
@@ -86,7 +86,7 @@ describe('GitHub Copilot 渠道凭据安全与并发保护', () => {
   test('Given 创建 Copilot 渠道 When 落盘 Then 文件不包含明文 token', () => {
     createCopilotChannel()
 
-    const stored = readFileSync(join(tempHome, '.proma', 'channels.json'), 'utf-8')
+    const stored = readFileSync(join(tempHome, '.DutyDeck', 'channels.json'), 'utf-8')
     expect(stored).not.toContain(oldCredentials.access)
     expect(stored).not.toContain(oldCredentials.refresh)
   })

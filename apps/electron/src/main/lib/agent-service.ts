@@ -672,7 +672,6 @@ export async function runPreparedAgent(
               const target = getRunTarget()
               if (target) {
                 sendAuthoritativeAgentStreamComplete(target, input, getAgentSessionMeta, {
-                  messages,
                   stoppedByUser: opts?.stoppedByUser ?? false,
                   startedAt: opts?.startedAt,
                   resultSubtype: opts?.resultSubtype,
@@ -777,7 +776,6 @@ export async function runPreparedAgent(
         run: () => {
           if (!webContents.isDestroyed()) {
             sendAuthoritativeAgentStreamComplete(webContents, input, getAgentSessionMeta, {
-              messages: [],
               stoppedByUser: false,
               startedAt: input.startedAt,
             })
@@ -898,7 +896,6 @@ export async function runAgentHeadless(
               const target = getRunTarget()
               if (target) {
                 sendAuthoritativeAgentStreamComplete(target, runInput, getAgentSessionMeta, {
-                  messages,
                   stoppedByUser: opts?.stoppedByUser ?? false,
                   startedAt: opts?.startedAt,
                   resultSubtype: opts?.resultSubtype,
@@ -1013,7 +1010,7 @@ export async function runAgentHeadless(
               target,
               runInput,
               getAgentSessionMeta,
-              { messages: [], stoppedByUser: false, startedAt },
+              { stoppedByUser: false, startedAt },
             )
           }
         },
