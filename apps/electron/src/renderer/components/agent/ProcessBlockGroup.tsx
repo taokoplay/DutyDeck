@@ -1,3 +1,4 @@
+import { useTranscriptExpansion } from '@/lib/agent-transcript-presentation'
 import * as React from 'react'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -11,6 +12,8 @@ import type {
 
 interface ProcessBlockGroupProps {
   blocks: SDKContentBlock[]
+  presentationKey?: string
+  reveal?: boolean
   isStreaming?: boolean
   /** 惰性生成过程项；流式与历史态均渲染完整内容。 */
   renderChildren: () => React.ReactNode
@@ -192,11 +195,15 @@ const StableProcessChild = React.memo(
   (previous, next) => previous.child === next.child,
 )
 
-export function ProcessBlockGroup({ blocks, isStreaming, renderChildren, isMessageTail = false }: ProcessBlockGroupProps): React.ReactElement {
-  const initialDisplayMode: ProcessGroupDisplayMode = !isStreaming
-    ? 'collapsed'
-    : 'expanded'
-  const [displayMode, setDisplayMode] = React.useState<ProcessGroupDisplayMode>(initialDisplayMode)
+export function ProcessBlockGroup({ blocks, presentationKey = 'process', reveal = false, isStreaming, renderChildren, isMessageTail = false }: ProcessBlockGroupProps): React.ReactElement {
+  const initialDisplayMode: ProcessGroupDisplayMode = isStreaming || reveal
+    ? 'expanded'
+    : 'collapsed'
+  const [expanded, setExpanded] = useTranscriptExpansion(presentationKey, initialDisplayMode === 'expanded')
+  const displayMode: ProcessGroupDisplayMode = expanded ? 'expanded' : 'collapsed'
+  const setDisplayMode = React.useCallback((next: React.SetStateAction<ProcessGroupDisplayMode>) => {
+    setExpanded(previous => (typeof next === 'function' ? next(previous ? 'expanded' : 'collapsed') : next) === 'expanded')
+  }, [setExpanded])
   const [shouldRenderContent, setShouldRenderContent] = React.useState(initialDisplayMode !== 'collapsed')
   const [keepProgressViewport, setKeepProgressViewport] = React.useState(!!isStreaming)
   const [collapseCountdown, setCollapseCountdown] = React.useState<number | null>(null)
@@ -227,6 +234,15 @@ export function ProcessBlockGroup({ blocks, isStreaming, renderChildren, isMessa
   React.useEffect(() => {
     clearAutoCollapseTimers()
 
+    // 搜索揭示优先于自动折叠，并取消此前排队的折叠计时器。
+    if (reveal) {
+      setDisplayMode('expanded')
+      setCollapseCountdown(null)
+      setKeepProgressViewport(!!isStreaming)
+      wasStreamingRef.current = !!isStreaming
+      return
+    }
+
     if (isStreaming) {
       setCollapseCountdown(null)
       setKeepProgressViewport(true)
@@ -249,7 +265,7 @@ export function ProcessBlockGroup({ blocks, isStreaming, renderChildren, isMessa
 
     if (!shouldAutoCollapseAfterCompletion) {
       setKeepProgressViewport(false)
-      if (!userToggledRef.current) setDisplayMode('collapsed')
+      // 非流式首次挂载沿用缓存选择；默认折叠已经由初始状态负责。
       return
     }
 
@@ -273,7 +289,7 @@ export function ProcessBlockGroup({ blocks, isStreaming, renderChildren, isMessa
     autoCollapseTimersRef.current.push(soundDelayTimer)
 
     return clearAutoCollapseTimers
-  }, [clearAutoCollapseTimers, isStreaming])
+  }, [clearAutoCollapseTimers, isStreaming, reveal, setDisplayMode])
 
   const scrollToLatest = React.useCallback(() => {
     if (!followLatestRef.current) return

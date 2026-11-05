@@ -1,3 +1,10 @@
+import { TranscriptPresentationContext } from '@/lib/agent-transcript-presentation'
+import { sliceRetainedTranscript } from '@/lib/agent-transcript-detail'
+import { selectTranscriptDisplay, preserveInteractingTranscript } from '@/lib/agent-transcript-sync'
+import type { AgentTranscriptPage } from '@dutydeck/shared'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { recordPerformanceSample } from '@/lib/performance-monitor'
 /**
  * AgentMessages — Agent 消息列表
  *
@@ -69,6 +76,8 @@ function getSDKMessageStableKey(message: SDKMessage): string {
   if (typeof record.uuid === 'string' && record.uuid.length > 0) {
     return `${message.type}:uuid:${record.uuid}`
   }
+
+  if (typeof record._promaTranscriptId === 'string') return record._promaTranscriptId
 
   // 已缓存的消息对象直接返回，保证跨渲染稳定
   if (stableKeyCache.has(message)) {
@@ -237,6 +246,11 @@ interface AgentMessagesProps {
   messagesLoaded?: boolean
   /** Phase 4: 持久化的 SDKMessage（新格式） */
   persistedSDKMessages?: SDKMessage[]
+  transcriptWindow?: AgentTranscriptPage
+  readingHistory?: boolean
+  historyLoading?: boolean
+  historyError?: string | null
+  onNavigateHistory?: (mode: 'before' | 'after' | 'tail' | 'around' | 'rebuild', messageId?: string) => Promise<boolean>
   /** 当前会话工作目录，用于解析相对文件路径 */
   sessionPath?: string | null
   /** 附加目录列表（与 sessionPath 一并用作相对路径解析候选） */
@@ -901,11 +915,131 @@ const AgentTranscriptHistory = React.forwardRef<AgentTranscriptHistoryHandle, Ag
   )
 })
 
+/** 保留缓冲不是另一个无界DOM；逐条、逐16k字符检查，不丢弃未确认原件。 */
+function RetainedTranscriptRecords({ messages }: { messages: SDKMessage[] }): React.ReactElement | null {
+  const [open, setOpen] = React.useState(false)
+  const [index, setIndex] = React.useState(0)
+  const [offset, setOffset] = React.useState(0)
+  const segment = React.useMemo(() => open ? sliceRetainedTranscript(messages[Math.min(index, messages.length - 1)], offset) : { text: '' }, [messages, index, open, offset])
+  if (messages.length === 0) return null
+  return <>
+    <Button size="sm" variant="outline" onClick={() => { setIndex(0); setOffset(0); setOpen(true) }}>查看保留记录（{messages.length}）</Button>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>保留记录（只读）</DialogTitle></DialogHeader>
+      <p>第 {Math.min(index + 1, messages.length)} 条，共 {messages.length} 条。尚未确认的完整缓冲仍保留。</p>
+      <pre tabIndex={0} className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-all text-xs">{segment.text}</pre>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={index === 0} onClick={() => { setIndex(index - 1); setOffset(0) }}>上一条</Button>
+        <Button disabled={index >= messages.length - 1} onClick={() => { setIndex(index + 1); setOffset(0) }}>下一条</Button>
+        <Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 16000))}>上一段</Button>
+        <Button disabled={segment.nextOffset === undefined} onClick={() => setOffset(offset + 16000)}>下一段</Button>
+      </div>
+    </DialogContent></Dialog>
+  </>
+}
+
+function TranscriptDetails({ page }: { page: AgentTranscriptPage }): React.ReactElement | null {
+  const [detail, setDetail] = React.useState<{ id: string; offset: number; text: string; nextOffset?: number } | null>(null)
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const request = React.useRef(0)
+  React.useEffect(() => { request.current++; setDetail(null) }, [page.sessionId, page.generation])
+  const load = async (id: string, offset = 0): Promise<void> => {
+    const token = ++request.current
+    setLoading(true); setError(null)
+    setDetail((previous) => previous?.id === id ? previous : { id, offset, text: '' })
+    try {
+      const result = await window.electronAPI.getAgentTranscriptDetail({ sessionId: page.sessionId, generation: page.generation,
+        ...(id.startsWith('tool:') ? { toolUseId: id.slice(5) } : { recordId: id }), offset })
+      if (request.current === token) setDetail({ id, offset, ...result })
+    } catch (cause) { if (request.current === token) setError(cause instanceof Error ? cause.message : '详情读取失败') }
+    finally { if (request.current === token) setLoading(false) }
+  }
+  const blocks = page.entries.flatMap(entry => {
+    const content = (entry.message as { message?: { content?: unknown } }).message?.content
+    return Array.isArray(content) ? content as Array<{ type: string; id?: string; tool_use_id?: string }> : []
+  })
+  const results = new Set(blocks.filter(block => block.type === 'tool_result').map(block => block.tool_use_id))
+  const missingTools = [...new Set(blocks.filter(block => block.type === 'tool_use' && block.id && !results.has(block.id)).map(block => block.id!))].slice(0, 30)
+  const calls = new Set(blocks.filter(block => block.type === 'tool_use').map(block => block.id))
+  const deferred = page.entries.filter(entry => entry.deferred || (entry.message.type === 'user' && (
+    ((entry.message as { message?: { content?: Array<{ type: string; tool_use_id?: string }> } }).message?.content ?? [])
+      .some(block => block.type === 'tool_result' && !calls.has(block.tool_use_id)))))
+  if (deferred.length === 0 && missingTools.length === 0 && !detail) return null
+  return <div className="px-3 text-xs text-muted-foreground">
+    {missingTools.length > 0 && <p>部分工具结果未在当前分段中；这不代表调用成功或失败。</p>}
+    {missingTools.map((id, index) => <Button key={id} size="sm" variant="outline" onClick={() => void load(`tool:${id}`)}>查找工具结果 {index + 1}</Button>)}
+    {deferred.map((entry, index) => <Button key={entry.recordId} size="sm" variant="outline" onClick={() => void load(entry.recordId)}>
+      查看分段记录 {index + 1}
+    </Button>)}
+    <Dialog open={detail !== null} onOpenChange={(open) => { if (!open) { request.current++; setDetail(null) } }}>
+      <DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>历史记录详情（只读展示投影）</DialogTitle></DialogHeader>
+        {error && <p role="alert">{error}</p>}
+        {loading && <p>正在读取…</p>}
+        <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-all text-xs" tabIndex={0}>{detail?.text}</pre>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={loading || !detail || detail.offset === 0} onClick={() => detail && void load(detail.id, Math.max(0, detail.offset - 16000))}>上一段</Button>
+          <Button variant="outline" disabled={loading || detail?.nextOffset === undefined} onClick={() => detail && void load(detail.id, detail.nextOffset)}>下一段</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  </div>
+}
+
+/** 明确分页而非无界追加；读取中保留现有内容，按首可见消息恢复像素锚点。 */
+function TranscriptNavigation({ page, reading, loading, error, onNavigate }: {
+  page?: AgentTranscriptPage; reading: boolean; loading: boolean; error?: string | null
+  onNavigate?: AgentMessagesProps['onNavigateHistory']
+}): React.ReactElement | null {
+  const { scrollRef, stopScroll, scrollToBottom } = useStickToBottomContext()
+  const [pinned, setPinned] = React.useState(false)
+  if (!onNavigate) return null
+  const move = async (mode: 'before' | 'after' | 'tail' | 'rebuild'): Promise<void> => {
+    const root = scrollRef.current
+    const selection = window.getSelection()
+    const selectionInside = Boolean(selection && !selection.isCollapsed && selection.anchorNode && root?.contains(selection.anchorNode))
+    if (selectionInside) { setPinned(true); return }
+    setPinned(false)
+    stopScroll()
+    const top = root?.getBoundingClientRect().top ?? 0
+    const anchor = Array.from(root?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])
+      .find((element) => element.getBoundingClientRect().bottom > top)
+    const id = anchor?.dataset.messageId
+    const offset = anchor ? anchor.getBoundingClientRect().top - top : 0
+    if (!await onNavigate(mode)) return
+    window.requestAnimationFrame(() => {
+      if (mode === 'tail' || mode === 'rebuild') { void scrollToBottom(); return }
+      const target = Array.from(root?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])
+        .find((element) => element.dataset.messageId === id)
+      if (root && target) root.scrollTop += target.getBoundingClientRect().top - top - offset
+      else if (root) root.scrollTop = 0
+    })
+  }
+  return <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs text-muted-foreground" aria-live="polite">
+    {page?.indexRequired && <><span>尾部记录超过首屏扫描预算；可按需构建完整索引，不会修改原始历史。</span><Button variant="outline" size="sm" disabled={loading} onClick={() => void move('rebuild')}>构建历史索引</Button></>}
+    {page?.hasBefore && !page.indexRequired && <Button variant="outline" size="sm" disabled={loading} onClick={() => void move('before')}>较早历史</Button>}
+    {reading && <>
+      {page?.hasAfter && <Button variant="outline" size="sm" disabled={loading} onClick={() => void move('after')}>较新历史</Button>}
+      <Button variant="outline" size="sm" disabled={loading} onClick={() => void move('tail')}>返回最新消息</Button>
+      <span>正在阅读历史，实时输出保留在最新窗口</span>
+    </>}
+    {page && (page.startsMidTurn || page.endsMidTurn) && <span>此回合已按展示预算分段，可继续翻页</span>}
+    {page?.turnNumbersRelative && <span>回合编号为当前窗口相对编号</span>}
+    {loading && <span>正在读取历史…</span>}
+    {pinned && <span>请先取消文本选区，再切换历史窗口</span>}
+    {error && <><span role="alert">{error}</span><Button size="sm" variant="outline" disabled={loading} onClick={() => void move('tail')}>重新加载</Button></>}
+  </div>
+}
+
 export const AgentMessages = React.memo(function AgentMessages({
   sessionId,
   sessionModelId,
   messagesLoaded,
   persistedSDKMessages,
+  transcriptWindow,
+  readingHistory = false,
+  historyLoading = false,
+  historyError,
+  onNavigateHistory,
   sessionPath,
   attachedDirs,
   stoppedByUser,
@@ -924,12 +1058,17 @@ export const AgentMessages = React.memo(function AgentMessages({
 }: AgentMessagesProps): React.ReactElement {
   // 高频 token/live message 状态在历史区内闭环，避免唤醒 AgentView 输入框和工具栏。
   const streamState = useAtomValue(agentSessionStreamingStateAtomFamily(sessionId))
-  const liveMessages = useAtomValue(agentLiveMessagesAtomFamily(sessionId))
-  const streaming = streamState?.running ?? false
+  const currentLiveMessages = useAtomValue(agentLiveMessagesAtomFamily(sessionId))
+  // 阅读旧页不能把不连续的实时尾部拼成同一回合。
+  const liveMessages = readingHistory ? EMPTY_SDK_MESSAGES : currentLiveMessages
+  const streaming = !readingHistory && (streamState?.running ?? false)
   const userProfile = useAtomValue(userProfileAtom)
   const channels = useAtomValue(channelsAtom)
   const setMinimapCache = useSetAtom(tabMinimapCacheAtom)
   const historySelectionRootRef = React.useRef<HTMLDivElement>(null)
+  const [revealRecordId, setRevealRecordId] = React.useState<string | undefined>()
+  const expansions = React.useMemo(() => new Map<string, boolean>(), [sessionId, transcriptWindow?.generation])
+  const presentation = React.useMemo(() => ({ targetId: revealRecordId, generation: transcriptWindow?.generation ?? 'live', expansions }), [revealRecordId, transcriptWindow?.generation, expansions])
   const historyRef = React.useRef<AgentTranscriptHistoryHandle>(null)
   const visibleGroupsRef = React.useRef<MessageGroup[]>([])
   const selectionHighlightUsesBrowserSelectionRef = React.useRef(false)
@@ -981,7 +1120,15 @@ export const AgentMessages = React.memo(function AgentMessages({
     const navigation = historyQuoteNavigation
     const messageId = navigation.quote.messageId
     if (!messageId) return
-    const frame = window.requestAnimationFrame(() => {
+    setRevealRecordId(messageId)
+    let cancelled = false
+    let frame = 0
+    const reveal = async (): Promise<void> => {
+      if (!visibleGroupsRef.current.some((group) => getGroupId(group) === messageId)) {
+        if (!await onNavigateHistory?.('around', messageId) || cancelled) return
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+      }
+      frame = window.requestAnimationFrame(() => {
       const root = historySelectionRootRef.current
       if (!root) return
 
@@ -1002,10 +1149,11 @@ export const AgentMessages = React.memo(function AgentMessages({
         (element) => element.dataset.messageId === messageId,
       )
       if (target) applyNavigation(target)
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [clearHistoryQuoteHighlight, historyQuoteNavigation, sessionId])
+      })
+    }
+    void reveal()
+    return () => { cancelled = true; window.cancelAnimationFrame(frame) }
+  }, [clearHistoryQuoteHighlight, historyQuoteNavigation, sessionId, onNavigateHistory])
 
   // 实时文本仅从 liveMessages 读取。AgentStreamState 只保留运行/控制状态，
   // 避免每个 sdk_delta 同时更新 transcript 和 legacy content 两条路径。
@@ -1021,41 +1169,43 @@ export const AgentMessages = React.memo(function AgentMessages({
   // 历史消息加载都必须立即定位，避免 ResizeObserver 触发滚动 spring 动画。
   // 合并持久化 + 实时 SDKMessage：同一 UUID 的 live 消息替换历史快照，避免
   // 历史会话快速续跑时 live atom 尚未清空而把同一 assistant 渲染两次。
-  const allSDKMessages = React.useMemo(() => {
-    const persisted = persistedSDKMessages ?? []
-    const live = liveMessages ?? []
-    const stampStableKey = (message: SDKMessage): SDKMessage => {
+  const candidateDisplay = React.useMemo(() => {
+    const started = performance.now()
+    const selected = selectTranscriptDisplay(persistedSDKMessages ?? [], liveMessages ?? [], transcriptWindow)
+    for (const message of selected.messages) {
       const key = getSDKMessageStableKey(message)
       const record = message as Record<string, unknown>
-      // 已标记且未变化时不重写：对老世代消息对象的属性写入会触发 GC 写屏障，
-      // 在数百条历史 × 高频 partial 下形成持续开销。
       if (record._promaStableKey !== key) record._promaStableKey = key
-      return message
     }
-    const hasUuid = (message: SDKMessage): boolean => {
-      const uuid = (message as Record<string, unknown>).uuid
-      return typeof uuid === 'string' && uuid.length > 0
+    recordPerformanceSample('agent.history.merge', performance.now() - started)
+    return selected
+  }, [persistedSDKMessages, liveMessages, transcriptWindow])
+  const [interacting, setInteracting] = React.useState(false)
+  React.useEffect(() => {
+    const update = (): void => {
+      const root = historySelectionRootRef.current
+      const selection = window.getSelection()
+      const selected = !!selection && !selection.isCollapsed && !!selection.anchorNode && !!root?.contains(selection.anchorNode)
+      const focused = document.activeElement instanceof HTMLElement && !!root?.contains(document.activeElement)
+        && document.activeElement.matches('textarea,input,[contenteditable="true"],button,a,summary')
+      const dialog = !!document.querySelector('[role="dialog"]')
+      setInteracting(selected || focused || dialog)
     }
-    const result: SDKMessage[] = []
-    const uuidIndexes = new Map<string, number>()
-    const upsert = (message: SDKMessage): void => {
-      const stamped = stampStableKey(message)
-      if (hasUuid(stamped)) {
-        const key = (stamped as Record<string, unknown>)._promaStableKey as string
-        const existingIndex = uuidIndexes.get(key)
-        if (existingIndex != null) {
-          result[existingIndex] = stamped
-          return
-        }
-        uuidIndexes.set(key, result.length)
-      }
-      result.push(stamped)
+    document.addEventListener('selectionchange', update)
+    document.addEventListener('focusin', update)
+    document.addEventListener('focusout', update)
+    document.addEventListener('pointerup', update)
+    return () => {
+      document.removeEventListener('selectionchange', update); document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', update); document.removeEventListener('pointerup', update)
     }
-
-    for (const message of persisted) upsert(message)
-    for (const message of live) upsert(message)
-    return result
-  }, [persistedSDKMessages, liveMessages])
+  }, [])
+  const identity = `${sessionId}:${transcriptWindow?.generation}:${readingHistory ? transcriptWindow?.before?.offset : "tail"}`
+  const committedDisplay = React.useRef<{ identity: string; value: typeof candidateDisplay } | undefined>(undefined)
+  const display = preserveInteractingTranscript(committedDisplay.current?.value, candidateDisplay, interacting,
+    committedDisplay.current?.identity ?? '', identity)
+  React.useLayoutEffect(() => { committedDisplay.current = { identity, value: display } }, [identity, display])
+  const allSDKMessages = display.messages
   const hasContent = allSDKMessages.length > 0
   // 跨 turn task_notification 是历史 Task 卡片唯一需要追踪的外部元数据。
   // 普通 token/live snapshot 不改变此签名，MessageGroupRenderer comparator 因而可忽略全消息数组新引用。
@@ -1089,12 +1239,14 @@ export const AgentMessages = React.memo(function AgentMessages({
   // 跳过历史 Markdown/代码高亮/工具结果树。非流式刷新仍保持完整 groupIntoTurns 语义。
   const messageGroupCacheRef = React.useRef(createMessageGroupRenderCache())
   const allGroups = React.useMemo(() => {
+    const started = performance.now()
     const result = groupMessagesForRendering(
       allSDKMessages,
       sessionModelId,
       streaming,
       messageGroupCacheRef.current,
     )
+    recordPerformanceSample('agent.history.group', performance.now() - started)
     messageGroupCacheRef.current = result.cache
     return result.groups
   }, [allSDKMessages, sessionModelId, streaming])
@@ -1152,8 +1304,10 @@ export const AgentMessages = React.memo(function AgentMessages({
     [localSearchRecordInputs],
   )
   const searchMessages = React.useCallback<SessionMessageSearch>(
-    async (query) => searchLocalSessionMessages(localSearchRecords, query),
-    [localSearchRecords],
+    async (query) => onNavigateHistory
+      ? window.electronAPI.searchAgentTranscript(sessionId, query)
+      : searchLocalSessionMessages(localSearchRecords, query),
+    [localSearchRecords, sessionId, onNavigateHistory],
   )
 
   // 迷你地图数据 — 只依赖结构快照，流式 token 不触发 getGroupPreview 正则
@@ -1197,18 +1351,23 @@ export const AgentMessages = React.memo(function AgentMessages({
 
   // turn 在消息渲染时一次性标注到 DOM；历史划选只需读取锚点属性，绝不回扫全部消息。
   const groupHistoryTurns = React.useMemo(() => {
-    let turn = 0
+    const indexed = new Map(transcriptWindow?.entries.map(entry => [entry.recordId, entry.turn]) ?? [])
+    let turn = Math.max(1, transcriptWindow?.entries[0]?.turn ?? 1)
     const turns = new Map<string, number>()
-    for (const group of structuralGroups) {
-      if (group.type === 'user') turn += 1
-      turns.set(getGroupId(group), Math.max(turn, 1))
+    for (const [index, group] of structuralGroups.entries()) {
+      const id = getGroupId(group)
+      const known = indexed.get(id)
+      if (known !== undefined) turn = known
+      else if (group.type === 'user' && index > 0) turn++
+      turns.set(id, Math.max(turn, 1))
     }
     return turns
-  }, [structuralGroups])
+  }, [structuralGroups, transcriptWindow])
 
   return (
     <BasePathsProvider basePaths={messageBasePaths} sessionId={sessionId}>
       <AgentBrowserLinkProvider sessionId={sessionId}>
+        <TranscriptPresentationContext.Provider value={presentation}>
         <div ref={historySelectionRootRef} className="relative flex min-h-0 flex-1 flex-col">
       <style>{`
         ::highlight(${AGENT_HISTORY_QUOTE_HIGHLIGHT_NAME}) {
@@ -1219,6 +1378,12 @@ export const AgentMessages = React.memo(function AgentMessages({
           <Conversation resize="instant" className={ready ? 'opacity-100' : 'opacity-0'}>
         <ScrollPositionManager id={sessionId} ready={ready} />
         <ConversationContent>
+          {display !== candidateDisplay && <p className="text-xs text-muted-foreground">交互期间暂停替换展示窗口，结束选区或移开焦点后显示新内容。</p>}
+          <RetainedTranscriptRecords messages={display.retained} />
+          {display.omitted > 0 && <p className="px-3 text-xs text-muted-foreground">当前显示最新的有界窗口，{display.omitted} 条较早的实时缓冲未挂载；原始历史与未确认缓冲均保留。</p>}
+          <TranscriptNavigation page={transcriptWindow} reading={readingHistory} loading={historyLoading}
+            error={historyError} onNavigate={onNavigateHistory} />
+          {transcriptWindow && <TranscriptDetails page={transcriptWindow} />}
           {!hasContent && !streaming ? (
             <EmptyState />
           ) : (
@@ -1275,7 +1440,12 @@ export const AgentMessages = React.memo(function AgentMessages({
             </>
           )}
         </ConversationContent>
-        <ScrollMinimap items={minimapItems} searchMessages={searchMessages} />
+        <ScrollMinimap items={minimapItems} searchMessages={searchMessages}
+          onRevealSearchResult={async (id) => {
+            setRevealRecordId(id)
+            if (visibleGroupsRef.current.some((group) => getGroupId(group) === id)) return true
+            return await onNavigateHistory?.('around', id) ?? false
+          }} />
         <TaskProgressOverlay
           key={sessionId}
           activities={liveTaskActivities}
@@ -1290,6 +1460,7 @@ export const AgentMessages = React.memo(function AgentMessages({
             explorationEnabled={explorationEnabled}
           />
         </div>
+        </TranscriptPresentationContext.Provider>
       </AgentBrowserLinkProvider>
     </BasePathsProvider>
   )

@@ -1,3 +1,4 @@
+import { containsTargetRecord, TranscriptPresentationContext } from '@/lib/agent-transcript-presentation'
 import type { VisualProductionReference } from '@dutydeck/shared'
 /**
  * SDKMessageRenderer — 渲染 SDKMessage 对象
@@ -410,6 +411,7 @@ export interface AssistantTurnRendererProps {
 }
 
 export function AssistantTurnRenderer({ turn, sessionId, allMessages, basePath, onFork, onRewind, onCreateTodo, onRetry, onRetryInNewSession, onCompact, onRelinkProjectRoot, onRestoreProjectRoot, isStreaming, stoppedByUser, sessionModelId }: AssistantTurnRendererProps): React.ReactElement | null {
+  const presentation = React.useContext(TranscriptPresentationContext)
   const channels = useAtomValue(channelsAtom)
   const runFileChangesMap = useAtomValue(agentRunFileChangesAtom)
   /** Windows 下同一文件大小写不同不应重复成两个 chip。 */
@@ -421,6 +423,7 @@ export function AssistantTurnRenderer({ turn, sessionId, allMessages, basePath, 
   }
 
   const enrichedBlocks: EnrichedBlock[] = []
+  const blockMessageIds = new Map<SDKContentBlock, string>()
   let hasError = false
   let errorContent: SDKAssistantMessage | null = null
 
@@ -442,6 +445,8 @@ export function AssistantTurnRenderer({ turn, sessionId, allMessages, basePath, 
       for (const block of blocks) {
         for (const normalizedBlock of normalizeThinkTagsInContentBlocks([block])) {
           enrichedBlocks.push({ block: normalizedBlock, parentToolUseId: aMsg.parent_tool_use_id })
+          const recordId = (aMsg as { _promaTranscriptId?: string })._promaTranscriptId ?? aMsg.uuid
+          if (recordId) blockMessageIds.set(normalizedBlock, recordId)
         }
       }
     }
@@ -538,6 +543,7 @@ export function AssistantTurnRenderer({ turn, sessionId, allMessages, basePath, 
     )
   }
 
+  const anchoredIds = new Set<string>([getGroupId(turn)])
   const renderTopLevelBlock = (block: SDKContentBlock, i: number): React.ReactNode => {
     // 任务进度由底部浮层统一呈现，输出记录不再重复显示任务卡。
     if (block.type === 'tool_use' && TASK_TOOL_NAMES.has((block as SDKToolUseBlock).name)) {
@@ -550,9 +556,12 @@ export function AssistantTurnRenderer({ turn, sessionId, allMessages, basePath, 
       ? childBlocksMap.get((block as { id: string }).id)
       : undefined
 
+    const recordId = blockMessageIds.get(block)
+    const anchor = recordId && !anchoredIds.has(recordId) ? recordId : undefined
+    if (anchor) anchoredIds.add(anchor)
     return (
+      <div key={i} data-message-id={anchor} data-message-role={anchor ? 'assistant' : undefined}>
       <ContentBlock
-        key={i}
         block={block}
         allMessages={allMessages}
         sessionId={sessionId}
@@ -561,8 +570,11 @@ export function AssistantTurnRenderer({ turn, sessionId, allMessages, basePath, 
         index={i}
         dimmed={hasTextContent && block.type !== 'text'}
         childBlocks={childBlocks}
+        childBlocksMap={childBlocksMap}
+        blockMessageIds={blockMessageIds}
         isStreaming={isStreaming}
       />
+      </div>
     )
   }
 
@@ -592,6 +604,8 @@ export function AssistantTurnRenderer({ turn, sessionId, allMessages, basePath, 
               <ProcessBlockGroup
                 key={groupKey}
                 blocks={groupBlocks}
+                presentationKey={`${getGroupId(turn)}:${groupKey}`}
+                reveal={!!presentation?.targetId && containsTargetRecord(groupBlocks, blockMessageIds, childBlocksMap, presentation.targetId)}
                 isStreaming={isStreaming}
                 renderChildren={() => item.items.map((groupItem) => (
                   <React.Fragment key={groupItem.index}>
@@ -1490,6 +1504,10 @@ let fallbackIdCounter = 0
  * 从 MessageGroup 中提取稳定的 ID，用于 data-message-id 和迷你地图
  */
 export function getGroupId(group: MessageGroup): string {
+  const identity = group.type === 'assistant-turn' ? group.assistantMessages[0]
+    : group.type === 'system' ? group.identityMessage : group.message
+  const transcriptId = (identity as { _promaTranscriptId?: string } | undefined)?._promaTranscriptId
+  if (transcriptId) return transcriptId
   if (group.type === 'user') {
     if (group.message.uuid) return group.message.uuid
     const stableKey = (group.message as unknown as Record<string, unknown>)._promaStableKey
@@ -1543,6 +1561,7 @@ export const MessageGroupRenderer = React.memo(function MessageGroupRenderer({ g
       'data-message-role': 'system',
       'data-message-turn': historyTurn,
     }
+    if (subtype === 'transcript_deferred') return <div {...historySelectionAttributes} className="text-xs text-muted-foreground">{group.message.description}</div>
     if (getSDKCompactStatus(group.message)) return <div {...historySelectionAttributes}><CompactStatusNotice message={group.message} /></div>
     if (subtype === 'permission_denied') return <div {...historySelectionAttributes}><PermissionDeniedNotice message={group.message} /></div>
     return null

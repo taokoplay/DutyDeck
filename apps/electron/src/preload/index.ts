@@ -808,7 +808,12 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   /** 获取 Agent 会话 SDKMessage（Phase 4 新格式） */
   /** 加载历史本轮文件统计，仅返回轻量元数据。 */
   getAgentRunFileChanges: (id: string) => Promise<import('@dutydeck/shared').AgentRunFileChangesSnapshot[]>
+  acknowledgeAgentTranscriptRecords: (input: import("@dutydeck/shared").AgentTranscriptAcknowledgmentRequest) => Promise<import("@dutydeck/shared").AgentTranscriptAcknowledgment[]>
+  getAgentTranscriptRetryInput: (id: string) => Promise<SDKMessage | null>
   getAgentSessionSDKMessages: (id: string) => Promise<SDKMessage[]>
+  searchAgentTranscript: (sessionId: string, query: string) => Promise<SessionMessageSearchResponse>
+  getAgentTranscriptDetail: (input: import('@dutydeck/shared').AgentTranscriptDetailRequest) => Promise<import('@dutydeck/shared').AgentTranscriptDetail>
+  getAgentSessionTranscriptPage: (input: import('@dutydeck/shared').AgentTranscriptPageRequest) => Promise<import('@dutydeck/shared').AgentTranscriptPage>
 
   /** 更新 Agent 会话标题 */
   updateAgentSessionTitle: (id: string, title: string) => Promise<AgentSessionMeta>
@@ -2419,8 +2424,15 @@ const electronAPI: ElectronAPI = {
 
   getAgentRunFileChanges: (id: string) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_RUN_FILE_CHANGES, id),
 
+  acknowledgeAgentTranscriptRecords: (input) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.ACK_TRANSCRIPT_RECORDS, input),
+  getAgentTranscriptRetryInput: (id) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_TRANSCRIPT_RETRY_INPUT, id),
   getAgentSessionSDKMessages: (id: string) => {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_SDK_MESSAGES, id)
+  },
+  searchAgentTranscript: (sessionId, query) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.SEARCH_TRANSCRIPT, sessionId, query),
+  getAgentTranscriptDetail: (input) => ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_TRANSCRIPT_DETAIL, input),
+  getAgentSessionTranscriptPage: (input: import('@dutydeck/shared').AgentTranscriptPageRequest) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.GET_TRANSCRIPT_PAGE, input)
   },
 
   updateAgentSessionTitle: (id: string, title: string) => {

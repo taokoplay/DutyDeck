@@ -1,3 +1,4 @@
+import { searchTranscript, readTranscriptDetail, readTranscriptRetryInput, acknowledgeTranscriptRecords } from './agent-transcript-query'
 import { removeAgentRunFileChanges } from './agent-run-file-change-store'
 /**
  * Agent 会话管理器
@@ -65,6 +66,11 @@ import { copyForkWorkspaceFiles } from './agent-fork-workspace-copy'
 import { isAgentSessionsIndex } from './owned-path-rebaser-schema'
 import { hasValidCanvasAgentOwnership, isAgentSessionUserVisible } from './agent-session-visibility'
 import { projectSDKMessageForDisplay } from './agent-message-display'
+import { readDisplayHistory } from './agent-history-reader'
+import { captureSessionUsageSnapshot, observeSessionUsageAppend } from './agent-session-usage'
+import { readTranscriptPage } from './agent-transcript-page'
+import { invalidateTranscriptIndex, noteTranscriptAppend, transcriptFileStamp } from './agent-transcript-index'
+import type { AgentTranscriptPage, AgentTranscriptPageRequest } from '@dutydeck/shared'
 import { projectSessionAttachmentPaths } from './session-attachment-path-compat'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
 import { resolvePiHistoryTarget } from './pi-history-target'
@@ -994,6 +1000,7 @@ function writeEvidenceLocations(filePath: string, content: string): void {
 
 /** 原子替换会话正文后同步定位表；缓存失败仅停止知识取证，不改变原业务成功结果。 */
 function rewriteSDKTranscript(filePath: string, content: string): void {
+  invalidateTranscriptIndex(filePath)
   writeTextFileAtomic(filePath, content)
   try { writeEvidenceLocations(filePath, content) } catch {
     console.warn('[Agent 会话] 知识证据定位更新失败，将跳过无法核验的消息')
@@ -1090,7 +1097,11 @@ export function appendSDKMessages(id: string, messages: SDKMessage[]): SDKMessag
       serializedMessages.push({ message, line })
       payload += line + '\n'
     }
+    const previousUsage = captureSessionUsageSnapshot(filePath)
+    const previousTranscriptStamp = existsSync(filePath) ? transcriptFileStamp(statSync(filePath)) : ''
     appendFileSync(filePath, payload, 'utf-8')
+    noteTranscriptAppend(filePath, previousTranscriptStamp)
+    try { observeSessionUsageAppend(filePath, messagesWithVerifiedImages, previousUsage) } catch { /* 派生usage不改变追写成功状态。 */ }
     const fileStat = statSync(filePath)
     let offset = startOffset
     const identities: PersistedSDKMessageIdentity[] = []
@@ -1310,31 +1321,44 @@ export async function getAgentSessionSDKMessagesForDisplay(id: string): Promise<
   if (!existsSync(filePath)) return []
   /** 旧附档协议文本与结构化媒体共用路径投影，文件预览拿到当前有效路径。 */
   const resolvePath = createSessionAttachmentPathResolver(id)
-  /** readline 只保留当前行，处理后的数组不再引用整份原始文件字符串。 */
-  const input = createReadStream(filePath, { encoding: 'utf-8' })
-  const lines = createInterface({ input, crlfDelay: Infinity })
-  const messages: SDKMessage[] = []
-  let lineNumber = 0
   try {
-    for await (const line of lines) {
-      lineNumber += 1
-      if (!line.trim()) continue
-      try {
-        /** 在下一行读入前丢弃原始图片，只保留轻量投影。 */
-        const message = projectSessionAttachmentPaths(normalizePersistedSDKMessage(JSON.parse(line)), resolvePath)
-        messages.push(projectSDKMessageForDisplay(message))
-      } catch {
-        console.warn(`[Agent 会话] 读取展示消息 (${id}) — JSONL 第 ${lineNumber} 行解析失败，已跳过`)
-      }
-    }
-    return messages
+    return await readDisplayHistory(filePath, (value) => projectSDKMessageForDisplay(
+      projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+    ))
   } catch (error) {
     console.error(`[Agent 会话] 读取展示消息失败 (${id}):`, error)
     throw new Error('读取会话消息失败')
-  } finally {
-    lines.close()
-    input.destroy()
   }
+}
+
+/** 分页仅改变展示读取，完整恢复、编辑、导出路径继续使用原函数。 */
+export async function getAgentSessionTranscriptPage(request: AgentTranscriptPageRequest): Promise<AgentTranscriptPage> {
+  const filePath = getAgentSessionMessagesPath(request.sessionId)
+  const resolvePath = createSessionAttachmentPathResolver(request.sessionId)
+  return readTranscriptPage(filePath, request, (value) => projectSDKMessageForDisplay(
+    projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+  ))
+}
+
+export async function acknowledgeAgentTranscriptRecords(input: import('@dutydeck/shared').AgentTranscriptAcknowledgmentRequest): Promise<import('@dutydeck/shared').AgentTranscriptAcknowledgment[]> {
+  return acknowledgeTranscriptRecords(getAgentSessionMessagesPath(input.sessionId), input.generation, input.ids)
+}
+
+export async function getAgentTranscriptRetryInput(sessionId: string): Promise<SDKMessage | null> {
+  const resolvePath = createSessionAttachmentPathResolver(sessionId)
+  return readTranscriptRetryInput(getAgentSessionMessagesPath(sessionId), value => projectSDKMessageForDisplay(
+    projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+  ))
+}
+
+export async function searchAgentTranscript(sessionId: string, query: string): Promise<import('@dutydeck/shared').SessionMessageSearchResponse> {
+  return searchTranscript(getAgentSessionMessagesPath(sessionId), query)
+}
+export async function getAgentTranscriptDetail(input: import('@dutydeck/shared').AgentTranscriptDetailRequest): Promise<import('@dutydeck/shared').AgentTranscriptDetail> {
+  const resolvePath = createSessionAttachmentPathResolver(input.sessionId)
+  return readTranscriptDetail(getAgentSessionMessagesPath(input.sessionId), input, (value) => projectSDKMessageForDisplay(
+    projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+  ))
 }
 
 /**
@@ -1399,8 +1423,9 @@ export function deleteAgentSession(id: string, options: { preserveSessionArtifac
   // 统计和会话同生命周期，删除会话时不遗留历史文件路径。
   try { removeAgentRunFileChanges(id) } catch (error) { console.warn('[本轮文件统计] 清理失败', error) }
 
-  // 删除消息文件
+  // 删除消息文件以及可重建展示索引。
   const filePath = getAgentSessionMessagesPath(id)
+  invalidateTranscriptIndex(filePath)
   if (existsSync(filePath)) {
     try {
       unlinkSync(filePath)

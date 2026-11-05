@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { calculateContextUsageRatio, inferContextWindow } from '@dutydeck/shared'
@@ -11,7 +11,7 @@ mock.module('./config-paths', () => ({
   getAgentSessionMessagesPath: () => sessionPath,
 }))
 
-const { getSessionContextUsageRatio } = await import('./agent-session-usage')
+const { getSessionContextUsageRatio, captureSessionUsageSnapshot, observeSessionUsageAppend } = await import('./agent-session-usage')
 
 interface UsageStatusCarrier {
   usageStatus?: 'known' | 'partial' | 'unknown'
@@ -55,6 +55,82 @@ afterEach(() => {
 })
 
 describe('Agent 会话上下文用量', () => {
+  test('Given 可靠usage被超长未知尾部隔开 When 超出尾读预算 Then 返回未知而不全文扫描取旧值', () => {
+    writeSession([assistant(120, 'known'), { type: 'user', message: { content: '汉'.repeat(300000) } }])
+    expect(getSessionContextUsageRatio('bounded')).toBeUndefined()
+  })
+
+  test('Given 缓存后同长度正文替换 When 再查 Then 不能返回旧快照', () => {
+    writeSession([assistant(120, 'known')])
+    expect(getSessionContextUsageRatio('rewrite')).toBe(calculateContextUsageRatio(120, inferContextWindow('gpt-6-astra')))
+    writeFileSync(sessionPath, JSON.stringify(assistant(240, 'known')) + '\n')
+    expect(getSessionContextUsageRatio('rewrite')).toBe(calculateContextUsageRatio(240, inferContextWindow('gpt-6-astra')))
+  })
+
+  test('Given 缓存后追加压缩边界 When 再查 Then 不返回缓存的旧usage', () => {
+    writeSession([assistant(120, 'known')])
+    getSessionContextUsageRatio('append-boundary')
+    appendFileSync(sessionPath, JSON.stringify({ type: 'system', subtype: 'compact_boundary' }) + '\n')
+    expect(getSessionContextUsageRatio('append-boundary')).toBeUndefined()
+  })
+
+  test('Given 缓存token与半行尾部 When 读取 Then 包含缓存token并跳过未完成JSON', () => {
+    writeSession([{ type: 'assistant', message: { model: 'gpt-6-astra', usage: { input_tokens: 10, cache_read_input_tokens: 20, cache_creation_input_tokens: 30 } } }])
+    appendFileSync(sessionPath, '{"type":')
+    expect(getSessionContextUsageRatio('partial-line')).toBe(calculateContextUsageRatio(60, inferContextWindow('gpt-6-astra')))
+  })
+
+  test('Given 超过并发上限的未知usage When 后续再次查询 Then 等待中的会话仍可回填', async () => {
+    const paths: string[] = []
+    for (let index = 0; index < 3; index++) {
+      writeSession([assistant(120, 'known'), ...Array.from({ length: 2300 }, () => ({ type: 'tool_progress' }))])
+      paths.push(sessionPath)
+      expect(getSessionContextUsageRatio(`backfill-${index}`)).toBeUndefined()
+    }
+    const values: Array<number | undefined> = []
+    for (let attempt = 0; attempt < 100; attempt++) {
+      await Bun.sleep(10)
+      for (let index = 0; index < paths.length; index++) {
+        sessionPath = paths[index]!
+        values[index] = getSessionContextUsageRatio(`backfill-${index}`)
+      }
+      if (values.every((value) => value !== undefined)) break
+    }
+    expect(values).toEqual(paths.map(() => calculateContextUsageRatio(120, inferContextWindow('gpt-6-astra'))))
+  })
+
+  test('Given 回填期间追加未知日志 When 旧回填失效 Then 新版本仍能重新回填', async () => {
+    writeSession([assistant(120, 'known'), ...Array.from({ length: 2300 }, () => ({ type: 'tool_progress' }))])
+    expect(getSessionContextUsageRatio('pending-append')).toBeUndefined()
+    const previous = captureSessionUsageSnapshot(sessionPath)
+    expect(previous).toBeUndefined()
+    const message = { type: 'tool_progress' }
+    appendFileSync(sessionPath, JSON.stringify(message) + '\n')
+    observeSessionUsageAppend(sessionPath, [message], previous)
+    let value: number | undefined
+    for (let attempt = 0; attempt < 100; attempt++) {
+      await Bun.sleep(10)
+      value = getSessionContextUsageRatio('pending-append')
+      if (value !== undefined) break
+    }
+    expect(value).toBe(calculateContextUsageRatio(120, inferContextWindow('gpt-6-astra')))
+  })
+
+  test('Given 可靠快照后受管追加大量无usage记录 When 版本连续 Then 不必重新扫描尾部且遇边界清零', () => {
+    writeSession([assistant(120, 'known')])
+    const expected = getSessionContextUsageRatio('append')
+    const previous = captureSessionUsageSnapshot(sessionPath)
+    const messages = [{ type: 'user', message: { content: '汉'.repeat(300000) } }]
+    appendFileSync(sessionPath, JSON.stringify(messages[0]) + '\n')
+    observeSessionUsageAppend(sessionPath, messages, previous)
+    expect(getSessionContextUsageRatio('append')).toBe(expected)
+    const current = captureSessionUsageSnapshot(sessionPath)
+    const boundary = { type: 'system', subtype: 'compact_boundary' }
+    appendFileSync(sessionPath, JSON.stringify(boundary) + '\n')
+    observeSessionUsageAppend(sessionPath, [boundary], current)
+    expect(getSessionContextUsageRatio('append')).toBeUndefined()
+  })
+
   test('Given 新 result 是部分累计值且同轮有可靠 assistant When 读取占用 Then 使用 assistant 的最后已知上下文', () => {
     writeSession([
       assistant(120, 'known'),

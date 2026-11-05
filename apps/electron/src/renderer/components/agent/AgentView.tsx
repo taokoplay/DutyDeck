@@ -1,3 +1,8 @@
+import { discardTranscriptSnapshot } from '@/lib/agent-transcript-sync'
+import { mountedTranscriptViews, readTranscriptPageOnce } from '@/lib/agent-transcript-window'
+import { acknowledgeTranscriptMessages, acknowledgeTranscriptReceipts, bindTranscriptMessages, getTranscriptWindow, mergeTranscriptPage, inheritTranscriptWindow, canAcceptTranscriptPage } from '@/lib/agent-transcript-sync'
+import { recordPerformanceSample } from '@/lib/performance-monitor'
+import type { AgentTranscriptPage } from '@dutydeck/shared'
 import { ComputerUseStatus } from '../computer-use/ComputerUseStatus'
 import { currentVisualProductionReferenceAtomFamily, snapshotVisualProductionReferences, visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
@@ -526,10 +531,19 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     return () => clearStopGenerationTarget(stopShortcutTarget)
   }, [stopShortcutTarget])
 
+  React.useEffect(() => mountedTranscriptViews.mount(sessionId), [sessionId])
+
   const initialCachedMessages = store.get(agentSDKMessagesCacheAtom).get(sessionId)
   const [persistedSDKMessages, setPersistedSDKMessages] = React.useState<SDKMessage[]>(
     () => initialCachedMessages ?? [],
   )
+  const [readingMessages, setReadingMessages] = React.useState<SDKMessage[] | null>(null)
+  const [historyLoading, setHistoryLoading] = React.useState(false)
+  const [historyError, setHistoryError] = React.useState<string | null>(null)
+  const tailAcceptanceRef = React.useRef(0)
+  const historyNavigationRef = React.useRef(0)
+  const readingMessagesRef = React.useRef<SDKMessage[] | null>(null)
+  readingMessagesRef.current = readingMessages
   const persistedSDKMessagesRef = React.useRef<SDKMessage[]>([])
   persistedSDKMessagesRef.current = persistedSDKMessages
   const messagesRequestIdRef = React.useRef(0)
@@ -1133,7 +1147,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     // 否则“发送后立刻切走再切回”会短暂回退到旧消息数组。
     // 本地乐观消息优先于正在进行中的旧 IPC 快照。
     messagesMutationVersionRef.current += 1
-    const next = [...persistedSDKMessagesRef.current, message]
+    const next = inheritTranscriptWindow(persistedSDKMessagesRef.current, [...persistedSDKMessagesRef.current, message])
     persistedSDKMessagesRef.current = next
     setPersistedSDKMessages(next)
     setMessagesCache((prev) => setSessionMessagesCache(prev, sessionId, next))
@@ -1149,7 +1163,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     const optimisticIndex = current.lastIndexOf(message)
     if (optimisticIndex < 0) return
     /** 生成不含失败乐观项的新快照，并同步 React 状态与会话 LRU 缓存。 */
-    const next = [...current.slice(0, optimisticIndex), ...current.slice(optimisticIndex + 1)]
+    const next = inheritTranscriptWindow(current, [...current.slice(0, optimisticIndex), ...current.slice(optimisticIndex + 1)])
     messagesMutationVersionRef.current += 1
     persistedSDKMessagesRef.current = next
     setPersistedSDKMessages(next)
@@ -1290,6 +1304,11 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     const isSessionSwitch = loadingSessionIdRef.current !== sessionId
     if (isSessionSwitch) {
       loadingSessionIdRef.current = sessionId
+      historyNavigationRef.current++
+      readingMessagesRef.current = null
+      setHistoryLoading(false)
+      setReadingMessages(null)
+      setHistoryError(null)
       // 命中缓存则立即填充，消除「先清空 → 等 IPC 全量读盘」的可见空窗；
       // IPC 返回后仍会以最新数据覆盖。未命中才回退到清空 + loading 态。
       // 注意：refreshVersion bump（流结束/出错/rewind）不是会话切换，
@@ -1305,6 +1324,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     }
     messagesRefreshingRef.current = true
     setMessagesRefreshing(true)
+    const acceptanceEpoch = ++tailAcceptanceRef.current
     const requestId = ++messagesRequestIdRef.current
     const requestMutationVersion = messagesMutationVersionRef.current
     let cancelled = false
@@ -1317,9 +1337,34 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         return merged === current ? previous : new Map(previous).set(sessionId, merged)
       })
     }).catch(error => console.warn('[本轮文件统计] 历史加载失败', error))
-    window.electronAPI.getAgentSessionSDKMessages(sessionId)
-      .then((sdkMsgs) => {
+    const cachedWindow = getTranscriptWindow(store.get(agentSDKMessagesCacheAtom).get(sessionId))
+    const requestRun = store.get(agentSessionStreamingStateAtomFamily(sessionId))
+    const ipcStarted = performance.now()
+    const readPage = (input: import('@dutydeck/shared').AgentTranscriptPageRequest) => readTranscriptPageOnce(input, window.electronAPI.getAgentSessionTranscriptPage, String(refreshVersion))
+    const readTail = async (): Promise<AgentTranscriptPage> => {
+      let page = await readPage(cachedWindow?.after
+        ? { sessionId, mode: 'after', cursor: cachedWindow.after }
+        : { sessionId, mode: 'tail' })
+      if (page.status === 'resetRequired' || page.hasAfter) {
+        page = await readPage({ sessionId, mode: 'tail' })
+        return mergeTranscriptPage(undefined, page, 'replace')
+      }
+      return mergeTranscriptPage(cachedWindow, page, cachedWindow ? 'after' : 'replace')
+    }
+    readTail()
+      .then((page) => {
+        recordPerformanceSample('agent.history.ipc-roundtrip', performance.now() - ipcStarted)
+        const sdkMsgs = bindTranscriptMessages(page)
         if (cancelled || requestId !== messagesRequestIdRef.current) return
+        if (!canAcceptTranscriptPage(getTranscriptWindow(persistedSDKMessagesRef.current), page, acceptanceEpoch, tailAcceptanceRef.current)) {
+          messagesRefreshingRef.current = false; setMessagesRefreshing(false); return
+        }
+        const reading = getTranscriptWindow(readingMessagesRef.current ?? undefined)
+        if (reading && reading.generation !== page.generation) {
+          historyNavigationRef.current++
+          readingMessagesRef.current = null; setReadingMessages(null); setHistoryLoading(false)
+          setMessagesCache(previous => { const next = new Map(previous); next.delete(`${sessionId}:reading`); return next })
+        }
         if (requestMutationVersion !== messagesMutationVersionRef.current) {
           // 请求期间已有本地消息变更，旧 IPC 快照不能覆盖当前内存消息。
           setMessagesLoaded(true)
@@ -1343,7 +1388,8 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           setStreamingStates((prev) => {
             const state = prev.get(sessionId)
             // 仍在运行中：不清除
-            if (!state || state.running) return prev
+            if (!state || state.running || state.runGeneration !== requestRun?.runGeneration
+              || state.startedAt !== requestRun?.startedAt) return prev
             const map = new Map(prev)
             // 软空闲态（后台任务等待）：必须保留 backgroundWaiting 标志（否则 handleSend 误走新建 run）。
             // 实时文本只在 liveMessages 中，完成消息刷新时随其统一清理。
@@ -1379,21 +1425,91 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             // 仍在运行中，不清除实时消息（与 streamingStates 保护逻辑一致）
             const streamingState = store.get(agentSessionStreamingStateAtomFamily(sessionId))
             if (streamingState?.running) return prev
+            const live = prev.get(sessionId)!
+            const remaining = acknowledgeTranscriptMessages(live, page, requestRun)
+            if (remaining === live) return prev
             const map = new Map(prev)
-            map.delete(sessionId)
+            if (remaining.length > 0) map.set(sessionId, remaining)
+            else map.delete(sessionId)
             return map
           })
         })
+        // 页外缓冲仅通过同generation的精确ID确认回收，不能按数组长度或任意页清空。
+        void (async () => {
+          const snapshot = store.get(liveMessagesMapAtom).get(sessionId) ?? []
+          const ids = snapshot.flatMap(message => typeof (message as {uuid?: string}).uuid === 'string' ? [(message as {uuid: string}).uuid] : [])
+          for (let start = 0; start < ids.length; start += 512) {
+            if (cancelled || requestId !== messagesRequestIdRef.current || acceptanceEpoch !== tailAcceptanceRef.current
+              || store.get(agentSessionStreamingStateAtomFamily(sessionId))?.running) return
+            const receipts = await window.electronAPI.acknowledgeAgentTranscriptRecords({ sessionId, generation: page.generation, ids: ids.slice(start, start + 512) })
+            if (cancelled || requestId !== messagesRequestIdRef.current || acceptanceEpoch !== tailAcceptanceRef.current
+              || store.get(agentSessionStreamingStateAtomFamily(sessionId))?.running) return
+            setLiveMessagesMap(previous => {
+              const live = previous.get(sessionId)
+              if (!live) return previous
+              const remaining = acknowledgeTranscriptReceipts(live, receipts, page, requestRun)
+              if (remaining === live) return previous
+              const next = new Map(previous)
+              if (remaining.length) next.set(sessionId, remaining); else next.delete(sessionId)
+              return next
+            })
+          }
+        })().catch(error => console.warn('[历史确认] 保留未确认缓冲', error))
       })
       .catch((error) => {
         if (cancelled) return
         console.error(error)
+        setHistoryError(error instanceof Error ? error.message : '历史加载失败')
         setMessagesLoaded(true)
         messagesRefreshingRef.current = false
         setMessagesRefreshing(false)
       })
     return () => { cancelled = true }
   }, [sessionId, refreshVersion, setStreamingStates, setLiveMessagesMap, setMessagesCache, store])
+
+  // 阅读窗口与最新尾窗分开，旧页不会改变重试/探索结论的消息来源。
+  const navigateHistory = React.useCallback(async (mode: 'before' | 'after' | 'tail' | 'around' | 'rebuild', messageId?: string): Promise<boolean> => {
+    const token = ++historyNavigationRef.current
+    const writesTail = mode === 'tail' || mode === 'rebuild'
+    const acceptanceEpoch = writesTail ? ++tailAcceptanceRef.current : tailAcceptanceRef.current
+    const current = getTranscriptWindow(readingMessagesRef.current ?? persistedSDKMessagesRef.current)
+    const cursor = mode === 'before' ? current?.before : mode === 'after' ? current?.after : undefined
+    if ((mode === 'before' || mode === 'after') && !cursor) return false
+    const mutationVersion = messagesMutationVersionRef.current
+    setHistoryLoading(true)
+    setHistoryError(null)
+    try {
+      const page = await readTranscriptPageOnce({ sessionId, mode, cursor, messageId }, window.electronAPI.getAgentSessionTranscriptPage, String(store.get(agentMessageRefreshAtom).get(sessionId) ?? 0))
+      if (token !== historyNavigationRef.current || mutationVersion !== messagesMutationVersionRef.current
+        || !canAcceptTranscriptPage(writesTail ? getTranscriptWindow(persistedSDKMessagesRef.current) : undefined, page, acceptanceEpoch, tailAcceptanceRef.current)) return false
+      if (page.status === 'resetRequired') throw new Error('历史已变化，请返回最新消息后重试')
+      const merged = mergeTranscriptPage(mode === 'before' || mode === 'after' ? current : undefined, page,
+        mode === 'before' || mode === 'after' ? mode : 'replace')
+      const messages = bindTranscriptMessages(merged)
+      if (writesTail) {
+        setReadingMessages(null)
+        readingMessagesRef.current = null
+        setPersistedSDKMessages(messages)
+        persistedSDKMessagesRef.current = messages
+        setMessagesCache((prev) => setSessionMessagesCache(prev, sessionId, messages))
+      } else {
+        setReadingMessages(messages)
+        readingMessagesRef.current = messages
+        // 阅读窗口也纳入既有20项/64MiB预算；不会被SidePanel当作尾部结论。
+        setMessagesCache((prev) => setSessionMessagesCache(prev, `${sessionId}:reading`, messages))
+      }
+      return true
+    } catch (error) {
+      if (token === historyNavigationRef.current) setHistoryError(error instanceof Error ? error.message : '历史加载失败')
+      return false
+    } finally { if (token === historyNavigationRef.current) setHistoryLoading(false) }
+  }, [sessionId, setMessagesCache])
+  React.useEffect(() => () => {
+    historyNavigationRef.current++
+    setMessagesCache((prev) => { const next = new Map(prev); next.delete(`${sessionId}:reading`); return next })
+  }, [sessionId, setMessagesCache])
+  const displayMessages = readingMessages ?? persistedSDKMessages
+  const displayWindow = getTranscriptWindow(displayMessages)
 
   // 从会话元数据初始化附加目录（仅冷启动水合，后续由 handleAttachContent/handleDetachDirectory 实时写入）
   React.useEffect(() => {
@@ -2741,14 +2857,19 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   }, [currentWorkspaceId, setWorkspaces])
 
   /** 重试：在当前会话中重新发送最后一条用户消息 */
-  const handleRetry = React.useCallback((retryOfErrorUuid?: string): void => {
+  const handleRetry = React.useCallback(async (retryOfErrorUuid?: string): Promise<void> => {
     if (!agentChannelId || streaming) return
 
-    // 找到最后一条真实用户消息；正文与 Canvas 引用必须来自同一历史快照。
-    const lastUserSDKMessage = [...persistedSDKMessages]
-      .reverse()
-      .find((message): message is SDKUserMessage => getUserTextFromSDKMessage(message) !== null)
-    if (!lastUserSDKMessage) return
+    const mutation = messagesMutationVersionRef.current
+    const requestId = messagesRequestIdRef.current
+    let lastUserSDKMessage: SDKUserMessage
+    try {
+      const input = await window.electronAPI.getAgentTranscriptRetryInput(sessionId)
+      if (mutation !== messagesMutationVersionRef.current || requestId !== messagesRequestIdRef.current
+        || store.get(agentSessionStreamingStateAtomFamily(sessionId))?.running) return
+      if (!input || getUserTextFromSDKMessage(input) === null) throw new Error('未找到可重试的原始输入，请在新会话继续')
+      lastUserSDKMessage = input as SDKUserMessage
+    } catch (error) { toast.error(error instanceof Error ? error.message : '读取重试输入失败'); return }
     /** 同一历史消息的原始正文；类型守卫已证明其存在。 */
     const lastUserRawMessage = getUserTextFromSDKMessage(lastUserSDKMessage)!
     // 重试重发给 Agent 的消息：@file 路径还原为真实路径（持久化存的是编码原文）
@@ -2757,7 +2878,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
 
     // 与主进程按 UUID 的原子删除同步更新当前 React 状态和 LRU cache，避免旧错误
     // 在下一轮回复开始前仍被页面渲染。旧会话没有 UUID 时保留历史，由主进程幂等处理。
-    const messagesAfterCleanup = removeRetriedErrorSDKMessage(persistedSDKMessages, retryOfErrorUuid)
+    const messagesAfterCleanup = inheritTranscriptWindow(persistedSDKMessages, removeRetriedErrorSDKMessage(persistedSDKMessages, retryOfErrorUuid))
     if (messagesAfterCleanup !== persistedSDKMessages) {
       messagesMutationVersionRef.current += 1
       persistedSDKMessagesRef.current = messagesAfterCleanup
@@ -2929,6 +3050,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   const handleRewindConfirm = React.useCallback(async (): Promise<void> => {
     if (!rewindTargetUuid) return
     const targetUuid = rewindTargetUuid
+    const rewindSnapshot = new Set(store.get(liveMessagesMapAtom).get(sessionId) ?? [])
     setRewindTargetUuid(null)
 
     try {
@@ -2937,6 +3059,24 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         assistantMessageUuid: targetUuid,
       })
 
+      setLiveMessagesMap(previous => {
+        const next = new Map(previous)
+        const remaining = discardTranscriptSnapshot(previous.get(sessionId) ?? [], rewindSnapshot)
+        if (remaining.length) next.set(sessionId, remaining); else next.delete(sessionId)
+        return next
+      })
+      // 会话切换后只失效原会话缓存，不能清空新会话的局部状态。
+      if (loadingSessionIdRef.current !== sessionId) {
+        setMessagesCache(previous => { const next = new Map(previous); next.delete(sessionId); next.delete(`${sessionId}:reading`); return next })
+        return
+      }
+      // 截断立即使阅读窗与在途请求失效；不能继续展示已删除正文。
+      messagesMutationVersionRef.current++
+      tailAcceptanceRef.current++
+      historyNavigationRef.current++
+      readingMessagesRef.current = null; setReadingMessages(null); setHistoryLoading(false)
+      persistedSDKMessagesRef.current = []; setPersistedSDKMessages([])
+      setMessagesCache(previous => { const next = new Map(previous); next.delete(sessionId); next.delete(`${sessionId}:reading`); return next })
       // 刷新消息列表
       store.set(agentMessageRefreshAtom, (prev) => {
         const map = new Map(prev)
@@ -3386,7 +3526,12 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           sessionId={sessionId}
           sessionModelId={agentModelId || undefined}
           messagesLoaded={messagesLoaded}
-          persistedSDKMessages={persistedSDKMessages}
+          persistedSDKMessages={displayMessages}
+          transcriptWindow={displayWindow}
+          readingHistory={readingMessages !== null}
+          historyLoading={historyLoading}
+          historyError={historyError}
+          onNavigateHistory={navigateHistory}
           sessionPath={sessionPath}
           attachedDirs={allAttachedDirs}
           stoppedByUser={stoppedByUser}

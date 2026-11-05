@@ -131,3 +131,4 @@ export { getPrototypeDeviceProfile, getPrototypeViewport, getPrototypeSafeArea, 
 export type { PrototypeDeviceProfile, PrototypeViewport, PrototypeSafeArea, PrototypeCutout } from './interaction-design-device-profile'
 export { createPrototypeBlankPage } from './interaction-design-page'
 export { resolveVisualShotOutputs, withVisualShotOutput, mergeLegacyVisualShotOutputs } from './visual-shot-outputs'
+export * from './agent-transcript-projection'

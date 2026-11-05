@@ -476,6 +476,11 @@ const RENDERER_HANDLER_POLICIES: Record<FullChannelKey, RendererHandlerPolicy> =
     'ACTIVE_SESSIONS_SNAPSHOT',
   ], { kind: 'agent-session', guards: ['getUserVisiblePendingRequests'] }),
   ...defineRendererHandlerPolicies('AGENT_IPC_CHANNELS', [
+    'ACK_TRANSCRIPT_RECORDS',
+    'GET_TRANSCRIPT_PAGE',
+    'GET_TRANSCRIPT_DETAIL',
+    'GET_TRANSCRIPT_RETRY_INPUT',
+    'SEARCH_TRANSCRIPT',
     'ASK_USER_RESPOND',
     'ATTACH_DIRECTORY',
     'ATTACH_FILE',
@@ -868,6 +873,48 @@ describe('普通 Renderer Agent IPC 会话访问矩阵', () => {
       const guardIndex = calls.findIndex((name) => policy.guards.includes(name))
       expect(guardIndex, `${key} 缺少声明的 ${policy.kind} guard`).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  test.each([
+    { channel: 'GET_TRANSCRIPT_PAGE', service: 'getAgentSessionTranscriptPage', objectInput: true },
+    { channel: 'ACK_TRANSCRIPT_RECORDS', service: 'acknowledgeAgentTranscriptRecords', objectInput: true },
+    { channel: 'GET_TRANSCRIPT_DETAIL', service: 'getAgentTranscriptDetail', objectInput: true },
+    { channel: 'GET_TRANSCRIPT_RETRY_INPUT', service: 'getAgentTranscriptRetryInput', objectInput: false },
+    { channel: 'SEARCH_TRANSCRIPT', service: 'searchAgentTranscript', objectInput: false },
+  ])('Given 历史接口 $channel When 会话隐藏或读取期间撤权 Then 读取前拒绝或拒绝返回结果', async ({ channel, service, objectInput }) => {
+    const registered = loadAgentHandlers().handlers.find((candidate) => candidate.channel === channel)!
+    const visible: AgentSessionMeta = { id: 'visible', title: '可见会话', createdAt: 1, updatedAt: 1 }
+    const sessions = new Map<string, AgentSessionMeta>([
+      ['visible', visible],
+      ['canvas', { ...visible, id: 'canvas', sourceCanvasProjectId: 'p', sourceCanvasId: 'c', sourceCanvasNodeId: 'n' }],
+      ['design', { ...visible, id: 'design', sourceDesignProjectId: 'p', sourceDesignJobId: 'j' }],
+    ])
+    let businessCalls = 0
+    let revokeDuringRead = false
+    const result = { synthetic: true }
+    const handler = compileHandler<(event: object, ...args: unknown[]) => Promise<unknown>>(registered, {
+      requireVisibleSession: (sessionId: string) => requireUserVisibleAgentSession(sessions.get(sessionId)),
+      [service]: async () => {
+        businessCalls += 1
+        await Promise.resolve()
+        if (revokeDuringRead) sessions.delete('visible')
+        return result
+      },
+    })
+    const invoke = (sessionId: string): Promise<unknown> => handler(
+      {}, objectInput ? { sessionId, mode: 'tail', generation: 'g', ids: ['m1'], recordId: 'm1', offset: 0 } : sessionId,
+      ...(channel === 'SEARCH_TRANSCRIPT' ? ['synthetic'] : []),
+    )
+
+    for (const sessionId of ['canvas', 'design', 'missing']) {
+      await expect(invoke(sessionId)).rejects.toThrow('Agent 会话不存在')
+    }
+    expect(businessCalls).toBe(0)
+    await expect(invoke('visible')).resolves.toBe(result)
+    expect(businessCalls).toBe(1)
+    revokeDuringRead = true
+    await expect(invoke('visible')).rejects.toThrow('Agent 会话不存在')
+    expect(businessCalls).toBe(2)
   })
 
   test('Given 持久化工具模式 When Renderer 切换或伪造模式 Then 先停止旧运行再保存，非法值无副作用', async () => {

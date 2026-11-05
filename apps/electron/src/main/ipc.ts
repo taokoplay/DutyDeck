@@ -501,6 +501,11 @@ import {
   getAgentSessionMessages,
   getAgentSessionSDKMessages,
   getAgentSessionSDKMessagesForDisplay,
+  getAgentSessionTranscriptPage,
+  searchAgentTranscript,
+  getAgentTranscriptRetryInput,
+  acknowledgeAgentTranscriptRecords,
+  getAgentTranscriptDetail,
   resolveAgentCwd,
   updateAgentSessionMeta,
   deleteAgentSession,
@@ -6149,6 +6154,41 @@ export function registerIpcHandlers(): void {
       return messages
     }
   )
+
+  ipcMain.handle(AGENT_IPC_CHANNELS.GET_TRANSCRIPT_PAGE, async (_, input: import('@dutydeck/shared').AgentTranscriptPageRequest) => {
+    if (!input || typeof input.sessionId !== 'string') throw new Error('会话分页参数非法')
+    requireVisibleSession(input.sessionId)
+    const page = await getAgentSessionTranscriptPage(input)
+    requireVisibleSession(input.sessionId)
+    return page
+  })
+
+  ipcMain.handle(AGENT_IPC_CHANNELS.ACK_TRANSCRIPT_RECORDS, async (_, input: import('@dutydeck/shared').AgentTranscriptAcknowledgmentRequest) => {
+    if (!input || typeof input.sessionId !== 'string') throw new Error('历史确认参数非法')
+    requireVisibleSession(input.sessionId)
+    const result = await acknowledgeAgentTranscriptRecords(input)
+    requireVisibleSession(input.sessionId)
+    return result
+  })
+  ipcMain.handle(AGENT_IPC_CHANNELS.GET_TRANSCRIPT_RETRY_INPUT, async (_, sessionId: string) => {
+    requireVisibleSession(sessionId)
+    const result = await getAgentTranscriptRetryInput(sessionId)
+    requireVisibleSession(sessionId)
+    return result
+  })
+  ipcMain.handle(AGENT_IPC_CHANNELS.SEARCH_TRANSCRIPT, async (_, sessionId: string, query: string) => {
+    requireVisibleSession(sessionId)
+    const result = await searchAgentTranscript(sessionId, query)
+    requireVisibleSession(sessionId)
+    return result
+  })
+  ipcMain.handle(AGENT_IPC_CHANNELS.GET_TRANSCRIPT_DETAIL, async (_, input: import('@dutydeck/shared').AgentTranscriptDetailRequest) => {
+    if (!input || typeof input.sessionId !== 'string') throw new Error('历史详情参数非法')
+    requireVisibleSession(input.sessionId)
+    const result = await getAgentTranscriptDetail(input)
+    requireVisibleSession(input.sessionId)
+    return result
+  })
 
   // 更新 Agent 会话标题
   ipcMain.handle(

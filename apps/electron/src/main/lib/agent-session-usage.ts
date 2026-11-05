@@ -5,7 +5,7 @@
  * 同一自然日内即便上次运行成功，如果上下文已经接近窗口上限，
  * 继续往里塞会导致本次运行刚开始就触发 SDK 自动压缩，得不偿失。
  *
- * 数据来源：~/.proma/agent-sessions/{id}.jsonl 里最后一条带 usage 的消息。
+ * 数据来源：中央路径解析器确定的会话 JSONL 里最后一条带 usage 的消息。
  * 优先级：
  * 1. SDK result 消息（subtype=success/error_*）：usage + modelUsage[?].contextWindow
  * 2. SDK assistant 消息：message.usage + 按 message.model 推断 contextWindow
@@ -16,13 +16,16 @@
  * 开启 prompt caching 后上下文绝大部分落在 cache_read 上，只取 input_tokens 会把
  * 真实占用率严重低估、令 daily 安全阀几乎无法触发。
  *
- * 性能：从文件尾部反向逐行惰性解析，命中第一条带 usage 的消息即返回，
- * 避免对整份会话 JSONL 全量 JSON.parse（高频 daily 任务一天可触发数百次）。
+ * 性能：至多倒读 512 KiB / 2048 条，版本快照命中时不读正文；
+ * 超预算返回未知，不跨无法确认的范围使用旧值。
  */
 
 import { calculateContextUsageRatio, inferContextWindow } from '@dutydeck/shared'
 import type { SDKAssistantMessage, SDKResultMessage } from '@dutydeck/shared'
-import { existsSync, readFileSync } from 'node:fs'
+import { statSync } from 'node:fs'
+import { scanJsonlRecords } from './agent-jsonl-reader'
+import { readJsonlTail } from './agent-jsonl-tail-reader'
+import { agentHistoryPerformance } from './agent-history-performance'
 import { getAgentSessionMessagesPath } from './config-paths'
 
 interface UsageTokens {
@@ -42,61 +45,115 @@ function sumUsedTokens(usage: UsageTokens): number {
   )
 }
 
+interface UsageSnapshot { stamp: string; ratio: number | undefined; resolved: boolean }
+const usageSnapshots = new Map<string, UsageSnapshot>()
+const usageBackfills = new Map<string, Promise<void>>()
+
+/** 老会话的可信值可能位于大段工具日志之前；异步回填且最多并发两份。 */
+function warmSessionUsage(filePath: string, stamp: string): void {
+  if (usageBackfills.has(filePath) || usageBackfills.size >= 2) return
+  const work = (async () => {
+    let ratio: number | undefined
+    try {
+      for await (const record of scanJsonlRecords(filePath)) {
+        if (record.text === undefined) { ratio = undefined; continue }
+        try {
+          const value = usageFromMessage(JSON.parse(record.text))
+          if (value !== undefined) ratio = value ?? undefined
+        } catch { /* 损坏行跳过。 */ }
+      }
+      if (fileStamp(filePath) === stamp) saveSnapshot(filePath, { stamp, ratio, resolved: true })
+    } catch { /* 删除或替换不产生新缓存。 */ }
+    finally { usageBackfills.delete(filePath) }
+  })()
+  usageBackfills.set(filePath, work)
+}
+
+function fileStamp(filePath: string): string {
+  const stat = statSync(filePath, { bigint: true })
+  if (!stat.isFile()) throw new Error('会话不是普通文件')
+  return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`
+}
+
+/** undefined 表示继续查找，null 表示边界重置；不能将未知值当作零。 */
+function usageFromMessage(parsed: unknown): number | null | undefined {
+  if (!parsed || typeof parsed !== 'object') return undefined
+  const msg = parsed as { type?: string; subtype?: string }
+  if (msg.type === 'system' && msg.subtype === 'compact_boundary') return null
+  if (msg.type === 'result') {
+    const result = parsed as SDKResultMessage
+    if (result.isSyntheticCompactionResult || result.usageStatus !== undefined || !result.usage) return undefined
+    return calculateContextUsageRatio(sumUsedTokens(result.usage), pickResultContextWindow(result))
+  }
+  if (msg.type === 'assistant') {
+    const asst = parsed as SDKAssistantMessage
+    if (asst.message?.usageStatus === 'unknown' || asst.message?.usageStatus === 'partial' || !asst.message?.usage) return undefined
+    return calculateContextUsageRatio(sumUsedTokens(asst.message.usage), inferContextWindow(asst._channelModelId ?? asst.message.model))
+  }
+  return undefined
+}
+
+function saveSnapshot(filePath: string, snapshot: UsageSnapshot): void {
+  usageSnapshots.delete(filePath)
+  usageSnapshots.set(filePath, snapshot)
+  while (usageSnapshots.size > 128) usageSnapshots.delete(usageSnapshots.keys().next().value!)
+}
+
+/** 与实际文件版本绑定；同步调用者永远不会触发全文读取。 */
 export function getSessionContextUsageRatio(sessionId: string): number | undefined {
   const filePath = getAgentSessionMessagesPath(sessionId)
-  if (!existsSync(filePath)) return undefined
-
-  let lines: string[]
   try {
-    lines = readFileSync(filePath, 'utf-8').split('\n')
+    const stamp = fileStamp(filePath)
+    const cached = usageSnapshots.get(filePath)
+    if (cached?.stamp === stamp) {
+      if (!cached.resolved) warmSessionUsage(filePath, stamp)
+      return cached.ratio
+    }
+    const start = agentHistoryPerformance.enabled ? performance.now() : 0
+    const tail = readJsonlTail(filePath)
+    let ratio: number | undefined
+    let parsedRecords = 0
+    let resolved = tail.reachedStart
+    for (const { text } of tail.lines) {
+      try {
+        const value = usageFromMessage(JSON.parse(text))
+        parsedRecords++
+        if (value !== undefined) { ratio = value ?? undefined; resolved = true; break }
+      } catch { /* 不完整/损坏行与原合同一致，跳过。 */ }
+    }
+    if (fileStamp(filePath) !== stamp) return undefined
+    saveSnapshot(filePath, { stamp, ratio, resolved })
+    if (!resolved) warmSessionUsage(filePath, stamp)
+    if (agentHistoryPerformance.enabled) {
+      const durationMs = performance.now() - start
+      agentHistoryPerformance.record({ operation: 'usage', durationMs, readMs: durationMs,
+        projectionMs: 0, ioBytes: tail.bytesRead, parsedRecords, returnedBytes: 0 })
+    }
+    return ratio
   } catch {
+    usageSnapshots.delete(filePath)
     return undefined
   }
+}
 
-  // 从尾部反向找最后一条带 usage 的 SDK 消息（result 优先，因为它带 modelUsage.contextWindow）。
-  // 命中即返回，绝大多数情况下只需解析最后一行（result）或最后几行。
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i]
-    if (!line || !line.trim()) continue
+/** append 前捕获已验证快照；不能在追加之后用旧文件大小猜测版本连续性。 */
+export function captureSessionUsageSnapshot(filePath: string): UsageSnapshot | undefined {
+  try {
+    const snapshot = usageSnapshots.get(filePath)
+    return snapshot?.resolved && snapshot.stamp === fileStamp(filePath) ? snapshot : undefined
+  } catch { return undefined }
+}
 
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(line)
-    } catch {
-      continue
-    }
-
-    /** JSONL 中的轻量消息头，用于在未可信 usage 时识别压缩边界。 */
-    const msg = parsed as { type?: string; subtype?: string }
-
-    // 压缩会重置上下文；绝不能把边界前的精确值套用到边界后的未知调用。
-    if (msg.type === 'system' && msg.subtype === 'compact_boundary') return undefined
-
-    if (msg.type === 'result') {
-      /** result usage 是整轮累计值，新版消息不能替代最后 assistant 的上下文占用。 */
-      const result = parsed as SDKResultMessage
-      if (result.isSyntheticCompactionResult) continue
-      if (result.usageStatus !== undefined) continue
-      if (!result.usage) continue
-      const usedTokens = sumUsedTokens(result.usage)
-      const contextWindow = pickResultContextWindow(result)
-      return calculateContextUsageRatio(usedTokens, contextWindow)
-    }
-
-    if (msg.type === 'assistant') {
-      /** 只有完整 usage 能代表本次 assistant 响应结束时的上下文。 */
-      const asst = parsed as SDKAssistantMessage
-      if (asst.message?.usageStatus === 'unknown' || asst.message?.usageStatus === 'partial') continue
-      const usage = asst.message?.usage
-      if (!usage) continue
-      const usedTokens = sumUsedTokens(usage)
-      const modelId = asst._channelModelId ?? asst.message?.model
-      const contextWindow = inferContextWindow(modelId)
-      return calculateContextUsageRatio(usedTokens, contextWindow)
-    }
+/** 只在正文追写成功后更新；压缩边界会立即清除旧值。 */
+export function observeSessionUsageAppend(filePath: string, messages: readonly unknown[], previous?: UsageSnapshot): void {
+  let ratio = previous?.ratio
+  let authoritative = previous !== undefined
+  for (const message of messages) {
+    const value = usageFromMessage(message)
+    if (value !== undefined) { ratio = value ?? undefined; authoritative = true }
   }
-
-  return undefined
+  if (!authoritative) { usageSnapshots.delete(filePath); return }
+  try { saveSnapshot(filePath, { stamp: fileStamp(filePath), ratio, resolved: true }) } catch { usageSnapshots.delete(filePath) }
 }
 
 /**

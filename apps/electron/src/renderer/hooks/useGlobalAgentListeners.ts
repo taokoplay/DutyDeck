@@ -1,3 +1,4 @@
+import { mountedTranscriptViews } from '@/lib/agent-transcript-window'
 import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import { restoreVisualProductionReferences } from '@dutydeck/shared'
 import { mergeAgentRunFileChangesSnapshot } from '@/lib/agent-run-file-changes'
@@ -2571,7 +2572,7 @@ export function useGlobalAgentListeners(): void {
           // 若不在此处回收，liveMessagesMap 与流式状态索引会随运行时长单调增长，
           // 让每个 delta 的 Map 复制与聚合读取越来越慢（表现为“同样 1 个 Agent 越跑越卡”）。
           // 可见会话仍由 AgentView 在消息加载完成后清理，以保留防闪烁语义。
-          if (store.get(activeSessionIdAtom) !== data.sessionId) {
+          if (!mountedTranscriptViews.has(data.sessionId)) {
             store.set(liveMessagesMapAtom, (prev) => {
               if (!prev.has(data.sessionId)) return prev
               const map = new Map(prev)

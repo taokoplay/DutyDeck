@@ -427,6 +427,64 @@ export interface SDKToolUseSummaryMessage {
   session_id?: string
 }
 
+/** 展示窗口与权威模型历史分离；游标只在同session/generation内有效。 */
+export interface AgentTranscriptCursor {
+  sessionId: string
+  generation: string
+  offset: number
+}
+export interface AgentTranscriptPageRequest {
+  sessionId: string
+  mode: 'tail' | 'before' | 'after' | 'around' | 'rebuild'
+  cursor?: AgentTranscriptCursor
+  messageId?: string
+  maxTurns?: number
+  maxRecords?: number
+  maxBytes?: number
+}
+export interface AgentTranscriptDetailRequest {
+  sessionId: string
+  generation: string
+  recordId?: string
+  /** 显式读取当前窗口之外的工具结果，与recordId二选一。 */
+  toolUseId?: string
+  offset: number
+}
+export interface AgentTranscriptAcknowledgmentRequest { sessionId: string; generation: string; ids: string[] }
+export interface AgentTranscriptAcknowledgment { uuid: string; offset: number }
+export interface AgentTranscriptDetail { text: string; nextOffset?: number }
+export interface AgentTranscriptEntry {
+  recordId: string
+  offset: number
+  end: number
+  turn: number
+  message: SDKMessage
+  /** 巨型单条只返回提示，不冒充完整正文；可用原有全文导出检查原始记录。 */
+  deferred?: boolean
+}
+export interface AgentTranscriptPage {
+  sessionId: string
+  status: 'page' | 'unchanged' | 'resetRequired'
+  generation: string
+  revision: string
+  observedEnd: number
+  entries: AgentTranscriptEntry[]
+  before?: AgentTranscriptCursor
+  after?: AgentTranscriptCursor
+  hasBefore: boolean
+  hasAfter: boolean
+  startsMidTurn: boolean
+  endsMidTurn: boolean
+  ioBytes: number
+  /** 索引冷建/尾扫的独立成本，不能藏在正文页IO之外。 */
+  indexBytes: number
+  turnNumbersRelative: boolean
+  returnedBytes: number
+  /** around命中所属首条可见记录；不一定等于assistant turn的DOM锚点。 */
+  indexRequired?: boolean
+  targetRecordId?: string
+}
+
 /** SDK 消息联合类型（v1 query + includePartialMessages: false 返回的完整 JSON 对象） */
 export type SDKMessage =
   | SDKAssistantMessage
@@ -2062,6 +2120,11 @@ export const AGENT_IPC_CHANNELS = {
   /** 获取会话 SDKMessage（Phase 4 新格式） */
   GET_RUN_FILE_CHANGES: 'agent:get-run-file-changes',
   GET_SDK_MESSAGES: 'agent:get-sdk-messages',
+  GET_TRANSCRIPT_PAGE: 'agent:get-transcript-page',
+  SEARCH_TRANSCRIPT: 'agent:search-transcript',
+  GET_TRANSCRIPT_DETAIL: 'agent:get-transcript-detail',
+  GET_TRANSCRIPT_RETRY_INPUT: 'agent:get-transcript-retry-input',
+  ACK_TRANSCRIPT_RECORDS: 'agent:ack-transcript-records',
   /** 更新会话标题 */
   UPDATE_TITLE: 'agent:update-title',
   /** 更新会话模型选择 */

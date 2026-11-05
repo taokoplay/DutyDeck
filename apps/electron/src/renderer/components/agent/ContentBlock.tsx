@@ -1,3 +1,5 @@
+import { containsTargetRecord } from '@/lib/agent-transcript-presentation'
+import { TranscriptPresentationContext, useTranscriptExpansion } from '@/lib/agent-transcript-presentation'
 /**
  * ContentBlock — 单个 SDKAssistantMessage 内容块渲染
  *
@@ -224,6 +226,8 @@ export interface ContentBlockProps {
   dimmed?: boolean
   /** 子代理的内容块（Agent/Task 工具调用的嵌套子块） */
   childBlocks?: SDKContentBlock[]
+  childBlocksMap?: Map<string, SDKContentBlock[]>
+  blockMessageIds?: Map<SDKContentBlock, string>
   /** 是否正在流式输出中（仅流式中的未完成工具调用才显示 spinner） */
   isStreaming?: boolean
 }
@@ -345,6 +349,8 @@ interface ToolUseBlockProps {
   index?: number
   dimmed?: boolean
   childBlocks?: SDKContentBlock[]
+  childBlocksMap?: Map<string, SDKContentBlock[]>
+  blockMessageIds?: Map<SDKContentBlock, string>
   basePath?: string
   /** 是否正在流式输出中 */
   isStreaming?: boolean
@@ -399,8 +405,8 @@ function AddToolImagesToDesignButton({ images, sessionId }: { images: AgentToolR
   )
 }
 
-function ToolUseBlock({ block, allMessages, sessionId, animate = false, index = 0, dimmed = false, childBlocks, basePath, isStreaming }: ToolUseBlockProps): React.ReactElement {
-  const [expanded, setExpanded] = React.useState(false)
+function ToolUseBlock({ block, allMessages, sessionId, animate = false, index = 0, dimmed = false, childBlocks, childBlocksMap, blockMessageIds, basePath, isStreaming }: ToolUseBlockProps): React.ReactElement {
+  const [expanded, setExpanded] = useTranscriptExpansion(`tool:${block.id}`, false)
   const toolResult = useToolResult(block.id, allMessages)
   const resultText = toolResult?.result
   const isError = toolResult?.isError === true
@@ -419,7 +425,10 @@ function ToolUseBlock({ block, allMessages, sessionId, animate = false, index = 
   const subAgentMeta = useSubAgentMeta(block.id, allMessages)
 
   // Agent/Task 子代理内容默认折叠
-  const [childrenExpanded, setChildrenExpanded] = React.useState(false)
+  const presentation = React.useContext(TranscriptPresentationContext)
+  const [childrenExpanded, setChildrenExpanded] = useTranscriptExpansion(`children:${block.id}`, false)
+  const shouldReveal = Boolean(presentation?.targetId && childBlocks && containsTargetRecord(childBlocks, blockMessageIds, childBlocksMap, presentation.targetId))
+  React.useEffect(() => { if (shouldReveal) setChildrenExpanded(true) }, [shouldReveal, setChildrenExpanded])
 
   const phrase = getToolPhrase(block.name, block.input)
   const ToolIcon = getToolIcon(block.name)
@@ -502,9 +511,12 @@ function ToolUseBlock({ block, allMessages, sessionId, animate = false, index = 
 
             {/* 子代理工具调用 */}
             {hasChildren && childBlocks.map((childBlock, ci) => (
+              <div key={ci} data-message-id={blockMessageIds?.get(childBlock) && childBlocks.findIndex(candidate => blockMessageIds?.get(candidate) === blockMessageIds?.get(childBlock)) === ci ? blockMessageIds.get(childBlock) : undefined} data-message-role="assistant">
               <ContentBlock
-                key={ci}
                 block={childBlock}
+                blockMessageIds={blockMessageIds}
+                childBlocksMap={childBlocksMap}
+                childBlocks={childBlock.type === 'tool_use' ? childBlocksMap?.get((childBlock as SDKToolUseBlock).id) : undefined}
                 allMessages={allMessages}
                 sessionId={sessionId}
                 basePath={basePath}
@@ -513,6 +525,7 @@ function ToolUseBlock({ block, allMessages, sessionId, animate = false, index = 
                 dimmed
                 isStreaming={isStreaming}
               />
+              </div>
             ))}
 
             {/* SubAgent 完成信息 */}
@@ -751,7 +764,7 @@ function StreamingTextBlock({
 
 // ===== ContentBlock 主组件 =====
 
-export function ContentBlock({ block, allMessages, sessionId, basePath, basePaths, animate = false, index = 0, dimmed = false, childBlocks, isStreaming }: ContentBlockProps): React.ReactElement | null {
+export function ContentBlock({ block, allMessages, sessionId, basePath, basePaths, animate = false, index = 0, dimmed = false, childBlocks, childBlocksMap, blockMessageIds, isStreaming }: ContentBlockProps): React.ReactElement | null {
   // text 块 — 主要内容，不受 dimmed 影响
   if (block.type === 'text') {
     const textBlock = block as SDKTextBlock
@@ -778,6 +791,8 @@ export function ContentBlock({ block, allMessages, sessionId, basePath, basePath
         index={index}
         dimmed={dimmed}
         childBlocks={childBlocks}
+        childBlocksMap={childBlocksMap}
+        blockMessageIds={blockMessageIds}
         basePath={basePath}
         isStreaming={isStreaming}
       />
