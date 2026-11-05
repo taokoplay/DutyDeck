@@ -1143,10 +1143,11 @@ function buildPromaProductToolDefinitions(sdk: PiSdk, canUseTool: PiAgentQueryOp
     sdk.defineTool({
       name: 'ExitPlanMode',
       label: '提交计划审批',
-      description: '向用户提交计划并请求批准。用户批准后才能退出计划模式并继续执行。',
-      promptSnippet: '提交计划审批，等待用户批准后继续执行。',
+      description: '提交当前会话 plan/ 目录内的 Markdown 计划文件供用户只读预览并审批。批准后才能继续执行。',
+      promptSnippet: '提交计划审批，传入 planFile 绝对路径，等待用户批准。',
       parameters: Type.Object({
         plan: Type.Optional(Type.String({ description: '计划正文或摘要。' })),
+        planFile: Type.String({ description: '当前会话 plan/ 目录内待审批的 Markdown 计划文件绝对路径。' }),
         allowedPrompts: Type.Optional(Type.Array(Type.Object({
           tool: Type.String({ description: '批准后可执行的工具，通常为 Bash。' }),
           prompt: Type.String({ description: '批准后可执行的命令或操作描述。' }),

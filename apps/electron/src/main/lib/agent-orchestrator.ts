@@ -68,7 +68,7 @@ import { isStaleActiveQueueError } from './agent-queue-routing'
 import { decryptApiKey, getChannelById, listChannels, persistCodexOAuthCredentials, persistXaiOAuthCredentials, resolveChannelRuntimeApiKey, resolveCodexOAuthCredentials, resolveXaiOAuthCredentials } from './channel-manager'
 import pkg from '../../../package.json' with { type: 'json' }
 import { getEffectiveProxyUrl } from './proxy-settings-service'
-import { appendSDKMessages, updateAgentSessionMeta, getAgentSessionMeta, isAgentSessionDeleting, removeSDKErrorMessage, updateSDKUserMessageSkillActivations, rewindPiAgentSession, resolveAgentCwd, getActiveWorktreePath, getAgentCwdMode, getSessionWorkbenchLayout } from './agent-session-manager'
+import { appendSDKMessages, updateAgentSessionMeta, getAgentSessionMeta, isAgentSessionDeleting, removeSDKErrorMessage, updateSDKUserMessageSkillActivations, rewindPiAgentSession, resolveAgentCwd, getActiveWorktreePath, getAgentCwdMode, getSessionWorkbenchLayout, resolveSessionWorkbenchContextDir } from './agent-session-manager'
 import type { SDKMessageAppendReceipt } from './agent-session-manager'
 import { getPersistedAgentMessageReceipt, readPersistedAgentEvidence } from './agent-session-manager'
 import { getAgentWorkspace, getProjectFilesPath, getWorkspaceMcpConfig, getWorkspaceAttachedDirectories, getWorkspaceAttachedFiles, getWorkspaceAgentsMdPath, readWorkspaceAgentsMd, getWorkspaceMemoryGuidance, isWorkspaceProjectKnowledgeMaintenanceApproved } from './agent-workspace-manager'
@@ -88,6 +88,7 @@ import type { PermissionResult, CanUseToolOptions } from './agent-permission-ser
 import { resolvePlanningDeletionPermission } from './planning-permission-policy'
 import { askUserService } from './agent-ask-user-service'
 import { exitPlanService, type ExitPlanPermissionResult } from './agent-exit-plan-service'
+import { ensureSessionPlanDirectory as ensurePlanDirectory, isSessionPlanMarkdownPath } from './agent-plan-file-policy'
 import {
   createRunToolCallLimiter,
   denyToolOutsideAgentMode,
@@ -2029,6 +2030,13 @@ export class AgentOrchestrator {
           })()
         : []
 
+      /** 计划工件只来自本会话工作台；新旧布局沿用中央解析器。 */
+      const sessionContextDirectory = resolveSessionWorkbenchContextDir(workspace, sessionId, getSessionWorkbenchLayout(sessionMeta))
+      const sessionPlanDirectory = sessionContextDirectory ? join(sessionContextDirectory, 'plan') : undefined
+      const planWorkspaceDirectory = workspace ? getAgentWorkspacePath(workspace.slug) : undefined
+      const ensureSessionPlanDirectory = (): boolean => ensurePlanDirectory(sessionPlanDirectory, planWorkspaceDirectory)
+      if (initialPermissionMode === 'plan') ensureSessionPlanDirectory()
+
       // ExitPlanMode 拦截器：plan 模式下走 UI 审批流程
       const handleExitPlanMode = (toolInput: Record<string, unknown>, signal: AbortSignal): Promise<ExitPlanPermissionResult> => {
         return exitPlanService.handleExitPlanMode(
@@ -2039,6 +2047,7 @@ export class AgentOrchestrator {
             if (!isLatestRunGeneration(this.latestRunGenerations, sessionId, runGeneration)) return
             this.eventBus.emit(sessionId, { kind: 'proma_event', event: { type: 'exit_plan_mode_request', request } })
           },
+          { planDirectory: sessionPlanDirectory, workspaceDirectory: planWorkspaceDirectory },
         )
       }
 
@@ -2476,6 +2485,7 @@ export class AgentOrchestrator {
         }
 
         // EnterPlanMode：标记进入状态，通知渲染进程
+        if (toolName === 'EnterPlanMode') ensureSessionPlanDirectory()
         if (toolName === 'EnterPlanMode') {
           planModeEntered = true
           emitPlanModeChanged(true, 'tool')
@@ -2597,16 +2607,16 @@ export class AgentOrchestrator {
             return { behavior: 'allow' as const, updatedInput: input }
 
           case 'plan': {
-            // Plan 模式：只允许只读工具 + Write/Edit 任意 .md 文件（计划文档）
+            // Plan 模式：只读工具与当前会话 plan/ 下的 Markdown 计划。
             if (PLAN_MODE_ALLOWED_TOOLS.has(toolName) || extensions.readOnlyToolNames?.includes(toolName)) {
               return { behavior: 'allow' as const, updatedInput: input }
             }
-            // 允许 Write/Edit 到任意 .md 文件（计划文档一定是 markdown；非 .md 仍被拒）
-            if (toolName === 'Write' || toolName === 'Edit') {
+            if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit') {
               const filePath = typeof input.file_path === 'string' ? input.file_path : ''
-              if (filePath.toLowerCase().endsWith('.md')) {
+              if (ensureSessionPlanDirectory() && isSessionPlanMarkdownPath(filePath, sessionPlanDirectory, planWorkspaceDirectory)) {
                 return { behavior: 'allow' as const, updatedInput: input }
               }
+              return { behavior: 'deny' as const, message: '计划模式下只能在当前会话 plan/ 目录内写入 Markdown 计划，请在审批通过后再修改其他文件' }
             }
             // Bash 工具：只读命令（find、grep、cat 等）允许执行，写操作拒绝
             if (toolName === 'Bash') {

@@ -11,6 +11,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { resolveSessionPlanDocument } from './agent-plan-file-policy'
 import type {
   ExitPlanModeRequest,
   ExitPlanModeResponse,
@@ -34,6 +35,8 @@ interface PendingExitPlan {
   resolve: (result: ExitPlanPermissionResult) => void
   request: ExitPlanModeRequest
   toolInput: Record<string, unknown>
+  planDirectory?: string
+  workspaceDirectory?: string
 }
 
 /** ExitPlanMode 审批结果回调（通知编排层切换权限模式） */
@@ -61,29 +64,37 @@ export class AgentExitPlanService {
     input: Record<string, unknown>,
     signal: AbortSignal,
     sendToRenderer: (request: ExitPlanModeRequest) => void,
+    options?: { planDirectory?: string; workspaceDirectory?: string },
   ): Promise<ExitPlanPermissionResult> {
-    console.log(`[ExitPlanService] handleExitPlanMode 开始: sessionId=${sessionId}, signal.aborted=${signal.aborted}`)
-    const allowedPrompts = this.parseAllowedPrompts(input)
-
+    if (signal.aborted) return Promise.resolve({ behavior: 'deny', message: '操作已中止' })
+    const planDocument = resolveSessionPlanDocument(input.planFile, options?.planDirectory, options?.workspaceDirectory)
+    if (!planDocument) {
+      return Promise.resolve({ behavior: 'deny', message: '提交计划审批前必须提供当前会话 plan/ 目录内、大小不超过 1 MB 的 Markdown 计划文件（planFile）' })
+    }
     const request: ExitPlanModeRequest = {
       requestId: randomUUID(),
       sessionId,
       toolInput: input,
-      allowedPrompts,
+      allowedPrompts: this.parseAllowedPrompts(input),
+      planDocument,
     }
 
-    sendToRenderer(request)
-
     return new Promise<ExitPlanPermissionResult>((resolve) => {
-      this.pendingRequests.set(request.requestId, { resolve, request, toolInput: input })
-
-      signal.addEventListener('abort', () => {
-        if (this.pendingRequests.has(request.requestId)) {
-          console.warn(`[ExitPlanService] AbortSignal 触发，deny: requestId=${request.requestId}`)
-          this.pendingRequests.delete(request.requestId)
-          resolve({ behavior: 'deny', message: '操作已中止' })
-        }
-      }, { once: true })
+      const finish = (result: ExitPlanPermissionResult): void => {
+        signal.removeEventListener('abort', abort)
+        this.pendingRequests.delete(request.requestId)
+        resolve(result)
+      }
+      const abort = (): void => finish({ behavior: 'deny', message: '操作已中止' })
+      // 注册后再发布，支持同一轮内响应或取消，避免丢失回执。
+      this.pendingRequests.set(request.requestId, { resolve: finish, request, toolInput: input, planDirectory: options?.planDirectory, workspaceDirectory: options?.workspaceDirectory })
+      signal.addEventListener('abort', abort, { once: true })
+      if (signal.aborted) { abort(); return }
+      try {
+        sendToRenderer(request)
+      } catch {
+        finish({ behavior: 'deny', message: '计划审批请求发送失败，请重新提交' })
+      }
     })
   }
 
@@ -101,6 +112,12 @@ export class AgentExitPlanService {
 
     switch (response.action) {
       case 'approve_bypass': {
+        const submitted = pending.request.planDocument
+        const current = resolveSessionPlanDocument(submitted?.filePath, pending.planDirectory, pending.workspaceDirectory)
+        if (!submitted || !current || current.filePath !== submitted.filePath || current.contentHash !== submitted.contentHash) {
+          pending.resolve({ behavior: 'deny', message: '计划文档在审批期间已变更，请重新提交计划审批' })
+          return { sessionId, targetMode: null }
+        }
         // 批准 + 切换到完全自动模式
         pending.resolve({
           behavior: 'allow' as const,

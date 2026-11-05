@@ -308,9 +308,9 @@ ${memoryWriteGuidance}`,
       : undefined,
     ctx.permissionMode === 'plan'
       ? `## 计划模式
-只调研和规划。计划写入 \`${sessionContextDir}/plan/\`；先展示摘要并等待用户批准，再退出计划模式和执行。`
+只调研和规划。计划只能写入 \`${sessionContextDir}/plan/\`；提交 ExitPlanMode 时必须用 planFile 传入 Markdown 计划文件的绝对路径，供用户只读预览并批准。审批期间不要修改文件，批准后才能退出计划模式并执行。`
       : `## 计划模式
-进入计划模式时，计划文件写入 \`${sessionContextDir}/plan/\`（如 \`${sessionContextDir}/plan/my-plan.md\`），不要写到项目根。`,
+进入计划模式时，计划文件只能写入 \`${sessionContextDir}/plan/\`（如 \`${sessionContextDir}/plan/my-plan.md\`），不要写到项目根。提交 ExitPlanMode 时用 planFile 传入该 Markdown 文件的绝对路径，供用户只读预览；审批期间不要修改文件。`,
     `## 回复
 - 一切呈现给用户的内容——对话回复、交付文档、代码与提交信息——必须语意连贯、易于阅读：句子完整，前后逻辑衔接，结构清晰可快速扫读。
 - 易于阅读不等于简化内容：保持与用户所需对等的专业度和信息密度，专业术语照常使用，不为追求通俗而稀释、删减或过度概括。

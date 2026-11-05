@@ -10,7 +10,7 @@
  */
 
 import * as React from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useStore } from 'jotai'
 import {
   Check,
   X,
@@ -19,8 +19,13 @@ import {
   FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { refreshPreviewContent, useOpenPreview } from '@/components/diff/preview-opener'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+
 import { allPendingExitPlanRequestsAtom } from '@/atoms/agent-atoms'
 import type { ExitPlanModeAction, ExitPlanAllowedPrompt } from '@dutydeck/shared'
+
+const PlanPreviewPanel = React.lazy(() => import('@/components/diff/PreviewPanel').then((module) => ({ default: module.PreviewPanel })))
 
 /** 选项定义 */
 interface PlanOption {
@@ -57,12 +62,18 @@ const PLAN_OPTIONS: PlanOption[] = [
 
 interface ExitPlanModeBannerProps {
   sessionId: string
+  /** 嵌入会话没有自己的右侧工作区，使用会话绑定的只读对话框。 */
+  embedded?: boolean
   /** 交由 AgentView 统一执行权威停止与状态恢复。 */
   onStop: () => void
 }
 
-export function ExitPlanModeBanner({ sessionId, onStop }: ExitPlanModeBannerProps): React.ReactElement | null {
+export function ExitPlanModeBanner({ sessionId, onStop, embedded = false }: ExitPlanModeBannerProps): React.ReactElement | null {
   const [allRequests, setAllRequests] = useAtom(allPendingExitPlanRequestsAtom)
+  const openPreview = useOpenPreview()
+  const store = useStore()
+  const bannerRef = React.useRef<HTMLDivElement>(null)
+  const [planPreviewOpen, setPlanPreviewOpen] = React.useState(false)
   const requests = allRequests.get(sessionId) ?? []
   const [focusedIdx, setFocusedIdx] = React.useState(0)
   const [showFeedback, setShowFeedback] = React.useState(false)
@@ -70,6 +81,21 @@ export function ExitPlanModeBanner({ sessionId, onStop }: ExitPlanModeBannerProp
   const [submitting, setSubmitting] = React.useState(false)
 
   const request = requests[0] ?? null
+  const openedRequestRef = React.useRef<string | null>(null)
+  const openPlan = React.useCallback(() => {
+    if (!request?.planDocument) return
+    const file = { filePath: request.planDocument.filePath, previewOnly: true, readOnly: true }
+    refreshPreviewContent(store, sessionId, file)
+    if (embedded) setPlanPreviewOpen(true)
+    else openPreview(sessionId, file)
+  }, [embedded, openPreview, request?.planDocument, sessionId, store])
+
+  // 仅当前已展示的审批自动打开，重载恢复也复用此路径，不切换其他会话。
+  React.useEffect(() => {
+    if (!request?.planDocument || openedRequestRef.current === request.requestId) return
+    openedRequestRef.current = request.requestId
+    openPlan()
+  }, [request?.requestId, request?.planDocument, openPlan])
 
   // ===== Refs：确保 keydown handler 始终读取最新值，消除闭包过期问题 =====
   const focusedIdxRef = React.useRef(focusedIdx)
@@ -117,7 +143,11 @@ export function ExitPlanModeBanner({ sessionId, onStop }: ExitPlanModeBannerProp
     if (!request) return
 
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // 快捷键只属于当前获得焦点的审批卡；预览/其它会话中的 Enter 不得批准计划。
+      if (!(e.target instanceof Node) || !bannerRef.current?.contains(e.target)) return
       const curFocusIdx = focusedIdxRef.current
+      // 计划预览及其它原生按钮保留 Enter/Space 行为，不触发默认批准。
+      if (e.target instanceof Element && e.target.closest('button, a, [role="button"], [role="dialog"]')) return
 
       // 反馈输入框内：仅 Enter 提交（输入法组合中跳过）
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -130,7 +160,7 @@ export function ExitPlanModeBanner({ sessionId, onStop }: ExitPlanModeBannerProp
         if (e.key === 'Escape') {
           e.preventDefault()
           setShowFeedback(false)
-          setFocusedIdx(3)
+          setFocusedIdx(2)
         }
         return
       }
@@ -173,12 +203,17 @@ export function ExitPlanModeBanner({ sessionId, onStop }: ExitPlanModeBannerProp
   if (!request) return null
 
   return (
-    <div className="mx-4 mb-3 rounded-xl bg-card shadow-lg overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+    <div ref={bannerRef} tabIndex={0} role="region" aria-label="计划审批" className="mx-4 mb-3 rounded-xl bg-card shadow-lg overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
       {/* 头部 */}
       <div className="px-4 pt-3 pb-2">
         <div className="flex items-center gap-2 mb-1">
           <FileText className="size-4 text-primary" />
           <span className="text-sm font-medium text-foreground flex-1">Agent 计划待审批</span>
+          {request.planDocument && (
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={openPlan} title={`只读查看 ${request.planDocument.displayName}`}>
+              <FileText className="mr-1 size-3.5" />查看计划
+            </Button>
+          )}
           <button
             type="button"
             className="size-5 flex items-center justify-center rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors"
@@ -274,10 +309,26 @@ export function ExitPlanModeBanner({ sessionId, onStop }: ExitPlanModeBannerProp
         </div>
       )}
 
+      {embedded && request.planDocument && (
+        <Dialog open={planPreviewOpen} onOpenChange={setPlanPreviewOpen}>
+          <DialogContent className="flex h-[80vh] max-w-4xl flex-col">
+            <DialogHeader>
+              <DialogTitle>{request.planDocument.displayName}</DialogTitle>
+              <DialogDescription>只读计划预览，关闭后可在审批卡中选择是否执行。</DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1">
+              <React.Suspense fallback={<p className="p-4 text-sm text-muted-foreground">正在加载计划…</p>}>
+                <PlanPreviewPanel key={request.requestId} sessionId={sessionId} file={{ filePath: request.planDocument.filePath, previewOnly: true, readOnly: true }} onClose={() => setPlanPreviewOpen(false)} />
+              </React.Suspense>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* 底部提示 */}
       <div className="flex items-center px-4 pb-3">
         <span className="text-[10px] text-muted-foreground/40">
-          点击选择 · ↑↓ Enter 确认 · 1-3 快速选择
+          点击选择 · 聚焦审批卡后 ↑↓ Enter 确认 · 1-3 快速选择
         </span>
       </div>
     </div>

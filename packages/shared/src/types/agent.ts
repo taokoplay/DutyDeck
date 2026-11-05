@@ -1903,6 +1903,13 @@ export interface ExitPlanAllowedPrompt {
   prompt: string
 }
 
+/** 已校验的会话计划文档；批准前由主进程重新核验版本。 */
+export interface ExitPlanDocument {
+  filePath: string
+  displayName: string
+  contentHash: string
+}
+
 /** ExitPlanMode 请求（主进程 → 渲染进程） */
 export interface ExitPlanModeRequest {
   /** 请求唯一 ID */
@@ -1913,6 +1920,8 @@ export interface ExitPlanModeRequest {
   toolInput: Record<string, unknown>
   /** 解析后的 allowedPrompts 列表 */
   allowedPrompts: ExitPlanAllowedPrompt[]
+  /** 旧历史请求可能没有文档；新提交必须绑定当前会话的计划文件。 */
+  planDocument?: ExitPlanDocument
 }
 
 /** ExitPlanMode 用户选择行为 */

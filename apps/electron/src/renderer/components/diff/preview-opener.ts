@@ -9,6 +9,8 @@ import * as React from 'react'
 import { useStore } from 'jotai'
 import {
   getPreviewFileId,
+  getPreviewContentRefreshKey,
+  previewContentRefreshVersionAtom,
   previewFileMapAtom,
   previewFilesMapAtom,
   previewPanelOpenMapAtom,
@@ -22,9 +24,21 @@ import {
   tabsAtom,
 } from '@/atoms/tab-atoms'
 import { agentDiffPanelTabAtom, agentSidePanelOpenAtomFamily, getPreviewSidePanelTab } from '@/atoms/agent-atoms'
+import { clearPreviewContentCacheForFile } from '@/lib/preview-content-cache'
 
 /** Jotai store 类型（从 useStore 推导，避免直接 import 内部 Store 类型） */
 type JotaiStore = ReturnType<typeof useStore>
+
+/** 审批文档每次打开都重新读盘；同时刷新已挂载预览，避免同路径重提命中旧版本。 */
+export function refreshPreviewContent(store: JotaiStore, sessionId: string, file: PreviewFile): void {
+  clearPreviewContentCacheForFile(sessionId, file.filePath)
+  const key = getPreviewContentRefreshKey(sessionId, file)
+  store.set(previewContentRefreshVersionAtom, (previous) => {
+    const next = new Map(previous)
+    next.set(key, (previous.get(key) ?? 0) + 1)
+    return next
+  })
+}
 
 /** 兼容旧调用方；右侧工作区方案下不再使用 mode。 */
 export interface OpenPreviewOptions {

@@ -387,3 +387,42 @@ test('Given Mobile MCP 工具 When 权限拒绝或取消 Then 不广播且不调
     expect(observed).toBe(0); expect(executed).toBe(0)
   }
 })
+
+test('Given 真实 Pi Write/Edit 与 plan 路径守卫 When Unicode 空白别名或硬链接 Then 不写外部文件且正常多段编辑可用', async () => {
+  const { createWriteToolDefinition, createEditToolDefinition } = await import('@earendil-works/pi-coding-agent')
+  const { wrapToolWithPermission } = await import('./pi-agent-adapter')
+  const { isSessionPlanMarkdownPath } = await import('../agent-plan-file-policy')
+  const { mkdirSync, readFileSync, symlinkSync, linkSync } = await import('node:fs')
+  const root = mkdtempSync(join(tmpdir(), 'dutydeck-pi-plan-'))
+  temporaryDirectories.push(root)
+  const plan = join(root, 'session', 'plan')
+  mkdirSync(plan, { recursive: true })
+  const outside = join(root, 'outside.md')
+  writeFileSync(outside, 'before\nsecond\n')
+  symlinkSync(outside, join(plan, 'alias .md'))
+  const names: string[] = []
+  const canUseTool: NonNullable<Parameters<typeof wrapToolWithPermission>[1]['canUseTool']> = async (name, input) => {
+    names.push(name)
+    return ['Write', 'Edit', 'MultiEdit'].includes(name) && typeof input.file_path === 'string' && isSessionPlanMarkdownPath(input.file_path, plan, root)
+      ? { behavior: 'allow', updatedInput: input }
+      : { behavior: 'deny', message: 'plan boundary' }
+  }
+  const write = wrapToolWithPermission(createWriteToolDefinition(root), { canUseTool })
+  const edit = wrapToolWithPermission(createEditToolDefinition(root), { canUseTool })
+  const signal = new AbortController().signal
+  const context = {} as ExtensionToolContext
+  const alias = join(plan, 'alias\u00a0.md')
+  await expect(write.execute('w1', { path: alias, content: 'outside mutation' }, signal, undefined, context)).rejects.toThrow('plan boundary')
+  await expect(edit.execute('e1', { path: alias, edits: [{ oldText: 'before', newText: 'after' }] }, signal, undefined, context)).rejects.toThrow('plan boundary')
+  expect(readFileSync(outside, 'utf8')).toBe('before\nsecond\n')
+  const hardlink = join(plan, 'hardlink.md')
+  linkSync(outside, hardlink)
+  await expect(write.execute('wh', { path: hardlink, content: 'outside mutation' }, signal, undefined, context)).rejects.toThrow('plan boundary')
+  await expect(edit.execute('eh', { path: hardlink, edits: [{ oldText: 'before', newText: 'after' }] }, signal, undefined, context)).rejects.toThrow('plan boundary')
+  expect(readFileSync(outside, 'utf8')).toBe('before\nsecond\n')
+  const valid = join(plan, 'normal.md')
+  await write.execute('w2', { path: valid, content: 'before\nsecond\n' }, signal, undefined, context)
+  await edit.execute('e2', { path: valid, edits: [{ oldText: 'before', newText: 'after' }, { oldText: 'second', newText: 'last' }] }, signal, undefined, context)
+  expect(readFileSync(valid, 'utf8')).toBe('after\nlast\n')
+  expect(names).toEqual(['Write', 'Edit', 'Write', 'Edit', 'Write', 'MultiEdit'])
+})

@@ -3429,7 +3429,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
 
 
         {/* ExitPlanMode 计划审批横幅 */}
-        <ExitPlanModeBanner sessionId={sessionId} onStop={handleStop} />
+        <ExitPlanModeBanner sessionId={sessionId} embedded={embedded} onStop={handleStop} />
 
         {/* 输入区域 — 交互横幅显示时隐藏，由横幅替代 */}
         {!hasBannerOverlay && (
