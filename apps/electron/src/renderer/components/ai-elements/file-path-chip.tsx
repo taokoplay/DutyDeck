@@ -7,12 +7,11 @@
  */
 
 import * as React from 'react'
-import { useStore } from 'jotai'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { FileTypeIcon } from '@/components/file-browser/FileTypeIcon'
 import { useOpenPreview } from '@/components/diff/preview-opener'
-import { currentAgentSessionIdAtom } from '@/atoms/agent-atoms'
+import { useFileSessionId } from './file-session-context'
 import { getFileParentPath } from '@/lib/file-utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -86,6 +85,8 @@ export function resolveFilePathEntry(
 }
 
 interface FilePathChipProps {
+  /** 所属消息会话；null 不回退到全局会话。 */
+  sessionId?: string | null
   /** 文件路径（绝对或相对，可能带行号后缀） */
   filePath: string
   /** 基础目录路径（向后兼容，单值） */
@@ -102,7 +103,7 @@ interface FilePathChipProps {
 }
 
 /** 文件路径芯片 — 可点击，触发文件预览 */
-export function FilePathChip({ filePath, basePath, basePaths, className, openMode = 'preview' }: FilePathChipProps): React.ReactElement {
+export function FilePathChip({ filePath, basePath, basePaths, sessionId: explicitSessionId, className, openMode = 'preview' }: FilePathChipProps): React.ReactElement {
   const trimmedPath = filePath.trim()
   const { path: cleanPath, suffix: lineColSuffix } = stripLineCol(trimmedPath)
   const filename = getFileName(cleanPath)
@@ -113,7 +114,7 @@ export function FilePathChip({ filePath, basePath, basePaths, className, openMod
   const mountedRef = React.useRef(true)
   const [fileStatus, setFileStatus] = React.useState<'idle' | 'resolved' | 'broken'>('idle')
   const [resolvedPath, setResolvedPath] = React.useState<string | undefined>()
-  const store = useStore()
+  const sessionId = useFileSessionId(explicitSessionId)
   const openPreview = useOpenPreview()
 
   const candidateBases = React.useMemo<string[]>(() => {
@@ -129,7 +130,6 @@ export function FilePathChip({ filePath, basePath, basePaths, className, openMod
   }), [trimmedPath, resolvedPath, lineColSuffix])
 
   const resolveCurrentPath = React.useCallback((): Promise<void> => {
-    const sessionId = store.get(currentAgentSessionIdAtom)
     const key = existsCacheKey(cleanPath, candidateBases, sessionId ?? undefined)
     const inFlight = resolutionRequestRef.current
     if (inFlight?.key === key) return inFlight.promise
@@ -150,7 +150,7 @@ export function FilePathChip({ filePath, basePath, basePaths, className, openMod
       })
     resolutionRequestRef.current = { key, promise }
     return promise
-  }, [cleanPath, candidateBases, store])
+  }, [cleanPath, candidateBases, sessionId])
 
   // IntersectionObserver 首次懒检查可使用缓存；Tooltip 打开时会绕过缓存重新解析。
   React.useEffect(() => {
@@ -161,7 +161,7 @@ export function FilePathChip({ filePath, basePath, basePaths, className, openMod
     mountedRef.current = true
     setFileStatus('idle')
     setResolvedPath(undefined)
-    const key = existsCacheKey(cleanPath, candidateBases, store.get(currentAgentSessionIdAtom) ?? undefined)
+    const key = existsCacheKey(cleanPath, candidateBases, sessionId ?? undefined)
     const cached = fileExistsCache.get(key)
     if (cached) {
       setFileStatus(cached.exists ? 'resolved' : 'broken')
@@ -186,14 +186,13 @@ export function FilePathChip({ filePath, basePath, basePaths, className, openMod
       requestGenerationRef.current += 1
       observer.disconnect()
     }
-  }, [cleanPath, candidateBases, resolveCurrentPath, store])
+  }, [cleanPath, candidateBases, resolveCurrentPath, sessionId])
 
   const handleTooltipOpenChange = React.useCallback((open: boolean) => {
     if (open) void resolveCurrentPath()
   }, [resolveCurrentPath])
 
   const handleClick = React.useCallback(() => {
-    const sessionId = store.get(currentAgentSessionIdAtom)
     if (!sessionId) return
 
     const resolvedBasePaths = candidateBases.length > 0 ? candidateBases : undefined
@@ -222,15 +221,14 @@ export function FilePathChip({ filePath, basePath, basePaths, className, openMod
         basePaths: resolvedBasePaths,
       })
     })
-  }, [store, openPreview, cleanPath, candidateBases, openMode])
+  }, [sessionId, openPreview, cleanPath, candidateBases, openMode])
 
   const handleShowInFolder = React.useCallback(() => {
     const bases = candidateBases.length > 0 ? candidateBases : undefined
-    const sessionId = store.get(currentAgentSessionIdAtom)
     window.electronAPI.showItemInFolder(cleanPath, { sessionId: sessionId ?? undefined, candidateBasePaths: bases })
       .then((ok) => { if (!ok) toast.error(`未找到文件：${filename}`) })
       .catch(() => toast.error(`未找到文件：${filename}`))
-  }, [cleanPath, candidateBases, filename, store])
+  }, [cleanPath, candidateBases, filename, sessionId])
 
   return (
     <ContextMenu>
@@ -290,18 +288,19 @@ export function ResolvableFilePathChip({
   filePath,
   basePath,
   basePaths,
+  sessionId: explicitSessionId,
+  openMode,
   className,
 }: ResolvableFilePathChipProps): React.ReactElement {
-  const store = useStore()
+  const sessionId = useFileSessionId(explicitSessionId)
   const candidateBases = React.useMemo<string[]>(() => {
     if (basePaths && basePaths.length > 0) return basePaths.filter(Boolean)
     if (basePath) return [basePath]
     return []
   }, [basePath, basePaths])
   const cleanPath = React.useMemo(() => stripLineCol(filePath.trim()).path, [filePath])
-  const sessionId = store.get(currentAgentSessionIdAtom) ?? undefined
   const resolutionKey = React.useMemo(
-    () => existsCacheKey(cleanPath, candidateBases, sessionId),
+    () => existsCacheKey(cleanPath, candidateBases, sessionId ?? undefined),
     [candidateBases, cleanPath, sessionId],
   )
   const [resolvedKey, setResolvedKey] = React.useState<string | null>(null)
@@ -309,7 +308,7 @@ export function ResolvableFilePathChip({
   React.useEffect(() => {
     let cancelled = false
     setResolvedKey(null)
-    void resolveFilePathEntry(cleanPath, candidateBases, sessionId)
+    void resolveFilePathEntry(cleanPath, candidateBases, sessionId ?? undefined)
       .then((entry) => {
         if (!cancelled && entry.exists) setResolvedKey(resolutionKey)
       })
@@ -321,7 +320,7 @@ export function ResolvableFilePathChip({
   }, [candidateBases, cleanPath, sessionId, resolutionKey])
 
   if (resolvedKey !== resolutionKey) return fallback
-  return <FilePathChip filePath={filePath} basePath={basePath} basePaths={basePaths} className={className} />
+  return <FilePathChip filePath={filePath} basePath={basePath} basePaths={basePaths} sessionId={sessionId} openMode={openMode} className={className} />
 }
 
 export { isAbsoluteFilePath, isImageFilePath, isLocalFileReference, isRelativeFilePath }

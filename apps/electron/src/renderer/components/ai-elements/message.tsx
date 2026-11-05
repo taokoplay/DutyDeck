@@ -1,3 +1,4 @@
+import { FileSessionContext, useFileSessionId } from './file-session-context'
 import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
 /**
  * AI Elements - 消息组件原语
@@ -360,8 +361,11 @@ export function CanvasNodeReferenceChips({
 }
 
 /** 提供附加目录候选给所有内嵌的 MessageResponse。 */
-export function BasePathsProvider({ basePaths, children }: { basePaths?: string[]; children: React.ReactNode }): React.ReactElement {
-  return <BasePathsContext.Provider value={basePaths}>{children}</BasePathsContext.Provider>
+export function BasePathsProvider({ basePaths, sessionId, children }: { basePaths?: string[]; sessionId?: string | null; children: React.ReactNode }): React.ReactElement {
+  const inheritedSessionId = React.useContext(FileSessionContext)
+  return <FileSessionContext.Provider value={sessionId === undefined ? inheritedSessionId : sessionId}>
+    <BasePathsContext.Provider value={basePaths}>{children}</BasePathsContext.Provider>
+  </FileSessionContext.Provider>
 }
 
 /** 仅在普通文本中转换旧引用，避免改写 inline code、fenced code 和缩进代码块。 */
@@ -422,6 +426,7 @@ function MentionChip({ type, value }: { type: MentionType; value: string }): Rea
   const style = MENTION_STYLES[type]
   const Icon = style.icon
   const contextBasePaths = React.useContext(BasePathsContext)
+  const sessionId = useFileSessionId()
   const onAgentHistoryQuoteClick = React.useContext(AgentHistoryQuoteClickContext)
 
   if (type === 'quote') {
@@ -457,7 +462,7 @@ function MentionChip({ type, value }: { type: MentionType; value: string }): Rea
   const decoded = safeDecode(value)
   // 避免用户只能看到文件名而无法查看内容。
   if (type === 'file' && isImageFilePath(decoded)) {
-    return <FilePathChip filePath={decoded} basePaths={contextBasePaths} />
+    return <FilePathChip filePath={decoded} basePaths={contextBasePaths} sessionId={sessionId} />
   }
 
   const isNamedReference = type === 'session' || type === 'todo' || type === 'calendar_event' || type === 'media_model'
@@ -619,6 +624,8 @@ const MarkdownLink = React.memo(function MarkdownLink({
   ...linkProps
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>): React.ReactElement {
   const agentBrowserLink = useAgentBrowserLink()
+  const basePaths = React.useContext(BasePathsContext)
+  const sessionId = useFileSessionId()
   // mention:// 协议 → 渲染为 MentionChip
   if (href) {
     const mentionMatch = MENTION_URL_RE.exec(href)
@@ -629,7 +636,7 @@ const MarkdownLink = React.memo(function MarkdownLink({
     const filePath = safeDecode(href)
     if (isLocalFileReference(filePath)) {
       // 相对链接同样只在主进程解析成功后才升级为 Chip，否则保持普通链接外观。
-      return <ResolvableFilePathChip filePath={filePath} fallback={<span>{linkChildren}</span>} />
+      return <ResolvableFilePathChip filePath={filePath} basePaths={basePaths} sessionId={sessionId} fallback={<span>{linkChildren}</span>} />
     }
   }
 
@@ -719,6 +726,7 @@ const MarkdownInlineCode = React.memo(function MarkdownInlineCode({
 }: React.HTMLAttributes<HTMLElement> & { basePath?: string; basePaths?: string[] }): React.ReactElement {
   // 兜底：从 context 读附加 basePaths（避免穿透 SDKMessageRenderer / ContentBlock 等中间层）
   const ctxBasePaths = React.useContext(BasePathsContext)
+  const sessionId = useFileSessionId()
   // 本轮「文件名 → 绝对路径」映射：命中时把内联裸文件名补全为绝对路径
   const turnFileMap = React.useContext(TurnFileMapContext)
   if (codeClassName) {
@@ -748,6 +756,7 @@ const MarkdownInlineCode = React.memo(function MarkdownInlineCode({
     if (isAbsoluteFilePath(text)) {
       return (
         <ResolvableFilePathChip
+          sessionId={sessionId}
           filePath={text.trim()}
           basePaths={merged.length > 0 ? merged : undefined}
           fallback={fallbackCode}
@@ -767,11 +776,12 @@ const MarkdownInlineCode = React.memo(function MarkdownInlineCode({
         const abs = turnFileMap.get(baseName)
         if (abs) {
           // 本轮实际成功读写过的文件有工具调用证据，直接渲染 Chip，避免正文完成后再闪烁升级。
-          return <FilePathChip filePath={abs + suffix} basePaths={merged} />
+          return <FilePathChip filePath={abs + suffix} basePaths={merged} sessionId={sessionId} />
         }
       }
       return (
         <ResolvableFilePathChip
+          sessionId={sessionId}
           filePath={trimmed}
           basePaths={merged}
           fallback={fallbackCode}
@@ -786,6 +796,8 @@ const MarkdownInlineCode = React.memo(function MarkdownInlineCode({
 /** 使用 react-markdown 渲染 assistant 消息内容，代码块使用 Shiki 语法高亮 */
 export const MessageResponse = React.memo(
   function MessageResponse({ children, className, basePath, basePaths, remarkPlugins }: MessageResponseProps): React.ReactElement {
+    const contextBases = React.useContext(BasePathsContext)
+    const mergedBases = React.useMemo(() => [...new Set([basePath, ...(basePaths ?? contextBases ?? [])].filter((path): path is string => Boolean(path)))], [basePath, basePaths, contextBases])
     // 合并内置 + 外部 remark 插件（保持引用稳定）
     const mergedRemarkPlugins = React.useMemo(
       () => remarkPlugins ? [...REMARK_PLUGINS, ...remarkPlugins] : REMARK_PLUGINS,
@@ -816,6 +828,7 @@ export const MessageResponse = React.memo(
           className
         )}
       >
+        <BasePathsContext.Provider value={mergedBases}>
         <Markdown
           remarkPlugins={mergedRemarkPlugins}
           rehypePlugins={REHYPE_PLUGINS}
@@ -824,6 +837,7 @@ export const MessageResponse = React.memo(
         >
           {normalizeLatexDelimiters(normalizeMalformedStrongDelimiters(renderedMarkdown))}
         </Markdown>
+        </BasePathsContext.Provider>
       </div>
     )
   },
