@@ -139,6 +139,45 @@ export function updateLiveMarkdownTableCell(
   return { ...table, rows }
 }
 
+/** 在指定 body row 索引前插入一行；索引等于 rows.length 时追加。 */
+export function insertLiveMarkdownTableRow(table: LiveMarkdownTable, bodyInsertIndex: number): LiveMarkdownTable {
+  if (!Number.isInteger(bodyInsertIndex) || bodyInsertIndex < 0 || bodyInsertIndex > table.rows.length) return table
+  const emptyRow = Array.from({ length: table.header.length }, () => '')
+  const rows = table.rows.map((row) => [...row])
+  rows.splice(bodyInsertIndex, 0, emptyRow)
+  return { ...table, rows }
+}
+
+/** 删除指定 body row；Markdown 表头永远保留。 */
+export function deleteLiveMarkdownTableRow(table: LiveMarkdownTable, bodyRowIndex: number): LiveMarkdownTable {
+  if (!Number.isInteger(bodyRowIndex) || bodyRowIndex < 0 || bodyRowIndex >= table.rows.length) return table
+  return { ...table, rows: table.rows.filter((_, index) => index !== bodyRowIndex).map((row) => [...row]) }
+}
+
+/** 在指定列索引前插入一列，并将所有行同步保持为矩形。 */
+export function insertLiveMarkdownTableColumn(table: LiveMarkdownTable, columnIndex: number): LiveMarkdownTable {
+  if (!Number.isInteger(columnIndex) || columnIndex < 0 || columnIndex > table.header.length) return table
+  const header = [...table.header]
+  const alignments = [...table.alignments]
+  header.splice(columnIndex, 0, '')
+  alignments.splice(columnIndex, 0, null)
+  const rows = table.rows.map((row) => {
+    const nextRow = [...row]
+    nextRow.splice(columnIndex, 0, '')
+    return nextRow
+  })
+  return { header, alignments, rows }
+}
+
+/** 删除一列，但始终保留至少两列以维持有效的 GFM 表格。 */
+export function deleteLiveMarkdownTableColumn(table: LiveMarkdownTable, columnIndex: number): LiveMarkdownTable {
+  if (!Number.isInteger(columnIndex) || columnIndex < 0 || columnIndex >= table.header.length || table.header.length <= 2) return table
+  const header = table.header.filter((_, index) => index !== columnIndex)
+  const alignments = table.alignments.filter((_, index) => index !== columnIndex)
+  const rows = table.rows.map((row) => row.filter((_, index) => index !== columnIndex))
+  return { header, alignments, rows }
+}
+
 /** 将焦点查询限定到当前表格块，避免多个表格的同坐标单元格发生串位。 */
 export function liveMarkdownTableFocusTargetSelector(
   blockFrom: number,

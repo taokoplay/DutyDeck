@@ -15,12 +15,12 @@ import {
 } from './live-markdown-preview-syntax'
 import {
   isLiveMarkdownTableSeparator,
-  liveMarkdownTableFocusTargetSelector,
   parseLiveMarkdownTable,
   serializeLiveMarkdownTable,
   type LiveMarkdownTable,
 } from './live-markdown-table'
 import { LiveMarkdownTableEditor } from './LiveMarkdownTableEditor'
+import type { LiveMarkdownTableCell } from './LiveMarkdownTableEditor'
 import { getLeadingFrontmatter, type LiveMarkdownPropertyEntry } from './live-markdown-frontmatter'
 
 type PreviewKind = 'code' | 'table' | 'frontmatter' | 'mermaid' | 'thematic-break' | 'math' | 'raw-html'
@@ -279,6 +279,9 @@ class CodeBlockWidget extends LiveMarkdownBlockWidget {
   }
 }
 
+/** 在同步 CodeMirror 替换期间把目标交给新 React root，避免 rAF 早于异步挂载而丢失焦点。 */
+const pendingTableFocus = new WeakMap<EditorView, { from: number; cell: LiveMarkdownTableCell }>()
+
 class TableWidget extends LiveMarkdownBlockWidget {
   private root: Root | null = null
 
@@ -306,6 +309,7 @@ class TableWidget extends LiveMarkdownBlockWidget {
     this.root.render(
       <LiveMarkdownTableEditor
         table={this.table}
+        autoFocusCell={pendingTableFocus.get(view)?.from === this.from ? pendingTableFocus.get(view)?.cell : undefined}
         readOnly={view.state.readOnly}
         onMeasure={onMeasure}
         findController={this.findController}
@@ -316,14 +320,19 @@ class TableWidget extends LiveMarkdownBlockWidget {
           const nextSource = serializeLiveMarkdownTable(nextTable)
           const currentBlock = buildBlocks(view.state).find((block) => block.kind === 'table' && block.from === this.from)
           if (!currentBlock) return
-          view.dispatch({ changes: { from: currentBlock.from, to: currentBlock.to, insert: nextSource } })
-          if (focusCell) requestAnimationFrame(() => {
-            const target = view.dom.querySelector<HTMLButtonElement>(
-              liveMarkdownTableFocusTargetSelector(currentBlock.from, focusCell),
-            )
-            target?.focus()
-            target?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
-          })
+          if (focusCell) pendingTableFocus.set(view, { from: currentBlock.from, cell: focusCell })
+          try {
+            view.dispatch({ changes: { from: currentBlock.from, to: currentBlock.to, insert: nextSource } })
+          } finally {
+            pendingTableFocus.delete(view)
+          }
+        }}
+        onDelete={() => {
+          if (view.state.readOnly) return
+          const currentBlock = buildBlocks(view.state).find((block) => block.kind === 'table' && block.from === this.from)
+          if (!currentBlock) return
+          // 普通文档 transaction 保留 CodeMirror history，整表删除可撤销。
+          view.dispatch({ changes: { from: currentBlock.from, to: currentBlock.to, insert: '' } })
         }}
       />,
     )
