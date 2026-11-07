@@ -62,7 +62,7 @@ export const PLUGIN_MANIFEST_V3_SCHEMA: SchemaNode = {
     profile: { const: 'module-runtime' },
     compatibility: object({
       hostApi: { type: 'string', minLength: 1, maxLength: 64 },
-      runtimeProtocol: { const: 1 },
+      runtimeProtocol: { enum: [1, 2] },
       platforms: {
         type: 'array',
         items: { enum: ['darwin', 'win32', 'linux'] },

@@ -1,6 +1,8 @@
+import { createPluginStateApi } from './runtime-state.js'
 import type { PluginCapabilityId } from './capabilities.js'
 import type {
   PluginCapabilityClient,
+  PluginStateApi,
   PluginRuntimeDefinition,
   PluginRuntimeContext,
   PluginServiceImplementation,
@@ -24,7 +26,7 @@ type SurfaceHandler = (input: unknown, call: PluginSurfaceCallContext) => unknow
 /** runtime 向宿主发送消息的最小端口。 */
 export interface PluginRuntimeTransport {
   postMessage(message: PluginRuntimeMessage | {
-    protocolVersion: 1
+    protocolVersion: 2
     kind: 'response'
     requestId: string
     ok: true
@@ -47,7 +49,7 @@ export interface CreatePluginRuntimeSessionInput {
     invocationId: string,
     signal: AbortSignal,
   ) => Promise<unknown>
-  state: PluginRuntimeContext['state']
+  state: PluginStateApi
   logger?: PluginRuntimeContext['log']
 }
 
@@ -92,7 +94,7 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
   const hostRequestControllers = new Map<string, AbortController>()
   const progress = (invocationId: string, value: PluginProgress): void => {
     input.transport.postMessage({
-      protocolVersion: 1,
+      protocolVersion: 2,
       kind: 'request',
       requestId: input.uuid(),
       method: 'event.emit',
@@ -102,11 +104,22 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
   const defaultLogger = {
     debug() {}, info() {}, warn() {}, error() {},
   }
+  let activating = true
+  const assertActivating = (): void => {
+    if (!activating) throw new Error('PLUGIN_STATE_REQUIRES_INVOCATION')
+  }
+  let settingsRevision = input.settingsRevision
+  let settings = Object.freeze(structuredClone(input.settings))
+  const activationState: PluginStateApi = {
+    async read(key, options) { assertActivating(); return input.state.read(key, options) },
+    async readRecord(key, options) { assertActivating(); return input.state.readRecord(key, options) },
+    async write() { throw new Error('PLUGIN_STATE_REQUIRES_INVOCATION') },
+  }
   const context: PluginRuntimeContext = {
     plugin: input.plugin,
     declaredModules: input.declaredModules,
-    settings: input.settings,
-    state: input.state,
+    get settings() { return settings },
+    state: activationState,
     log: input.logger ?? defaultLogger,
     tools: {
       handle(id, handler) {
@@ -134,7 +147,7 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
     events: {
       emit(event) {
         input.transport.postMessage({
-          protocolVersion: 1,
+          protocolVersion: 2,
           kind: 'request',
           requestId: input.uuid(),
           method: 'event.emit',
@@ -148,18 +161,18 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
     },
   }
 
-  await input.definition.activate(context)
+  try { await input.definition.activate(context) } finally { activating = false }
   const hello: PluginRuntimeHello = {
     pluginId: input.plugin.id,
     pluginVersion: input.plugin.version,
     packageHash: input.plugin.packageHash,
-    protocolVersion: 1,
+    protocolVersion: 2,
     tools: [...toolHandlers.keys()].sort(),
     surfaces: [...surfaceHandlers.keys()].map(key => key.split('\0')[0]!).filter((value, index, all) => all.indexOf(value) === index).sort(),
     services: [...serviceHandlers.keys()].sort(),
   }
   input.transport.postMessage({
-    protocolVersion: 1,
+    protocolVersion: 2,
     kind: 'event',
     requestId: input.uuid(),
     event: 'runtime.hello',
@@ -170,21 +183,23 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
   let disposed = false
   /** 发送成功响应，异常路径只暴露稳定错误。 */
   const respond = (requestId: string, value: unknown): void => {
-    input.transport.postMessage({ protocolVersion: 1, kind: 'response', requestId, ok: true, value })
+    input.transport.postMessage({ protocolVersion: 2, kind: 'response', requestId, ok: true, value })
   }
   /** 发送失败响应，不把任意异常正文透给宿主或模型。 */
   const fail = (requestId: string, error: PluginRuntimeError): void => {
-    input.transport.postMessage({ protocolVersion: 1, kind: 'response', requestId, ok: false, error })
+    input.transport.postMessage({ protocolVersion: 2, kind: 'response', requestId, ok: false, error })
   }
   /** 绑定 invocation 的能力客户端；插件不能改变 invocation 身份。 */
   const capabilityClient = (invocationId: string, signal: AbortSignal): PluginCapabilityClient => ({
     async request<TResult = unknown>(capability: PluginCapabilityId, requestInput: unknown): Promise<TResult> {
+      if (signal.aborted) throw new Error('PLUGIN_CAPABILITY_STALE')
       return await input.invokeCapability(capability, requestInput, invocationId, signal) as TResult
     },
   })
   return {
     hello,
     async handleCommand(command) {
+      if (command.protocolVersion !== 2) throw new Error('PLUGIN_RUNTIME_PROTOCOL_UNSUPPORTED')
       if (command.kind === 'cancel') {
         hostRequestControllers.get(command.targetRequestId)?.abort()
         return
@@ -203,6 +218,13 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
         return
       }
       if (command.method === 'runtime.activate' || command.method === 'runtime.configure') {
+        if (disposed) { fail(command.requestId, runtimeError('PLUGIN_RUNTIME_NOT_ACTIVE')); return }
+        if (!Number.isSafeInteger(command.payload.settingsRevision) || command.payload.settingsRevision < settingsRevision) {
+          fail(command.requestId, runtimeError('PLUGIN_SETTINGS_REVISION_CONFLICT'))
+          return
+        }
+        settingsRevision = command.payload.settingsRevision
+        settings = Object.freeze(structuredClone(command.payload.settings)) as Readonly<Record<string, PluginSettingValue>>
         active = true
         respond(command.requestId, { ready: true })
         return
@@ -256,8 +278,9 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
             runId: command.payload.runId,
             signal: controller.signal,
             deadline: command.payload.deadline,
-            settings: command.payload.settings as Record<string, PluginSettingValue>,
+            settings: Object.freeze(structuredClone(command.payload.settings)) as Readonly<Record<string, PluginSettingValue>>,
             capabilities: capabilityClient(invocationId, controller.signal),
+            state: createPluginStateApi(capabilityClient(invocationId, controller.signal)),
             progress: (value) => progress(invocationId, value),
           })
           respond(command.requestId, result)
@@ -278,8 +301,9 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
             readOnly: command.payload.readOnly,
             signal: controller.signal,
             deadline: command.payload.deadline,
-            settings: command.payload.settings as Record<string, PluginSettingValue>,
+            settings: Object.freeze(structuredClone(command.payload.settings)) as Readonly<Record<string, PluginSettingValue>>,
             capabilities: capabilityClient(invocationId, controller.signal),
+            state: createPluginStateApi(capabilityClient(invocationId, controller.signal)),
             progress: (value) => progress(invocationId, value),
           })
           respond(command.requestId, result)
@@ -290,6 +314,7 @@ export async function createPluginRuntimeSession(input: CreatePluginRuntimeSessi
           command.method === 'tool.invoke' ? 'PLUGIN_TOOL_FAILED' : 'PLUGIN_SURFACE_FAILED',
         )))
       } finally {
+        controller.abort()
         capabilityControllers.delete(invocationId)
         hostRequestControllers.delete(command.requestId)
       }

@@ -190,7 +190,7 @@ export interface PluginV3Manifest {
   profile: 'module-runtime'
   compatibility: {
     hostApi: string
-    runtimeProtocol: 1
+    runtimeProtocol: 1 | 2
     platforms: Array<'darwin' | 'win32' | 'linux'>
     architectures: Array<'arm64' | 'x64'>
   }

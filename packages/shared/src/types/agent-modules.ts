@@ -52,6 +52,8 @@ export interface AgentModuleManifest {
   pluginId?: string
   /** 包资源由插件宿主验证，不使用工作区 Skill 文件的管理语义。 */
   resourceSource?: 'package'
+  /** 仅宿主V3投影设置；用于要求旧会话补齐精确执行绑定。 */
+  runtimeKind?: 'module-runtime'
   /** 不可变包身份，用于运行前核验及恢复上下文绑定。 */
   packageHash?: string
 }

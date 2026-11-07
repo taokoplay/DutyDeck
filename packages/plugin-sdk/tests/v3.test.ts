@@ -101,6 +101,13 @@ function v3Fixture(): Record<string, unknown> {
 }
 
 describe('Given V3 module-runtime manifest', () => {
+  test('When artifact schema不是有界正整数 Then 拒绝无法可靠比较的版本声明', () => {
+    for (const schemaVersion of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 1000001]) {
+      const fixture = v3Fixture()
+      ;(fixture.artifacts as Array<{ schemaVersion: number }>)[0]!.schemaVersion = schemaVersion
+      expect(parsePluginManifestV3(fixture).ok).toBe(false)
+    }
+  })
   test('When 完整合同 Then 规范化模块 ID 与默认工具名', () => {
     const parsed = parsePluginManifestV3(v3Fixture())
     expect(parsed.ok).toBe(true)
@@ -160,4 +167,15 @@ describe('Given V3 module-runtime manifest', () => {
     expect(PLUGIN_MANIFEST_V3_SCHEMA.properties?.formatVersion).toEqual({ const: 3 })
     expect(PLUGIN_MANIFEST_V3_SCHEMA.additionalProperties).toBe(false)
   })
+})
+
+test('Given V3解析和执行合同分离 When 读取contract1/2及未知版本 Then 保留旧包管理能力并拒绝未知合同', () => {
+  for (const runtimeProtocol of [1, 2]) {
+    const fixture = v3Fixture()
+    fixture.compatibility = { ...(fixture.compatibility as Record<string, unknown>), runtimeProtocol }
+    expect(parsePluginManifestV3(fixture).ok).toBe(true)
+  }
+  const fixture = v3Fixture()
+  fixture.compatibility = { ...(fixture.compatibility as Record<string, unknown>), runtimeProtocol: 3 }
+  expect(parsePluginManifestV3(fixture).ok).toBe(false)
 })

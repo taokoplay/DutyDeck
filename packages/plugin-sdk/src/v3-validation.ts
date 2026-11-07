@@ -200,6 +200,9 @@ export function parsePluginManifestV3(input: unknown): PluginV3ParseResult {
 
   for (const [index, artifact] of source.artifacts.entries()) {
     artifact.ownerModuleId = resolveOwner(artifact.ownerModuleId, `$.artifacts[${index}].ownerModuleId`)
+    if (!Number.isSafeInteger(artifact.schemaVersion) || artifact.schemaVersion < 1 || artifact.schemaVersion > 1_000_000) {
+      addIssue(issues, 'schema', `$.artifacts[${index}].schemaVersion`, '产物 schemaVersion 必须是 1–1000000 的整数')
+    }
     if (!artifact.mimeTypes.every(value => /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/i.test(value))) {
       addIssue(issues, 'schema', `$.artifacts[${index}].mimeTypes`, '产物 MIME 类型无效')
     }

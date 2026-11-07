@@ -1,7 +1,7 @@
 import type { PluginCapabilityRequest, PluginCapabilityResult } from './capabilities.js'
 
 /** Utility runtime 与宿主之间的协议版本。 */
-export const PLUGIN_RUNTIME_PROTOCOL_VERSION = 1 as const
+export const PLUGIN_RUNTIME_PROTOCOL_VERSION = 2 as const
 
 /** Runtime 启动后报告的实际贡献身份；宿主必须与签名 manifest 对照。 */
 export interface PluginRuntimeHello {

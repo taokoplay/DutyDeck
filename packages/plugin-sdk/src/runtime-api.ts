@@ -20,6 +20,8 @@ export interface PluginToolCallContext {
   readonly deadline: number
   readonly settings: Readonly<Record<string, PluginSettingValue>>
   readonly capabilities: PluginCapabilityClient
+  /** 与当前调用共享取消、只读和授权范围的状态入口。 */
+  readonly state: PluginStateApi
   progress(value: PluginProgress): void
 }
 
@@ -35,6 +37,8 @@ export interface PluginSurfaceCallContext {
   readonly deadline: number
   readonly settings: Readonly<Record<string, PluginSettingValue>>
   readonly capabilities: PluginCapabilityClient
+  /** 与当前调用共享取消、只读和授权范围的状态入口。 */
+  readonly state: PluginStateApi
   progress(value: PluginProgress): void
 }
 
@@ -88,9 +92,22 @@ export interface PluginLogger {
   error(message: string, data?: Record<string, unknown>): void
 }
 
+/** 状态记录保留 revision，供重启后的 CAS 更新使用。 */
+export interface PluginStateRecord<T> {
+  schemaVersion: number
+  revision: number
+  value: T
+}
+
 /** 插件私有状态 API，不接收文件路径。 */
-export interface PluginStateApi {
-  read<T>(key: string): Promise<T | null>
+export interface PluginStateReader {
+  readRecord<T>(key: string, options?: { schemaVersion: number }): Promise<PluginStateRecord<T> | null>
+  /** 旧调用默认读取 schema 1；返回 value 而不是宿主记录封套。 */
+  read<T>(key: string, options?: { schemaVersion: number }): Promise<T | null>
+}
+
+/** 仅工具与Surface的调用级状态API可写。 */
+export interface PluginStateApi extends PluginStateReader {
   write<T>(key: string, value: T, options: {
     schemaVersion: number
     expectedRevision?: number
@@ -113,7 +130,8 @@ export interface PluginRuntimeContext {
   readonly surfaces: PluginSurfaceHandlerRegistry
   readonly services: PluginServiceRegistry
   readonly events: PluginEventEmitter
-  readonly state: PluginStateApi
+  /** 仅 activate 阶段允许读取；写入以及工具/Surface 访问必须使用 call.state。 */
+  readonly state: PluginStateReader
   readonly settings: Readonly<Record<string, PluginSettingValue>>
   readonly log: PluginLogger
 }

@@ -28,7 +28,7 @@ function authorPackageJson(id: string, profile: 'content' | 'module-runtime'): s
     version: '1.0.0',
     private: true,
     type: 'module',
-    dutydeckScaffold: { version: '0.1.0', sdkVersion: '0.1.0', profile },
+    dutydeckScaffold: { version: '0.1.1', sdkVersion: '0.2.0', profile },
     scripts: {
       validate: 'dutydeck-plugin validate .',
       test: 'dutydeck-plugin test .',
@@ -36,8 +36,8 @@ function authorPackageJson(id: string, profile: 'content' | 'module-runtime'): s
       pack: 'dutydeck-plugin pack . --out plugin.ddplugin',
     },
     devDependencies: {
-      '@dutydeck/plugin-kit': '0.1.0',
-      '@dutydeck/plugin-sdk': '0.1.0',
+      '@dutydeck/plugin-kit': '0.1.1',
+      '@dutydeck/plugin-sdk': '0.2.0',
     },
   }, null, 2)}\n`
 }

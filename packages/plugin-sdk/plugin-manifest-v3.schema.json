@@ -50,7 +50,10 @@
           "maxLength": 64
         },
         "runtimeProtocol": {
-          "const": 1
+          "enum": [
+            1,
+            2
+          ]
         },
         "platforms": {
           "type": "array",

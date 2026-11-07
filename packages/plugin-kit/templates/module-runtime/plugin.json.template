@@ -10,7 +10,7 @@
   "profile": "module-runtime",
   "compatibility": {
     "hostApi": "^1.0.0",
-    "runtimeProtocol": 1,
+    "runtimeProtocol": 2,
     "platforms": ["darwin", "win32", "linux"],
     "architectures": ["arm64", "x64"]
   },
