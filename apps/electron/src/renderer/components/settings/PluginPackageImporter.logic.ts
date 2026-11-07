@@ -22,6 +22,9 @@ export function isPluginManagementBusyError(cause: unknown): boolean {
 /** 把远程 IPC、超时和取消错误转换为可直接行动的界面文案。 */
 export function pluginImportErrorMessage(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause)
+  if (message.includes('PLUGIN_PREVIEW_BASELINE_CHANGED')) return '当前插件已变化，请关闭预览并重新选择安装包，核对最新差异后再确认。'
+  if (message.includes('PLUGIN_ARTIFACT_REMOVAL_UNSUPPORTED')) return '目标版本移除产物声明，缺少迁移合同，已阻止操作。请保留声明或使用显式迁移方案。'
+  if (message.includes('PLUGIN_ARTIFACT_SCHEMA_DOWNGRADE')) return '目标版本降低产物 schema，缺少逆向迁移合同，已阻止操作。原包和数据保持不变。'
   if (message.includes('PLUGIN_INSTALL_WAIT_TIMEOUT')) {
     return 'Agent 仍在运行，插件尚未安装。请等待当前任务结束或停止任务后重试；已校验的插件预览仍会保留。'
   }

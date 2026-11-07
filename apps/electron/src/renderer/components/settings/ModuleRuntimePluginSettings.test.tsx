@@ -9,6 +9,18 @@ import {
 } from './ModuleRuntimePluginSettings'
 
 describe('Given V3 plugin settings', () => {
+  test('When 历史版本降低产物schema Then 显示数据风险且禁用回滚', () => {
+    const html = renderToStaticMarkup(<PluginVersionHistory versions={[{
+      version: '1.0.0', packageHash: 'b'.repeat(64), signatureVerified: false,
+      changes: { previousPackageHash: 'a'.repeat(64), capabilitiesAdded: ['artifact.write'], capabilitiesRemoved: [], settingsChanged: ['limit'], artifacts: [{ id: 'report', fromSchema: 2, toSchema: 1 }], runtimeContractChanged: false, dataCompatibility: 'unknown', blockers: ['PLUGIN_ARTIFACT_SCHEMA_DOWNGRADE'] },
+    }]} currentPackageHash={'a'.repeat(64)} busy={false} onRollback={() => undefined} />)
+    expect(html).toContain('新增能力：artifact.write')
+    expect(html).toContain('设置声明变化：limit')
+    expect(html).toContain('report：2 → 1')
+    expect(html).toContain('包回滚不等于数据回滚')
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>已阻止降级<\/button>/)
+  })
+
   test('When 首次渲染 Then 解释安装不自动激活且提供本地安装入口', () => {
     const html = renderToStaticMarkup(<ModuleRuntimePluginSettings />)
     expect(html).toContain('可执行模块插件')
@@ -81,6 +93,10 @@ describe('Given V3 plugin settings', () => {
       />,
     )
     for (const label of ['说明', '工具', 'Surface 与服务', '权限与版本']) expect(html).toContain(`>${label}</button>`)
+    expect(html).toContain('兼容证据：待验证')
+    expect(html).toContain('运行健康：尚未读取')
+    expect(html).toContain('utilityProcess 不是 OS 沙箱')
+    expect(html).not.toContain('无需审批')
     expect(html).toContain('检查')
     expect(html).toContain('project.files.read')
     expect(html).toContain('停用插件')
@@ -88,4 +104,16 @@ describe('Given V3 plugin settings', () => {
     expect(html).toContain('卸载')
     expect(html).not.toContain('尚未安装可执行模块插件')
   })
+})
+
+test('Given 旧合同执行被阻止 When 查看详情 Then 显示迁移指引且禁启用但保留卸载', async () => {
+  const { createModuleRuntimePluginFiles } = await import('@dutydeck/plugin-kit')
+  const files = createModuleRuntimePluginFiles('acme.old', '旧插件')
+  const parsed = parsePluginManifestV3(JSON.parse(new TextDecoder().decode(files.get('plugin.json'))))
+  if (!parsed.ok) throw new Error('fixture')
+  const html = renderToStaticMarkup(<RuntimePluginDetailView plugin={{ manifest: parsed.value, packageHash: 'a'.repeat(64), enabled: false, executionBlock: 'PLUGIN_RUNTIME_CONTRACT_MIGRATION_REQUIRED', installedAt: new Date(0).toISOString() }} busy={false} onRefresh={() => undefined} onToggle={() => undefined} onVersions={() => undefined} onUninstall={() => undefined} />)
+  expect(html).toContain('需要升级状态调用合同')
+  expect(html).toContain('call.state')
+  expect(html).toMatch(/<button[^>]*disabled=""[^>]*>启用插件<\/button>/)
+  expect(html).toMatch(/<button(?![^>]* disabled=")[^>]*>卸载<\/button>/)
 })

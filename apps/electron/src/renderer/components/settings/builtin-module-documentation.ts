@@ -61,6 +61,7 @@ export const BUILTIN_MODULE_DOCUMENTATION: Readonly<Record<string, BuiltinModule
     },
     skillDescriptions: {
       'canvas-production': { title: '画布生产', description: '负责画布上下文、节点关系、版本和审查流程，确保画布变更能被复用和追踪。' },
+      'comfyui-workflows': { title: 'ComfyUI 工作流', description: '发现已连接服务器的工作流、模型和节点，核对输入角色与接口；必要时按授权创建并验证工作流，生成仍遵守媒体执行策略。' },
       'media-models': { title: '媒体模型目录', description: '供画布媒体任务发现可用模型并执行生成流程；执行仍遵守媒体授权策略，无需另选影像创作模块。' },
     },
     examples: [{ title: '整理素材关系', prompt: '把这组图片、文档和说明整理成一个可持续维护的项目画布，并保留来源关系。' }, { title: '维护节点流程', prompt: '读取当前画布，检查节点关系是否完整，提出需要我确认的结构调整。' }],
@@ -79,6 +80,7 @@ export const BUILTIN_MODULE_DOCUMENTATION: Readonly<Record<string, BuiltinModule
     },
     skillDescriptions: {
       'media-models': { title: '媒体模型与生成流程', description: '根据当前配置选择图片、视频、语音和音频能力，并按受管输入、输出和评审合同执行。' },
+      'comfyui-workflows': { title: 'ComfyUI 工作流', description: '发现并核对服务器现有工作流、模型和节点，按真实输入角色完成配置与验证；生成结果再交给影像作品审查和采用。' },
     },
     examples: [{ title: '生成一组产品图', prompt: '使用当前可用的图片模型，为这个产品生成三种构图方向，并保留每张图的模型和参数来源。' }, { title: '把图片做成短视频', prompt: '检查当前可用的视频模型，把这张图片生成一段 6 秒产品展示视频，先告诉我可用配置再执行。' }],
   },

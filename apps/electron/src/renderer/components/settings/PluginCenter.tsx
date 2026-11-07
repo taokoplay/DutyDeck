@@ -14,6 +14,8 @@ import { ContentPluginManagerView, contentPluginsAtom, useContentPluginCatalog }
 import { PluginCreationGuide } from './PluginCreationGuide'
 import { PluginPackageImporter } from './PluginPackageImporter'
 import { ModuleRuntimePluginSettings } from './ModuleRuntimePluginSettings'
+import { PluginMarketView } from './PluginMarketView'
+import { runtimeAuthorizationLabel } from './PluginValidationSummary'
 
 /** 插件中心页面：浏览已安装插件、安装来源和创建指南。 */
 type PluginCenterPage = 'installed' | 'market' | 'create'
@@ -151,7 +153,7 @@ export function PluginCenter(): React.ReactElement {
         description: plugin.manifest.description,
         version: plugin.manifest.version,
         resourceSummary: `工具 ${plugin.manifest.tools.length} · Surface ${plugin.manifest.surfaces.length}`,
-        status: plugin.enabled ? '已启用' : '已停用',
+        status: runtimeAuthorizationLabel(plugin),
       })),
     ]
     if (!normalizedSearch) return cards
@@ -186,7 +188,7 @@ export function PluginCenter(): React.ReactElement {
         setPage('installed')
         setSearch('')
       }} />
-      <SettingsCard><div className="space-y-2 p-5"><p className="font-medium">市场目录尚未开放</p><p className="text-sm text-muted-foreground">当前不发起网络请求，也不展示虚构的推荐插件。后续配置公共或团队源时，会复用同一套签名校验、预览和安装流程。</p></div></SettingsCard>
+      <PluginMarketView />
     </div> : <>
       {contentCatalog.readError && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">读取本地插件失败：{contentCatalog.readError}</p>}
       {runtimeError && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">读取可执行插件失败：{runtimeError}</p>}

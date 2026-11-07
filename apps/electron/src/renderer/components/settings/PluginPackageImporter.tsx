@@ -10,6 +10,8 @@ import {
   validatePluginDropFiles,
 } from './PluginPackageImporter.logic'
 import type { ContentPluginCatalog } from './PluginSettings'
+import { PluginVersionChangesSummary } from './ModuleRuntimePluginSettings'
+import { PluginValidationSummary } from './PluginValidationSummary'
 
 /** 完整重启提示；Renderer HMR 不能更新 contextBridge。 */
 const BRIDGE_UNAVAILABLE_MESSAGE = '插件导入桥尚未加载，请完整重启 DutyDeck 后重试'
@@ -127,6 +129,7 @@ export function PluginPackageImporter(props: {
   const install = (): void => {
     if (!preview) return
     if (preview.preview.signatureVerified && !trusted) return
+    if (preview.kind === 'runtime' && preview.preview.changes?.blockers.length) return
     const controller = new AbortController()
     waitAbort.current = controller
     void run(async () => {
@@ -157,6 +160,7 @@ export function PluginPackageImporter(props: {
   }
 
   const canInstall = preview !== null && (!preview.preview.signatureVerified || trusted)
+    && !(preview.kind === 'runtime' && preview.preview.changes?.blockers.length)
   return <>
     <SettingsCard>
       <div
@@ -253,6 +257,8 @@ export function PluginPackageImporter(props: {
                 </p>
               </section>
             )}
+            {preview.kind === 'runtime' && preview.preview.changes && <PluginVersionChangesSummary changes={preview.preview.changes} />}
+            {preview.kind === 'runtime' && preview.preview.validation && <PluginValidationSummary assessment={preview.preview.validation} />}
             {preview.kind === 'content' && (
               <p className="text-xs text-muted-foreground">
                 资源：Skills {preview.preview.resources.filter(resource => resource.kind === 'skill').length} · 提示词 {preview.preview.resources.filter(resource => resource.kind === 'prompt').length}
@@ -261,7 +267,7 @@ export function PluginPackageImporter(props: {
             {preview.preview.signatureVerified && preview.preview.signer && (
               <label className="flex items-start gap-2">
                 <input type="checkbox" checked={trusted} disabled={busy} onChange={event => setTrusted(event.target.checked)} />
-                <span>我已核对发布者指纹，并信任此插件及其声明能力。</span>
+                <span>我已核对并信任此发布者指纹。可执行插件仍需安装后单独授权和启用。</span>
               </label>
             )}
             {waitingForAgent && <PluginImportWaitingNotice />}
