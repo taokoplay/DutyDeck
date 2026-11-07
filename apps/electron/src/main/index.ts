@@ -3,6 +3,9 @@ import { join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync } from 'fs'
 import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { capturePackagedPayloadAsync } from './lib/host-build-identity'
+import { initializeHostBuildIdentity } from './lib/host-build-runtime'
 import {
   DUTYDECK_SAFE_STORAGE_NAME,
   LEGACY_SAFE_STORAGE_NAME,
@@ -924,6 +927,17 @@ function sendToMainWindow(channel: string, data?: unknown): void {
   } else {
     send()
   }
+}
+
+// 主入口启动即固定最终resources基线；开发/Vite/watch不生成完整宿主身份。
+// original-fs用于原始ASAR字节，不能把Electron的虚拟目录视图误当归档文件。
+if (!isSafeStorageMigrationHelper) {
+  initializeHostBuildIdentity({
+    packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath, entryFile: __filename,
+  }, () => capturePackagedPayloadAsync(process.resourcesPath, {
+    hostVersion: app.getVersion(), electron: process.versions.electron ?? 'unknown', node: process.versions.node,
+    modules: process.versions.modules, platform: process.platform, arch: process.arch,
+  }, { fs: createRequire(__filename)('original-fs') as typeof import('node:fs') }))
 }
 
 app.whenReady()
