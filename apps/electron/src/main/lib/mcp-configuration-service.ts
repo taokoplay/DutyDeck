@@ -2,6 +2,7 @@
 
 import type { McpServerEntry, McpTransportType, WorkspaceMcpConfig } from '@dutydeck/shared'
 import { isDeepStrictEqual } from 'node:util'
+import { createHash } from 'node:crypto'
 import { getWorkspaceMcpConfig, saveWorkspaceMcpConfig } from './agent-workspace-manager'
 import {
   buildWorkspaceMcpEntry,
@@ -55,6 +56,50 @@ export interface ConfigureWorkspaceMcpResult extends WorkspaceMcpServerSummary {
 /** 由主进程注入的工作区写守卫，统一承接迁移阻断与写入租约。 */
 export interface WorkspaceMcpConfigurationOptions {
   runWorkspaceSlugWrite?: <T>(workspaceSlug: string, effect: () => T) => T | Promise<T>
+  /** 仅宿主分阶段导入使用：null要求不存在，字符串要求精确未变；不暴露给Agent配置工具。 */
+  expectedEntryFingerprint?: string | null
+  /** 每个已保存阶段立即记回执；失败向上传播，不把已提交误报为无副作用。 */
+  onEntrySaved?: (state: WorkspaceMcpImportState) => void
+}
+
+/** 仅供宿主回执使用，不包含配置地址、OAuth字段或凭据原文。 */
+export interface WorkspaceMcpImportState extends WorkspaceMcpServerSummary { fingerprint: string }
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => [key, canonicalValue(item)]))
+  return value
+}
+function entryFingerprint(entry: McpServerEntry): string {
+  return createHash('sha256').update(JSON.stringify(canonicalValue(entry))).digest('hex')
+}
+function importState(name: string, entry: McpServerEntry): WorkspaceMcpImportState {
+  return { ...summarize(name, entry), fingerprint: entryFingerprint(entry) }
+}
+function assertExpectedEntry(entry: McpServerEntry | undefined, expected: string | null | undefined): void {
+  if (expected === undefined) return
+  if (expected === null ? entry !== undefined : !entry || !/^[a-f0-9]{64}$/.test(expected) || entryFingerprint(entry) !== expected) {
+    throw new Error('PLUGIN_IMPORT_MCP_CONFLICT')
+  }
+}
+/** 回执只比较摘要，不将真实headers/env等读出配置服务。 */
+export function getWorkspaceMcpImportState(workspaceSlug: string, name: string): WorkspaceMcpImportState | null {
+  const validName = requireWorkspaceMcpServerName(name)
+  const entry = getWorkspaceMcpConfig(workspaceSlug, { strictImport: true }).servers[validName]
+  return entry ? importState(validName, entry) : null
+}
+/** 撤销必须由导入回执证明本次创建；这里再在共享写队列/守卫内执行精确CAS删除。 */
+export async function removeWorkspaceMcpIfUnchanged(
+  workspaceSlug: string, name: string, expectedFingerprint: string, options: WorkspaceMcpConfigurationOptions = {},
+): Promise<void> {
+  const validName = requireWorkspaceMcpServerName(name)
+  if (!/^[a-f0-9]{64}$/.test(expectedFingerprint)) throw new Error('PLUGIN_IMPORT_MCP_CONFLICT')
+  await withWorkspaceMcpConfigMutation(workspaceSlug, () => runWorkspaceConfigWrite(workspaceSlug, options, () => {
+    const current = getWorkspaceMcpConfig(workspaceSlug, { strictImport: true })
+    assertExpectedEntry(current.servers[validName], expectedFingerprint)
+    const servers = { ...current.servers }
+    delete servers[validName]
+    saveWorkspaceMcpConfig(workspaceSlug, { servers }, { strictImport: true })
+  }))
 }
 
 /** 仅在同步读改写阶段持有主进程守卫，不把网络验证纳入写锁。 */
@@ -106,9 +151,11 @@ export async function configureWorkspaceMcp(
     let existing: McpServerEntry | undefined
     let entry: McpServerEntry
     let pendingEntry: McpServerEntry
+    const readOptions = { strictImport: options.expectedEntryFingerprint !== undefined }
     await runWorkspaceConfigWrite(workspaceSlug, options, () => {
-      const current = getWorkspaceMcpConfig(workspaceSlug)
+      const current = getWorkspaceMcpConfig(workspaceSlug, readOptions)
       existing = current.servers[name]
+      assertExpectedEntry(existing, options.expectedEntryFingerprint)
       const requestedEntry: McpServerEntry = {
         ...buildWorkspaceMcpEntry(input),
         ...(input.oauth === undefined && existing?.oauth ? { oauth: existing.oauth } : {}),
@@ -127,7 +174,8 @@ export async function configureWorkspaceMcp(
       const pendingConfig: WorkspaceMcpConfig = {
         servers: { ...current.servers, [name]: pendingEntry },
       }
-      saveWorkspaceMcpConfig(workspaceSlug, pendingConfig)
+      saveWorkspaceMcpConfig(workspaceSlug, pendingConfig, readOptions)
+      options.onEntrySaved?.(importState(name, pendingEntry))
     })
 
     if (!entry!.enabled) {
@@ -145,11 +193,14 @@ export async function configureWorkspaceMcp(
       },
     }
     const persistedEntry = await runWorkspaceConfigWrite(workspaceSlug, options, () => {
-      const latest = getWorkspaceMcpConfig(workspaceSlug)
+      const latest = getWorkspaceMcpConfig(workspaceSlug, readOptions)
       if (!isSamePendingEntry(latest.servers[name], pendingEntry!)) return latest.servers[name]
+      // 导入不能继承验证期间用户更新的任何字段（包括诊断结果）的删除所有权。
+      if (options.expectedEntryFingerprint !== undefined && (!latest.servers[name] || entryFingerprint(latest.servers[name]!) !== entryFingerprint(pendingEntry!))) return latest.servers[name]
       saveWorkspaceMcpConfig(workspaceSlug, {
         servers: { ...latest.servers, [name]: resolvedEntry },
-      })
+      }, readOptions)
+      options.onEntrySaved?.(importState(name, resolvedEntry))
       return resolvedEntry
     })
 

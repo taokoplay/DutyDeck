@@ -47,6 +47,14 @@ describe('safe remote image', () => {
     expect(requested).toBe(false)
   })
 
+  test('Given IPv6 site-local字面量或DNS When 下载 Then 不进入请求层', async () => {
+    let calls = 0
+    const dependencies = { ...createSafeDependencies(), request: async () => { calls++; return createResponse(200, { 'content-type': 'image/png' }, PNG_BYTES) } }
+    await expect(downloadSafeRemoteImage('https://[fec0::1]/result.png', dependencies)).rejects.toThrow('不允许访问本地或私有网络')
+    await expect(downloadSafeRemoteImage('https://images.example/result.png', { ...dependencies, lookup: async () => [{ address: 'feff::1', family: 6 }] })).rejects.toThrow('不允许访问本地或私有网络')
+    expect(calls).toBe(0)
+  })
+
   test('Given DNS 同时返回公网和私网 When 下载 Then 拒绝整组地址', async () => {
     const dependencies = createSafeDependencies()
     let requested = false

@@ -2,7 +2,7 @@ import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { CONTENT_PLUGIN_IPC_CHANNELS } from '@dutydeck/shared'
 import { join } from 'node:path'
 import { getConfigDir } from '../config-paths'
-import { getDefaultDataRootInstanceLeaseRegistry } from '../data-root-instance-lease'
+import { createContentPluginMutationGuard, type ContentPluginMutationLeases } from './content-plugin-mutation-guard'
 import type { AgentPluginRegistry } from '../agent-modules/plugin-registry'
 import { ContentPluginService } from './content-plugin-service'
 import { ContentPluginManager } from './content-plugin-manager'
@@ -10,7 +10,7 @@ import { ContentPluginManager } from './content-plugin-manager'
 /** 验收可注入隔离数据根和系统交互；生产默认始终使用正式目录及实例锁。 */
 export interface ContentPluginIpcDependencies {
   root?: string
-  leases?: Pick<ReturnType<typeof getDefaultDataRootInstanceLeaseRegistry>, 'acquireMigrationGuard' | 'hasOtherActiveLease'>
+  leases?: ContentPluginMutationLeases
   selectPackage?: () => Promise<string | null>
 }
 
@@ -29,15 +29,7 @@ export function registerContentPluginIpc(
   })
   try { manager.initialize() } catch (error) { console.warn('[插件] 内容插件目录不可用，请在插件设置中检查', error) }
   /** 独占 intent 防止新的旧版/开发实例进入；发现另一个实例时保守拒绝变更。 */
-  async function mutate<T>(operation: () => T): Promise<T> {
-    const leases = dependencies.leases ?? getDefaultDataRootInstanceLeaseRegistry()
-    const guard = await leases.acquireMigrationGuard()
-    try {
-      if (await leases.hasOtherActiveLease()) throw new Error('请关闭共享此数据目录的其他 DutyDeck 窗口后，再修改插件')
-      if (isBusy()) throw new Error('Agent 正在运行或排队，请等待结束后再修改插件')
-      return operation()
-    } finally { guard.release() }
-  }
+  const mutate = createContentPluginMutationGuard(isBusy, dependencies.leases)
   /** 入口参数均按真实类型和预算核验，拒绝原型对象或无限长字符串。 */
   function id(value: unknown): asserts value is string {
     if (typeof value !== 'string' || value.length === 0 || value.length > 256) throw new Error('插件身份无效')

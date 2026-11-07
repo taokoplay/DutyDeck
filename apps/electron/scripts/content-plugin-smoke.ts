@@ -61,6 +61,13 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
   /** 只对隔离目录注入读取故障，验证页面真实重试流程。 */
   let failCatalogReads = false
   const { registerContentPluginIpc } = await import('../src/main/lib/agent-plugins/content-plugin-ipc')
+  // 插件设置已包含 V3 目录；为它接入真实空目录服务，避免无关缺 handler 污染内容插件验收。
+  const { ModuleRuntimeManager } = await import('../src/main/lib/agent-plugins/module-runtime-manager')
+  const { ModuleRuntimePluginService } = await import('../src/main/lib/agent-plugins/module-runtime-plugin-service')
+  const { registerModuleRuntimePluginIpc } = await import('../src/main/lib/agent-plugins/module-runtime-plugin-ipc')
+  const runtimeManager = new ModuleRuntimeManager({ moduleRegistry: registry, createSupervisor: () => { throw new Error('内容验收不启动 runtime') } })
+  const runtimeService = new ModuleRuntimePluginService({ root: join(dataRoot, 'runtime-packages'), manager: runtimeManager, development: true })
+  registerModuleRuntimePluginIpc({ service: runtimeService, manager: runtimeManager, requireVisibleSession: () => { throw new Error('内容验收无 Surface 会话') }, getSessionPolicy: () => normalizeAgentSessionModulePolicy(undefined) })
   ipcMain.handle(AGENT_IPC_CHANNELS.GET_AGENT_MODULES, () => {
     if (failCatalogReads) throw new Error('内置目录读取故障验收')
     return registry.listModules()
@@ -190,7 +197,7 @@ async function runSmoke(dataRoot: string, buildDir: string, htmlName: string): P
     writeFileSync(join(dataRoot, 'plugin-uninstalled.png'), (await window.webContents.capturePage()).toPNG())
     assert.deepEqual(errors, [])
     console.log('[Content plugin UI smoke] PASS: 六个内置模块及资源详情/键盘折叠/真实 preload/IPC/读取失败重试/签名安装与信任门禁/消息模块选择/忙时拒绝/关闭启用广播/版本更新/刷新/非法参数拒绝/卸载与Escape取消/浅深色窄窗；未调用模型，文件选择结果为夹具。')
-  } finally { window.destroy(); leases.release() }
+  } finally { await runtimeService.dispose(); window.destroy(); leases.release() }
 }
 
 /** 启动有界子进程，退出后才允许清理目录。 */

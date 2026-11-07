@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, cpSync, mkdirSync
 import { cp as cpAsync, readFile as readFileAsync, realpath as realpathAsync, writeFile as writeFileAsync } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
 import { writeExistingSkillFile } from './skill-file-write'
+import { readWorkspaceMcpImportConfig, writeWorkspaceMcpImportConfig } from './workspace-mcp-import-config'
 import { rmSyncWithRetry, renameIfDestinationAbsentWithRetry, renameWithRetry } from './fs-retry'
 import { writeJsonFileAtomic, readJsonFileSafe, readJsonFileStrict, writeTextFileAtomic } from './safe-file'
 import { randomUUID } from 'node:crypto'
@@ -697,8 +698,9 @@ export function normalizeWorkspaceMcpConfig(config: Partial<WorkspaceMcpConfig>)
   return { servers }
 }
 
-export function getWorkspaceMcpConfig(workspaceSlug: string): WorkspaceMcpConfig {
+export function getWorkspaceMcpConfig(workspaceSlug: string, options?: { strictImport?: boolean }): WorkspaceMcpConfig {
   const mcpPath = getWorkspaceMcpPath(workspaceSlug)
+  if (options?.strictImport) return readWorkspaceMcpImportConfig(mcpPath)
 
   if (!existsSync(mcpPath)) {
     return { servers: {} }
@@ -714,8 +716,13 @@ export function getWorkspaceMcpConfig(workspaceSlug: string): WorkspaceMcpConfig
   }
 }
 
-export function saveWorkspaceMcpConfig(workspaceSlug: string, config: WorkspaceMcpConfig): void {
+export function saveWorkspaceMcpConfig(workspaceSlug: string, config: WorkspaceMcpConfig, options?: { strictImport?: boolean }): void {
   const mcpPath = getWorkspaceMcpPath(workspaceSlug)
+  if (options?.strictImport) {
+    // strict 合同已要求规范 type/name；不经旧 writer，也不丢失提交后错误的阶段信息。
+    writeWorkspaceMcpImportConfig(mcpPath, config)
+    return
+  }
 
   try {
     writeJsonFileAtomic(mcpPath, normalizeWorkspaceMcpConfig(config))

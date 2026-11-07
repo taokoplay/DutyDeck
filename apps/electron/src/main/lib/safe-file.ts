@@ -978,6 +978,18 @@ export function readJsonFileSafe<T>(filePath: string, options: ReadJsonFileSafeO
   return null // 全部失败，需要上层从 JSONL 重建
 }
 
+/** 严格只读主文件，复用所有权/链接/大小保护；恢复候选只检测，不提升也不删除。 */
+export function readJsonFileReadonly<T>(filePath: string, options: Pick<ReadJsonFileStrictOptions<T>, 'validate' | 'description'> & { maxBytes: number }): T | null {
+  if (!Number.isSafeInteger(options.maxBytes) || options.maxBytes < 1) throw new Error('JSON 候选字节预算无效')
+  if (!jsonCandidateExistsStrict(filePath)) {
+    if ([`${filePath}.tmp`, `${filePath}.bak`].some(jsonCandidateExistsStrict)) throw new Error(`${options.description}主文件缺失，需要显式恢复`)
+    return null
+  }
+  const value: unknown = JSON.parse(readJsonCandidateText(filePath, options.maxBytes))
+  if (!options.validate(value)) throw new Error(`${options.description}主文件结构无效`)
+  return value
+}
+
 /**
  * 严格读取主/tmp/bak JSON 候选：真正全部缺失返回 null，存在但全部损坏则抛错。
  * 普通展示读取继续使用 readJsonFileSafe；该边界只供不可丢数据的迁移提交使用。

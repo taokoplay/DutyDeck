@@ -39,6 +39,33 @@ beforeEach(() => {
 })
 
 describe('工作区 MCP 配置服务', () => {
+  test('Given 静态导入只允许新增 When 同名配置已存在或并发先创建 Then CAS拒绝且不重置用户连接', async () => {
+    workspaceConfigs.set('project-a', { servers: { docs: { type: 'http', url: 'https://mcp.example.com', enabled: true } } })
+    await expect(configureWorkspaceMcp('project-a', { name: 'docs', type: 'http', url: 'https://mcp.example.com' }, { expectedEntryFingerprint: null })).rejects.toThrow('PLUGIN_IMPORT_MCP_CONFLICT')
+    expect(savedConfigs).toHaveLength(0)
+    workspaceConfigs.clear()
+    const first = configureWorkspaceMcp('project-a', { name: 'docs', type: 'http', url: 'https://mcp.example.com' }, { expectedEntryFingerprint: null })
+    const second = configureWorkspaceMcp('project-a', { name: 'docs', type: 'http', url: 'https://mcp.example.com' }, { expectedEntryFingerprint: null })
+    await first
+    await expect(second).rejects.toThrow('PLUGIN_IMPORT_MCP_CONFLICT')
+    expect(savedConfigs).toHaveLength(2)
+  })
+  test('Given 已保存的分阶段导入指纹 When 用户修改或撤销 Then 只允许精确未变资源继续或删除', async () => {
+    const { getWorkspaceMcpImportState, removeWorkspaceMcpIfUnchanged } = await import('./mcp-configuration-service')
+    const fingerprints: string[] = []
+    await configureWorkspaceMcp('project-a', { name: 'docs', type: 'http', url: 'https://mcp.example.com' }, { expectedEntryFingerprint: null, onEntrySaved: state => { fingerprints.push(state.fingerprint) } })
+    expect(fingerprints).toHaveLength(2)
+    const saved = getWorkspaceMcpImportState('project-a', 'docs')!
+    expect(saved.fingerprint).toBe(fingerprints[1]!)
+    expect(saved).not.toHaveProperty('url')
+    await expect(removeWorkspaceMcpIfUnchanged('project-a', 'docs', fingerprints[0]!)).rejects.toThrow('PLUGIN_IMPORT_MCP_CONFLICT')
+    workspaceConfigs.get('project-a')!.servers.docs!.enabled = false
+    await expect(configureWorkspaceMcp('project-a', { name: 'docs', type: 'http', url: 'https://mcp.example.com' }, { expectedEntryFingerprint: saved.fingerprint })).rejects.toThrow('PLUGIN_IMPORT_MCP_CONFLICT')
+    await expect(removeWorkspaceMcpIfUnchanged('project-a', 'docs', saved.fingerprint)).rejects.toThrow('PLUGIN_IMPORT_MCP_CONFLICT')
+    const modified = getWorkspaceMcpImportState('project-a', 'docs')!
+    await removeWorkspaceMcpIfUnchanged('project-a', 'docs', modified.fingerprint)
+    expect(getWorkspaceMcpImportState('project-a', 'docs')).toBeNull()
+  })
   test('Given 新连接请求启用 When 验证成功 Then 先保存 disabled 再启用', async () => {
     const result = await configureWorkspaceMcp('project-a', {
       name: 'docs',

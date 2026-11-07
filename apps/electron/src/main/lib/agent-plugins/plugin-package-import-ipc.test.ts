@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { createModuleRuntimePluginFiles, createStandardPluginFiles } from '@dutydeck/plugin-kit'
 import { createPluginPackage } from '@dutydeck/plugin-kit/package'
-import type { ContentPluginPreview, ModuleRuntimePluginPreviewView } from '@dutydeck/shared'
+import type { ContentPluginPreview } from '@dutydeck/shared'
+import type { ModuleRuntimePluginPreview } from './module-runtime-plugin-service'
 import { previewPluginPackageBytes } from './plugin-package-import'
 
 /** 构造可被主进程分类的最小 V2 或 V3 包。 */
@@ -28,7 +29,7 @@ describe('Given 统一插件包导入', () => {
       runtimeService: {
         previewBytes: () => {
           runtimeCalls += 1
-          return { token: 'runtime-token' } as ModuleRuntimePluginPreviewView
+          return { token: 'runtime-token' } as ModuleRuntimePluginPreview
         },
       },
     }, packageBytes(2))
@@ -40,7 +41,7 @@ describe('Given 统一插件包导入', () => {
   test('When V3 可执行包 Then 只调用 runtime 预览', () => {
     let contentCalls = 0
     let runtimeCalls = 0
-    const runtimePreview = { token: 'runtime-token' } as ModuleRuntimePluginPreviewView
+    const runtimePreview = { token: 'runtime-token' } as ModuleRuntimePluginPreview
     const result = previewPluginPackageBytes({
       contentManager: {
         previewBytes: () => {

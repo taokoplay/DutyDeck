@@ -1,0 +1,79 @@
+[
+  {
+    "formatVersion": 1,
+    "pluginId": "dutydeck-dsh.pace-calc",
+    "pluginVersion": "0.1.0",
+    "packageHash": "984c3a450114f721018a8d48f8e1080b12725fafab04df1bad292ba107b25ca9",
+    "source": {
+      "name": "dsh-pace-calc",
+      "version": "0.1.1",
+      "archiveSha256": "15cafc89709c7af5db4b88b387f22f229bc8d4888aed18e913b9536584347d81",
+      "url": "https://registry.npmjs.org/dsh-pace-calc/-/dsh-pace-calc-0.1.1.tgz",
+      "license": "MIT"
+    },
+    "environment": {
+      "hostVersion": "0.20.20",
+      "platform": "darwin",
+      "arch": "arm64",
+      "electron": "43.2.0",
+      "adapterVersion": "0.1.0",
+      "adapterSha256": "c9721dd5410f246c4cb68f197fa45c54b24737081a3748ab663e25a08e43ad37"
+    },
+    "testedAt": "2026-11-06T14:23:38.427Z",
+    "expiresAt": "2026-12-06T14:23:38.427Z",
+    "result": "passed",
+    "scope": "isolated-developer-smoke",
+    "resultSha256": "612dfa6925eaf98e4e13a07c87c7b0988ff982b4c78c0ff56754fb7bd99ac304",
+    "buildEvidenceSha256": "fa9abc9fa91e834fefeebcf3703c6ccaaed0e413fe630f42c29b923803be5adb",
+    "limitations": [
+      "仅工具限定转换；原运行/optional/peer依赖闭包仍unresolved，不代表原DSH包兼容。",
+      "不执行patch或原包脚本，不公开client、helper exports、原Agent与Cordis服务；保留Pi与逐次审批。",
+      "参数不强制转换、不注入schema默认值；非有限输出在render前拒绝，错误统一而不泄露原异常。",
+      "utilityProcess是进程/故障隔离而非OS沙箱；只适用于本配方精确审查字节。",
+      "构建默认未签名、不安装、不信任；转换方签名不代表上游作者认可。",
+      "保持上游算法：dist/min的0会回退到5/30；秒舍入可能显示60且不进位；未限制负距离/负时间。非有限结果拒绝，不静默改成null。",
+      "只验证开发隔离根、自动审批回调；未验证生产审批窗口、模型循环、生产信任或其他平台。",
+      "宿主版本按0.20.20工作树记录；构建证据包含关键源码hash，不是完整可复现构建或发布认证。",
+      "验证标签最长保留30天；这是宿主重验策略，不代表30天内的安全保证。"
+    ]
+  },
+  {
+    "formatVersion": 1,
+    "pluginId": "dutydeck-dsh.unitverse",
+    "pluginVersion": "0.1.0",
+    "packageHash": "313d2179dbe889909b4d8ed4b4d607b798dd4340966b6cfbcaff0bd9888ed409",
+    "source": {
+      "name": "dsh-unitverse",
+      "version": "1.1.4",
+      "archiveSha256": "0468b9b1bd9ea2c62fb7846c06b276af777267356bfe33fa29e13e7b7b85ded7",
+      "url": "https://registry.npmjs.org/dsh-unitverse/-/dsh-unitverse-1.1.4.tgz",
+      "license": "MIT"
+    },
+    "environment": {
+      "hostVersion": "0.20.20",
+      "platform": "darwin",
+      "arch": "arm64",
+      "electron": "43.2.0",
+      "adapterVersion": "0.1.0",
+      "adapterSha256": "c9721dd5410f246c4cb68f197fa45c54b24737081a3748ab663e25a08e43ad37"
+    },
+    "testedAt": "2026-11-06T14:23:38.427Z",
+    "expiresAt": "2026-12-06T14:23:38.427Z",
+    "result": "passed",
+    "scope": "isolated-developer-smoke",
+    "resultSha256": "612dfa6925eaf98e4e13a07c87c7b0988ff982b4c78c0ff56754fb7bd99ac304",
+    "buildEvidenceSha256": "fa9abc9fa91e834fefeebcf3703c6ccaaed0e413fe630f42c29b923803be5adb",
+    "limitations": [
+      "仅工具限定转换；原运行/optional/peer依赖闭包仍unresolved，不代表原DSH包兼容。",
+      "不执行patch或原包脚本，不公开client、helper exports、原Agent与Cordis服务；保留Pi与逐次审批。",
+      "参数不强制转换、不注入schema默认值；非有限输出在render前拒绝，错误统一而不泄露原异常。",
+      "utilityProcess是进程/故障隔离而非OS沙箱；只适用于本配方精确审查字节。",
+      "构建默认未签名、不安装、不信任；转换方签名不代表上游作者认可。",
+      "保持上游大小写不敏感语义：mw表示MW而非mW；月/年按Julian平均值，不是历法计算；不校验绝对零度物理范围。",
+      "结果十位有效数字，不公开significantDigits/helper API；有限输入运算溢出也会拒绝，不返回Infinity成功文本。",
+      "只验证开发隔离根、自动审批回调；未验证生产审批窗口、模型循环、生产信任或其他平台。",
+      "宿主版本按0.20.20工作树记录；构建证据包含关键源码hash，不是完整可复现构建或发布认证。",
+      "验证标签最长保留30天；这是宿主重验策略，不代表30天内的安全保证。"
+    ]
+  }
+]

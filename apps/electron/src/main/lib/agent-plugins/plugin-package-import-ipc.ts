@@ -2,6 +2,12 @@ import { dialog, ipcMain } from 'electron'
 import { PLUGIN_PACKAGE_IMPORT_IPC_CHANNELS, type PluginPackageImportPreview } from '@dutydeck/shared'
 import { readBoundedFile } from '@dutydeck/plugin-kit/filesystem'
 import { previewPluginPackageBytes, type PluginPackagePreviewTargets } from './plugin-package-import'
+import { validatePluginPreview } from './plugin-validation-catalog'
+
+async function validatedPreview(options: PluginPackagePreviewTargets, bytes: Uint8Array): Promise<PluginPackageImportPreview> {
+  const result = previewPluginPackageBytes(options, bytes)
+  return result.kind === 'runtime' ? { ...result, preview: await validatePluginPreview(result.preview) } : result
+}
 
 /** 统一导入依赖；两类插件仍由各自受信服务缓存预览 token。 */
 export interface PluginPackageImportIpcOptions extends PluginPackagePreviewTargets {
@@ -35,9 +41,9 @@ export function registerPluginPackageImportIpc(options: PluginPackageImportIpcOp
       }).then(result => result.canceled ? null : result.filePaths[0] ?? null)
     if (!selected) return null
     if (!selected.toLowerCase().endsWith('.ddplugin')) throw new Error('PLUGIN_PACKAGE_EXTENSION_INVALID')
-    return previewPluginPackageBytes(options, readBoundedFile(selected, MAX_PLUGIN_PACKAGE_BYTES))
+    return validatedPreview(options, readBoundedFile(selected, MAX_PLUGIN_PACKAGE_BYTES))
   })
   ipcMain.handle(PLUGIN_PACKAGE_IMPORT_IPC_CHANNELS.PREVIEW_BYTES, async (_event, value: unknown): Promise<PluginPackageImportPreview> => {
-    return previewPluginPackageBytes(options, freezePackageBytes(value))
+    return validatedPreview(options, freezePackageBytes(value))
   })
 }
