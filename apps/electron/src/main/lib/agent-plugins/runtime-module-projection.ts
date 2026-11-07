@@ -60,6 +60,7 @@ export function projectRuntimePluginModules(input: ProjectRuntimePluginInput): R
       requiredPermissions: [...input.manifest.capabilities],
       activation: module.activation,
       source: 'installed',
+      runtimeKind: 'module-runtime',
       pluginId: input.manifest.id,
       packageHash: input.packageHash,
     }

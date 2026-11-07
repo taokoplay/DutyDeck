@@ -3,7 +3,8 @@ import type { ComputerUseApi } from '@dutydeck/shared'
 import { createNetworkPreload } from './network-preload'
 import type { NetworkApi } from '@dutydeck/shared'
 import { CONTENT_PLUGIN_IPC_CHANNELS, MODULE_RUNTIME_PLUGIN_IPC_CHANNELS, PLUGIN_PACKAGE_IMPORT_IPC_CHANNELS } from '@dutydeck/shared'
-import type { ContentPluginSnapshot, ContentPluginPreview, ModuleRuntimePluginApi, PluginPackageImportApi } from '@dutydeck/shared'
+import type { ContentPluginSnapshot, ContentPluginPreview, ModuleRuntimePluginApi, PluginPackageImportApi, PluginMarketApi, PluginStaticImportApi } from '@dutydeck/shared'
+import { PLUGIN_MARKET_IPC_CHANNELS, PLUGIN_STATIC_IMPORT_IPC_CHANNELS } from '@dutydeck/shared'
 import { MOBILE_MIRROR_CHANNELS } from '@dutydeck/shared'
 import type { MobileMirrorSessionInput, MobileMirrorCaptureInput, MobileMirrorActionInput, MobileMirrorOpenResult, MobileMirrorDevice, MobileMirrorFrame } from '@dutydeck/shared'
 import { createTokenUsagePreload } from './token-usage-preload'
@@ -378,6 +379,8 @@ export interface ElectronAPI extends ServerOpsTaskPreloadApi, TokenUsageAPI, Lan
   /** 接口工作台共享服务桥接，旧客户端缺失时由 UI 提示重启。 */
   apiWorkbench: ApiWorkbenchApi
   /** V3 可执行插件目录与隔离 Surface bridge。 */
+  pluginMarket: PluginMarketApi
+  pluginStaticImport: PluginStaticImportApi
   moduleRuntimePlugin: ModuleRuntimePluginApi
   /** 插件中心统一文件选择和拖放字节预览。 */
   pluginPackageImport: PluginPackageImportApi
@@ -2520,11 +2523,26 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on(CONTENT_PLUGIN_IPC_CHANNELS.CHANGED, listener)
     return () => ipcRenderer.removeListener(CONTENT_PLUGIN_IPC_CHANNELS.CHANGED, listener)
   },
+  pluginStaticImport: {
+    list: () => ipcRenderer.invoke(PLUGIN_STATIC_IMPORT_IPC_CHANNELS.LIST),
+    preview: input => ipcRenderer.invoke(PLUGIN_STATIC_IMPORT_IPC_CHANNELS.PREVIEW, input),
+    apply: input => ipcRenderer.invoke(PLUGIN_STATIC_IMPORT_IPC_CHANNELS.APPLY, input),
+    undo: input => ipcRenderer.invoke(PLUGIN_STATIC_IMPORT_IPC_CHANNELS.UNDO, input),
+  },
+  pluginMarket: {
+    list: query => ipcRenderer.invoke(PLUGIN_MARKET_IPC_CHANNELS.LIST, query),
+    refresh: sourceUrl => ipcRenderer.invoke(PLUGIN_MARKET_IPC_CHANNELS.REFRESH, sourceUrl),
+    detail: input => ipcRenderer.invoke(PLUGIN_MARKET_IPC_CHANNELS.DETAIL, input),
+    analyze: input => ipcRenderer.invoke(PLUGIN_MARKET_IPC_CHANNELS.ANALYZE, input),
+  },
   moduleRuntimePlugin: {
     get: () => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.GET),
     preview: () => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.PREVIEW),
     install: (token, trustedKeyId) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.INSTALL, token, trustedKeyId),
     setEnabled: (pluginId, enabled, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.SET_ENABLED, pluginId, enabled, expectedRevision),
+    authorize: (input) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.AUTHORIZE, input),
+    configureSettings: (input) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.CONFIGURE_SETTINGS, input),
+    revoke: (pluginId, expectedGrantRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.REVOKE, pluginId, expectedGrantRevision),
     listVersions: (pluginId) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.LIST_VERSIONS, pluginId),
     rollback: (pluginId, packageHash, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.ROLLBACK, pluginId, packageHash, expectedRevision),
     uninstall: (pluginId, expectedRevision) => ipcRenderer.invoke(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.UNINSTALL, pluginId, expectedRevision),

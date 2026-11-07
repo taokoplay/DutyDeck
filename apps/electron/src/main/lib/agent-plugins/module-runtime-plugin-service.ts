@@ -1,17 +1,27 @@
+import type { PluginRuntimeManagementView, ModuleRuntimePluginChanges } from '@dutydeck/shared'
+import { pluginVersionChanges } from './plugin-version-changes'
+import { assessPluginValidation } from './plugin-validation'
+import { getHostPluginValidationRecords, getPluginValidationEnvironment, readPluginValidationEnvironment } from './plugin-validation-catalog'
+import { PluginDataDirectory } from './plugin-data-directory'
 import { randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
   PLUGIN_V3_API_VERSION,
+  assertPluginRuntimeCompatibility,
+  getPluginRuntimeExecutionBlock,
   isPluginHostApiCompatible,
   type PluginV3Manifest,
+  type PluginCapabilityId,
 } from '@dutydeck/plugin-sdk'
 import { readBoundedFile, writeNewFile } from '@dutydeck/plugin-kit/filesystem'
 import { inspectPluginPackage } from '@dutydeck/plugin-kit/package'
 import { acquireMediaFileLock } from '../media/media-file-lock'
-import { readJsonFileSafe, writeJsonFileAtomic } from '../safe-file'
-import type { ModuleRuntimeManager } from './module-runtime-manager'
+import { readJsonFileStrict, writeJsonFileAtomicSecure } from '../safe-file'
+import type { ModuleRuntimeManager, ManagedRuntimePlugin } from './module-runtime-manager'
 import { materializeRuntimePluginPackage } from './runtime-package-materializer'
+import { PluginGrantStore, type PluginGrantRecord } from './plugin-grant-store'
+import { PluginSettingsStore, type PluginSettingsSnapshot } from './plugin-settings-store'
 
 /** 已安装 V3 插件的可展示记录，不包含 runtime 文件正文。 */
 export interface InstalledRuntimePlugin {
@@ -19,8 +29,14 @@ export interface InstalledRuntimePlugin {
   packageHash: string
   keyId?: string
   enabled: boolean
+  /** 由当前宿主重新计算，不是持久授权状态。 */
+  executionBlock?: 'PLUGIN_RUNTIME_CONTRACT_MIGRATION_REQUIRED'
   installedAt: string
+  management?: PluginRuntimeManagementView
   packageRoot: string
+  /** 展示时按独立授权文件计算，不从注册表恢复授权。 */
+  grant?: PluginGrantRecord | null
+  settings?: PluginSettingsSnapshot
 }
 
 /** V3 插件目录快照。 */
@@ -38,6 +54,8 @@ export interface ModuleRuntimePluginPreview {
   signer?: { keyId: string; publicKey: string }
   operation: 'install' | 'update'
   previousVersion?: string
+  changes: ModuleRuntimePluginChanges
+  validation: PluginRuntimeManagementView['validation']
 }
 
 /** 可供显式回滚的历史包摘要，不暴露文件系统路径。 */
@@ -46,6 +64,7 @@ export interface ArchivedRuntimePluginVersion {
   packageHash: string
   signatureVerified: boolean
   keyId?: string
+  changes: ModuleRuntimePluginChanges
 }
 
 /** service 依赖与隔离模式。 */
@@ -75,6 +94,7 @@ const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/
 
 /** 校验插件声明的平台、架构和 Host API 范围是否适用于当前宿主。 */
 function assertHostCompatibility(manifest: PluginV3Manifest): void {
+  assertPluginRuntimeCompatibility(manifest)
   if (!manifest.compatibility.platforms.includes(process.platform as PluginV3Manifest['compatibility']['platforms'][number])) {
     throw new Error('PLUGIN_PLATFORM_UNSUPPORTED')
   }
@@ -107,20 +127,26 @@ function isRuntimeRegistry(value: unknown): value is RuntimeRegistry {
 
 /** 管理 V3 包导入、展开、启停与持久目录。 */
 export class ModuleRuntimePluginService {
+  private readonly directory: PluginDataDirectory
   private readonly root: string
   private readonly manager: ModuleRuntimeManager
   private readonly development: boolean
   private readonly isBusy: () => boolean
+  readonly grants: PluginGrantStore
+  readonly settings: PluginSettingsStore
   private readonly previews = new Map<string, RuntimePreviewState>()
   private registry: RuntimeRegistry = { formatVersion: 1, revision: 0, plugins: [] }
   /** 多入口并发调用共享同一次目录初始化。 */
   private initialization: Promise<ModuleRuntimePluginSnapshot> | undefined
 
   constructor(options: ModuleRuntimePluginServiceOptions) {
-    this.root = resolve(options.root)
+    this.directory = new PluginDataDirectory(resolve(options.root))
+    this.root = this.directory.path
     this.manager = options.manager
     this.development = options.development === true
     this.isBusy = options.isBusy ?? (() => false)
+    this.grants = new PluginGrantStore(join(this.root, 'grants'))
+    this.settings = new PluginSettingsStore(join(this.root, 'settings'))
   }
 
   /** 创建目录并加载已启用插件；注册表损坏时不静默重置。 */
@@ -139,22 +165,37 @@ export class ModuleRuntimePluginService {
     if (!existsSync(this.root)) mkdirSync(this.root, { recursive: true, mode: 0o700 })
     const stat = lstatSync(this.root)
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('PLUGIN_RUNTIME_ROOT_UNSAFE')
-    const stored = readJsonFileSafe(join(this.root, 'registry.json'), {
+    return this.withLock(async () => {
+      const stored = readJsonFileStrict(join(this.root, 'registry.json'), {
+        description: '插件注册表',
       validate: isRuntimeRegistry,
-      maxBytes: 8 * 1024 * 1024,
-      secureRecovery: true,
-    })
-    this.registry = stored ? structuredClone(stored) : { formatVersion: 1, revision: 0, plugins: [] }
-    for (const plugin of this.registry.plugins.filter(entry => entry.enabled)) {
-      const verified = this.verifyInstalledEntry(plugin)
-      this.manager.register({
-        manifest: verified.manifest,
-        packageHash: plugin.packageHash,
-        packageRoot: verified.packageRoot,
-        prompts: verified.prompts,
+        maxBytes: 8 * 1024 * 1024,
+        secureRecovery: true,
       })
-    }
-    return this.snapshot()
+      const registry: RuntimeRegistry = stored ? structuredClone(stored) : { formatVersion: 1, revision: 0, plugins: [] }
+      let migrated = false
+      for (const plugin of registry.plugins.filter(entry => entry.enabled)) {
+        // 降级必须落盘；之后只授权/配置不能使旧 enabled 位在重启时复活。
+        if (getPluginRuntimeExecutionBlock(plugin.manifest) || !this.hasGrant(plugin)) { plugin.enabled = false; migrated = true }
+      }
+      if (migrated) {
+        registry.revision += 1
+        this.persist(registry)
+      }
+      this.registry = registry
+      const registered: string[] = []
+      try {
+        for (const plugin of registry.plugins.filter(entry => entry.enabled)) {
+          const verified = this.verifyInstalledEntry(plugin)
+          this.register({ manifest: verified.manifest, packageHash: plugin.packageHash, packageRoot: verified.packageRoot, prompts: verified.prompts })
+          registered.push(plugin.manifest.id)
+        }
+      } catch (error) {
+        await Promise.all(registered.map(id => this.manager.unregister(id)))
+        throw error
+      }
+      return this.snapshot()
+    })
   }
 
   /** 从原生选择路径读取有界包字节并生成预览。 */
@@ -180,6 +221,8 @@ export class ModuleRuntimePluginService {
       signatureVerified: inspected.signatureVerified,
       ...(inspected.signer ? { signer: inspected.signer } : {}),
       operation: previous ? 'update' : 'install',
+      changes: pluginVersionChanges(previous, inspected.manifest),
+      validation: assessPluginValidation({ pluginId: inspected.manifest.id, pluginVersion: inspected.manifest.version, packageHash: inspected.packageHash }, getPluginValidationEnvironment(), getHostPluginValidationRecords()),
       ...(previous ? { previousVersion: previous.manifest.version } : {}),
     }
     if (this.previews.size >= 8) this.previews.clear()
@@ -199,6 +242,9 @@ export class ModuleRuntimePluginService {
       }
       assertHostCompatibility(inspected.manifest)
       const previous = this.registry.plugins.find(plugin => plugin.manifest.id === inspected.manifest.id)
+      if ((previous?.packageHash ?? null) !== pending.preview.changes.previousPackageHash) throw new Error('PLUGIN_PREVIEW_BASELINE_CHANGED')
+      const changes = pluginVersionChanges(previous, inspected.manifest)
+      if (changes.blockers.length) throw new Error(changes.blockers[0])
       const keyId = inspected.signer?.keyId
       if (!this.development) {
         if (!keyId) throw new Error('PLUGIN_SIGNATURE_REQUIRED')
@@ -221,7 +267,7 @@ export class ModuleRuntimePluginService {
         manifest: inspected.manifest,
         packageHash: inspected.packageHash,
         ...(keyId ? { keyId } : {}),
-        enabled: previous?.enabled ?? true,
+        enabled: false,
         installedAt: previous?.installedAt ?? new Date().toISOString(),
         packageRoot: materialized.packageRoot,
       }
@@ -232,7 +278,7 @@ export class ModuleRuntimePluginService {
       }
       try {
         if (entry.enabled) {
-          this.manager.register({
+          this.register({
             manifest: entry.manifest,
             packageHash: entry.packageHash,
             packageRoot: entry.packageRoot,
@@ -244,7 +290,7 @@ export class ModuleRuntimePluginService {
         if (entry.enabled) await this.manager.unregister(entry.manifest.id)
         if (previous?.enabled) {
           const previousVerified = this.verifyInstalledEntry(previous)
-          this.manager.register({
+          this.register({
             manifest: previousVerified.manifest,
             packageHash: previous.packageHash,
             packageRoot: previousVerified.packageRoot,
@@ -266,10 +312,15 @@ export class ModuleRuntimePluginService {
       this.assertRevision(expectedRevision)
       const previous = this.registry.plugins.find(plugin => plugin.manifest.id === pluginId)
       if (!previous) throw new Error('PLUGIN_NOT_INSTALLED')
+      if (enabled) {
+        assertHostCompatibility(previous.manifest)
+        this.grants.assertGranted(this.identity(previous))
+        this.settings.assertReady(previous.manifest, previous.packageHash)
+      }
       if (previous.enabled === enabled) return this.snapshot()
       if (enabled) {
         const verified = this.verifyInstalledEntry(previous)
-        this.manager.register({
+        this.register({
           manifest: verified.manifest,
           packageHash: previous.packageHash,
           packageRoot: verified.packageRoot,
@@ -289,7 +340,7 @@ export class ModuleRuntimePluginService {
         if (enabled) await this.manager.unregister(pluginId)
         else {
           const previousVerified = this.verifyInstalledEntry(previous)
-          this.manager.register({
+          this.register({
             manifest: previousVerified.manifest,
             packageHash: previous.packageHash,
             packageRoot: previousVerified.packageRoot,
@@ -321,7 +372,7 @@ export class ModuleRuntimePluginService {
       } catch (error) {
         if (previous.enabled) {
           const previousVerified = this.verifyInstalledEntry(previous)
-          this.manager.register({
+          this.register({
             manifest: previousVerified.manifest,
             packageHash: previous.packageHash,
             packageRoot: previousVerified.packageRoot,
@@ -335,9 +386,82 @@ export class ModuleRuntimePluginService {
     })
   }
 
-  /** 返回当前持久目录快照。 */
+  /** 单独确认精确包的能力和工作区；保存授权不自动启用。 */
+  async authorize(pluginId: string, capabilities: PluginCapabilityId[], workspaceIds: string[], expectedRevision: number, expectedGrantRevision: number): Promise<ModuleRuntimePluginSnapshot> {
+    this.assertIdle()
+    return this.withLock(async () => {
+      this.assertRevision(expectedRevision)
+      const plugin = this.registry.plugins.find(entry => entry.manifest.id === pluginId)
+      if (!plugin) throw new Error('PLUGIN_NOT_INSTALLED')
+      if (plugin.enabled) throw new Error('PLUGIN_DISABLE_BEFORE_CONFIGURE')
+      if (capabilities.some(capability => !plugin.manifest.capabilities.includes(capability))) throw new Error('PLUGIN_CAPABILITY_NOT_DECLARED')
+      this.grants.set(this.identity(plugin), capabilities, workspaceIds, expectedGrantRevision)
+      return this.snapshot()
+    })
+  }
+
+  /** 设置更改要求先停用，确保 restart-runtime 和 next-run 都不会混用旧实例。 */
+  async configureSettings(pluginId: string, values: Record<string, unknown>, expectedRevision: number, expectedSettingsRevision: number): Promise<ModuleRuntimePluginSnapshot> {
+    this.assertIdle()
+    return this.withLock(async () => {
+      this.assertRevision(expectedRevision)
+      const plugin = this.registry.plugins.find(entry => entry.manifest.id === pluginId)
+      if (!plugin) throw new Error('PLUGIN_NOT_INSTALLED')
+      if (plugin.enabled) throw new Error('PLUGIN_DISABLE_BEFORE_CONFIGURE')
+      this.settings.save(plugin.manifest, plugin.packageHash, values, expectedSettingsRevision)
+      return this.snapshot()
+    })
+  }
+
+  /** 撤权不等待 Agent 空闲；先撤销租约依据，再终止本插件全部调用。 */
+  async revoke(pluginId: string, expectedGrantRevision: number): Promise<ModuleRuntimePluginSnapshot> {
+    return this.withLock(async () => {
+      const plugin = this.registry.plugins.find(entry => entry.manifest.id === pluginId)
+      if (!plugin) throw new Error('PLUGIN_NOT_INSTALLED')
+      this.grants.revoke(pluginId, expectedGrantRevision)
+      await this.manager.unregister(pluginId)
+      const next: RuntimeRegistry = {
+        ...this.registry, revision: this.registry.revision + 1,
+        plugins: this.registry.plugins.map(entry => entry === plugin ? { ...entry, enabled: false } : entry),
+      }
+      this.persist(next)
+      this.registry = next
+      return this.snapshot()
+    })
+  }
+
+  /** 只读GET在写锁外核验一次构建；mutation保持轻量保守快照，诊断不能延迟撤权。 */
+  async validatedSnapshot(): Promise<ModuleRuntimePluginSnapshot> {
+    const environment = await readPluginValidationEnvironment()
+    const records = getHostPluginValidationRecords()
+    const snapshot = this.snapshot()
+    for (const plugin of snapshot.plugins) {
+      if (plugin.management) plugin.management.validation = assessPluginValidation(this.identity(plugin), environment, records)
+    }
+    return snapshot
+  }
+
+  /** 同步诊断没有异步材料复核，保守返回构建未验证。 */
   snapshot(): ModuleRuntimePluginSnapshot {
-    return { revision: this.registry.revision, plugins: structuredClone(this.registry.plugins) }
+    // 同步调用不读取完整负载；不将旧构建缓存成功值赋给新的管理快照。
+    const environment = getPluginValidationEnvironment()
+    const records = getHostPluginValidationRecords()
+    return {
+      revision: this.registry.revision,
+      plugins: this.registry.plugins.map(plugin => {
+        const grant = this.grants.get(plugin.manifest.id)
+        let authorization: PluginRuntimeManagementView['authorization'] = grant?.revoked ? 'revoked' : 'required'
+        try { this.grants.assertGranted(this.identity(plugin)); authorization = 'granted' } catch { /* 不从旧包或旧备份继承授权。 */ }
+        const rawHealth = this.manager.getHealth(plugin.manifest.id)
+        const management: PluginRuntimeManagementView = {
+          authorization,
+          validation: assessPluginValidation(this.identity(plugin), environment, records),
+          health: { state: rawHealth.state, epoch: rawHealth.epoch,
+            ...(rawHealth.errorCode ? { errorCode: /^PLUGIN_[A-Z_]{1,80}$/.test(rawHealth.errorCode) ? rawHealth.errorCode : 'PLUGIN_RUNTIME_FAILED' } : {}) },
+        }
+        return { ...structuredClone(plugin), executionBlock: getPluginRuntimeExecutionBlock(plugin.manifest), grant, management, settings: this.settings.read(plugin.manifest, plugin.packageHash) }
+      }),
+    }
   }
 
   /** 列出指定插件的不可变历史包，按版本从高到低返回。 */
@@ -361,6 +485,7 @@ export class ModuleRuntimePluginService {
           version: inspected.manifest.version,
           packageHash,
           signatureVerified: inspected.signatureVerified,
+          changes: pluginVersionChanges(this.registry.plugins.find(plugin => plugin.manifest.id === pluginId), inspected.manifest),
           ...(inspected.signer ? { keyId: inspected.signer.keyId } : {}),
         }
       })
@@ -394,6 +519,8 @@ export class ModuleRuntimePluginService {
           throw new Error('PLUGIN_PUBLISHER_UNTRUSTED')
         }
       }
+      const changes = pluginVersionChanges(previous, inspected.manifest)
+      if (changes.blockers.length) throw new Error(changes.blockers[0])
       const materialized = materializeRuntimePluginPackage({
         root: this.root,
         manifest: inspected.manifest,
@@ -405,7 +532,7 @@ export class ModuleRuntimePluginService {
         manifest: inspected.manifest,
         packageHash: inspected.packageHash,
         ...(inspected.signer ? { keyId: inspected.signer.keyId } : {}),
-        enabled: previous.enabled,
+        enabled: false,
         installedAt: new Date().toISOString(),
         packageRoot: materialized.packageRoot,
       }
@@ -416,7 +543,7 @@ export class ModuleRuntimePluginService {
       }
       try {
         if (entry.enabled) {
-          this.manager.register({
+          this.register({
             manifest: entry.manifest,
             packageHash: entry.packageHash,
             packageRoot: entry.packageRoot,
@@ -428,7 +555,7 @@ export class ModuleRuntimePluginService {
         if (entry.enabled) await this.manager.unregister(pluginId)
         if (previous.enabled) {
           const previousVerified = this.verifyInstalledEntry(previous)
-          this.manager.register({
+          this.register({
             manifest: previousVerified.manifest,
             packageHash: previous.packageHash,
             packageRoot: previousVerified.packageRoot,
@@ -467,6 +594,7 @@ export class ModuleRuntimePluginService {
       || JSON.stringify(inspected.manifest) !== JSON.stringify(plugin.manifest)) {
       throw new Error('PLUGIN_INSTALLED_IDENTITY_CHANGED')
     }
+    assertHostCompatibility(inspected.manifest)
     const materialized = materializeRuntimePluginPackage({
       root: this.root,
       manifest: inspected.manifest,
@@ -481,6 +609,33 @@ export class ModuleRuntimePluginService {
     }
   }
 
+  /** 每次注册都从当前包的已校验设置创建新实例快照。 */
+  private register(plugin: ManagedRuntimePlugin): void {
+    assertHostCompatibility(plugin.manifest)
+    const settings = this.settings.assertReady(plugin.manifest, plugin.packageHash)
+    const identity = structuredClone(plugin)
+    this.manager.register({ ...plugin, settingsRevision: settings.revision, settings: settings.values }, () => {
+      const current = this.registry.plugins.find(entry => entry.manifest.id === identity.manifest.id)
+      if (!current?.enabled || current.packageHash !== identity.packageHash
+        || current.packageRoot !== identity.packageRoot
+        || JSON.stringify(current.manifest) !== JSON.stringify(identity.manifest)) throw new Error('PLUGIN_INSTALLED_IDENTITY_CHANGED')
+      this.directory.assertCurrent()
+      this.verifyInstalledEntry(current)
+    })
+  }
+
+  private identity(plugin: InstalledRuntimePlugin) {
+    return { pluginId: plugin.manifest.id, pluginVersion: plugin.manifest.version, packageHash: plugin.packageHash }
+  }
+
+  private hasGrant(plugin: InstalledRuntimePlugin): boolean {
+    try {
+      this.grants.assertGranted(this.identity(plugin))
+      this.settings.assertReady(plugin.manifest, plugin.packageHash)
+      return true
+    } catch { return false }
+  }
+
   /** 归档只由插件 ID 与包摘要推导，注册表不提供路径。 */
   private archivePath(pluginId: string, packageHash: string): string {
     return join(this.root, 'archives', pluginId, `${packageHash}.ddplugin`)
@@ -488,6 +643,7 @@ export class ModuleRuntimePluginService {
 
   /** 单进程锁保护注册表读改写，避免同窗并发覆盖。 */
   private async withLock<T>(operation: () => Promise<T>): Promise<T> {
+    this.directory.assertCurrent()
     const release = acquireMediaFileLock(join(this.root, '.runtime-plugins.lock'))
     try {
       return await operation()
@@ -510,7 +666,8 @@ export class ModuleRuntimePluginService {
 
   /** 注册表写失败不能标为安装成功。 */
   private persist(registry: RuntimeRegistry): void {
-    writeJsonFileAtomic(join(this.root, 'registry.json'), registry)
+    this.directory.assertCurrent()
+    writeJsonFileAtomicSecure(join(this.root, 'registry.json'), registry, { beforeRename: this.directory.assertCurrent })
   }
 }
 

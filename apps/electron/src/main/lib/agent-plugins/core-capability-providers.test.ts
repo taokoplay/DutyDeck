@@ -19,7 +19,7 @@ describe('Given core plugin capabilities', () => {
       const caller: TrustedPluginCaller = {
         pluginId: 'acme.echo', pluginVersion: '1.0.0', packageHash: 'a'.repeat(64),
         moduleId: 'acme.echo.assistant', sessionId: 'session-1', projectId: 'workspace-1',
-        runId: 'run-1', invocationId: 'invoke-1', grants: ['session.read'], assertCurrent: () => undefined,
+        runId: 'run-1', invocationId: 'invoke-1', grants: ['session.read'], signal: new AbortController().signal, assertCurrent: () => undefined,
       }
       await expect(broker.invoke(caller, { capability: 'session.read', input: {} })).resolves.toEqual({
         id: 'session-1',
@@ -44,7 +44,7 @@ describe('Given core plugin capabilities', () => {
         pluginId: 'acme.echo', pluginVersion: '1.0.0', packageHash: 'a'.repeat(64),
         moduleId: 'acme.echo.assistant', sessionId: 'session-1', projectId: null,
         runId: 'run-1', invocationId: 'plugin-instance',
-        grants: ['plugin.state.read', 'plugin.state.write'], assertCurrent: () => undefined,
+        grants: ['plugin.state.read', 'plugin.state.write'], signal: new AbortController().signal, assertCurrent: () => undefined,
       }
       await broker.invoke(caller, {
         capability: 'plugin.state.write',
@@ -57,5 +57,32 @@ describe('Given core plugin capabilities', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+
+describe('Given 插件状态提交租约', () => {
+  test('When 读取 CAS 记录后租约已撤销 Then 状态文件不落盘', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dutydeck-state-revoke-'))
+    try {
+      let valid = true
+      class RevokingStore extends PluginStateStore {
+        override read<T = unknown>(pluginId: string, key: string, schemaVersion: number) {
+          const value = super.read<T>(pluginId, key, schemaVersion)
+          valid = false
+          return value
+        }
+      }
+      const state = new RevokingStore(root)
+      const broker = new CapabilityBroker({ providers: createCoreCapabilityProviders({ state, getSession: () => undefined }) })
+      const caller: TrustedPluginCaller = {
+        pluginId: 'acme.echo', pluginVersion: '1.0.0', packageHash: 'a'.repeat(64),
+        moduleId: '', sessionId: '', projectId: null, runId: 'plugin-instance', invocationId: 'plugin-instance',
+        grants: ['plugin.state.write'], signal: new AbortController().signal,
+        assertCurrent: () => { if (!valid) throw new Error('PLUGIN_CAPABILITY_STALE') },
+      }
+      await expect(broker.invoke(caller, { capability: 'plugin.state.write', input: { key: 'settings', schemaVersion: 1, value: 'late' } })).rejects.toThrow('PLUGIN_CAPABILITY_STALE')
+      expect(state.read('acme.echo', 'settings', 1)).toBeNull()
+    } finally { rmSync(root, { recursive: true, force: true }) }
   })
 })

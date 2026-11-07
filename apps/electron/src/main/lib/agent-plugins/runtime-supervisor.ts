@@ -42,6 +42,11 @@ export interface PluginRuntimeSupervisorDependencies {
     pluginId: string
     pluginVersion: string
     packageHash: string
+    epoch: number
+    deadline: number | null
+    signal: AbortSignal
+    /** 在读取结果及副作用提交前复核同一实例和调用。 */
+    assertCurrent: () => void
   }) => Promise<PluginCapabilityResult>
   onEvent?: (input: { surfaceId?: string; type: string; data?: Record<string, unknown> }) => void
 }
@@ -96,6 +101,9 @@ interface PendingRequest {
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
   removeAbort?: () => void
+  controller: AbortController
+  deadline: number
+  deadlineTimer: ReturnType<typeof setTimeout>
   invocationId?: string
   moduleId?: string
   sessionId?: string
@@ -114,7 +122,10 @@ interface RuntimeInstance {
   epoch: number
   healthy: boolean
   draining: boolean
+  controller: AbortController
   pending: Map<string, PendingRequest>
+  /** 已取消调用不再持有能力租约；这里只等待停止确认，超时终止整个实例。 */
+  cancelled: Map<string, ReturnType<typeof setTimeout>>
   hello?: PluginRuntimeHello
   helloResolve?: (value: PluginRuntimeHello) => void
   helloReject?: (error: Error) => void
@@ -178,9 +189,28 @@ class RuntimeSupervisorError extends Error {
 /** 判断未知值是否具备 RPC 信封的最小结构。 */
 function isRuntimeMessage(value: unknown): value is PluginRuntimeMessage {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value)
-    && (value as Record<string, unknown>).protocolVersion === 1
+    && (value as Record<string, unknown>).protocolVersion === 2
     && typeof (value as Record<string, unknown>).requestId === 'string'
     && typeof (value as Record<string, unknown>).kind === 'string')
+}
+
+/** 有界 JSON 校验覆盖工具、Surface 和控制响应，拒绝无法序列化的跨进程值。 */
+function assertRuntimeResult(value: unknown): void {
+  const ancestors = new Set<object>()
+  let nodes = 0
+  const valid = (item: unknown, depth: number): boolean => {
+    if (++nodes > 100_000 || depth > 64) return false
+    if (item === null || typeof item === 'string' || typeof item === 'boolean') return true
+    if (typeof item === 'number') return Number.isFinite(item)
+    if (typeof item !== 'object' || ancestors.has(item)) return false
+    ancestors.add(item)
+    const result = Array.isArray(item) ? item.every(child => valid(child, depth + 1))
+      : Object.getPrototypeOf(item) === Object.prototype && Object.values(item).every(child => valid(child, depth + 1))
+    ancestors.delete(item)
+    return result
+  }
+  if (!valid(value, 0)) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_RESULT_NOT_JSON')
+  if (Buffer.byteLength(JSON.stringify(value)) > 256 * 1024) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_RESULT_TOO_LARGE')
 }
 
 /** Electron utility 消息可能存在 data 包装，只解开一层明确包装。 */
@@ -240,7 +270,9 @@ export class PluginRuntimeSupervisor {
       epoch: this.nextEpoch++,
       healthy: false,
       draining: false,
+      controller: new AbortController(),
       pending: new Map(),
+      cancelled: new Map(),
     }
     this.instance = instance
     const hello = new Promise<PluginRuntimeHello>((resolve, reject) => {
@@ -251,7 +283,12 @@ export class PluginRuntimeSupervisor {
       this.fail(instance, 'PLUGIN_RUNTIME_START_TIMEOUT')
       this.kill(instance)
     }, this.startupTimeoutMs)
-    child.on('message', (message) => this.handleMessage(instance, message))
+    child.on('message', (message) => {
+      try { this.handleMessage(instance, message) } catch {
+        this.fail(instance, 'PLUGIN_RUNTIME_PROTOCOL_INVALID')
+        this.kill(instance)
+      }
+    })
     child.on('error', () => this.fail(instance, 'PLUGIN_RUNTIME_PROCESS_ERROR'))
     child.on('exit', (code) => this.handleExit(instance, typeof code === 'number' ? code : null))
     let reported: PluginRuntimeHello
@@ -262,14 +299,17 @@ export class PluginRuntimeSupervisor {
         settingsRevision: frozen.settingsRevision,
         settings: structuredClone(frozen.settings),
       })
+      if (this.instance !== instance || instance.draining || instance.controller.signal.aborted) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_STOPPED')
       instance.healthy = true
       if (instance.startupTimer) clearTimeout(instance.startupTimer)
       instance.startupTimer = undefined
       this.health = { pluginId: frozen.pluginId, state: 'running', epoch: instance.epoch }
       return { ...this.health }
     } catch (error) {
-      this.fail(instance, error instanceof RuntimeSupervisorError ? error.code : 'PLUGIN_RUNTIME_START_FAILED')
-      this.kill(instance)
+      if (!instance.draining) {
+        this.fail(instance, error instanceof RuntimeSupervisorError ? error.code : 'PLUGIN_RUNTIME_START_FAILED')
+        this.kill(instance)
+      }
       throw error
     }
   }
@@ -283,7 +323,7 @@ export class PluginRuntimeSupervisor {
   }): Promise<unknown> {
     const instance = this.requireRunning()
     if (!instance.snapshot.tools.includes(input.toolId)) throw new RuntimeSupervisorError('PLUGIN_TOOL_NOT_DECLARED')
-    if (instance.pending.size >= 8) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_BUSY')
+    if (instance.pending.size + instance.cancelled.size >= 8) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_BUSY')
     if (!Number.isFinite(input.context.deadline) || input.context.deadline <= Date.now()) {
       throw new RuntimeSupervisorError('PLUGIN_TOOL_DEADLINE_INVALID')
     }
@@ -321,6 +361,10 @@ export class PluginRuntimeSupervisor {
   }): Promise<unknown> {
     const instance = this.requireRunning()
     if (!instance.snapshot.surfaces.includes(input.surfaceId)) throw new RuntimeSupervisorError('PLUGIN_SURFACE_NOT_DECLARED')
+    if (instance.pending.size + instance.cancelled.size >= 8) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_BUSY')
+    if (!Number.isFinite(input.deadline) || input.deadline <= Date.now()) {
+      throw new RuntimeSupervisorError('PLUGIN_SURFACE_DEADLINE_INVALID')
+    }
     const invocationId = this.uuid()
     return this.request(instance, 'surface', 'surface.invoke', {
       invocationId,
@@ -354,6 +398,18 @@ export class PluginRuntimeSupervisor {
     if (instance.draining) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_DRAINING')
     instance.draining = true
     this.health = { ...this.health, state: 'draining' }
+    instance.helloReject?.(new RuntimeSupervisorError('PLUGIN_RUNTIME_STOPPED'))
+    instance.helloReject = undefined
+    instance.helloResolve = undefined
+    if (instance.startupTimer) clearTimeout(instance.startupTimer)
+    instance.startupTimer = undefined
+    instance.controller.abort()
+    this.clearCancelled(instance)
+    for (const [requestId, pending] of instance.pending) {
+      instance.pending.delete(requestId)
+      this.releasePending(pending)
+      pending.reject(new RuntimeSupervisorError('PLUGIN_RUNTIME_DRAINING'))
+    }
     try {
       await this.request(instance, 'dispose', 'runtime.dispose', {}, undefined, undefined, 5_000)
     } catch {
@@ -367,7 +423,9 @@ export class PluginRuntimeSupervisor {
 
   /** 立即终止进程并清理所有等待者。 */
   killCurrent(): void {
-    if (this.instance) this.kill(this.instance)
+    if (!this.instance) return
+    this.fail(this.instance, 'PLUGIN_RUNTIME_STOPPED')
+    this.kill(this.instance)
   }
 
   /** 返回健康快照。 */
@@ -383,7 +441,7 @@ export class PluginRuntimeSupervisor {
   /** 校验 hello 的协议、实例身份和全部贡献。 */
   private assertHello(instance: RuntimeInstance, hello: PluginRuntimeHello): void {
     const snapshot = instance.snapshot
-    if (hello.protocolVersion !== 1) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_PROTOCOL_UNSUPPORTED')
+    if (hello.protocolVersion !== 2) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_PROTOCOL_UNSUPPORTED')
     if (hello.pluginId !== snapshot.pluginId || hello.pluginVersion !== snapshot.pluginVersion
       || hello.packageHash !== snapshot.packageHash) throw new RuntimeSupervisorError('PLUGIN_RUNTIME_IDENTITY_MISMATCH')
     if (!sameContributions(snapshot.tools, hello.tools)
@@ -413,19 +471,15 @@ export class PluginRuntimeSupervisor {
     let reject!: (error: Error) => void
     const promise = new Promise<unknown>((accept, fail) => { resolve = accept; reject = fail })
     const limit = timeoutMs ?? Math.max(1, Math.min(10 * 60_000, Number(payload.deadline ?? Date.now() + 30_000) - Date.now()))
+    const controller = new AbortController()
+    const deadline = Date.now() + limit
+    const deadlineTimer = setTimeout(() => controller.abort(), limit)
     const timer = setTimeout(() => {
       const pending = instance.pending.get(requestId)
       if (!pending) return
-      instance.pending.delete(requestId)
-      pending.removeAbort?.()
-      this.send(instance, {
-        protocolVersion: 1,
-        kind: 'cancel',
-        requestId: this.uuid(),
-        targetRequestId: requestId,
-        reason: 'timeout',
-      })
-      pending.reject(new RuntimeSupervisorError('PLUGIN_RPC_TIMEOUT'))
+      // 截止时间加宽限仍未完成：仅拒收结果无法停止同步阻塞，必须终止实例。
+      this.fail(instance, 'PLUGIN_RPC_TIMEOUT')
+      this.kill(instance)
     }, limit + this.invocationTimeoutGraceMs)
     const pending: PendingRequest = {
       requestId,
@@ -434,6 +488,9 @@ export class PluginRuntimeSupervisor {
       resolve,
       reject,
       timer,
+      controller,
+      deadline,
+      deadlineTimer,
       ...(invocationId ? { invocationId } : {}),
       ...(typeof payload.moduleId === 'string' ? { moduleId: payload.moduleId } : {}),
       ...(typeof payload.sessionId === 'string' ? { sessionId: payload.sessionId } : {}),
@@ -444,22 +501,21 @@ export class PluginRuntimeSupervisor {
     if (signal) {
       const abort = (): void => {
         if (!instance.pending.delete(requestId)) return
-        clearTimeout(timer)
-        this.send(instance, {
-          protocolVersion: 1,
-          kind: 'cancel',
-          requestId: this.uuid(),
-          targetRequestId: requestId,
-          reason: 'abort',
-        })
+        this.releasePending(pending)
         reject(new RuntimeSupervisorError(kind === 'tool' ? 'PLUGIN_TOOL_CANCELLED' : 'PLUGIN_SURFACE_CANCELLED'))
+        instance.cancelled.set(requestId, setTimeout(() => {
+          if (!instance.cancelled.has(requestId) || this.instance !== instance) return
+          this.fail(instance, 'PLUGIN_RUNTIME_CANCEL_TIMEOUT')
+          this.kill(instance)
+        }, this.invocationTimeoutGraceMs))
+        this.sendCancel(instance, requestId, 'abort')
       }
       signal.addEventListener('abort', abort, { once: true })
       pending.removeAbort = () => signal.removeEventListener('abort', abort)
     }
     instance.pending.set(requestId, pending)
     const command = {
-      protocolVersion: 1,
+      protocolVersion: 2,
       kind: 'request',
       requestId,
       method,
@@ -472,6 +528,16 @@ export class PluginRuntimeSupervisor {
       this.kill(instance)
     }
     return promise
+  }
+
+  /** 取消消息只作尽力通知；等待者必须在调用此方法前已经结算。 */
+  private sendCancel(instance: RuntimeInstance, targetRequestId: string, reason: 'abort' | 'timeout'): void {
+    try {
+      this.send(instance, { protocolVersion: 2, kind: 'cancel', requestId: this.uuid(), targetRequestId, reason })
+    } catch {
+      this.fail(instance, 'PLUGIN_RUNTIME_PROCESS_ERROR')
+      this.kill(instance)
+    }
   }
 
   /** 发送消息并在失败时触发稳定错误。 */
@@ -509,12 +575,33 @@ export class PluginRuntimeSupervisor {
       return
     }
     if (message.kind === 'response') {
+      // 必须先验证信封，再删除 pending；否则畸形错误会丢失等待者。
+      if (typeof message.ok !== 'boolean' || !message.ok && (!message.error
+        || typeof message.error.code !== 'string' || !/^PLUGIN_[A-Z0-9_:.-]{1,100}$/.test(message.error.code))) {
+        this.fail(instance, 'PLUGIN_RUNTIME_PROTOCOL_INVALID')
+        this.kill(instance)
+        return
+      }
+      if (message.ok) {
+        try { assertRuntimeResult(message.value) } catch (error) {
+          this.fail(instance, error instanceof RuntimeSupervisorError ? error.code : 'PLUGIN_RUNTIME_PROTOCOL_INVALID')
+          this.kill(instance)
+          return
+        }
+      }
+      const cancelled = instance.cancelled.get(message.requestId)
+      if (cancelled !== undefined) {
+        clearTimeout(cancelled)
+        instance.cancelled.delete(message.requestId)
+        // 仅确认插件调用已结束，不接纳取消后的值或恢复调用权限。
+        return
+      }
       const pending = instance.pending.get(message.requestId)
       if (!pending) return
       instance.pending.delete(message.requestId)
-      clearTimeout(pending.timer)
-      pending.removeAbort?.()
-      if (message.ok) pending.resolve(message.value)
+      this.releasePending(pending)
+      if (Date.now() >= pending.deadline) pending.reject(new RuntimeSupervisorError('PLUGIN_RPC_TIMEOUT'))
+      else if (message.ok) pending.resolve(message.value)
       else pending.reject(new RuntimeSupervisorError(message.error.code))
       return
     }
@@ -539,15 +626,40 @@ export class PluginRuntimeSupervisor {
     requestId: string,
     payload: Extract<PluginRuntimeMessage, { kind: 'request'; method: 'capability.invoke' }>['payload'],
   ): Promise<void> {
-    const activeInvocation = [...instance.pending.values()].find(entry => entry.kind === 'tool' || entry.kind === 'surface')
     let result: PluginCapabilityResult
     try {
+      if (!payload || typeof payload.invocationId !== 'string' || typeof payload.capability !== 'string') {
+        throw new RuntimeSupervisorError('PLUGIN_CAPABILITY_IDENTITY_INVALID')
+      }
+      if (instance !== this.instance || instance.draining
+        || !instance.healthy && this.health.state !== 'starting') {
+        throw new RuntimeSupervisorError('PLUGIN_CAPABILITY_STALE')
+      }
+      /** 实例级状态没有项目/会话身份，不得借用任一在途工具的权限。 */
+      const instanceStateCall = payload.invocationId === 'plugin-instance'
+        && this.health.state === 'starting' && !instance.hello
+        && payload.capability === 'plugin.state.read'
+      const activeInvocation = [...instance.pending.values()].find(entry =>
+        (entry.kind === 'tool' || entry.kind === 'surface') && entry.invocationId === payload.invocationId)
+      if (!activeInvocation && !instanceStateCall) {
+        throw new RuntimeSupervisorError('PLUGIN_CAPABILITY_STALE')
+      }
+      const signal = activeInvocation?.controller.signal ?? instance.controller.signal
+      const assertCurrent = (): void => {
+        if (instance !== this.instance || instance.draining || instance.controller.signal.aborted || signal.aborted
+          || instanceStateCall && (this.health.state !== 'starting' || Boolean(instance.hello))
+          || activeInvocation && (instance.pending.get(activeInvocation.requestId) !== activeInvocation
+            || Date.now() >= activeInvocation.deadline)) {
+          throw new RuntimeSupervisorError('PLUGIN_CAPABILITY_STALE')
+        }
+      }
+      assertCurrent()
       result = this.onCapabilityRequest
         ? await this.onCapabilityRequest({
           capability: payload.capability,
           input: payload.input,
           invocationId: payload.invocationId,
-          moduleId: activeInvocation?.invocationId === payload.invocationId ? activeInvocation.moduleId ?? null : null,
+          moduleId: activeInvocation?.moduleId ?? null,
           sessionId: activeInvocation?.sessionId ?? null,
           projectId: activeInvocation?.projectId ?? null,
           runId: activeInvocation?.runId ?? null,
@@ -555,18 +667,34 @@ export class PluginRuntimeSupervisor {
           pluginId: instance.snapshot.pluginId,
           pluginVersion: instance.snapshot.pluginVersion,
           packageHash: instance.snapshot.packageHash,
+          epoch: instance.epoch,
+          deadline: activeInvocation?.deadline ?? null,
+          signal,
+          assertCurrent,
         })
         : { ok: false, code: 'PLUGIN_CAPABILITY_NOT_AVAILABLE', message: '宿主未注册该能力', retryable: false }
-    } catch {
-      result = { ok: false, code: 'PLUGIN_CAPABILITY_FAILED', message: '宿主能力调用失败', retryable: false }
+      assertCurrent()
+    } catch (error) {
+      result = {
+        ok: false,
+        code: error instanceof RuntimeSupervisorError ? error.code : 'PLUGIN_CAPABILITY_FAILED',
+        message: '宿主能力调用失败',
+        retryable: false,
+      }
     }
-    this.send(instance, {
-      protocolVersion: 1,
-      kind: 'response',
-      requestId,
-      ok: true,
-      value: result,
-    })
+    if (instance !== this.instance) return
+    try {
+      this.send(instance, {
+        protocolVersion: 2,
+        kind: 'response',
+        requestId,
+        ok: true,
+        value: result,
+      })
+    } catch {
+      this.fail(instance, 'PLUGIN_RUNTIME_PROCESS_ERROR')
+      this.kill(instance)
+    }
   }
 
   /** 进程退出时拒绝所有未完成调用；只要不是宿主主动 stop 都标记失败。 */
@@ -574,9 +702,10 @@ export class PluginRuntimeSupervisor {
     if (instance !== this.instance) return
     const wasDraining = instance.draining
     const codeName = code === null ? 'unknown' : String(code)
+    instance.controller.abort()
+    this.clearCancelled(instance)
     for (const pending of instance.pending.values()) {
-      clearTimeout(pending.timer)
-      pending.removeAbort?.()
+      this.releasePending(pending)
       pending.reject(new RuntimeSupervisorError('PLUGIN_RUNTIME_EXITED'))
     }
     instance.pending.clear()
@@ -597,16 +726,32 @@ export class PluginRuntimeSupervisor {
   private fail(instance: RuntimeInstance, errorCode: string): void {
     if (instance !== this.instance) return
     instance.healthy = false
+    instance.controller.abort()
+    this.clearCancelled(instance)
+    if (instance.startupTimer) clearTimeout(instance.startupTimer)
     this.health = { pluginId: instance.snapshot.pluginId, state: 'failed', epoch: instance.epoch, errorCode }
     const error = new RuntimeSupervisorError(errorCode)
     instance.helloReject?.(error)
     instance.helloReject = undefined
     for (const pending of instance.pending.values()) {
-      clearTimeout(pending.timer)
-      pending.removeAbort?.()
+      this.releasePending(pending)
       pending.reject(error)
     }
     instance.pending.clear()
+  }
+
+  /** 实例终止时取消所有确认计时器，避免旧实例干扰下一代运行。 */
+  private clearCancelled(instance: RuntimeInstance): void {
+    for (const timer of instance.cancelled.values()) clearTimeout(timer)
+    instance.cancelled.clear()
+  }
+
+  /** 终态立即撤销能力租约，不依赖子进程及时响应取消。 */
+  private releasePending(pending: PendingRequest): void {
+    clearTimeout(pending.timer)
+    clearTimeout(pending.deadlineTimer)
+    pending.removeAbort?.()
+    pending.controller.abort()
   }
 
   /** 只向当前有效实例发送 kill，丢失 exit 时仍由健康状态阻断调用。 */

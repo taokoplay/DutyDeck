@@ -9,6 +9,11 @@ export function setModuleRuntimeManager(manager: ModuleRuntimeManager | undefine
   runtimeManager = manager
 }
 
+/** 插件专属逐次审批名单独立于通用权限模式。 */
+export function getModuleRuntimeApprovalToolNames(moduleIds: readonly string[]): string[] {
+  return runtimeManager?.approvalToolNames(moduleIds) ?? []
+}
+
 /** 返回当前 manager，供目录与 Surface IPC 复用。 */
 export function getModuleRuntimeManager(): ModuleRuntimeManager | undefined {
   return runtimeManager
@@ -24,6 +29,7 @@ export async function buildModuleRuntimeAgentTools(input: {
   sessionId: string
   projectId: string | null
   runId: string
+  resolveRun?: () => { runId: string; signal: AbortSignal }
   settingsRevision?: number
   settings?: Record<string, unknown>
   deadline?: number
@@ -36,6 +42,7 @@ export async function buildModuleRuntimeAgentTools(input: {
       sessionId: input.sessionId,
       projectId: input.projectId,
       runId: input.runId,
+      resolveRun: input.resolveRun,
       settingsRevision: input.settingsRevision ?? 1,
       settings: structuredClone(input.settings ?? {}),
       deadline: input.deadline ?? Date.now() + 10 * 60_000,

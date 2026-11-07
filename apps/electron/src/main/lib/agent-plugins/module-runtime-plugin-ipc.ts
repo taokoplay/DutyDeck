@@ -1,3 +1,5 @@
+import { isPluginModuleAttached } from './plugin-session-access'
+import { validatePluginPreview } from './plugin-validation-catalog'
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import {
   MODULE_RUNTIME_PLUGIN_IPC_CHANNELS,
@@ -11,6 +13,8 @@ import {
   type OpenModuleRuntimeSurfaceInput,
   type OpenModuleRuntimeSurfaceResult,
 } from '@dutydeck/shared'
+import { isPluginCapabilityId } from '@dutydeck/plugin-sdk'
+import { getAgentWorkspace } from '../agent-workspace-manager'
 import type { ModuleRuntimeManager } from './module-runtime-manager'
 import type { ModuleRuntimePluginService } from './module-runtime-plugin-service'
 
@@ -32,7 +36,11 @@ function snapshotView(snapshot: ReturnType<ModuleRuntimePluginService['snapshot'
       packageHash: plugin.packageHash,
       ...(plugin.keyId ? { keyId: plugin.keyId } : {}),
       enabled: plugin.enabled,
+      executionBlock: plugin.executionBlock,
       installedAt: plugin.installedAt,
+      management: plugin.management,
+      grant: plugin.grant ?? null,
+      settings: plugin.settings,
     })),
   }
 }
@@ -73,7 +81,7 @@ export function registerModuleRuntimePluginIpc(options: ModuleRuntimePluginIpcOp
   void service.initialize().then(publishChanged).catch(() => undefined)
   ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.GET, async (): Promise<ModuleRuntimePluginSnapshotView> => {
     await service.initialize()
-    return snapshotView(service.snapshot())
+    return snapshotView(await service.validatedSnapshot())
   })
   ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.PREVIEW, async (): Promise<ModuleRuntimePluginPreviewView | null> => {
     await service.initialize()
@@ -82,7 +90,7 @@ export function registerModuleRuntimePluginIpc(options: ModuleRuntimePluginIpcOp
       : await dialog.showOpenDialog({ title: '选择 DutyDeck 可执行模块插件', properties: ['openFile'], filters: [{ name: 'DutyDeck 插件包', extensions: ['ddplugin'] }] })
         .then(result => result.canceled ? null : result.filePaths[0] ?? null)
     if (!selected) return null
-    return service.preview(selected)
+    return validatePluginPreview(service.preview(selected))
   })
   ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.INSTALL, async (_event, token: unknown, trustedKeyId: unknown) => {
     assertToken(token)
@@ -102,6 +110,40 @@ export function registerModuleRuntimePluginIpc(options: ModuleRuntimePluginIpcOp
     }
     await service.initialize()
     const snapshot = snapshotView(await service.setEnabled(pluginId, enabled, Number(expectedRevision)))
+    publishChanged()
+    return snapshot
+  })
+  ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.CONFIGURE_SETTINGS, async (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('PLUGIN_SETTINGS_INVALID')
+    const record = input as Record<string, unknown>
+    assertId(record.pluginId)
+    if (!record.values || typeof record.values !== 'object' || Array.isArray(record.values)
+      || !Number.isSafeInteger(record.expectedRevision) || !Number.isSafeInteger(record.expectedSettingsRevision)) throw new Error('PLUGIN_SETTINGS_INVALID')
+    await service.initialize()
+    const snapshot = snapshotView(await service.configureSettings(record.pluginId, record.values as Record<string, unknown>, Number(record.expectedRevision), Number(record.expectedSettingsRevision)))
+    publishChanged()
+    return snapshot
+  })
+  ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.AUTHORIZE, async (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('PLUGIN_GRANT_INPUT_INVALID')
+    const record = input as Record<string, unknown>
+    assertId(record.pluginId)
+    if (!Array.isArray(record.capabilities) || !record.capabilities.every(isPluginCapabilityId)
+      || !Array.isArray(record.workspaceIds) || record.workspaceIds.length > 256
+      || !record.workspaceIds.every(id => typeof id === 'string' && getAgentWorkspace(id))
+      || !Number.isSafeInteger(record.expectedRevision) || !Number.isSafeInteger(record.expectedGrantRevision)) {
+      throw new Error('PLUGIN_GRANT_INPUT_INVALID')
+    }
+    await service.initialize()
+    const snapshot = snapshotView(await service.authorize(record.pluginId, record.capabilities, record.workspaceIds as string[], Number(record.expectedRevision), Number(record.expectedGrantRevision)))
+    publishChanged()
+    return snapshot
+  })
+  ipcMain.handle(MODULE_RUNTIME_PLUGIN_IPC_CHANNELS.REVOKE, async (_event, pluginId: unknown, expectedGrantRevision: unknown) => {
+    assertId(pluginId)
+    if (!Number.isSafeInteger(expectedGrantRevision)) throw new Error('PLUGIN_GRANT_INPUT_INVALID')
+    await service.initialize()
+    const snapshot = snapshotView(await service.revoke(pluginId, Number(expectedGrantRevision)))
     publishChanged()
     return snapshot
   })
@@ -132,7 +174,9 @@ export function registerModuleRuntimePluginIpc(options: ModuleRuntimePluginIpcOp
     options.requireVisibleSession(input.sessionId)
     const surface = manager.getSurface(input.surfaceId, input.moduleId)
     if (!surface) throw new Error('PLUGIN_SURFACE_ENTRY_MISSING')
-    const enabled = options.getSessionPolicy(input.sessionId).enabledModuleIds.includes(input.moduleId)
+    const policy = options.getSessionPolicy(input.sessionId)
+    if (policy.disabledModuleIds.includes(input.moduleId)) throw new Error('PLUGIN_CAPABILITY_STALE')
+    const enabled = isPluginModuleAttached({ moduleId: input.moduleId, moduleVersion: surface.pluginVersion, packageHash: surface.packageHash }, policy)
     const opened = manager.openSurface({
       surfaceId: input.surfaceId,
       moduleId: input.moduleId,

@@ -70,6 +70,7 @@ export function resolveActiveModuleIds(
     if (!module || (!explicitIds.has(moduleId) && module.activation !== 'session-toggle')) return false
     if (!explicitIds.has(moduleId)) {
       const binding = input.policy.moduleBindings?.find((candidate) => candidate.moduleId === moduleId)
+      if (!binding && module.runtimeKind === 'module-runtime') return false
       if (binding && (binding.moduleVersion !== module.version || binding.packageHash !== module.packageHash)) return false
     }
     return true
@@ -113,7 +114,7 @@ export function listRuntimeModules(): readonly AgentModuleManifest[] {
  * 返回本轮不得自动发现的专业 Skill；共享 Skill 只要由已选模块提供即可保留。
  * @param activeModuleIds 本轮解析成功的模块集合。
  * @param catalog 宿主目录快照，测试可注入；不扫描插件磁盘。
- * @param explicitSkillSlugs 内部任务由宿主核验的显式 Skill 配置，不能从普通消息转交。
+ * @param explicitSkillSlugs 宿主为共享工具入口或内部任务核验的 Skill 可见性，不能从普通消息转交。
  * @returns 应从 Pi 资源目录及显式 Skill 展开中排除的 slug。
  */
 export function getInactiveModuleSkillSlugs(
@@ -183,7 +184,7 @@ export function resolveActiveModuleContext(
     if (sessionEnabledIds.has(moduleId) && !explicitIds.has(moduleId) && module.activation !== 'session-toggle') continue
     if (sessionEnabledIds.has(moduleId) && !explicitIds.has(moduleId)) {
       const binding = input.policy.moduleBindings?.find((candidate) => candidate.moduleId === moduleId)
-      if (binding && (binding.moduleVersion !== module.version || binding.packageHash !== module.packageHash)) {
+      if ((!binding && module.runtimeKind === 'module-runtime') || (binding && (binding.moduleVersion !== module.version || binding.packageHash !== module.packageHash))) {
         unavailable.push({ moduleId, reason: 'AGENT_MODULE_IDENTITY_CHANGED' })
         continue
       }

@@ -11,6 +11,7 @@ import { assertPiExactContinuation, assertPiContinuationMessages, type PiResumeC
 import { installCanvasMediaSampleLifecycle } from './pi-canvas-media-samples'
 import { installPiAttachmentPathProjection } from './pi-attachment-path-projection'
 import { installPiImageRequestPolicy } from './pi-image-request-policy'
+import { composePiCustomTools } from './pi-tool-registry'
 import { installVisualTaskContextLifecycle } from './pi-visual-task-context'
 import type { VisualTaskContextPolicy } from '../visual-production/context-contract'
 import type { DataRootPathSnapshot } from '../data-root-reference'
@@ -1722,7 +1723,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
       let pendingTerminalResult: SDKMessage | undefined
       /** 当前压缩是否紧随一个成功完成的主 Agent turn。 */
       let completedAgentTurnPendingCompaction = false
-      const customTools = input.toolMode === 'server-ops-read' || input.toolMode === 'server-ops-write'
+      const customTools = composePiCustomTools(input.toolMode === 'server-ops-read' || input.toolMode === 'server-ops-write'
         ? wrapCustomToolDefinitions(input.customTools, input.canUseTool, input.toolMode)
         : [
         buildCurrentSessionCompactionTool(
@@ -1739,7 +1740,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         ),
         ...buildPromaProductToolDefinitions(sdk, input.canUseTool),
         ...wrapCustomToolDefinitions(input.customTools, input.canUseTool),
-      ]
+      ])
 
       const settingsManager = sdk.SettingsManager.inMemory({
         // 使用 Pi SDK 原生压缩策略：

@@ -14,7 +14,7 @@ function manifest() {
     description: 'echo',
     license: 'MIT',
     profile: 'module-runtime',
-    compatibility: { hostApi: '^1.0.0', runtimeProtocol: 1, platforms: ['darwin'], architectures: ['arm64'] },
+    compatibility: { hostApi: '^1.0.0', runtimeProtocol: 2, platforms: ['darwin'], architectures: ['arm64'] },
     runtime: { entry: 'runtime/main.mjs', format: 'module-esm' },
     modules: [{
       id: 'assistant', displayName: 'Echo', description: 'echo', icon: 'package', activation: 'session-toggle',

@@ -16,7 +16,7 @@ function manifest(pluginId: string, agentName = 'plugin_acme_echo_inspect') {
     profile: 'module-runtime',
     compatibility: {
       hostApi: '^1.0.0',
-      runtimeProtocol: 1,
+      runtimeProtocol: 2,
       platforms: ['darwin'],
       architectures: ['arm64'],
     },

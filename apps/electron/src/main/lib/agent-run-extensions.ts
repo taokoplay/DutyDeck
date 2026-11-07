@@ -1,3 +1,4 @@
+import type { AgentRunIdentity } from './agent-run-identity'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { DesignJobRecord, ImageGenerationModelSnapshot } from '@dutydeck/shared'
 import type { ResolveImageGenerationRoute } from './image-generation-runtime'
@@ -26,6 +27,8 @@ export interface TrustedImageParameters {
  * 不经过 IPC、会话 JSONL 或全局工具配置持久化。
  */
 export interface AgentRunExtensions {
+  /** 准备出的插件工具只在编排器准入后绑定真实运行代次，不接受 renderer 传入身份。 */
+  bindPluginRun?: (identity: AgentRunIdentity) => void
   /** 仅普通交互运行的准备器签发；内部受限工具/策略不可被通用恢复入口重新构造。 */
   exactRecoveryEligible?: boolean
   /** 精确恢复服务签发的运行及 artifact 身份，不接受普通发送 IPC 的对应字段。 */
@@ -38,7 +41,7 @@ export interface AgentRunExtensions {
   piCustomTools?: ToolDefinition[]
   /** 本次运行的 Workspace Skills 暴露策略；默认 workspace，内部受限运行可显式禁用。 */
   skillsMode?: 'workspace' | 'disabled'
-  /** 宿主内部任务已核验的显式 Skill 配置；只影响 Skill 加载，不授予任何专业工具。 */
+  /** 宿主已核验的 Skill 可见性（共享工具入口或内部任务）；不强制加载正文，不授予专业工具，也不重启禁用的 Skills。 */
   explicitSkillSlugs?: readonly string[]
   /** 本次运行允许的完整工具名；缺失时保持普通 Agent 权限行为。 */
   allowedToolNames?: readonly string[]

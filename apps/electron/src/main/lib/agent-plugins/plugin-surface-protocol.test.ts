@@ -17,7 +17,7 @@ describe('Given plugin Surface protocol', () => {
       const parsed = parsePluginManifestV3({
         formatVersion: 3, apiVersion: '1.0.0', id: 'acme.echo', publisherId: 'acme', version: '1.0.0',
         displayName: 'Echo', description: 'echo', license: 'MIT', profile: 'module-runtime',
-        compatibility: { hostApi: '^1.0.0', runtimeProtocol: 1, platforms: ['darwin'], architectures: ['arm64'] },
+        compatibility: { hostApi: '^1.0.0', runtimeProtocol: 2, platforms: ['darwin'], architectures: ['arm64'] },
         runtime: { entry: 'runtime/main.mjs', format: 'module-esm' },
         modules: [{
           id: 'assistant', displayName: 'Echo', description: 'echo', icon: 'package', activation: 'session-toggle',

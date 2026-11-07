@@ -1,3 +1,4 @@
+import { createPluginRunBinding } from './agent-plugins/plugin-run-binding'
 import { isExactRecoveryEligible } from './agent-recovery-context'
 import { parseVisualProductionReferences } from '@dutydeck/shared'
 import { createProductionVisualProductionAccess } from './visual-production/integration'
@@ -139,7 +140,8 @@ import {
   type CanvasNodeReferenceResolver,
 } from './design/canvas-node-reference-resolver'
 import { getCanvasToolProviderRuntime } from './design/canvas-document-ipc'
-import { buildModuleRuntimeAgentTools } from './agent-plugins/module-runtime-bridge'
+import { buildModuleRuntimeAgentTools, getModuleRuntimeApprovalToolNames } from './agent-plugins/module-runtime-bridge'
+import { composePluginApprovalPolicy } from './agent-plugins/plugin-runtime-policy'
 import { createUnavailableMediaToolRun, getMediaToolProviderRuntime } from './media/media-tool-runtime'
 import type { CanvasToolRunContext } from './design/canvas-tool-provider'
 import { openAuthorizedAgentMediaSource } from './design/design-session-bridge'
@@ -254,18 +256,22 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
   const visualSelected = activeModuleIds.includes('visual-production')
   if (!sessionMeta || !isEligibleUserMediaAgent(sessionMeta) || !isInteractiveUserRun) return prepared
   /** V3 runtime 只在当前普通运行确有激活模块时启动；其它来源保留原能力边界。 */
+  const pluginRun = createPluginRunBinding(input.sessionId, listRuntimeModules()
+    .filter(module => activeModuleIds.includes(module.id) && Boolean(module.packageHash))
+    .map(module => ({ moduleId: module.id, moduleVersion: module.version, packageHash: module.packageHash!, explicit: input.moduleIds?.includes(module.id) === true })))
   const moduleRuntimeTools = await buildModuleRuntimeAgentTools({
     sdk: await import('@earendil-works/pi-coding-agent'),
     moduleIds: activeModuleIds,
     sessionId: input.sessionId,
     projectId: sessionMeta.workspaceId ?? null,
-    runId: `${input.sessionId}:${'startedAt' in input && input.startedAt != null ? input.startedAt : Date.now()}`,
+    runId: 'unbound',
+    resolveRun: pluginRun.current,
   })
   /** 媒体能力独立于画布初始化；项目身份只取自主进程会话。 */
   const mediaRuntime = getMediaToolProviderRuntime()
   const toolContext: CanvasToolRunContext | undefined = sessionMeta.workspaceId ? {
     mediaOnly: !canvasSelected,
-    ...(!canvasSelected && !visualSelected ? { mediaToolScope: 'generation' as const } : {}),
+    ...(!canvasSelected && !visualSelected ? { mediaToolScope: 'standalone' as const } : {}),
     projectId: sessionMeta.workspaceId,
     sessionId: input.sessionId,
     runStartedAt: 'startedAt' in input && input.startedAt != null ? input.startedAt : Date.now(),
@@ -280,10 +286,24 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
   const canvasRun = !toolContext ? createUnavailableMediaToolRun('MEDIA_PROJECT_REQUIRED')
     : canvasSelected ? runtime?.createRun(toolContext) ?? createUnavailableMediaToolRun('MEDIA_SERVICE_UNAVAILABLE')
       : mediaRuntime?.createRun(toolContext) ?? createUnavailableMediaToolRun('MEDIA_SERVICE_UNAVAILABLE')
+  /** 只有真实注册且允许调用的媒体工具，才能签发对应 Skill 的自然发现权限。 */
+  const mediaSkillGrants = [
+    { toolName: 'media_list_models', slug: 'media-models' },
+    { toolName: 'media_discover_workflows', slug: 'comfyui-workflows' },
+  ].filter(({ toolName }) => canvasRun.piCustomTools.some(tool => tool.name === toolName)
+    && canvasRun.allowedToolNames.includes(toolName)).map(({ slug }) => slug)
   return {
     ...prepared,
     extensions: {
       ...prepared.extensions,
+      bindPluginRun: identity => {
+        prepared.extensions.bindPluginRun?.(identity)
+        pluginRun.bind(identity)
+      },
+      /** 不伪造用户选择，不强制展开正文，也不重新启用被禁用的 Skill。 */
+      ...(mediaSkillGrants.length ? {
+        explicitSkillSlugs: [...new Set([...(prepared.extensions.explicitSkillSlugs ?? []), ...mediaSkillGrants])],
+      } : {}),
       systemPromptAppend: [prepared.extensions.systemPromptAppend, canvasRun.systemPromptAppend]
         .filter((section): section is string => Boolean(section?.trim()))
         .join('\n\n'),
@@ -293,9 +313,13 @@ export async function prepareAgentRun<T extends AgentSendInput | AgentQueueMessa
       singleApprovalToolNames: [
         ...(prepared.extensions.singleApprovalToolNames ?? []),
         ...canvasRun.singleApprovalToolNames,
+        ...getModuleRuntimeApprovalToolNames(activeModuleIds),
       ],
       /** 用户保存的媒体授权策略随同工具进入运行，避免普通 Agent 丢失自主权限。 */
-      ...(canvasRun.toolApprovalPolicy ? { toolApprovalPolicy: canvasRun.toolApprovalPolicy } : {}),
+      toolApprovalPolicy: composePluginApprovalPolicy(getModuleRuntimeApprovalToolNames(activeModuleIds), [
+        { toolNames: prepared.extensions.singleApprovalToolNames ?? [], toolApprovalPolicy: prepared.extensions.toolApprovalPolicy },
+        { toolNames: canvasRun.singleApprovalToolNames, toolApprovalPolicy: canvasRun.toolApprovalPolicy },
+      ]),
       allowedToolNamesMode: canvasRun.allowedToolNamesMode,
       readOnlyToolNames: [...(prepared.extensions.readOnlyToolNames ?? []), ...(canvasRun.readOnlyToolNames ?? [])],
       ...(canvasRun.evaluateCompletion ? { evaluateCompletion: async (signal: AbortSignal) => {

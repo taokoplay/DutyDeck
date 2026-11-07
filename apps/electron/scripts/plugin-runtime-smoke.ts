@@ -28,7 +28,36 @@ async function main(): Promise<void> {
   const packagePath = join(temp, 'runtime-fixture.ddplugin')
   const { createPluginPackage } = await import('@dutydeck/plugin-kit/package')
   const { collectPluginSource } = await import('@dutydeck/plugin-kit/filesystem')
-  const packageBytes = createPluginPackage(collectPluginSource(fixture))
+  const files = collectPluginSource(fixture)
+  const manifest = JSON.parse(Buffer.from(files.get('plugin.json')!).toString())
+  manifest.surfaces[0].methods.push('writeState', 'writeArtifact')
+  manifest.capabilities.push('artifact.read', 'artifact.write')
+  files.set('plugin.json', Buffer.from(JSON.stringify(manifest)))
+  // 只改临时打包内容：验证 activate 等待状态 RPC，以及工具级状态使用独立 invocation。
+  files.set('runtime/fixture-base.mjs', files.get('runtime/main.mjs')!)
+  files.set('runtime/main.mjs', new TextEncoder().encode(`
+    import base from './fixture-base.mjs'
+    export default {
+      async activate(context) {
+        const before = await context.state.readRecord('smoke-counter')
+        if (before !== null && before.value !== 1) throw new Error('fixture state must be empty or the previous smoke value')
+        await base.activate({ ...context, tools: { handle(id, handler) {
+          context.tools.handle(id, async (input, call) => {
+            const record = await call.state.readRecord('smoke-counter')
+            await call.state.write('smoke-counter', (record?.value ?? 0) + 1, { schemaVersion: 1, expectedRevision: record?.revision })
+            return await handler(input, call)
+          })
+        } } })
+        context.surfaces.handle('workspace', 'writeState', async (input, call) => {
+          return call.state.write(input.key, { committed: true }, { schemaVersion: 1 })
+        })
+        context.surfaces.handle('workspace', 'writeArtifact', async (input, call) => {
+          return call.capabilities.request('artifact.write', { artifactId: input.key, schemaVersion: 1, value: { committed: true } })
+        })
+      }
+    }
+  `))
+  const packageBytes = createPluginPackage(files)
   const { writeFileSync } = await import('node:fs')
   writeFileSync(packagePath, packageBytes)
   const electron = process.env.PROMA_ELECTRON_PATH ?? join(process.cwd(), 'node_modules', '.bin', 'electron')

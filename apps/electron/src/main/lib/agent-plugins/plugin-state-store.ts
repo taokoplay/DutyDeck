@@ -1,7 +1,9 @@
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { acquireMediaFileLock } from '../media/media-file-lock'
-import { readJsonFileSafe, writeJsonFileAtomic } from '../safe-file'
+import { readJsonFileReadonly, writeJsonFileAtomicSecure } from '../safe-file'
+
+const STATE_RECORD_MAX_BYTES = 1024 * 1024
 
 /** 一条插件私有状态记录。 */
 export interface PluginStateRecord<T = unknown> {
@@ -14,8 +16,8 @@ export interface PluginStateRecord<T = unknown> {
 function isStateRecord(value: unknown): value is PluginStateRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const record = value as Record<string, unknown>
-  return Number.isSafeInteger(record.schemaVersion)
-    && Number.isSafeInteger(record.revision)
+  return Number.isSafeInteger(record.schemaVersion) && Number(record.schemaVersion) >= 1
+    && Number.isSafeInteger(record.revision) && Number(record.revision) >= 1
     && Object.hasOwn(record, 'value')
 }
 
@@ -33,11 +35,11 @@ export class PluginStateStore {
   /** 读取指定 schema 的插件状态，不存在时返回 null。 */
   read<T = unknown>(pluginId: string, key: string, schemaVersion: number): PluginStateRecord<T> | null {
     const path = this.path(pluginId, key, schemaVersion)
-    return readJsonFileSafe<PluginStateRecord<T>>(path, {
-      validate: isStateRecord as (value: unknown) => value is PluginStateRecord<T>,
-      maxBytes: 1024 * 1024,
-      secureRecovery: true,
-    })
+    // 只读能力不能提升备份写回磁盘；主文件损坏时保留备份，等待显式恢复。
+    const stored = readJsonFileReadonly(path, { validate: isStateRecord, description: '插件状态', maxBytes: STATE_RECORD_MAX_BYTES })
+    if (!stored) return null
+    if (stored.schemaVersion !== schemaVersion) throw new Error('PLUGIN_STATE_SCHEMA_MISMATCH')
+    return stored as PluginStateRecord<T>
   }
 
   /** 使用 revision CAS 原子写入；省略 expectedRevision 时只允许新记录。 */
@@ -47,10 +49,12 @@ export class PluginStateStore {
     schemaVersion: number,
     value: T,
     expectedRevision?: number,
+    assertCurrent: () => void = () => undefined,
   ): { revision: number } {
     const encoded = JSON.stringify(value)
-    if (Buffer.byteLength(encoded) > 1024 * 1024) throw new Error('PLUGIN_STATE_TOO_LARGE')
+    if (Buffer.byteLength(encoded) > STATE_RECORD_MAX_BYTES) throw new Error('PLUGIN_STATE_TOO_LARGE')
     const path = this.path(pluginId, key, schemaVersion)
+    assertCurrent()
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
     const release = acquireMediaFileLock(`${path}.lock`)
     try {
@@ -59,11 +63,14 @@ export class PluginStateStore {
         throw new Error('PLUGIN_STATE_REVISION_CONFLICT')
       }
       const revision = (current?.revision ?? 0) + 1
-      writeJsonFileAtomic(path, {
-        schemaVersion,
-        revision,
-        value: JSON.parse(encoded) as unknown,
-      } satisfies PluginStateRecord)
+      const record: PluginStateRecord = { schemaVersion, revision, value: JSON.parse(encoded) as unknown }
+      // 与安全writer实际落盘格式一致，包含外层记录与缩进；成功写入必须能按读取预算读回。
+      if (Buffer.byteLength(JSON.stringify(record, null, 2)) > STATE_RECORD_MAX_BYTES) throw new Error('PLUGIN_STATE_TOO_LARGE')
+      assertCurrent()
+      writeJsonFileAtomicSecure(path, record, {
+        beforeRename: assertCurrent,
+        ...(current ? { priorBackup: { filePath: `${path}.bak`, data: current } } : {}),
+      })
       return { revision }
     } finally {
       release()

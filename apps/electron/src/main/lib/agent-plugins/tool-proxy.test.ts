@@ -15,7 +15,7 @@ describe('Given plugin tool proxy', () => {
       description: 'echo',
       license: 'MIT',
       profile: 'module-runtime',
-      compatibility: { hostApi: '^1.0.0', runtimeProtocol: 1, platforms: ['darwin'], architectures: ['arm64'] },
+      compatibility: { hostApi: '^1.0.0', runtimeProtocol: 2, platforms: ['darwin'], architectures: ['arm64'] },
       runtime: { entry: 'runtime/main.mjs', format: 'module-esm' },
       modules: [{
         id: 'assistant', displayName: 'Echo', description: 'echo', icon: 'package', activation: 'session-toggle',
@@ -33,25 +33,38 @@ describe('Given plugin tool proxy', () => {
     if (!parsed.ok) throw new Error('fixture')
     const registry = new ContributionRegistry()
     registry.register({ manifest: parsed.value, packageHash: 'a'.repeat(64) })
+    const run = new AbortController()
+    let observedRun = ''
+    let observedSignal: AbortSignal | undefined
     let observedModule = ''
+    let observedDeadline = 0
     const tools = buildPluginToolProxies({
       sdk: { defineTool: tool => tool },
       contributions: registry.toolsForModules(['acme.echo.assistant']),
       invokeTool: async (input) => {
+        observedRun = input.context.runId
+        observedSignal = input.signal
         observedModule = input.context.moduleId
+        observedDeadline = input.context.deadline
         return { echoed: input.input }
       },
       context: {
         sessionId: 'session-1',
         projectId: 'project-1',
         runId: 'run-1',
+        resolveRun: () => ({ runId: 'session-1:8', signal: run.signal }),
         settingsRevision: 1,
         settings: {},
         deadline: Date.now() + 5000,
       },
     })
+    const before = Date.now()
     const result = await tools[0]!.execute('call-1', { value: 'hello' }, undefined, undefined, {} as never)
+    expect(observedRun).toBe('session-1:8')
+    expect(observedSignal).toBeDefined()
     expect(observedModule).toBe('acme.echo.assistant')
+    expect(observedDeadline).toBeGreaterThanOrEqual(before + 1000)
+    expect(observedDeadline).toBeLessThanOrEqual(Date.now() + 1000)
     expect(result.details).toEqual({ echoed: { value: 'hello' } })
     expect(result.content[0]).toEqual({ type: 'text', text: JSON.stringify({ echoed: { value: 'hello' } }) })
   })

@@ -11,6 +11,7 @@ export interface TrustedPluginCaller {
   runId: string
   invocationId: string
   grants: readonly PluginCapabilityId[]
+  signal: AbortSignal
   /** 每次副作用提交前复核运行、版本和模块租约。 */
   assertCurrent: () => void
 }
@@ -103,24 +104,23 @@ export class CapabilityBroker {
     }
     const provider = this.providers.get(request.capability)
     if (!provider) throw new PluginCapabilityBrokerError('PLUGIN_CAPABILITY_NOT_AVAILABLE')
-    try {
-      caller.assertCurrent()
-    } catch {
-      throw new PluginCapabilityBrokerError('PLUGIN_CAPABILITY_STALE')
+    const assertCurrent = (): void => {
+      try {
+        if (caller.signal.aborted) throw new Error('cancelled')
+        caller.assertCurrent()
+      } catch {
+        throw new PluginCapabilityBrokerError('PLUGIN_CAPABILITY_STALE')
+      }
     }
+    assertCurrent()
     assertBudget(request.input, this.maxInputBytes, 'PLUGIN_CAPABILITY_INPUT_TOO_LARGE')
-    const controller = new AbortController()
     let result: unknown
     try {
-      result = await provider({ request: request.input, caller, signal: controller.signal })
+      result = await provider({ request: request.input, caller: { ...caller, assertCurrent }, signal: caller.signal })
     } catch (error) {
       throw new PluginCapabilityBrokerError(stableProviderErrorCode(error) ?? 'PLUGIN_CAPABILITY_FAILED')
     }
-    try {
-      caller.assertCurrent()
-    } catch {
-      throw new PluginCapabilityBrokerError('PLUGIN_CAPABILITY_STALE')
-    }
+    assertCurrent()
     assertBudget(result, this.maxOutputBytes, 'PLUGIN_CAPABILITY_RESULT_TOO_LARGE')
     return result
   }

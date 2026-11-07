@@ -28,6 +28,7 @@ function resolveEntryState(module: AgentModuleManifest, policy: AgentSessionModu
   if (policy.disabledModuleIds.includes(module.id)) return { state: 'available', reason: '模块已被当前会话禁用，请重新接入' }
   if (policy.enabledModuleIds.includes(module.id)) {
     const binding = policy.moduleBindings?.find((candidate) => candidate.moduleId === module.id)
+    if (!binding && module.runtimeKind === 'module-runtime') return { state: 'available', reason: '可执行插件缺少精确包绑定，请重新接入' }
     if (binding && (binding.moduleVersion !== module.version || binding.packageHash !== module.packageHash)) {
       return { state: 'available', reason: '模块版本或包身份已变化，请重新接入' }
     }

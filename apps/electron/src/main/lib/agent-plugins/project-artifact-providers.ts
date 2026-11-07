@@ -7,7 +7,7 @@ import { acquireMediaFileLock } from '../media/media-file-lock'
 import {
   ensureDirectoryDurable,
   readAtomicFileState,
-  readJsonFileSafe,
+  readJsonFileReadonly,
   writeJsonFileAtomicSecure,
 } from '../safe-file'
 import type { HostCapabilityProvider, TrustedPluginCaller } from './capability-broker'
@@ -138,10 +138,9 @@ function isStoredProjectArtifact(
   caller: TrustedPluginCaller,
   project: PluginProjectIdentity,
   artifactId: string,
-  schemaVersion: number,
 ): value is StoredProjectArtifact {
   if (!isRecord(value)) return false
-  return value.schemaVersion === schemaVersion
+  return Number.isSafeInteger(value.schemaVersion) && Number(value.schemaVersion) >= 1
     && Number.isSafeInteger(value.revision)
     && Number(value.revision) >= 1
     && value.pluginId === caller.pluginId
@@ -199,6 +198,7 @@ function migrateArtifactInput(value: unknown): ProjectArtifactMigrationInput {
     || !Object.hasOwn(value, 'value')) {
     throw new Error('PLUGIN_ARTIFACT_MIGRATION_INPUT_INVALID')
   }
+  if (Number(value.toSchemaVersion) < Number(value.fromSchemaVersion)) throw new Error('PLUGIN_ARTIFACT_DOWNGRADE_UNSUPPORTED')
   return {
     artifactId: value.artifactId,
     fromSchemaVersion: Number(value.fromSchemaVersion),
@@ -215,16 +215,18 @@ function readArtifact(
   artifactId: string,
   schemaVersion: number,
   maxBytes: number,
+  mismatchCode = 'PLUGIN_ARTIFACT_SCHEMA_MISMATCH',
 ): ProjectArtifactReadResult | null {
   const directory = artifactDirectory(caller, project.projectRoot, false)
   if (!directory) return null
   const path = artifactPath(directory, artifactId)
-  const stored = readJsonFileSafe(path, {
-    validate: (value): value is StoredProjectArtifact => isStoredProjectArtifact(value, caller, project, artifactId, schemaVersion),
-    maxBytes,
-    secureRecovery: true,
+  // 读取能力绝不恢复/提升tmp或bak：业务schema不匹配不是文件损坏，更不能借只读请求写盘。
+  const stored = readJsonFileReadonly(path, {
+    validate: (value): value is StoredProjectArtifact => isStoredProjectArtifact(value, caller, project, artifactId),
+    description: '插件项目产物', maxBytes,
   })
   if (!stored) return null
+  if (stored.schemaVersion !== schemaVersion) throw new Error(mismatchCode)
   return {
     schemaVersion: stored.schemaVersion,
     revision: stored.revision,
@@ -310,12 +312,13 @@ export function createProjectArtifactCapabilityProviders(
     ['artifact.write', async ({ caller, request }) => {
       const input = writeArtifactInput(request)
       const project = resolveCallerProject(caller, options.resolveProject)
+      caller.assertCurrent()
       const directory = artifactDirectory(caller, project.projectRoot, true)
       if (!directory) throw new Error('PLUGIN_ARTIFACT_DIRECTORY_UNAVAILABLE')
       const path = artifactPath(directory, input.artifactId)
       return withArtifactLock(directory, input.artifactId, (): ProjectArtifactWriteResult => {
         const state = readAtomicFileState(path)
-        const current = readArtifact(caller, project, input.artifactId, input.schemaVersion, maxArtifactBytes)
+        const current = readArtifact(caller, project, input.artifactId, input.schemaVersion, maxArtifactBytes, 'PLUGIN_ARTIFACT_REVISION_CONFLICT')
         if (state === null && input.expectedRevision !== undefined && input.expectedRevision !== 0) {
           throw new Error('PLUGIN_ARTIFACT_REVISION_CONFLICT')
         }
@@ -324,6 +327,7 @@ export function createProjectArtifactCapabilityProviders(
         }
         const revision = (current?.revision ?? 0) + 1
         const updatedAt = Date.now()
+        caller.assertCurrent()
         writeJsonFileAtomicSecure(path, {
           schemaVersion: input.schemaVersion,
           revision,
@@ -334,6 +338,7 @@ export function createProjectArtifactCapabilityProviders(
           value: input.value,
         } satisfies StoredProjectArtifact, {
           expectedDestination: state ? { kind: 'state', state } : { kind: 'missing' },
+          beforeRename: caller.assertCurrent,
         })
         return { revision, updatedAt }
       })
@@ -352,12 +357,25 @@ export function createProjectArtifactCapabilityProviders(
           input.artifactId,
           input.fromSchemaVersion,
           maxArtifactBytes,
+          'PLUGIN_ARTIFACT_REVISION_CONFLICT',
         )
         if (!state || !current || current.revision !== input.expectedRevision) {
           throw new Error('PLUGIN_ARTIFACT_REVISION_CONFLICT')
         }
+        // 迁移前快照先提交到独立只增文件；主写入失败可保留，不作为自动恢复候选。
+        const backupPath = `${path}.schema-${current.schemaVersion}-revision-${current.revision}.bak`
+        const backupRecord: StoredProjectArtifact = { ...current, pluginId: caller.pluginId, artifactId: input.artifactId, workspaceId: project.workspaceId }
+        const existingBackup = readJsonFileReadonly(backupPath, {
+          validate: (value): value is StoredProjectArtifact => isStoredProjectArtifact(value, caller, project, input.artifactId),
+          description: '插件迁移备份', maxBytes: maxArtifactBytes,
+        })
+        if (existingBackup && (existingBackup.schemaVersion !== current.schemaVersion || existingBackup.revision !== current.revision
+          || existingBackup.updatedAt !== current.updatedAt || JSON.stringify(existingBackup.value) !== JSON.stringify(current.value))) throw new Error('PLUGIN_ARTIFACT_BACKUP_CONFLICT')
+        caller.assertCurrent()
+        if (!existingBackup) writeJsonFileAtomicSecure(backupPath, backupRecord, { expectedDestination: { kind: 'missing' }, beforeRename: caller.assertCurrent })
         const revision = current.revision + 1
         const updatedAt = Date.now()
+        caller.assertCurrent()
         writeJsonFileAtomicSecure(path, {
           schemaVersion: input.toSchemaVersion,
           revision,
@@ -368,6 +386,7 @@ export function createProjectArtifactCapabilityProviders(
           value: input.value,
         } satisfies StoredProjectArtifact, {
           expectedDestination: { kind: 'state', state },
+          beforeRename: caller.assertCurrent,
         })
         return { revision, updatedAt }
       })

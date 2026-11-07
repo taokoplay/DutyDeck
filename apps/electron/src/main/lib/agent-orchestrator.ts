@@ -1351,6 +1351,9 @@ export class AgentOrchestrator {
       return
     }
 
+    // 插件工具在准备阶段没有运行身份；只有真实准入后才签发本轮 lease。
+    extensions.bindPluginRun?.(runIdentity)
+
     // 2.1 所有同步预检通过后，才通知外部本轮已进入可见运行态。
     callbacks.onRunStarted?.({
       startedAt: streamStartedAt,

@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url'
 import { resolve, sep } from 'node:path'
 import {
   createPluginRuntimeSession,
+  createPluginStateApi,
   type PluginCapabilityId,
   type PluginRuntimeCommand,
   type PluginRuntimeDefinition,
@@ -80,6 +81,7 @@ function createTransport(parentPort: RuntimeMessagePort): {
     removeAbort: () => void
   }>()
   const commandListeners: Array<(command: PluginRuntimeCommand) => void> = []
+  const earlyCommands: PluginRuntimeCommand[] = []
   const nextRequestId = (): string => `runtime-${++counter}`
   parentPort.on('message', (event) => {
     const message = unwrap(event.data)
@@ -106,8 +108,15 @@ function createTransport(parentPort: RuntimeMessagePort): {
         : 'PLUGIN_CAPABILITY_FAILED'))
       return
     }
-    for (const listener of commandListeners) listener(message as PluginRuntimeCommand)
+    if (commandListeners.length === 0) {
+      if (earlyCommands.length >= 8) throw new Error('PLUGIN_RUNTIME_COMMAND_QUEUE_LIMIT')
+      earlyCommands.push(message as PluginRuntimeCommand)
+    } else {
+      for (const listener of commandListeners) listener(message as PluginRuntimeCommand)
+    }
   })
+  // activate 可以读取自身状态，必须在等待 activate 完成前接收能力响应。
+  parentPort.start?.()
   return {
     transport: {
       postMessage(message) {
@@ -117,6 +126,7 @@ function createTransport(parentPort: RuntimeMessagePort): {
     nextRequestId,
     onCommand(listener) {
       commandListeners.push(listener)
+      for (const command of earlyCommands.splice(0)) listener(command)
     },
     capability(capability, input, invocationId, signal) {
       if (signal.aborted) return Promise.reject(new Error('PLUGIN_TOOL_CANCELLED'))
@@ -127,7 +137,7 @@ function createTransport(parentPort: RuntimeMessagePort): {
           const entry = pending.get(requestId)
           if (!entry) return
           pending.delete(requestId)
-          signal.removeEventListener('abort', entry.removeAbort)
+          entry.removeAbort()
           reject(new CapabilityCallTimeoutError())
         }, 60_000)
         abort = (): void => {
@@ -139,7 +149,7 @@ function createTransport(parentPort: RuntimeMessagePort): {
         pending.set(requestId, { resolve: resolvePromise, reject, timer, signal, removeAbort })
         signal.addEventListener('abort', abort, { once: true })
         parentPort.postMessage({
-          protocolVersion: 1,
+          protocolVersion: 2,
           kind: 'request',
           requestId,
           method: 'capability.invoke',
@@ -177,21 +187,10 @@ async function run(parentPort: RuntimeMessagePort, runtimeEntry: string, package
     settings: metadata.snapshot.settings,
     uuid: messages.nextRequestId,
     invokeCapability: messages.capability,
-    state: {
-      read: async <T>(key: string): Promise<T | null> => {
-        const controller = new AbortController()
-        return await messages.capability('plugin.state.read', { key }, 'plugin-instance', controller.signal) as T | null
-      },
-      write: async <T>(key: string, value: T, options: { schemaVersion: number; expectedRevision?: number }) => {
-        const controller = new AbortController()
-        return await messages.capability('plugin.state.write', {
-          key,
-          value,
-          schemaVersion: options.schemaVersion,
-          ...(options.expectedRevision === undefined ? {} : { expectedRevision: options.expectedRevision }),
-        }, 'plugin-instance', controller.signal) as { revision: number }
-      },
-    },
+    state: createPluginStateApi({
+      request: async <T>(capability: PluginCapabilityId, input: unknown): Promise<T> =>
+        await messages.capability(capability, input, 'plugin-instance', new AbortController().signal) as T,
+    }),
   })
   messages.onCommand((command) => {
     void session.handleCommand(command).then(() => {
@@ -205,7 +204,7 @@ async function run(parentPort: RuntimeMessagePort, runtimeEntry: string, package
         setImmediate(() => process.exit(1))
       }
       parentPort.postMessage({
-        protocolVersion: 1,
+        protocolVersion: 2,
         kind: 'response',
         requestId: command.requestId,
         ok: false,

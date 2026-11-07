@@ -52,7 +52,7 @@ export function createCoreCapabilityProviders(
     }],
     ['plugin.state.write', async ({ caller, request }) => {
       const input = stateInput(request, true)
-      return options.state.write(caller.pluginId, input.key, input.schemaVersion, input.value, input.expectedRevision)
+      return options.state.write(caller.pluginId, input.key, input.schemaVersion, input.value, input.expectedRevision, caller.assertCurrent)
     }],
   ])
 }

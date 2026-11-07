@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CapabilityBroker, type TrustedPluginCaller } from './capability-broker'
@@ -17,12 +17,60 @@ function caller(overrides: Partial<TrustedPluginCaller> = {}): TrustedPluginCall
     runId: 'run-1',
     invocationId: 'invoke-1',
     grants: ['artifact.read', 'artifact.write', 'artifact.migrate', 'project.files.read'],
-    assertCurrent: () => undefined,
+    signal: new AbortController().signal, assertCurrent: () => undefined,
     ...overrides,
   }
 }
 
 describe('Given 宿主项目产物能力', () => {
+  test('When 迁移备份提交后授权失效 Then 保留快照和旧主文件，重试可复用同一快照', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dutydeck-artifact-migration-failure-'))
+    try {
+      const broker = new CapabilityBroker({ providers: createProjectArtifactCapabilityProviders({ resolveProject: () => ({ workspaceId: 'workspace-1', projectRoot: root }) }) })
+      const path = join(root, '.dutydeck/plugin-artifacts/dutydeck.interaction-design-pilot/workspace.json')
+      const backup = `${path}.schema-1-revision-1.bak`
+      await broker.invoke(caller(), { capability: 'artifact.write', input: { artifactId: 'workspace', schemaVersion: 1, value: 'before' } })
+      const before = readFileSync(path, 'utf8')
+      const migration = { capability: 'artifact.migrate' as const, input: { artifactId: 'workspace', fromSchemaVersion: 1, toSchemaVersion: 2, expectedRevision: 1, value: 'after' } }
+      await expect(broker.invoke(caller({ assertCurrent: () => { if (existsSync(backup)) throw new Error('PLUGIN_CAPABILITY_STALE') } }), migration)).rejects.toThrow('PLUGIN_CAPABILITY_STALE')
+      const snapshot = readFileSync(backup, 'utf8')
+      expect(JSON.parse(snapshot)).toEqual(JSON.parse(before))
+      expect(readFileSync(path, 'utf8')).toBe(before)
+      await expect(broker.invoke(caller(), migration)).resolves.toMatchObject({ revision: 2 })
+      expect(readFileSync(backup, 'utf8')).toBe(snapshot)
+      await broker.invoke(caller(), { capability: 'artifact.write', input: { artifactId: 'workspace', schemaVersion: 2, expectedRevision: 2, value: 'later' } })
+      expect(readFileSync(backup, 'utf8')).toBe(snapshot)
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  })
+  test('When 旧插件读取新schema且存在旧备份 Then 明确不匹配且不修改主文件/备份', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dutydeck-artifact-schema-'))
+    try {
+      const broker = new CapabilityBroker({ providers: createProjectArtifactCapabilityProviders({ resolveProject: () => ({ workspaceId: 'workspace-1', projectRoot: root }) }) })
+      const path = join(root, '.dutydeck/plugin-artifacts/dutydeck.interaction-design-pilot/workspace.json')
+      await broker.invoke(caller(), { capability: 'artifact.write', input: { artifactId: 'workspace', schemaVersion: 1, value: 'old' } })
+      const old = readFileSync(path, 'utf8')
+      await broker.invoke(caller(), { capability: 'artifact.migrate', input: { artifactId: 'workspace', fromSchemaVersion: 1, toSchemaVersion: 2, expectedRevision: 1, value: 'new' } })
+      const current = readFileSync(path, 'utf8')
+      // 迁移备份与普通恢复候选分离，后续写入不能覆盖迁移前快照。
+      expect(JSON.parse(readFileSync(`${path}.schema-1-revision-1.bak`, 'utf8'))).toMatchObject({ schemaVersion: 1, value: 'old', revision: 1 })
+      writeFileSync(`${path}.bak`, old)
+      await expect(broker.invoke(caller(), { capability: 'artifact.read', input: { artifactId: 'workspace', schemaVersion: 1 } })).rejects.toThrow('PLUGIN_ARTIFACT_SCHEMA_MISMATCH')
+      expect(readFileSync(path, 'utf8')).toBe(current)
+      expect(readFileSync(`${path}.bak`, 'utf8')).toBe(old)
+      await expect(broker.invoke(caller(), { capability: 'artifact.read', input: { artifactId: 'workspace', schemaVersion: 2 } })).resolves.toMatchObject({ value: 'new', revision: 2 })
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  })
+  test('When 未提供逆向迁移合同却要求schema降级 Then 拒绝且保留原始数据', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dutydeck-artifact-downgrade-'))
+    try {
+      const broker = new CapabilityBroker({ providers: createProjectArtifactCapabilityProviders({ resolveProject: () => ({ workspaceId: 'workspace-1', projectRoot: root }) }) })
+      await broker.invoke(caller(), { capability: 'artifact.write', input: { artifactId: 'workspace', schemaVersion: 2, value: 'current' } })
+      const path = join(root, '.dutydeck/plugin-artifacts/dutydeck.interaction-design-pilot/workspace.json')
+      const before = readFileSync(path, 'utf8')
+      await expect(broker.invoke(caller(), { capability: 'artifact.migrate', input: { artifactId: 'workspace', fromSchemaVersion: 2, toSchemaVersion: 1, expectedRevision: 1, value: 'lost' } })).rejects.toThrow('PLUGIN_ARTIFACT_DOWNGRADE_UNSUPPORTED')
+      expect(readFileSync(path, 'utf8')).toBe(before)
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  })
   test('When 插件首次写入 Then 创建项目内隔离产物并返回 revision 1', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dutydeck-plugin-artifact-'))
     try {
@@ -197,4 +245,33 @@ describe('Given 宿主项目产物能力', () => {
       rmSync(root, { recursive: true, force: true })
     }
   })
+})
+
+describe('Given 写入前授权再次复核', () => {
+  for (const capability of ['artifact.write', 'artifact.migrate'] as const) {
+    test(`When ${capability} 解析项目期间租约撤销 Then 不提交文件`, async () => {
+      const root = mkdtempSync(join(tmpdir(), 'dutydeck-plugin-revoke-'))
+      try {
+        let valid = true
+        let revoke = false
+        const broker = new CapabilityBroker({ providers: createProjectArtifactCapabilityProviders({
+          resolveProject: () => {
+            if (revoke) valid = false
+            return { workspaceId: 'workspace-1', projectRoot: root }
+          },
+        }) })
+        await broker.invoke(caller(), { capability: 'artifact.write', input: { artifactId: 'workspace', schemaVersion: 1, value: 'before' } })
+        const path = join(root, '.dutydeck/plugin-artifacts/dutydeck.interaction-design-pilot/workspace.json')
+        const before = readFileSync(path, 'utf8')
+        revoke = true
+        await expect(broker.invoke(caller({ assertCurrent: () => { if (!valid) throw new Error('PLUGIN_CAPABILITY_STALE') } }), {
+          capability,
+          input: capability === 'artifact.write'
+            ? { artifactId: 'workspace', schemaVersion: 1, expectedRevision: 1, value: 'after' }
+            : { artifactId: 'workspace', fromSchemaVersion: 1, toSchemaVersion: 2, expectedRevision: 1, value: 'after' },
+        })).rejects.toThrow('PLUGIN_CAPABILITY_STALE')
+        expect(readFileSync(path, 'utf8')).toBe(before)
+      } finally { rmSync(root, { recursive: true, force: true }) }
+    })
+  }
 })

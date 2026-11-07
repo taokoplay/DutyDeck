@@ -1,3 +1,4 @@
+import { createPluginCapabilityHandler, createPluginExecutionAccess, type PluginExecutionAuthority } from './lib/agent-plugins/plugin-execution-authority'
 import { registerComputerUseIpc } from './lib/computer-use/ipc'
 import { computerUseService } from './lib/computer-use/runtime'
 import { registerNetworkIpc, assertNetworkSender } from './lib/network-ipc'
@@ -536,15 +537,20 @@ import { createBuiltinAgentPluginRegistrations } from './lib/agent-modules/built
 import { ModuleRuntimeManager } from './lib/agent-plugins/module-runtime-manager'
 import { ModuleRuntimePluginService } from './lib/agent-plugins/module-runtime-plugin-service'
 import { registerModuleRuntimePluginIpc } from './lib/agent-plugins/module-runtime-plugin-ipc'
+import { registerPluginMarketIpc } from './lib/agent-plugins/plugin-market-ipc'
+import { registerStaticPluginImportIpc } from './lib/agent-plugins/import/plugin-static-import-ipc'
+import { StaticPluginImportService } from './lib/agent-plugins/import/mcp-importer'
+import { PluginImportReceiptStore } from './lib/agent-plugins/import/import-receipt-store'
+import { createContentPluginMutationGuard } from './lib/agent-plugins/content-plugin-mutation-guard'
+import { PluginCatalogService } from './lib/agent-plugins/catalog/catalog-service'
 import { PluginRuntimeSupervisor } from './lib/agent-plugins/runtime-supervisor'
 import { setModuleRuntimeManager } from './lib/agent-plugins/module-runtime-bridge'
-import { CapabilityBroker, PluginCapabilityBrokerError } from './lib/agent-plugins/capability-broker'
+import { CapabilityBroker } from './lib/agent-plugins/capability-broker'
 import { createCoreCapabilityProviders } from './lib/agent-plugins/core-capability-providers'
 import { createProjectArtifactCapabilityProviders } from './lib/agent-plugins/project-artifact-providers'
 import { registerPluginPackageImportIpc } from './lib/agent-plugins/plugin-package-import-ipc'
 import { resolvePluginRuntimeMode } from './lib/agent-plugins/plugin-runtime-mode'
 import { PluginStateStore } from './lib/agent-plugins/plugin-state-store'
-import { isPluginCapabilityId } from '@dutydeck/plugin-sdk'
 import { createVisualProductionBuiltinPluginAdapter } from './lib/visual-production/plugin-adapter'
 import { AgentRunJournalStore } from './lib/agent-run-journal'
 import { registerAgentRunRecoveryIpc } from './lib/agent-run-recovery-ipc'
@@ -574,7 +580,7 @@ import { MediaAssetService } from './lib/media/media-asset-service'
 import { MediaAssetThumbnailService } from './lib/media/media-asset-thumbnail-service'
 import { MediaSourceService } from './lib/media/media-source-service'
 import { createMediaDeliveryInspectionService } from './lib/media/media-delivery-inspection-service'
-import { assertMediaProbeAvailable } from './lib/media/media-file-probe'
+import { createComfyUIOutputPreflightAdapter } from './lib/media/comfyui-preflight'
 import { createMediaToolRun } from './lib/media/media-tool-provider'
 import { registerMediaToolProviderRuntime } from './lib/media/media-tool-runtime'
 import { registerMediaGenerationPreviewIpc } from './lib/media/media-generation-preview-ipc'
@@ -3464,11 +3470,10 @@ export function registerIpcHandlers(): void {
   /** Renderer 缩略图读取复用统一素材引用校验和现有受管图片缩略图。 */
   const mediaAssetThumbnails = new MediaAssetThumbnailService({ assets: mediaAssets, thumbnails: designAssetService })
   /** 懒初始化晚于数据根 gate；每个副作用阶段都重新核对项目和发起主体。 */
+  const comfyUIOutputPreflight = createComfyUIOutputPreflightAdapter()
   const mediaRuns = new MediaRunService({
     configuration: getMediaConfiguration(),
-    assertOutputSupport: async (workflow) => {
-      if (workflow.outputs.some((output) => output.mediaType !== 'image')) await assertMediaProbeAvailable()
-    },
+    assertOutputSupport: comfyUIOutputPreflight.assertOutputSupport,
     getRunsDirectory: (projectId) => join(designPathResolver.resolve(projectId).designRoot, 'media', 'runs'),
     runWorkspaceWrite: (projectId, effect) => workspaceOperationGuard.runWorkspaceWrite(projectId, effect),
     authorize: (projectId, operation, origin) => {
@@ -7138,8 +7143,25 @@ export function registerIpcHandlers(): void {
    * V3 manager 与 V1/V2 目录并存；目录为空时不会启动任何插件进程。
    * 安装事务后续通过同一 manager 注册，renderer 不直接指定 runtime 路径。
    */
+  const pluginAuthority: PluginExecutionAuthority = {
+    grants: () => runtimePluginService.grants,
+    getSession: getAgentSessionMeta,
+    getPolicy: getAgentSessionModulePolicy,
+    getActiveRunGeneration: sessionId => listActiveAgentSessionSnapshots().find(item => item.sessionId === sessionId)?.runGeneration,
+  }
   agentModuleRuntimeManager = new ModuleRuntimeManager({
     moduleRegistry: agentPluginRegistry,
+    approveSurface: async (plugin, call, input, signal) => {
+      if (signal.aborted) return false
+      const result = await dialog.showMessageBox({
+        type: 'warning', title: '确认插件面板调用',
+        message: `允许 ${plugin.manifest.displayName} 执行 ${call.method}？`,
+        detail: `插件：${plugin.manifest.id}@${plugin.manifest.version}\n包：${plugin.packageHash}\n会话：${call.sessionId}\n工作区：${call.projectId ?? '无'}\n${call.readOnly ? '宿主管理能力仅允许读取。' : '可使用已授予的宿主能力。'}\n这会执行已信任的 Node 插件代码；进程隔离不是系统资源沙箱。\n参数：${JSON.stringify(input).slice(0, 2000)}`,
+        buttons: ['拒绝', '允许本次'], defaultId: 0, cancelId: 0, noLink: true,
+      })
+      return !signal.aborted && result.response === 1
+    },
+    assertExecutionAccess: createPluginExecutionAccess(pluginAuthority),
     createSupervisor: (plugin) => {
       /** 从当前可见会话解析唯一项目，插件不能提交工作区 ID 或项目路径。 */
       const resolvePluginProject = (sessionId: string): { workspaceId: string; projectRoot: string } | undefined => {
@@ -7160,43 +7182,9 @@ export function registerIpcHandlers(): void {
           ...createProjectArtifactCapabilityProviders({ resolveProject: resolvePluginProject }),
         ]),
       })
-      let supervisor: PluginRuntimeSupervisor
-      supervisor = new PluginRuntimeSupervisor({
-        onCapabilityRequest: async (request) => {
-          if (!isPluginCapabilityId(request.capability)) {
-            return { ok: false, code: 'PLUGIN_CAPABILITY_NOT_AVAILABLE', message: '宿主不支持该能力', retryable: false }
-          }
-          if (request.readOnly && ['project.files.write', 'plugin.state.write', 'artifact.write', 'job.runtime', 'agent.delegate', 'http.request', 'remote.execute', 'media.execute', 'media.export'].includes(request.capability)) {
-            return { ok: false, code: 'PLUGIN_CAPABILITY_READ_ONLY', message: '当前 Surface 为只读模式', retryable: false }
-          }
-          const caller = {
-            pluginId: request.pluginId,
-            pluginVersion: request.pluginVersion,
-            packageHash: request.packageHash,
-            moduleId: request.moduleId ?? plugin.manifest.modules[0]?.id ?? '',
-            sessionId: request.sessionId ?? '',
-            projectId: request.projectId,
-            runId: request.runId ?? 'plugin-instance',
-            invocationId: request.invocationId ?? 'plugin-instance',
-            grants: plugin.manifest.capabilities,
-            assertCurrent: () => {
-              const health = supervisor.listHealth()[0]
-              if (!health || health.state !== 'running') throw new Error('stale')
-            },
-          }
-          try {
-            return { ok: true, value: await broker.invoke(caller, { capability: request.capability, input: request.input }) }
-          } catch (error) {
-            return {
-              ok: false,
-              code: error instanceof PluginCapabilityBrokerError ? error.code : 'PLUGIN_CAPABILITY_FAILED',
-              message: '插件能力调用失败',
-              retryable: false,
-            }
-          }
-        },
+      return new PluginRuntimeSupervisor({
+        onCapabilityRequest: createPluginCapabilityHandler(plugin, broker, pluginAuthority),
       })
-      return supervisor
     },
     onModulesChanged: (modules, prompts) => setAgentModuleRuntimeCatalog(modules, prompts),
   })
@@ -7213,6 +7201,7 @@ export function registerIpcHandlers(): void {
     isBusy: () => hasActiveAgentSessions() || hasActiveAgentDataWrites(),
   })
   agentModuleRuntimePluginService = runtimePluginService
+  registerPluginMarketIpc(new PluginCatalogService({ root: join(getConfigDir(), 'plugin-market-cache') }))
   registerModuleRuntimePluginIpc({
     service: runtimePluginService,
     manager: agentModuleRuntimeManager,
@@ -7227,6 +7216,36 @@ export function registerIpcHandlers(): void {
   registerPluginPackageImportIpc({
     runtimeService: runtimePluginService,
     contentManager: contentPluginManager,
+  })
+  const staticImportService = new StaticPluginImportService({
+    // 生产配方必须经审查并带转换方签名后随版本登记；目录不能动态注入配方。
+    plans: [],
+    content: {
+      snapshot: () => contentPluginManager.service.snapshot(),
+      previewBytes: bytes => contentPluginManager.previewBytes(bytes),
+      install: (token, keyId) => contentPluginManager.install(token, keyId),
+      uninstall: (id, revision) => contentPluginManager.uninstall(id, revision),
+    },
+    receipts: new PluginImportReceiptStore(join(getConfigDir(), 'plugin-import-receipts')),
+    runContentMutation: createContentPluginMutationGuard(() => hasActiveAgentSessions() || hasActiveAgentDataWrites()),
+    assertWorkspaceCurrent: workspace => {
+      const current = getAgentWorkspace(workspace.id)
+      if (!current || current.slug !== workspace.slug) throw new Error('PLUGIN_IMPORT_WORKSPACE_CHANGED')
+      workspaceOperationGuard.assertWorkspaceWritable(workspace.id)
+    },
+    mcpOptions: { runWorkspaceSlugWrite: (slug, effect) => workspaceOperationGuard.runWorkspaceSlugWrite(slug, effect) },
+  })
+  registerStaticPluginImportIpc({
+    ipc: ipcMain, service: staticImportService,
+    isAuthorizedSender: event => {
+      const contents = getStoredMainWindow()?.webContents
+      return Boolean(contents && !contents.isDestroyed() && event.sender === contents && event.senderFrame === contents.mainFrame)
+    },
+    resolveWorkspace: id => {
+      const workspace = getAgentWorkspace(id)
+      if (!workspace) throw new Error('PLUGIN_IMPORT_WORKSPACE_INVALID')
+      return { id: workspace.id, slug: workspace.slug }
+    },
   })
   const host = new AgentPluginHost()
   agentPluginHost = host

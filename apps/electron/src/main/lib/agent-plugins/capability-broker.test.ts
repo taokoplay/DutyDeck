@@ -16,7 +16,7 @@ function caller(overrides: Partial<TrustedPluginCaller> = {}): TrustedPluginCall
     runId: 'run-1',
     invocationId: 'invocation-1',
     grants: ['project.files.read'],
-    assertCurrent: () => undefined,
+    signal: new AbortController().signal, assertCurrent: () => undefined,
     ...overrides,
   }
 }
@@ -89,5 +89,33 @@ describe('Given capability broker', () => {
       input: { relativePath: 'a.md' },
     })).resolves.toEqual({ content: 'ok' })
     expect(observed).toBe('invocation-1')
+  })
+})
+
+describe('Given 真实调用的取消信号', () => {
+  test('When 能力调用前已取消 Then 不进入 provider', async () => {
+    let calls = 0
+    const broker = new CapabilityBroker({ providers: new Map([['project.files.read', async () => { calls++; return {} }]]) })
+    const controller = new AbortController()
+    controller.abort()
+    await expect(broker.invoke(caller({ signal: controller.signal }), { capability: 'project.files.read', input: {} })).rejects.toThrow('PLUGIN_CAPABILITY_STALE')
+    expect(calls).toBe(0)
+  })
+
+  test('When provider 等待期间取消 Then 收到同一信号且迟到结果不返回', async () => {
+    const controller = new AbortController()
+    let observed: AbortSignal | undefined
+    let finish!: () => void
+    const gate = new Promise<void>(resolve => { finish = resolve })
+    const broker = new CapabilityBroker({ providers: new Map([['project.files.read', async ({ signal }) => {
+      observed = signal
+      await gate
+      return { content: 'late' }
+    }]]) })
+    const result = broker.invoke(caller({ signal: controller.signal }), { capability: 'project.files.read', input: {} }).catch((error: unknown) => error)
+    controller.abort()
+    finish()
+    expect(observed).toBe(controller.signal)
+    expect(await result).toMatchObject({ code: 'PLUGIN_CAPABILITY_STALE' })
   })
 })

@@ -6,6 +6,7 @@ export interface PluginToolProxyContext {
   sessionId: string
   projectId: string | null
   runId: string
+  resolveRun?: () => { runId: string; signal: AbortSignal }
   settingsRevision: number
   settings: Record<string, unknown>
   deadline: number
@@ -52,11 +53,15 @@ export function buildPluginToolProxies(input: BuildPluginToolProxiesInput): Tool
     },
     executionMode: tool.concurrencyKey ? 'sequential' : 'parallel',
     async execute(_toolCallId, params, signal) {
+      const run = input.context.resolveRun?.()
       const controller = new AbortController()
       const abort = (): void => controller.abort()
       if (signal?.aborted) controller.abort()
       else signal?.addEventListener('abort', abort, { once: true })
+      if (run?.signal.aborted) controller.abort()
+      else run?.signal.addEventListener('abort', abort, { once: true })
       try {
+        if (controller.signal.aborted) throw new Error('PLUGIN_CAPABILITY_STALE')
         const result = await input.invokeTool({
           toolId: tool.id,
           input: params,
@@ -64,10 +69,10 @@ export function buildPluginToolProxies(input: BuildPluginToolProxiesInput): Tool
             moduleId: tool.ownerModuleId,
             sessionId: input.context.sessionId,
             projectId: input.context.projectId,
-            runId: input.context.runId,
+            runId: run?.runId ?? input.context.runId,
             settingsRevision: input.context.settingsRevision,
             settings: input.context.settings,
-            deadline: input.context.deadline,
+            deadline: Math.min(input.context.deadline, Date.now() + tool.timeoutMs),
           },
           signal: controller.signal,
         })
@@ -78,6 +83,8 @@ export function buildPluginToolProxies(input: BuildPluginToolProxiesInput): Tool
         }
       } finally {
         signal?.removeEventListener('abort', abort)
+        run?.signal.removeEventListener('abort', abort)
+        controller.abort()
       }
     },
   }))
