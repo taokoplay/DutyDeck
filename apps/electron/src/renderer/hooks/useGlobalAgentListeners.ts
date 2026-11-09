@@ -1750,11 +1750,18 @@ export function useGlobalAgentListeners(): void {
           store.set(liveMessagesMapAtom, (prev) => {
             const map = new Map(prev)
             const current = map.get(sessionId) ?? []
-            const existingIndex = current.findIndex((message) => {
+            /** 匹配当前 delta 所属消息：UUID 与 run 起点同时一致。 */
+            const matchesDeltaMessage = (message: SDKMessage): boolean => {
               const record = message as unknown as Record<string, unknown>
               if (record.uuid !== deltaPayload.uuid) return false
               return deltaRunStartedAt == null || record._promaLiveRunStartedAt === deltaRunStartedAt
-            })
+            }
+            // Delta 几乎总是落在最后一条预览上；先查尾部，避免长会话每帧扫描整个数组。
+            const lastIndex = current.length - 1
+            const lastMessage = lastIndex >= 0 ? current[lastIndex] : undefined
+            const existingIndex = lastMessage && matchesDeltaMessage(lastMessage as SDKMessage)
+              ? lastIndex
+              : current.findIndex(matchesDeltaMessage)
             const existing = existingIndex >= 0 && current[existingIndex]?.type === 'assistant'
               ? current[existingIndex] as SDKAssistantMessage
               : createAssistantDeltaPreview(deltaPayload, {

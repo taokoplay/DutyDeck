@@ -74,6 +74,11 @@ import {
   agentPendingFilesAtomFamily,
   agentPendingMentionsAtomFamily,
   agentCanvasNodeReferencesAtomFamily,
+  agentMessageQueueAtomFamily,
+  agentSidePanelLayoutAtomFamily,
+  agentSessionComponentTabsAtomFamily,
+  agentSessionDraftSyncVersionAtomFamily,
+  agentSessionMessageQueueAtom,
   sessionPersistedPermissionModeAtom,
   sessionExistsAtom,
   automationGroupOrderAtom,
@@ -719,6 +724,7 @@ export function LeftSidebar({ width, noTransition }: LeftSidebarProps): React.Re
   const setStreamingStates = useSetAtom(agentStreamingStatesAtom)
   const setLiveMessagesMap = useSetAtom(liveMessagesMapAtom)
   const setSessionPendingFiles = useSetAtom(agentSessionPendingFilesAtom)
+  const setSessionMessageQueue = useSetAtom(agentSessionMessageQueueAtom)
   const setSessionPendingMentions = useSetAtom(agentSessionPendingMentionsAtom)
   const setSessionCanvasNodeReferences = useSetAtom(agentSessionCanvasNodeReferencesAtom)
   const setSessionViewStateMap = useSetAtom(sessionViewStateMapAtom)
@@ -797,6 +803,13 @@ export function LeftSidebar({ width, noTransition }: LeftSidebarProps): React.Re
     // 重型流式数据：streamingStates（累积 content + toolActivities）与 liveMessages（SDK 消息数组）
     setStreamingStates(deleteKey)
     setLiveMessagesMap(deleteKey)
+    // 待发送队列以空数组写回时自行删除 Map 条目，这里再清一次兜底空值残留。
+    setSessionMessageQueue((previous) => {
+      if (!previous.has(id)) return previous
+      const next = new Map(previous)
+      next.delete(id)
+      return next
+    })
     setSessionPendingMentions(deleteKey)
     setSessionCanvasNodeReferences(deleteKey)
 
@@ -823,11 +836,15 @@ export function LeftSidebar({ width, noTransition }: LeftSidebarProps): React.Re
     agentPendingMentionsAtomFamily.remove(id)
     agentCanvasNodeReferencesAtomFamily.remove(id)
     agentSidePanelOpenAtomFamily.remove(id)
+    agentMessageQueueAtomFamily.remove(id)
+    agentSidePanelLayoutAtomFamily.remove(id)
+    agentSessionComponentTabsAtomFamily.remove(id)
+    agentSessionDraftSyncVersionAtomFamily.remove(id)
     sessionPersistedPermissionModeAtom.remove(id)
     sessionExistsAtom.remove(id)
 
     clearPreviewCacheForSession(id)
-  }, [clearBrowserSessionState, setConvModels, setConvContextLength, setConvThinking, setConvParallel, setConvPromptId, setPreviewPanelOpen, setPreviewFile, setPreviewFiles, setPreviewContentRefreshVersion, setPreviewResolvedPaths, setDiffPanelTab, setDiffRefreshVersion, setDiffUnseen, setDiffUnseenFiles, setNonGitFileChanges, setFileChangesCurrentRun, setRunFileChanges, setDiffData, setAgentSidePanelOpenMap, setSessionChannelMap, setSessionModelMap, setSessionPathMap, setSessionViewStateMap, setStreamingStates, setLiveMessagesMap, setSessionPendingFiles, setSessionPendingMentions, setSessionCanvasNodeReferences, store])
+  }, [clearBrowserSessionState, setConvModels, setConvContextLength, setConvThinking, setConvParallel, setConvPromptId, setPreviewPanelOpen, setPreviewFile, setPreviewFiles, setPreviewContentRefreshVersion, setPreviewResolvedPaths, setDiffPanelTab, setDiffRefreshVersion, setDiffUnseen, setDiffUnseenFiles, setNonGitFileChanges, setFileChangesCurrentRun, setRunFileChanges, setDiffData, setAgentSidePanelOpenMap, setSessionChannelMap, setSessionModelMap, setSessionPathMap, setSessionViewStateMap, setStreamingStates, setLiveMessagesMap, setSessionPendingFiles, setSessionMessageQueue, setSessionPendingMentions, setSessionCanvasNodeReferences, store])
 
   const workspaceNameMap = React.useMemo(() => {
     const map = new Map<string, string>()
