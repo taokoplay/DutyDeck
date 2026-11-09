@@ -373,8 +373,11 @@ export type AgentViewStreamState = Pick<
   | 'outputTokens'
   | 'cacheReadTokens'
   | 'cacheCreationTokens'
+  | 'costUsd'
   | 'contextWindow'
   | 'contextUsageIsEstimated'
+  | 'thinkingEstimatedTokens'
+  | 'startedAt'
   | 'isCompacting'
 >
 
@@ -391,8 +394,11 @@ export function areAgentViewStreamStatesEqual(
     && previous.outputTokens === next.outputTokens
     && previous.cacheReadTokens === next.cacheReadTokens
     && previous.cacheCreationTokens === next.cacheCreationTokens
+    && previous.costUsd === next.costUsd
     && previous.contextWindow === next.contextWindow
     && previous.contextUsageIsEstimated === next.contextUsageIsEstimated
+    && previous.thinkingEstimatedTokens === next.thinkingEstimatedTokens
+    && previous.startedAt === next.startedAt
     && previous.isCompacting === next.isCompacting
 }
 
