@@ -33,8 +33,11 @@ export class ServerOpsReadScheduler {
   private disposed = false
   private validationTimer: ReturnType<typeof setInterval> | undefined
 
-  /** 注入单调时钟便于测试事件循环延迟；不依赖可调整的墙钟时间。 */
-  constructor(private readonly now: () => number = () => performance.now()) {}
+  /** 注入单调时钟与排队预算：生产使用 5 秒，测试可用短预算验证同一超时语义。 */
+  constructor(
+    private readonly now: () => number = () => performance.now(),
+    private readonly queueTimeoutMs: number = 5_000,
+  ) {}
 
   /** 入队或直接启动一次读取；同源串行且最多三个来源并行。 */
   run<T>(sourceId: string, execute: () => Promise<T>, options: ServerOpsScheduledReadOptions = {}): Promise<T> {
@@ -52,11 +55,11 @@ export class ServerOpsReadScheduler {
       return Promise.reject(new Error('SERVER_OPS_DATA_QUEUE_FULL'))
     }
     return new Promise<T>((resolve, reject) => {
-      /** 在队列内保留独立取消监听和五秒等待预算。 */
+      /** 在队列内保留独立取消监听和有界等待预算。 */
       const entry: PendingRead<unknown> = {
-        sourceId, ownerSessionId: options.ownerSessionId, deadlineAt: this.now() + 5_000,
+        sourceId, ownerSessionId: options.ownerSessionId, deadlineAt: this.now() + this.queueTimeoutMs,
         options, execute, resolve: (value) => resolve(value as T), reject,
-        timer: setTimeout(() => this.remove(entry, new Error('SERVER_OPS_DATA_QUEUE_TIMEOUT')), 5_000),
+        timer: setTimeout(() => this.remove(entry, new Error('SERVER_OPS_DATA_QUEUE_TIMEOUT')), this.queueTimeoutMs),
         onAbort: () => {
           try { this.check(options); this.remove(entry, new Error('SERVER_OPS_DATA_CANCELLED')) }
           catch (error) { this.remove(entry, error instanceof Error ? error : new Error('SERVER_OPS_DATA_CANCELLED')) }

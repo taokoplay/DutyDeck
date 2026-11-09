@@ -69,8 +69,9 @@ describe('运维读取队列', () => {
     await Promise.all([active, otherActive, ...queued])
   })
 
-  test('Given 三个源占满执行名额 When 等待超过五秒 Then 超时且从队列清理', async () => {
-    const scheduler = new ServerOpsReadScheduler()
+  test('Given 三个源占满执行名额 When 等待超过排队预算 Then 超时且从队列清理', async () => {
+    /** 注入 20ms 排队预算，验证同一超时路径而不必真实等待五秒。 */
+    const scheduler = new ServerOpsReadScheduler(undefined, 20)
     const holds = [deferred(), deferred(), deferred()]
     const active = holds.map((hold, index) => scheduler.run(`busy-${index}`, () => hold.promise))
     let executed = false
@@ -79,7 +80,7 @@ describe('运维读取队列', () => {
     holds.forEach((hold) => hold.resolve('done'))
     await Promise.all(active)
     expect(executed).toBe(false)
-  }, 7_000)
+  }, 1_000)
 
   test('Given 事件循环延误超时 timer When 槽位先释放 Then 出队仍按单调截止时间拒绝', async () => {
     let now = 0

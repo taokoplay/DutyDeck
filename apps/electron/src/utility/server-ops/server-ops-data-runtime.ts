@@ -1577,12 +1577,14 @@ export function runServerOpsDataRead(
   createChannel: ServerOpsDataChannelFactory,
   signal?: AbortSignal,
   createCancelChannel?: ServerOpsDataChannelFactory,
+  timeoutMs?: number,
 ): Promise<ServerOpsDataRuntimeOutput>
 export async function runServerOpsDataRead(
   input: ServerOpsDataRuntimeInput,
   createChannel: ServerOpsDataChannelFactory,
   signal?: AbortSignal,
   createCancelChannel: ServerOpsDataChannelFactory = createChannel,
+  timeoutMs = 15_000,
 ): Promise<ServerOpsDataRuntimeOutput> {
   if (input.engine !== 'mysql' && input.engine !== 'postgresql' && input.engine !== 'redis') throw new Error('SERVER_OPS_DATA_QUERY_ENGINE_UNSUPPORTED')
   if (signal?.aborted) throw new Error('SERVER_OPS_DATA_CANCELLED')
@@ -1592,7 +1594,7 @@ export async function runServerOpsDataRead(
   if (input.engine === 'mysql' && input.tlsMode === 'verify' && !isServerOpsMySqlTlsServerName(input.tlsServerName)) {
     throw new Error('SERVER_OPS_DATA_TLS_SERVER_NAME_REQUIRED')
   }
-  /** 全部连接尝试和查询共用一个时限；preferred 回退不能获得额外的 15 秒。 */
+  /** 全部连接尝试和查询共用一个时限；preferred 回退不能获得额外的一份预算。 */
   const controller = new AbortController()
   /** 记录主动超时与外部撤销的区别，避免向用户误报取消。 */
   let timedOut = false
@@ -1601,7 +1603,7 @@ export async function runServerOpsDataRead(
   /** 外部撤销同时覆盖通道建立、握手和查询。 */
   const releaseAbortBinding = bindServerOpsSqlQueryAbort(signal, () => { controller.abort() })
   /** 总时限从首次开通道前开始，贯穿 preferred 的第二次握手。 */
-  const timer = setTimeout(() => { timedOut = true; controller.abort() }, 15_000)
+  const timer = setTimeout(() => { timedOut = true; controller.abort() }, timeoutMs)
   /** 在驱动缺少终态事件时也保证读取按时结束。 */
   let rejectCancelled: (reason: Error) => void = () => undefined
   /** 提前绑定拒绝处理，避免等待通道时撤销产生未消费的 rejection。 */
@@ -1626,7 +1628,7 @@ export async function runServerOpsDataRead(
       activeChannel = channel
       return channel
     },
-    timeoutMs: 15_000,
+    timeoutMs,
     signal: controller.signal,
   }
   /** PostgreSQL 取消包使用独立通道；它不继承已触发的读取信号，并以短超时限制资源占用。 */

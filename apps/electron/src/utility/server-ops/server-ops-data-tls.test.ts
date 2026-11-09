@@ -215,7 +215,9 @@ describe('数据服务 TLS 协商边界', () => {
     }
   })
 
-  test('Given preferred 的首次握手耗时 When 回退后的连接继续等待 Then 两次尝试共用 15 秒总预算', async () => {
+  test('Given preferred 的首次握手耗时 When 回退后的连接继续等待 Then 两次尝试共用同一总预算', async () => {
+    /** 注入 2 秒总预算，验证两次连接共用同一时限而不必真实等待 15 秒。 */
+    const totalBudgetMs = 2_000
     /** 首次服务端延迟宣告无 TLS，使第二次连接只能使用剩余总时限。 */
     let connectionOrdinal = 0
     let openedChannels = 0
@@ -238,7 +240,7 @@ describe('数据服务 TLS 协商边界', () => {
             authPluginName: 'mysql_native_password',
             authCallback: (_auth, callback) => callback(),
           })
-        }, 4_000)
+        }, 600)
         return
       }
       if (ordinal !== 1) return
@@ -253,7 +255,7 @@ describe('数据服务 TLS 协商边界', () => {
           authPluginName: 'mysql_native_password',
           authCallback: (_auth, callback) => callback(),
         })
-      }, 3_000)
+      }, 400)
     }) as unknown as MySqlNoTlsFixtureServer
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const address = server._server.address()
@@ -266,17 +268,17 @@ describe('数据服务 TLS 协商边界', () => {
     })
     try {
       const startedAt = Date.now()
-      const result = await runServerOpsDataRead(tlsInput('preferred'), createChannel)
+      const result = await runServerOpsDataRead(tlsInput('preferred'), createChannel, undefined, undefined, totalBudgetMs)
       const elapsedMs = Date.now() - startedAt
       expect(result).toMatchObject({ capability: 'timeout' })
       expect(openedChannels).toBe(2)
-      /** 总时限允许事件循环调度余量，但绝不允许首次 3 秒后再获得完整 15 秒。 */
-      expect(elapsedMs).toBeGreaterThanOrEqual(14_000)
-      expect(elapsedMs).toBeLessThan(17_000)
+      /** 总时限允许事件循环调度余量，但绝不允许首次握手后再重新获得完整预算。 */
+      expect(elapsedMs).toBeGreaterThanOrEqual(totalBudgetMs - 100)
+      expect(elapsedMs).toBeLessThan(totalBudgetMs + 600)
     } finally {
       await new Promise<void>((resolve) => server.close(resolve))
     }
-  }, 20_000)
+  }, 6_000)
 
   test('Given Redis preferred When 读取 Then 在建立通道前拒绝不支持的协商模式', async () => {
     /** Redis 协议没有 STARTTLS 与 capability 协商，runtime 必须在副作用前拒绝该配置。 */

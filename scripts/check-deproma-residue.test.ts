@@ -3,6 +3,13 @@ import { collectProjectStorageResidues, collectResidues, FORBIDDEN_RESIDUES } fr
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
 
+/** 同一文件内的全仓扫描只做一次：两个断言共用结果，避免并行运行时重复 I/O 撞上默认 5 秒超时。 */
+let residuesPromise: ReturnType<typeof collectResidues> | undefined
+function sharedResidues(): ReturnType<typeof collectResidues> {
+  residuesPromise ??= collectResidues(ROOT)
+  return residuesPromise
+}
+
 describe('DutyDeck 去 Proma 残留检查', () => {
   test('Given 旧项目路径构造 When 审计运行时代码 Then 捕获跨行参数、路径数组与完整字面量', () => {
     /** 使用不同语法验证同一旧目录回归，不能依赖具体文件名白名单。 */
@@ -36,16 +43,16 @@ describe('DutyDeck 去 Proma 残留检查', () => {
   })
 
   test('Given 当前运行时源码 When 检查项目存储残留 Then 不存在绕过中央解析器的旧目录', async () => {
-    expect((await collectResidues(ROOT)).filter(finding => finding.reason.includes('运行时项目旧目录'))).toEqual([])
-  })
+    expect((await sharedResidues()).filter(finding => finding.reason.includes('运行时项目旧目录'))).toEqual([])
+  }, 30_000)
 
   test('固定用户可见残留规则全部清理', async () => {
-    const findings = await collectResidues(ROOT)
+    const findings = await sharedResidues()
     const fixedFindings = findings.filter((finding) =>
       FORBIDDEN_RESIDUES.some(([file, fragment]) => file === finding.file && fragment === finding.match),
     )
     expect(fixedFindings).toEqual([])
-  })
+  }, 30_000)
 
   test('兼容值仍保留在产品代码中', async () => {
     const paths = await Bun.file(`${ROOT}/apps/cli/package.json`).text()
