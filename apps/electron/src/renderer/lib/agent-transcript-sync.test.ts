@@ -134,3 +134,76 @@ test('Given rewind期间新run已结束 When 清理旧live Then 只删除操作�
   const old=entry(1).message; const current=entry(2).message
   expect(sync.discardTranscriptSnapshot([old,current],new Set([old]))).toEqual([current])
 })
+
+/** 带创建时间的记录：模拟真实持久化消息，用于判断页外实时的新旧关系。 */
+function timedEntry(id: number, base = 1_700_000_000_000): AgentTranscriptEntry {
+  const record = entry(id)
+  ;(record.message as { _createdAt?: number })._createdAt = base + id * 1000
+  return record
+}
+/** 带创建时间的尾部页；默认标记为存在更早历史（真实尾页的常态）。 */
+function timedPage(ids: number[], generation = 'g', hasBefore = true): AgentTranscriptPage {
+  const entries = ids.map((id) => timedEntry(id))
+  return {
+    ...page(ids, generation),
+    entries,
+    hasBefore,
+    before: { sessionId: 's', generation, offset: entries[0]?.offset ?? 0 },
+    after: { sessionId: 's', generation, offset: entries.at(-1)?.end ?? 0 },
+  }
+}
+/** 尾部页已确认的记录回执。 */
+function receiptsOf(target: AgentTranscriptPage): Array<{ uuid: string; offset: number }> {
+  return target.entries.map((item) => ({ uuid: item.recordId, offset: item.offset }))
+}
+
+describe('打开会话时的历史顺序', () => {
+  test('Given 尾部页只覆盖最近500条且live含更早页外缓冲 When 精确ACK后展示 Then 早期消息不倒挂到页尾', () => {
+    const tail = timedPage(Array.from({ length: 500 }, (_, i) => i + 300))
+    const live = Array.from({ length: 800 }, (_, i) => timedEntry(i).message)
+    const remaining = sync.acknowledgeTranscriptReceipts(live, receiptsOf(tail), tail)
+    const display = sync.selectTranscriptDisplay(bindTranscriptMessages(tail), remaining, tail)
+    expect(display.messages.map((message) => (message as { uuid?: string }).uuid))
+      .toEqual(Array.from({ length: 500 }, (_, i) => `m${i + 300}`))
+    expect(display.omitted).toBe(300)
+  })
+
+  test('Given 尾部页覆盖最近记录且live为运行中新消息 When 展示 Then 新消息仍追加在页尾', () => {
+    const tail = timedPage(Array.from({ length: 500 }, (_, i) => i))
+    const live = Array.from({ length: 50 }, (_, i) => timedEntry(i + 500).message)
+    const display = sync.selectTranscriptDisplay(bindTranscriptMessages(tail), live, tail)
+    expect((display.messages.at(-1) as { uuid?: string } | undefined)?.uuid).toBe('m549')
+  })
+
+  test('Given 两侧都缺创建时间 When 页外live无法判定新旧 Then 保持追加页尾的既有行为', () => {
+    const tail = page(Array.from({ length: 500 }, (_, i) => i + 300))
+    const live = Array.from({ length: 300 }, (_, i) => entry(i).message)
+    const display = sync.selectTranscriptDisplay(bindTranscriptMessages(tail), live, tail)
+    expect((display.messages.at(-1) as { uuid?: string } | undefined)?.uuid).toBe('m299')
+  })
+})
+
+describe('尾部页确认后的页外缓冲清理', () => {
+  test('Given 页外属于更早run且尾部页已读到文件尾 When 精确ACK Then 旧run缓冲被丢弃、当前run保留', () => {
+    const tail = timedPage([1, 2, 3])
+    const superseded = { ...timedEntry(0).message, _promaLiveRunGeneration: 1 } as SDKMessage
+    const current = { ...timedEntry(4).message, _promaLiveRunGeneration: 2 } as SDKMessage
+    const kept = sync.acknowledgeTranscriptReceipts([superseded, current], receiptsOf(tail), tail, { runGeneration: 2 })
+    expect(kept).toEqual([current])
+  })
+
+  test('Given 无run标记的旧格式消息或未完成消息 When 精确ACK Then 均不被丢弃', () => {
+    const tail = timedPage([1, 2, 3])
+    const legacy = timedEntry(9).message
+    const partial = { ...timedEntry(10).message, _partial: true, _promaLiveRunGeneration: 1 } as SDKMessage
+    const kept = sync.acknowledgeTranscriptReceipts([legacy, partial], receiptsOf(tail), tail, { runGeneration: 2 })
+    expect(kept).toEqual([legacy, partial])
+  })
+
+  test('Given 页面尚未确认读取到尾部 When 精确ACK Then 不据run标记删除页外缓冲', () => {
+    const head = timedPage([1, 2, 3], 'g', false)
+    const superseded = { ...timedEntry(0).message, _promaLiveRunGeneration: 1 } as SDKMessage
+    const kept = sync.acknowledgeTranscriptReceipts([superseded], receiptsOf(head), head, { runGeneration: 2 })
+    expect(kept).toEqual([superseded])
+  })
+})

@@ -548,6 +548,10 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   persistedSDKMessagesRef.current = persistedSDKMessages
   const messagesRequestIdRef = React.useRef(0)
   const messagesMutationVersionRef = React.useRef(0)
+  /** 本次加载周期的尾部补读次数；成功后归零，避免持续写入时无限重试。 */
+  const tailRetryCountRef = React.useRef(0)
+  /** 尾部补读触发器：用一次额外渲染重跑历史加载效应。 */
+  const [tailReloadTick, setTailReloadTick] = React.useState(0)
   const setStreamingStates = useSetAtom(agentStreamingStatesAtom)
   // 只订阅输入区/工具栏需要的低频流状态。
   const streamViewState = useAtomValue(agentSessionInputStreamStateAtomFamily(sessionId))
@@ -1305,6 +1309,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     if (isSessionSwitch) {
       loadingSessionIdRef.current = sessionId
       historyNavigationRef.current++
+      tailRetryCountRef.current = 0
       readingMessagesRef.current = null
       setHistoryLoading(false)
       setReadingMessages(null)
@@ -1328,6 +1333,8 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     const requestId = ++messagesRequestIdRef.current
     const requestMutationVersion = messagesMutationVersionRef.current
     let cancelled = false
+    /** 补读定时器；效应重跑或卸载时必须取消，避免重复请求。 */
+    let tailRetryTimer: ReturnType<typeof setTimeout> | undefined
     // 历史统计与消息并行读取；切换会话后丢弃迟到结果，revision 保留更晚的实时事件。
     void window.electronAPI.getAgentRunFileChanges(sessionId).then(snapshots => {
       if (cancelled || requestId !== messagesRequestIdRef.current) return
@@ -1370,10 +1377,18 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
           setMessagesLoaded(true)
           messagesRefreshingRef.current = false
           setMessagesRefreshing(false)
+          // 有界补读：本次加载周期最多补读两次，避免持续流式写入让会话停在旧内容或无限重试。
+          if (tailRetryCountRef.current < 2) {
+            tailRetryCountRef.current += 1
+            tailRetryTimer = setTimeout(() => {
+              if (!cancelled && loadingSessionIdRef.current === sessionId) setTailReloadTick((tick) => tick + 1)
+            }, 300)
+          }
           return
         }
         // 写入缓存（含 LRU 淘汰，防止会话数增长导致内存无限膨胀）
         setMessagesCache((prev) => setSessionMessagesCache(prev, sessionId, sdkMsgs))
+        tailRetryCountRef.current = 0
         unstable_batchedUpdates(() => {
           persistedSDKMessagesRef.current = sdkMsgs
           setPersistedSDKMessages(sdkMsgs)
@@ -1464,8 +1479,11 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         messagesRefreshingRef.current = false
         setMessagesRefreshing(false)
       })
-    return () => { cancelled = true }
-  }, [sessionId, refreshVersion, setStreamingStates, setLiveMessagesMap, setMessagesCache, store])
+    return () => {
+      cancelled = true
+      if (tailRetryTimer) clearTimeout(tailRetryTimer)
+    }
+  }, [sessionId, refreshVersion, tailReloadTick, setStreamingStates, setLiveMessagesMap, setMessagesCache, store])
 
   // 阅读窗口与最新尾窗分开，旧页不会改变重试/探索结论的消息来源。
   const navigateHistory = React.useCallback(async (mode: 'before' | 'after' | 'tail' | 'around' | 'rebuild', messageId?: string): Promise<boolean> => {

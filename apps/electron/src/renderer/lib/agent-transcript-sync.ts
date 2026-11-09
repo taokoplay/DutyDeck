@@ -89,17 +89,40 @@ export function canAcceptTranscriptPage(current: AgentTranscriptPage | undefined
 }
 // 已确认页内消息之前的live缓冲不能倒挂到页尾；不据此删除未确认正文。
 const precedingPage = new WeakSet<SDKMessage>()
+
+/** 读取持久化或实时消息的创建时间；只接受有限数字，缺失时不参与顺序判定。 */
+function messageCreatedAt(message: SDKMessage): number | undefined {
+  const value = (message as { _createdAt?: unknown })._createdAt
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+/** 页首记录的时间基准；缺失时退回既有的追加行为，不引入新的不确定性。 */
+function pageHeadCreatedAt(page: AgentTranscriptPage | undefined): number | undefined {
+  const first = page?.entries[0]
+  if (!first) return undefined
+  return messageCreatedAt(first.message)
+}
+
 export function selectTranscriptDisplay(persisted: SDKMessage[], live: SDKMessage[], page?: AgentTranscriptPage): { messages: SDKMessage[]; omitted: number; retained: SDKMessage[] } {
   const id = (message: SDKMessage): string | undefined => { const value = message as { uuid?: unknown; _promaTranscriptId?: string }; return typeof value.uuid === 'string' ? value.uuid : value._promaTranscriptId }
   const persistedIds = new Map(persisted.flatMap((message, index) => id(message) ? [[id(message)!, index] as const] : []))
   const firstOverlap = live.findIndex(message => !!id(message) && persistedIds.has(id(message)!))
+  /** 尾部页起点时间：无重叠的实时缓冲早于它时属于更早历史，必须排在页前而不是页尾。 */
+  const headCreatedAt = pageHeadCreatedAt(page)
+  /** 判断无重叠的实时消息是否明确早于当前尾部页；未完成消息始终属于当前运行。 */
+  const precedesPage = (message: SDKMessage): boolean => {
+    if (firstOverlap >= 0 || headCreatedAt === undefined) return false
+    if ((message as { _partial?: boolean })._partial === true) return false
+    const createdAt = messageCreatedAt(message)
+    return createdAt !== undefined && createdAt < headCreatedAt
+  }
   const before: SDKMessage[] = []; const after: SDKMessage[] = []
   const merged = persisted.slice()
   for (let index = 0; index < live.length; index++) {
     const message = live[index]!
     const match = id(message) ? persistedIds.get(id(message)!) : undefined
     if (match !== undefined) merged[match] = message
-    else if (precedingPage.has(message) || (firstOverlap >= 0 && index < firstOverlap)) before.push(message)
+    else if (precedingPage.has(message) || (firstOverlap >= 0 && index < firstOverlap) || precedesPage(message)) before.push(message)
     else after.push(message)
   }
   const source = [...before, ...merged, ...after]
@@ -145,13 +168,34 @@ function projectOversizedMessage(message: SDKMessage): SDKMessage {
   return projected
 }
 
-/** 只清除同run且实际返回的UUID；deferred和未完成消息继续保留。 */
+/** 判断实时消息是否带有与当前 run 明确不同的运行身份；缺标记或当前 run 未知时不下结论。 */
+function isSupersededLiveRunMessage(message: SDKMessage, run?: LiveSdkMessageRunIdentity): boolean {
+  if (!run) return false
+  const scoped = message as { _promaLiveRunGeneration?: number; _promaLiveRunStartedAt?: number }
+  if (run.runGeneration != null && scoped._promaLiveRunGeneration != null) {
+    return scoped._promaLiveRunGeneration !== run.runGeneration
+  }
+  if (run.startedAt != null && scoped._promaLiveRunStartedAt != null) {
+    return scoped._promaLiveRunStartedAt !== run.startedAt
+  }
+  return false
+}
+
+/**
+ * 只清除同run且实际返回的UUID；deferred和未完成消息继续保留。
+ * 读到尾部页时，页外且属于更早run的实时缓冲已经完整落盘，一并丢弃以免长期累积；
+ * 无run标记的旧格式消息不据此删除，避免误伤导入或迁移数据。
+ */
 export function acknowledgeTranscriptReceipts(live: SDKMessage[], receipts: Array<{ uuid: string; offset: number }>, page: AgentTranscriptPage, run?: LiveSdkMessageRunIdentity): SDKMessage[] {
   const deferredIds = new Set(page.entries.filter(entry => entry.deferred).map(entry => entry.recordId))
   const ids = new Set(receipts.filter(receipt => !deferredIds.has(receipt.uuid)).map(receipt => receipt.uuid))
+  /** 尾部页之前的记录必然已落盘；非尾部页不据此删除未确认正文。 */
+  const discardSupersededOutsidePage = page.hasBefore === true
   const result = live.filter(message => {
     const value = message as {uuid?: string; _partial?: boolean}
-    return !value.uuid || !ids.has(value.uuid) || value._partial === true || !shouldAcceptLiveSdkMessageForRun(message, run)
+    if (value.uuid && ids.has(value.uuid) && value._partial !== true && shouldAcceptLiveSdkMessageForRun(message, run)) return false
+    if (value._partial === true) return true
+    return !(discardSupersededOutsidePage && isSupersededLiveRunMessage(message, run))
   })
   return result.length === live.length ? live : result
 }
