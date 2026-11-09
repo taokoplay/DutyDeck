@@ -13,6 +13,8 @@ import { installPiAttachmentPathProjection } from './pi-attachment-path-projecti
 import { installPiImageRequestPolicy } from './pi-image-request-policy'
 import { composePiCustomTools } from './pi-tool-registry'
 import { installVisualTaskContextLifecycle } from './pi-visual-task-context'
+import { createPiCompactionExtension } from './pi-compaction-extension'
+import { deriveKeepRecentTokens } from './pi-compaction-strategy'
 import type { VisualTaskContextPolicy } from '../visual-production/context-contract'
 import type { DataRootPathSnapshot } from '../data-root-reference'
 import { spawn } from 'node:child_process'
@@ -1744,9 +1746,18 @@ export class PiAgentAdapter implements AgentProviderAdapter {
 
       const settingsManager = sdk.SettingsManager.inMemory({
         // 使用 Pi SDK 原生压缩策略：
-        // - 手动压缩由 session.compact() 触发；
+        // - 手动压缩由 session.compact() 触发，摘要预算由 pi-compaction-extension 接管；
         // - 自动压缩在上下文达到模型窗口的约 80% 时触发；Pi 以 reserveTokens 表示预留空间。
-        compaction: { enabled: true, reserveTokens: autoCompactionReserveTokens },
+        compaction: {
+          enabled: true,
+          reserveTokens: autoCompactionReserveTokens,
+          // 保留窗口决定待摘要量：按安全预算的 20% 派生（钳在 8K–64K），
+          // 比 Pi 默认 20K 保留更多最近上下文，从而缩短摘要请求。
+          keepRecentTokens: deriveKeepRecentTokens({
+            contextWindow: model.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+            reserveTokens: autoCompactionReserveTokens,
+          }),
+        },
         // Pi 原生 retry 通过 agent.continue() 在同一 transcript 中恢复，能保留已完成的
         // tool_result；不能用外层重投原始 prompt 替代，否则会重复执行副作用工具。
         // 重试预算与退避基数的取值理由见 pi-retry-control.ts 的 PI_NATIVE_RETRY_POLICY。
@@ -1775,8 +1786,17 @@ export class PiAgentAdapter implements AgentProviderAdapter {
             initialSources: input.projectInstructionScope.initialSources,
           })
         : undefined
+      let compactionSessionRef: AgentSession | undefined
       const extensionFactories = [
         ...(projectInstructionScope ? [projectInstructionScope.createExtension()] : []),
+        // 手动压缩的预算降级与分块：只在摘要输入超预算时接管，失败则回退 Pi 默认摘要。
+        createPiCompactionExtension({
+          sdk,
+          getSession: () => compactionSessionRef,
+          getModel: () => model,
+          getCompactionSettings: (target) => settingsManager.getCompactionSettings(target),
+          getRetrySettings: () => settingsManager.getRetrySettings(),
+        }),
         ...(openAIReasoningProfile
           ? [createOpenAIReasoningRequestExtension({
               profile: openAIReasoningProfile,
@@ -1828,6 +1848,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
           : input.activeToolNames ? { tools: input.activeToolNames } : {}),
         customTools,
       })
+      compactionSessionRef = session
       session.agent.toolExecution = 'sequential'
       // Pi session artifact 可以来自旧版本，不能假设其历史 tool_result 已通过当前校验。
       // transformContext 在每个 provider 请求前执行，能隔离 resume 的坏图片而不篡改原 artifact。
@@ -2193,9 +2214,9 @@ export class PiAgentAdapter implements AgentProviderAdapter {
       })
 
       if (input.compactRequest) {
-        // 手动压缩：走 pi 原生 session.compact()，而非把 /compact 当普通 prompt 发给模型。
-        // compaction_start/end 事件已在上面的 subscribe 中转成 compacting/compact_boundary system 消息；
-        // compact() 不发 agent_end，故这里补一个合成 result 消息收束本轮（供 orchestrator 结束消费循环）。
+        // 手动压缩：走 pi 原生 session.compact()，摘要内容的预算降级与分块由
+        // session_before_compact 扩展接管（pi-compaction-extension.ts）。
+        // compact() 不发 agent_end，故这里补一个合成 result 消息收束本轮。
         session.compact()
           .then(() => {
             queue.push({
