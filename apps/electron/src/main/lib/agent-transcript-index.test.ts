@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { getTranscriptIndex, noteTranscriptAppend, transcriptFileStamp } from './agent-transcript-index'
+import { getTranscriptIndex, invalidateTranscriptIndex, noteTranscriptAppend, transcriptFileStamp } from './agent-transcript-index'
 const dirs: string[] = []
 function fixture(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dutydeck-transcript-index-')); dirs.push(dir)
@@ -115,4 +115,61 @@ test('Given 持有旧索引快照 When 受管追加构建新索引 Then 旧记�
   await getTranscriptIndex(path)
   expect(previous.records).toHaveLength(2)
   expect(previous.records.at(-1)?.end).toBe(previous.observedEnd)
+})
+
+test('Given 巨行续扫中显式失效 When 继续旧代 Then 丢弃半行状态并换代', async () => {
+  const path = fixture()
+  appendFileSync(path, JSON.stringify({ type: 'assistant', message: { content: 'x'.repeat(3 * 1024 * 1024) } }) + '\n')
+  const first = await getTranscriptIndex(path, true)
+  const next = await getTranscriptIndex(path, true)
+  expect(next.generation).toBe(first.generation)
+  expect(next.scannedBytes).toBeGreaterThan(0)
+  invalidateTranscriptIndex(path)
+  const reset = await getTranscriptIndex(path, true)
+  expect(reset.generation).not.toBe(first.generation)
+  expect(reset.records).toHaveLength(0)
+})
+
+test('Given 已排队局部读取 When 显式取消 Then 不发布已取消代次的缓存', async () => {
+  const path = fixture()
+  const work = getTranscriptIndex(path, true)
+  invalidateTranscriptIndex(path)
+  await expect(work).rejects.toThrow('变化')
+  expect((await getTranscriptIndex(path, true)).records).toHaveLength(2)
+})
+
+test('Given 未闭合UTF8尾行 When 分两次受管追加 Then 半行只提交一次且保留旧快照', async () => {
+  const path = fixture()
+  const first = await getTranscriptIndex(path, true)
+  let stamp = transcriptFileStamp(statSync(path))
+  appendFileSync(path, '{"type":"assistant","uuid":"partial","message":{"content":"中文')
+  noteTranscriptAppend(path, stamp)
+  const partial = await getTranscriptIndex(path, true)
+  expect(partial.records).toHaveLength(2)
+  stamp = transcriptFileStamp(statSync(path))
+  appendFileSync(path, '结束"}}\n')
+  noteTranscriptAppend(path, stamp)
+  const final = await getTranscriptIndex(path, true)
+  expect(final.records.map((record) => record.id)).toEqual(['one', 'two', 'partial'])
+  expect(final.generation).toBe(first.generation)
+  expect(first.records).toHaveLength(2)
+  expect(final.scannedBytes).toBe(Buffer.byteLength('结束"}}\n'))
+})
+
+test('Given 五万条热索引 When 查询尾部相邻边界 Then 查找记录次数为对数级', async () => {
+  const path = fixture()
+  writeFileSync(path, Array.from({ length: 50000 }, (_, index) => line(`r${index}`, 'assistant')).join(''))
+  const index = await getTranscriptIndex(path)
+  const boundary = index.records.at(-10)!.offset
+  // 观察真实相邻查找的下标访问，避免依赖机器速度的计时断言。
+  let probes = 0
+  index.records = new Proxy(index.records, {
+    get(target, property, receiver) {
+      if (typeof property === 'string' && /^\d+$/.test(property)) probes++
+      return Reflect.get(target, property, receiver)
+    },
+  })
+  const next = await getTranscriptIndex(path, true, { direction: 'before', offset: boundary, generation: index.generation, maxRecords: 100 })
+  expect(next.scannedBytes).toBe(0)
+  expect(probes).toBeLessThan(64)
 })

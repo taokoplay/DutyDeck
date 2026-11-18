@@ -4,6 +4,28 @@ import type { SDKMessage, SessionMessageSearchResponse, SessionMessageSearchResu
 import { scanJsonlRecords } from './agent-jsonl-reader'
 import { getTranscriptIndex, transcriptFileStamp } from './agent-transcript-index'
 
+/** 只缓存已授权文件的原始记录，绝不跨当前授权/项目路径上下文复用投影。 */
+interface DetailSource {
+  /** UTF-16 文本按两字节计费，使主进程缓存总量有界。 */
+  text: string
+  /** 原始记录只在主进程短期保留，不发送给 Renderer。 */
+  expires: number
+}
+/** 按路径、版本、文件戳及选择器隔离；每次请求重新执行当前投影。 */
+const detailSources = new Map<string, DetailSource>()
+/** 最多四条、总计64MiB，仅保存短期源记录。 */
+const DETAIL_CACHE_BYTES = 64 * 1024 * 1024
+
+/** 清除过期项，并按最久未读顺序释放正文，返回当前占用字节。 */
+function pruneDetailSources(): number {
+  let bytes = 0
+  for (const [key, entry] of detailSources) {
+    if (entry.expires <= Date.now()) detailSources.delete(key)
+    else bytes += entry.text.length * 2
+  }
+  return bytes
+}
+
 /** 独立流式搜索授权的权威正文，不把当前展示窗口当作全部历史。 */
 export async function searchTranscript(path: string, query: string): Promise<SessionMessageSearchResponse> {
   if (typeof query !== 'string' || query.length > MAX_SEARCH_QUERY_SOURCE_LENGTH) return { results: [], truncated: false, queryTooLong: true }
@@ -47,6 +69,23 @@ export async function readTranscriptDetail(
     || !Number.isSafeInteger(input.offset) || input.offset < 0 || input.offset > 32 * 1024 * 1024) throw new Error('历史详情参数非法')
   const index = await getTranscriptIndex(path)
   if (index.generation !== input.generation) throw new Error('历史版本已变化，请重新定位')
+  /** 每次先读取索引/文件戳，缓存命中也不能绕过版本校验。 */
+  const cacheKey = JSON.stringify([path, index.generation, index.stamp, input.recordId, input.toolUseId])
+  pruneDetailSources()
+  /** 投影必须使用本次回调；重新解析源串还隔离可能原地修改输入的映射器。 */
+  const projectSlice = async (source: string): Promise<{ text: string; nextOffset?: number }> => {
+    const text = JSON.stringify(project(JSON.parse(source)), null, 2)
+    if (transcriptFileStamp(await stat(path)) !== index.stamp) throw new Error('历史版本已变化')
+    const end = Math.min(text.length, input.offset + 16000)
+    return { text: text.slice(input.offset, end), ...(end < text.length ? { nextOffset: end } : {}) }
+  }
+  const cached = detailSources.get(cacheKey)
+  if (cached) {
+    if (transcriptFileStamp(await stat(path)) !== index.stamp) throw new Error('历史版本已变化')
+    detailSources.delete(cacheKey)
+    detailSources.set(cacheKey, cached)
+    return projectSlice(cached.text)
+  }
   let row: { offset: number; end: number } | undefined = index.records.find((record) => record.id === input.recordId)
   if (input.toolUseId) {
     let count = 0
@@ -69,10 +108,19 @@ export async function readTranscriptDetail(
     const buffer = Buffer.allocUnsafe(row.end - row.offset)
     const { bytesRead } = await file.read(buffer, 0, buffer.length, row.offset)
     if (bytesRead !== buffer.length) throw new Error('历史记录不完整')
-    const text = JSON.stringify(project(JSON.parse(buffer.toString('utf8'))), null, 2)
+    /** 缓存源记录避免每段重复扫描工具关联与整条读盘；投影开销仍按当前上下文承担。 */
+    const text = buffer.toString('utf8')
     if (transcriptFileStamp(await stat(path)) !== index.stamp) throw new Error('历史版本已变化')
-    const end = Math.min(text.length, input.offset + 16000)
-    return { text: text.slice(input.offset, end), ...(end < text.length ? { nextOffset: end } : {}) }
+    detailSources.delete(cacheKey)
+    let bytes = pruneDetailSources()
+    while (detailSources.size >= 4 || bytes + text.length * 2 > DETAIL_CACHE_BYTES) {
+      const oldest = detailSources.entries().next().value
+      if (!oldest) break
+      bytes -= oldest[1].text.length * 2
+      detailSources.delete(oldest[0])
+    }
+    detailSources.set(cacheKey, { text, expires: Date.now() + 60_000 })
+    return await projectSlice(text)
   } finally { await file.close() }
 }
 

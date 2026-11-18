@@ -296,15 +296,17 @@ export async function previewStorageCleanup(
     try {
       const entries = await fsPromises.readdir(context.agentSessionsDir, { withFileTypes: true })
       for (const entry of entries) {
-        if (!entry.name.endsWith('.jsonl')) continue
-        const id = basename(entry.name, '.jsonl')
-        if (sessionsById.has(id) || !isSafeSessionId(id)) continue
+        /** 权威 Skill 旁车与 JSONL 分别预览，独立遗留旁车也可在宽限期后回收。 */
+        const suffix = entry.name.endsWith('.jsonl.skills.json') ? '.jsonl.skills.json' : '.jsonl'
+        if (!entry.name.endsWith(suffix)) continue
+        const id = basename(entry.name, suffix)
+        if (sessionsById.has(id) || context.runningSessionIds.has(id) || !isSafeSessionId(id)) continue
         const path = resolve(context.agentSessionsDir, entry.name)
         const stat = await fsPromises.lstat(path)
         if (!stat.isFile() || stat.isSymbolicLink() || stat.mtimeMs > artifactCutoff) continue
         const added = await appendCandidate(candidates, {
           kind: 'agent-session',
-          id: makeCandidateId('agent-session', id),
+          id: makeCandidateId('agent-session', suffix === '.jsonl' ? id : `${id}:skills`),
           path,
           bytes: stat.size,
           updatedAt: stat.mtimeMs,
@@ -408,18 +410,23 @@ export async function executeStorageCleanup(
         skippedCount += 1
         continue
       }
-      if (preview.mode === 'orphaned' && session) {
+      if (preview.mode === 'orphaned' && (session || runningIds().has(candidate.sessionId))) {
         skippedCount += 1
         continue
       }
-      if (!isContained(context.agentSessionsDir, candidate.path) || !isSafeSessionId(candidate.sessionId)) {
+      /** 候选只能指向本会话正文或其 Skill 旁车，不能借合法根路径删除其它文件。 */
+      const messagePath = resolve(context.agentSessionsDir, `${candidate.sessionId}.jsonl`)
+      if (!isContained(context.agentSessionsDir, candidate.path) || !isSafeSessionId(candidate.sessionId)
+        || (resolve(candidate.path) !== messagePath
+          && !(preview.mode === 'orphaned' && resolve(candidate.path) === `${messagePath}.skills.json`))) {
         errors.push(`跳过越界会话候选: ${candidate.path}`)
         skippedCount += 1
         continue
       }
       try {
         const stat = await fsPromises.lstat(candidate.path)
-        if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== candidate.bytes) {
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== candidate.bytes
+          || (preview.mode === 'orphaned' && stat.mtimeMs !== candidate.updatedAt)) {
           skippedCount += 1
           continue
         }

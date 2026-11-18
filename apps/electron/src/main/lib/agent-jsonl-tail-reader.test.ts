@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { readJsonlTail } from './agent-jsonl-tail-reader'
@@ -37,3 +37,43 @@ describe('有界 JSONL 倒读', () => {
     expect(() => readJsonlTail(fixture('x\n'), { maxBytes: Infinity })).toThrow()
   })
 })
+
+test('Given 跨批UTF8和巨行 When 倒读续扫 Then 不重复读取前缀且只提交完整物理行', async () => {
+  // 新批读取接口将续扫状态留在主进程内，不信任来自renderer的半行内容。
+  const { readJsonlBatch } = await import('./agent-jsonl-tail-reader')
+  const path = fixture('开头\n' + '汉'.repeat(900) + '\n结束\n半行')
+  let result = readJsonlBatch(path, { direction: 'backward', end: Buffer.byteLength('开头\n' + '汉'.repeat(900) + '\n结束\n半行'), maxBytes: 128, maxLineBytes: 64 })
+  const lines = [...result.lines]
+  let total = result.bytesRead
+  while (!result.done) {
+    result = readJsonlBatch(path, { direction: 'backward', end: statSync(path).size, maxBytes: 128, maxLineBytes: 64, continuation: result.continuation })
+    lines.push(...result.lines); total += result.bytesRead
+  }
+  expect(lines.map((line) => line.text)).toEqual(['结束', undefined, '开头'])
+  expect(total).toBe(statSync(path).size)
+  expect(lines[1]?.offset).toBe(Buffer.byteLength('开头\n'))
+  expect(lines[1]?.end).toBe(lines[0]?.offset)
+})
+
+for (const direction of ['forward', 'backward'] as const) {
+  test(`Given UTF8空行与半行 When ${direction}逐字节和逐行续扫 Then 边界一致且不提交半行`, async () => {
+    const { readJsonlBatch } = await import('./agent-jsonl-tail-reader')
+    // 小预算刻意切开多字节字符、换行及空行。
+    const text = '\n一\n\n末尾\n未完'
+    const path = fixture(text)
+    for (const limits of [{ maxBytes: 1 }, { maxBytes: 128, maxLines: 1 }]) {
+      let batch = readJsonlBatch(path, { direction, end: Buffer.byteLength(text), ...limits })
+      const lines = [...batch.lines]
+      for (let step = 0; step < 100 && !batch.done; step++) {
+        batch = readJsonlBatch(path, { direction, end: Buffer.byteLength(text), ...limits, continuation: batch.continuation })
+        lines.push(...batch.lines)
+      }
+      expect(batch.done).toBe(true)
+      expect(lines.map((line) => line.text)).toEqual(direction === 'forward' ? ['', '一', '', '末尾'] : ['末尾', '', '一', ''])
+      const sorted = lines.toSorted((left, right) => left.offset - right.offset)
+      expect(sorted[0]?.offset).toBe(0)
+      for (let index = 1; index < sorted.length; index++) expect(sorted[index]?.offset).toBe(sorted[index - 1]?.end)
+      expect(sorted.at(-1)?.end).toBe(Buffer.byteLength('\n一\n\n末尾\n'))
+    }
+  })
+}

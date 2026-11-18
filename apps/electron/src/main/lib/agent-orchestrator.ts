@@ -1,3 +1,4 @@
+import { createAgentPerformanceTrace } from '../../shared/agent-performance'
 import { createRecoveryContextDigest } from './agent-recovery-context'
 import { createTokenUsageObserver } from './token-usage-observer'
 import { agentTokenUsageContext } from './token-usage-context'
@@ -857,6 +858,9 @@ export class AgentOrchestrator {
     // Capture the focus once per turn. Later UI focus changes must not rewrite this reply's attribution.
     const initialVaultFocus = getVaultUserContext(sessionId)
     const streamStartedAt = input.startedAt ?? Date.now()
+    /** 开关仅启用无正文分段，身份时间不参与耗时计算。 */
+    const performanceTrace = createAgentPerformanceTrace({ enabled: process.env.DUTYDECK_AGENT_PERF === '1', domain: 'main', sessionId, runStartedAt: streamStartedAt })
+    performanceTrace('main_start')
     /** 只有 utility 生命周期发出的稳定错误码才能打开恢复检查，供应商文本不能冒充。 */
     let recoverableInterruption = false
     let userMessagePersisted = false
@@ -3047,6 +3051,7 @@ export class AgentOrchestrator {
           /** 唯一标识本次 adapter query，使旧 generation 只能关闭自身 runtime。 */
           const queryToken = randomUUID()
           // 获取异步迭代器（手动 .next() 以支持 Promise.race 中断）
+          performanceTrace('adapter_submit')
           const queryIterable = this.adapter.query(queryOptions, queryToken)
           const queryIterator = queryIterable[Symbol.asyncIterator]()
 
@@ -3114,6 +3119,7 @@ export class AgentOrchestrator {
             pendingNext = null
             let msg = iterResult.value
             if (isAssistantDeltaSDKMessage(msg)) {
+              if (msg.delta.type === 'text_delta' && msg.delta.delta.length > 0) performanceTrace('first_text')
               this.eventBus.emit(sessionId, {
                 kind: 'sdk_delta',
                 delta: {

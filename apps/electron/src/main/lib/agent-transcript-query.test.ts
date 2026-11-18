@@ -1,6 +1,7 @@
 import * as query from "./agent-transcript-query"
 
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test, spyOn } from 'bun:test'
+import * as fsPromises from 'node:fs/promises'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -19,6 +20,52 @@ function fixture(): string {
 const project = (message: unknown): SDKMessage => projectSDKMessageForDisplay(message as SDKMessage)
 afterEach(() => dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 describe('历史搜索与按需详情', () => {
+  test('Given 同条超长工具结果 When 连续读取多个片段 Then 不重新打开正文且换版本拒绝缓存', async () => {
+    /** 使用与宿主一致的每次新建回调，防止缓存仅对测试中的稳定函数生效。 */
+    const path = fixture()
+    writeFileSync(path, JSON.stringify({ type: 'user', uuid: 'result', message: { content: [
+      { type: 'tool_result', tool_use_id: 'long-call', content: '汉'.repeat(60000) },
+    ] } }) + '\n')
+    const page = await readTranscriptPage(path, { sessionId: 's', mode: 'rebuild' }, project)
+    /** 缓存不得复用当前路径映射，读盘次数独立于投影调用次数验证。 */
+    const load = (offset: number) => readTranscriptDetail(path, { generation: page.generation, toolUseId: 'long-call', offset }, value => {
+      return project(value)
+    })
+    const first = await load(0)
+    const openSpy = spyOn(fsPromises, 'open')
+    try {
+      const second = await load(first.nextOffset!)
+      expect(second.text.length).toBe(16000)
+      expect(openSpy).not.toHaveBeenCalled()
+      writeFileSync(path, '{}\n')
+      await expect(load(second.nextOffset!)).rejects.toThrow()
+    } finally { openSpy.mockRestore() }
+  })
+  test('Given 文件版本相同但路径映射改变 When 请求后续段 Then 执行当前映射且不返回旧授权路径', async () => {
+    const path = fixture()
+    const page = await readTranscriptPage(path, { sessionId: 's', mode: 'rebuild' }, project)
+    /** 模拟相同文件在不同映射上下文下生成不同展示正文。 */
+    const mapped = (marker: string) => (_value: unknown): SDKMessage => ({ type: 'assistant', message: { content: [{ type: 'text', text: marker.repeat(40000) }] } } as SDKMessage)
+    await readTranscriptDetail(path, { generation: page.generation, recordId: 'old', offset: 0 }, mapped('A'))
+    const current = await readTranscriptDetail(path, { generation: page.generation, recordId: 'old', offset: 16000 }, mapped('B'))
+    expect(current.text).toBe('B'.repeat(16000))
+    await expect(readTranscriptDetail(path, { generation: page.generation, recordId: 'old', offset: 16000 }, () => {
+      throw new Error('当前路径未授权')
+    })).rejects.toThrow('当前路径未授权')
+  })
+  test('Given 超过四条短期缓存 When 回读最旧记录 Then 重读被淘汰源行且仍返回完整片段', async () => {
+    const path = fixture()
+    const page = await readTranscriptPage(path, { sessionId: 's', mode: 'rebuild' }, project)
+    for (const recordId of ['old', 'a0', 'a1', 'a2', 'a3']) {
+      await readTranscriptDetail(path, { generation: page.generation, recordId, offset: 0 }, project)
+    }
+    const openSpy = spyOn(fsPromises, 'open')
+    try {
+      const detail = await readTranscriptDetail(path, { generation: page.generation, recordId: 'old', offset: 0 }, project)
+      expect(detail.text).toContain('中文搜索')
+      expect(openSpy).toHaveBeenCalledTimes(1)
+    } finally { openSpy.mockRestore() }
+  })
   test('Given 命中不在尾页 When 搜索 Then 返回可around定位的ID而非仅搜索当前窗口', async () => {
     const path = fixture()
     const hits = await searchTranscript(path, '中文搜索')

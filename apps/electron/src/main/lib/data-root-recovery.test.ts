@@ -94,6 +94,23 @@ describe('启动目录恢复与选择', () => {
     expect(harness.locator()?.previousRoot).toBe(harness.oldRoot)
   })
 
+  test('Given 旧数据备份包含 Skill 旁车 When 恢复旧根 Then 旁车和 JSONL 字节保持原样', () => {
+    /** 真实恢复 IPC 只切换 locator，不重写历史正文或旁车。 */
+    const harness = createRecoveryHarness()
+    const previous = join(harness.homeDir, 'backup')
+    mkdirSync(join(previous, 'agent-sessions'), { recursive: true })
+    writeFileSync(join(previous, 'settings.json'), '{"theme":"light"}')
+    /** 原文字节包含格式空白，确保恢复没有重新序列化。 */
+    const files = new Map([['input.jsonl', '{"type":"user"}\r\n'],
+      ['input.jsonl.skills.json', '{ "version": 1, "entries": [] }\n']])
+    for (const [name, bytes] of files) writeFileSync(join(previous, 'agent-sessions', name), bytes)
+    new DataRootLocator({ homeDir: harness.homeDir }).write({ version: 1, activeRoot: harness.oldRoot, previousRoot: previous })
+    harness.recover({ action: 'restore-previous' })
+    expect(harness.locator()?.activeRoot).toBe(previous)
+    for (const [name, bytes] of files) expect(readFileSync(join(previous, 'agent-sessions', name), 'utf8')).toBe(bytes)
+    expect(harness.calls).toEqual(['relaunch', 'quit'])
+  })
+
   test('Given 取消或伪造选择 When 恢复 Then 拒绝且旧数据根保持不变', async () => {
     const harness = createRecoveryHarness()
     const candidate = join(harness.homeDir, 'new')

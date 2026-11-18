@@ -35,6 +35,10 @@ export function renderTranscriptMarkdown(turns: TranscriptTurn[], opts: RenderMa
     if (t.text) {
       lines.push(t.text, '')
     }
+    /** Skill 属于该用户输入，紧邻正文保留名称、稳定标识与来源。 */
+    for (const skill of t.skillActivations ?? []) {
+      lines.push(`> [Skill: ${skill.name.replace(/\s+/g, ' ')} (${skill.slug.replace(/\s+/g, ' ')}); ${skill.sources.join(', ')}]`, '')
+    }
     for (const tool of t.toolSummaries) {
       lines.push(`> [工具: ${tool}]`, '')
     }

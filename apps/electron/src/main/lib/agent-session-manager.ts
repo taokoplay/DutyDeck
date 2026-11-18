@@ -56,7 +56,7 @@ import type {
   AgentActiveWorktree,
   SessionWorkbenchLayout,
 } from '@dutydeck/shared'
-import { migratePermissionMode, mergeSkillActivations, findBestSearchMatch, insertTopSearchResult, isAgentToolMode, isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
+import { migratePermissionMode, findBestSearchMatch, insertTopSearchResult, isAgentToolMode, isOrdinaryTopLevelAgentSession } from '@dutydeck/shared'
 import { getConversationMessages } from './conversation-manager'
 // 旧格式 → SDKMessage 的转换逻辑下沉到 @dutydeck/session-core 作为唯一真源，避免主进程与渲染层各存一份。
 import { convertLegacyMessage } from '@dutydeck/session-core'
@@ -75,6 +75,20 @@ import { projectSessionAttachmentPaths } from './session-attachment-path-compat'
 import { getWorkspaceOperationBlockReason } from './workspace-operation-lock'
 import { resolvePiHistoryTarget } from './pi-history-target'
 import { assertPiBranchBinding, readPiArtifactSnapshot } from './pi-artifact-reconciliation'
+import { SkillActivationNoopCache, skillActivationFileStamp } from './agent-skill-activation-cache'
+import { loadSkillActivationStore, removeSkillActivationStore } from './agent-skill-activation-store'
+
+/** 已验证补记同时绑定正文版本和权威旁车摘要；任意一方改变都要重新核对。 */
+const activationMemo = new SkillActivationNoopCache({}, path => {
+  const stamp = skillActivationFileStamp(path)
+  return stamp && `${stamp}/${loadSkillActivationStore(path).fingerprint ?? 'missing'}`
+})
+
+/** 一次读取只捕获一个 Skill 快照；校验摘要在附件路径投影之前执行。 */
+function persistedMessageReader(filePath: string, strict = true): (value: unknown) => SDKMessage {
+  const skills = loadSkillActivationStore(filePath, { strict })
+  return value => skills.project(normalizePersistedSDKMessage(value))
+}
 
 /**
  * 会话索引文件格式
@@ -816,8 +830,13 @@ export function getAgentSessionMessages(id: string): AgentMessage[] {
     const lines = raw.split('\n').filter((line) => line.trim())
     /** 旧格式消息读取也统一为当前数据根的绝对路径。 */
     const resolvePath = createSessionAttachmentPathResolver(id)
+    const skills = loadSkillActivationStore(filePath, { strict: false })
     return parseJsonlLenient<AgentMessage>(lines, `读取会话消息 (${id})`)
-      .map((message) => projectSessionAttachmentPaths(message, resolvePath))
+      .map((message) => projectSessionAttachmentPaths(
+        message && typeof message === 'object' && 'type' in message && message.type === 'user'
+          ? skills.project(message as unknown as SDKMessage) as unknown as AgentMessage : message,
+        resolvePath,
+      ))
   } catch (error) {
     console.error(`[Agent 会话] 读取消息失败 (${id}):`, error)
     return []
@@ -974,6 +993,10 @@ function evidenceContentDigest(value: unknown): string | undefined {
 /** 元数据重写后的定位表只保存消息摘要和字节范围，不保存正文副本。 */
 interface EvidenceLocationIndex {
   fileIdentity: { dev: number; ino: number }
+  /** 打点时的完整正文版本；旧定位表不具备 Skill 局部读取依据。 */
+  transcriptStamp?: string
+  /** 较旧的证据表仍可取证；只有此偏移以后的条目拥有该正文版本的局部读取证明。 */
+  skillVerifiedFrom?: number
   messages: Record<string, PersistedSDKMessageIdentity>
 }
 
@@ -993,7 +1016,7 @@ function writeEvidenceLocations(filePath: string, content: string): void {
     }
     byteOffset += byteLength
   }
-  const index: EvidenceLocationIndex = { fileIdentity: { dev: stat.dev, ino: stat.ino },
+  const index: EvidenceLocationIndex = { fileIdentity: { dev: stat.dev, ino: stat.ino }, transcriptStamp: skillActivationFileStamp(filePath),
     messages: Object.fromEntries(identities.slice(-1000).map((identity) => [identity.uuid, identity])) }
   writeJsonFileAtomic(`${filePath}.evidence-index.json`, index)
 }
@@ -1020,7 +1043,7 @@ function readEvidenceLocations(filePath: string, maximumBytes: number): { index:
 }
 
 /** 追加时只增量维护最近消息定位；成功重试可沿原 UUID 获取保存回执。 */
-function updateEvidenceLocationsForAppend(filePath: string, receipt: SDKMessageAppendReceipt): void {
+function updateEvidenceLocationsForAppend(filePath: string, receipt: SDKMessageAppendReceipt, previousStamp: string | undefined): void {
   if (!receipt.fileIdentity) return
   const previous = readEvidenceLocations(filePath, 512 * 1024)?.index
   const retained = previous?.fileIdentity.dev === receipt.fileIdentity.dev && previous.fileIdentity.ino === receipt.fileIdentity.ino
@@ -1028,12 +1051,39 @@ function updateEvidenceLocationsForAppend(filePath: string, receipt: SDKMessageA
   const identities = new Map(retained.map((identity) => [identity.uuid, identity]))
   for (const identity of receipt.messages ?? []) if (identity.contentSha256) identities.set(identity.uuid, identity)
   const messages = [...identities.values()].sort((left, right) => left.byteOffset - right.byteOffset).slice(-1000)
-  writeJsonFileAtomic(`${filePath}.evidence-index.json`, { fileIdentity: receipt.fileIdentity,
+  writeJsonFileAtomic(`${filePath}.evidence-index.json`, { fileIdentity: receipt.fileIdentity, transcriptStamp: skillActivationFileStamp(filePath),
+    skillVerifiedFrom: previousStamp && previous?.transcriptStamp === previousStamp ? previous.skillVerifiedFrom ?? 0 : receipt.byteOffset,
     messages: Object.fromEntries(messages.map((identity) => [identity.uuid, identity])) })
 }
 
+/** 从证据定位表按单行读取 SDK 消息，首次 Skill 补记不再扫描或重写整份 JSONL。 */
+function readSDKMessageAtReceipt(filePath: string, uuid: string, receipt: SDKMessageAppendReceipt): SDKMessage | undefined {
+  const identity = receipt.messages?.[0]
+  if (!identity || identity.uuid !== uuid || !receipt.fileIdentity || !Number.isSafeInteger(identity.byteOffset)
+    || identity.byteOffset < 0 || !Number.isSafeInteger(identity.byteLength) || identity.byteLength < 2
+    || identity.byteLength > MAX_SDK_MESSAGE_LENGTH * 4 + 1) return undefined
+  const handle = openSync(filePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0))
+  try {
+    const opened = fstatSync(handle)
+    if (opened.dev !== receipt.fileIdentity.dev || opened.ino !== receipt.fileIdentity.ino || opened.nlink !== 1 || !opened.isFile()
+      || identity.byteOffset > opened.size - identity.byteLength) return undefined
+    // 起止两端必须落在物理行边界，不能把行内片段当作另一条输入。
+    const delimiter = Buffer.alloc(1)
+    if (identity.byteOffset > 0 && (readSync(handle, delimiter, 0, 1, identity.byteOffset - 1) !== 1 || delimiter[0] !== 10)) return undefined
+    const buffer = Buffer.alloc(identity.byteLength)
+    const bytesRead = readSync(handle, buffer, 0, buffer.length, identity.byteOffset)
+    if (bytesRead !== buffer.length || buffer.indexOf(10) !== buffer.length - 1) return undefined
+    const line = buffer.subarray(0, -1)
+    if (createHash('sha256').update(line).digest('hex') !== identity.sha256) return undefined
+    const parsed = normalizePersistedSDKMessage(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(line)))
+    return getStoredMessageUuid(parsed) === uuid ? parsed : undefined
+  } catch {
+    return undefined
+  } finally { closeSync(handle) }
+}
+
 /** 重试只定位已存在消息，不追加第二份用户输入，也不全量重读历史。 */
-export function getPersistedAgentMessageReceipt(sessionId: string, uuid: string): SDKMessageAppendReceipt | undefined {
+export function getPersistedAgentMessageReceipt(sessionId: string, uuid: string, skillReadStamp?: string): SDKMessageAppendReceipt | undefined {
   if (!getAgentSessionMeta(sessionId) || isAgentSessionDeleting(sessionId)) return undefined
   const path = getAgentSessionMessagesPath(sessionId)
   if (!existsSync(path)) return undefined
@@ -1041,7 +1091,8 @@ export function getPersistedAgentMessageReceipt(sessionId: string, uuid: string)
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) return undefined
   const index = readEvidenceLocations(path, 512 * 1024)?.index
   const identity = index?.messages[uuid]
-  if (!identity || index?.fileIdentity.dev !== stat.dev || index.fileIdentity.ino !== stat.ino) return undefined
+  if (!identity || identity.uuid !== uuid || index?.fileIdentity.dev !== stat.dev || index.fileIdentity.ino !== stat.ino) return undefined
+  if (skillReadStamp && (index.transcriptStamp !== skillReadStamp || identity.byteOffset < (index.skillVerifiedFrom ?? 0))) return undefined
   return { sessionId, status: 'written', fileIdentity: index.fileIdentity,
     byteOffset: identity.byteOffset, byteLength: identity.byteLength, messages: [identity] }
 }
@@ -1098,6 +1149,7 @@ export function appendSDKMessages(id: string, messages: SDKMessage[]): SDKMessag
       payload += line + '\n'
     }
     const previousUsage = captureSessionUsageSnapshot(filePath)
+    const previousEvidenceStamp = skillActivationFileStamp(filePath)
     const previousTranscriptStamp = existsSync(filePath) ? transcriptFileStamp(statSync(filePath)) : ''
     appendFileSync(filePath, payload, 'utf-8')
     noteTranscriptAppend(filePath, previousTranscriptStamp)
@@ -1126,7 +1178,7 @@ export function appendSDKMessages(id: string, messages: SDKMessage[]): SDKMessag
       messages: identities,
     }
     /** 定位缓存失败不改变消息已写入的事实，当前回合仍可使用返回回执。 */
-    try { updateEvidenceLocationsForAppend(filePath, receipt) } catch { console.warn('[Agent 会话] 证据定位缓存更新失败') }
+    try { updateEvidenceLocationsForAppend(filePath, receipt, previousEvidenceStamp) } catch { console.warn('[Agent 会话] 证据定位缓存更新失败') }
     return receipt
   } catch (error) {
     console.error(`[Agent 会话] 追加 SDKMessage 失败 (${id}):`, error)
@@ -1302,8 +1354,9 @@ export function getAgentSessionSDKMessages(id: string): SDKMessage[] {
     const lines = raw.split('\n').filter((line) => line.trim())
     /** 一次读取只捕获一次根快照，投影不修改 JSONL 或证据字节索引。 */
     const resolvePath = createSessionAttachmentPathResolver(id)
+    const readMessage = persistedMessageReader(filePath, false)
     return parseJsonlLenient<unknown>(lines, `读取 SDKMessage (${id})`)
-      .map((message) => projectSessionAttachmentPaths(normalizePersistedSDKMessage(message), resolvePath))
+      .map((message) => projectSessionAttachmentPaths(readMessage(message), resolvePath))
   } catch (error) {
     console.error(`[Agent 会话] 读取 SDKMessage 失败 (${id}):`, error)
     return []
@@ -1321,9 +1374,10 @@ export async function getAgentSessionSDKMessagesForDisplay(id: string): Promise<
   if (!existsSync(filePath)) return []
   /** 旧附档协议文本与结构化媒体共用路径投影，文件预览拿到当前有效路径。 */
   const resolvePath = createSessionAttachmentPathResolver(id)
+  const readMessage = persistedMessageReader(filePath, false)
   try {
     return await readDisplayHistory(filePath, (value) => projectSDKMessageForDisplay(
-      projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+      projectSessionAttachmentPaths(readMessage(value), resolvePath),
     ))
   } catch (error) {
     console.error(`[Agent 会话] 读取展示消息失败 (${id}):`, error)
@@ -1335,8 +1389,9 @@ export async function getAgentSessionSDKMessagesForDisplay(id: string): Promise<
 export async function getAgentSessionTranscriptPage(request: AgentTranscriptPageRequest): Promise<AgentTranscriptPage> {
   const filePath = getAgentSessionMessagesPath(request.sessionId)
   const resolvePath = createSessionAttachmentPathResolver(request.sessionId)
+  const readMessage = persistedMessageReader(filePath, false)
   return readTranscriptPage(filePath, request, (value) => projectSDKMessageForDisplay(
-    projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+    projectSessionAttachmentPaths(readMessage(value), resolvePath),
   ))
 }
 
@@ -1346,8 +1401,9 @@ export async function acknowledgeAgentTranscriptRecords(input: import('@dutydeck
 
 export async function getAgentTranscriptRetryInput(sessionId: string): Promise<SDKMessage | null> {
   const resolvePath = createSessionAttachmentPathResolver(sessionId)
+  const readMessage = persistedMessageReader(getAgentSessionMessagesPath(sessionId))
   return readTranscriptRetryInput(getAgentSessionMessagesPath(sessionId), value => projectSDKMessageForDisplay(
-    projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+    projectSessionAttachmentPaths(readMessage(value), resolvePath),
   ))
 }
 
@@ -1356,8 +1412,9 @@ export async function searchAgentTranscript(sessionId: string, query: string): P
 }
 export async function getAgentTranscriptDetail(input: import('@dutydeck/shared').AgentTranscriptDetailRequest): Promise<import('@dutydeck/shared').AgentTranscriptDetail> {
   const resolvePath = createSessionAttachmentPathResolver(input.sessionId)
+  const readMessage = persistedMessageReader(getAgentSessionMessagesPath(input.sessionId), false)
   return readTranscriptDetail(getAgentSessionMessagesPath(input.sessionId), input, (value) => projectSDKMessageForDisplay(
-    projectSessionAttachmentPaths(normalizePersistedSDKMessage(value), resolvePath),
+    projectSessionAttachmentPaths(readMessage(value), resolvePath),
   ))
 }
 
@@ -1436,6 +1493,7 @@ export function deleteAgentSession(id: string, options: { preserveSessionArtifac
 
   /** 定位表仅含证据摘要，跟随会话删除，避免留下不可用索引。 */
   const evidenceIndexPath = `${filePath}.evidence-index.json`
+  try { removeSkillActivationStore(filePath) } catch (error) { console.warn('[Agent 会话] Skill 补记清理失败', error) }
   if (existsSync(evidenceIndexPath)) {
     try { unlinkSync(evidenceIndexPath) } catch { console.warn('[Agent 会话] 证据定位表清理失败') }
   }
@@ -1704,10 +1762,11 @@ async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessi
   const sourceDir = resolveAgentCwd(workspace, sourceMeta.id, sourceCwdMode, sourceActiveWorktree)
   const sourceWorkbenchDir = resolveAgentWorkbenchDir(workspace, sourceMeta.id)
   /** 分叉也先严格读取展示历史，确认目标与当前 Pi 分支一致后才创建新会话。 */
+  const sourcePath = getAgentSessionMessagesPath(sourceMeta.id)
   const sourceMessages = parseJsonlStrict<unknown>(
-    readFileSync(getAgentSessionMessagesPath(sourceMeta.id), 'utf-8').split('\n').filter((line) => line.trim()),
+    readFileSync(sourcePath, 'utf-8').split('\n').filter((line) => line.trim()),
     `分叉读取 SDKMessage (${sourceMeta.id})`,
-  ).map(normalizePersistedSDKMessage)
+  ).map(persistedMessageReader(sourcePath))
   const sdk = await import('@earendil-works/pi-coding-agent')
   const sessionDir = join(getSdkConfigDir(), 'sessions')
   const sourceManager = sdk.SessionManager.open(sourceMeta.piSessionFile, sessionDir, sourceDir)
@@ -1782,7 +1841,7 @@ async function forkPiAgentSession(sourceMeta: AgentSessionMeta, input: ForkSessi
 
     if (sourceWorkbenchDir && destWorkbenchDir) await copyForkWorkspaceFiles(sourceWorkbenchDir, destWorkbenchDir)
     await copyForkStoredSDKMessages({
-      sourceSessionId: sourceMeta.id,
+      sourceMessages,
       destSessionId: newMeta.id,
       upToMessageUuid: targetUuid,
       sourceDir,
@@ -1812,12 +1871,12 @@ export async function rewindPiAgentSession(sessionId: string, assistantMessageUu
 
   const filePath = getAgentSessionMessagesPath(sessionId)
   if (!existsSync(filePath)) throw new Error(`[Agent 会话] 截断失败: 会话消息文件不存在, sessionId=${sessionId}`)
+  const originalStamp = skillActivationFileStamp(filePath)
   const originalContent = readFileSync(filePath, 'utf-8')
   const originalMessages = parseJsonlStrict<unknown>(originalContent.split('\n').filter((line) => line.trim()), `截断读取 SDKMessage (${sessionId})`).map(normalizePersistedSDKMessage)
   const cutIndex = originalMessages.findIndex((message) => 'uuid' in message && (message as { uuid?: string }).uuid === assistantMessageUuid)
   if (cutIndex < 0) throw new Error(`[Agent 会话] 截断失败: 未找到 uuid=${assistantMessageUuid}, sessionId=${sessionId}`)
   const kept = originalMessages.slice(0, cutIndex + 1)
-  const truncatedContent = serializeSDKTranscript(kept)
 
   const workspace = meta.workspaceId ? getAgentWorkspace(meta.workspaceId) : undefined
   const cwd = resolveAgentCwd(workspace, meta.id, meta.agentCwdMode, meta.activeWorktree) ?? process.cwd()
@@ -1875,7 +1934,13 @@ export async function rewindPiAgentSession(sessionId: string, assistantMessageUu
     expectedBranchTipId: rewindArtifact.branchTipId,
   })
 
-  rewriteSDKTranscript(filePath, truncatedContent)
+  // Pi 校验跨越 await，裁剪前复核正文并取得最新补记。裁剪或回滚均不能丢失补记。
+  if (!originalStamp || skillActivationFileStamp(filePath) !== originalStamp) throw new Error('会话在回退期间发生变化，请重试')
+  const folded = foldSkillStoreBeforePrune(filePath, originalMessages)
+  const materialized = folded.messages
+  const retainedMessages = materialized.slice(0, cutIndex + 1)
+  rewriteSDKTranscript(filePath, serializeSDKTranscript(retainedMessages))
+  folded.store.removeAfterFold()
   try {
     updateAgentSessionMeta(sessionId, {
       sdkSessionId: rewindManager.getSessionId(),
@@ -1883,16 +1948,17 @@ export async function rewindPiAgentSession(sessionId: string, assistantMessageUu
       piEntryBindings: retainedBindings,
     })
   } catch (error) {
-    try { rewriteSDKTranscript(filePath, originalContent) } catch { /* 保留原始 metadata 错误 */ }
+    try { rewriteSDKTranscript(filePath, serializeSDKTranscript(materialized)) } catch { /* 保留原始 metadata 错误 */ }
     throw error
   }
 
-  console.log(`[Agent 会话] Pi 会话已回退: sessionId=${sessionId}, 保留 ${kept.length}/${originalMessages.length} 条`)
-  return kept.length
+  console.log(`[Agent 会话] Pi 会话已回退: sessionId=${sessionId}, 保留 ${retainedMessages.length}/${originalMessages.length} 条`)
+  return retainedMessages.length
 }
 
 interface CopyForkStoredSDKMessagesInput {
-  sourceSessionId: string
+  /** 与分支校验同一时刻的完整快照，避免第二次读盘及切换代次。 */
+  sourceMessages: SDKMessage[]
   destSessionId: string
   upToMessageUuid?: string
   sourceDir?: string
@@ -1903,7 +1969,7 @@ interface CopyForkStoredSDKMessagesInput {
 }
 
 async function copyForkStoredSDKMessages({
-  sourceSessionId,
+  sourceMessages,
   destSessionId,
   upToMessageUuid,
   sourceDir,
@@ -1911,9 +1977,6 @@ async function copyForkStoredSDKMessages({
   sourceWorkbenchDir,
   destWorkbenchDir,
 }: CopyForkStoredSDKMessagesInput): Promise<number> {
-  const sourcePath = getAgentSessionMessagesPath(sourceSessionId)
-  if (!existsSync(sourcePath)) return 0
-
   const destPath = getAgentSessionMessagesPath(destSessionId)
   const out = createWriteStream(destPath, { flags: 'a', encoding: 'utf-8' })
   let copiedCount = 0
@@ -1933,7 +1996,7 @@ async function copyForkStoredSDKMessages({
   }
 
   try {
-    for await (const msg of readStoredSDKMessages(sourcePath)) {
+    for (const msg of sourceMessages) {
       await writeJsonlLine(out, serializeSDKMessageForStorage(projectSessionAttachmentPaths(msg, rebindAttachment), sourceDir, destDir, serializePath))
       copiedCount += 1
 
@@ -1948,27 +2011,6 @@ async function copyForkStoredSDKMessages({
   }
 
   return copiedCount
-}
-
-async function* readStoredSDKMessages(filePath: string): AsyncGenerator<SDKMessage> {
-  const rl = createInterface({
-    input: createReadStream(filePath),
-    crlfDelay: Infinity,
-  })
-
-  for await (const line of rl) {
-    if (!line.trim()) continue
-    try {
-      const parsed = JSON.parse(line)
-      if ('role' in parsed && !('type' in parsed)) {
-        yield convertLegacyMessage(parsed as AgentMessage)
-      } else {
-        yield parsed as SDKMessage
-      }
-    } catch (err) {
-      console.warn(`[Agent 会话] 跳过无法解析的 SDKMessage 行 (${filePath}):`, err)
-    }
-  }
 }
 
 function getStoredMessageUuid(msg: SDKMessage): string | undefined {
@@ -2005,6 +2047,15 @@ function serializeSDKTranscript(messages: SDKMessage[]): string {
   const serializePath = createDataRootPathSerializer()
   return messages.map((message) => JSON.stringify(projectSessionAttachmentPaths(message, serializePath))).join('\n')
     + (messages.length ? '\n' : '')
+}
+
+/** 裁剪前先把补记折回完整正文，再删除旁车。任一步中断都保有完整旧状态或已裁剪状态。 */
+function foldSkillStoreBeforePrune(filePath: string, messages: SDKMessage[]): {
+  messages: SDKMessage[]
+  store: ReturnType<typeof loadSkillActivationStore>
+} {
+  const skills = loadSkillActivationStore(filePath)
+  return { messages: skills.hasEntries ? messages.map(message => skills.project(message)) : messages, store: skills }
 }
 
 /** 旧版 Nano Banana MCP 写入工具文本的附件标记，仅供显式 legacy 兼容解析。 */
@@ -2191,10 +2242,12 @@ export function truncateSDKMessages(id: string, upToUuidInclusive: string): SDKM
   if (cutIndex < 0) {
     throw new Error(`[Agent 会话] 截断失败: 未找到 uuid=${upToUuidInclusive}, sessionId=${id}`)
   }
-  const kept = messages.slice(0, cutIndex + 1)
+  const folded = foldSkillStoreBeforePrune(filePath, messages)
+  const kept = folded.messages.slice(0, cutIndex + 1)
 
   const content = serializeSDKTranscript(kept)
   rewriteSDKTranscript(filePath, content)
+  folded.store.removeAfterFold()
 
   console.log(`[Agent 会话] 消息已截断: sessionId=${id}, 保留 ${kept.length}/${messages.length} 条`)
   /** 返回 API 仍提供当前绝对路径，磁盘引用仅是存储细节。 */
@@ -2221,44 +2274,49 @@ export function removeSDKErrorMessage(id: string, errorUuid: string): boolean {
   )
   if (targetIndex < 0) return false
 
-  const kept = messages.filter((_, index) => index !== targetIndex)
+  const folded = foldSkillStoreBeforePrune(filePath, messages)
+  const kept = folded.messages.filter((_, index) => index !== targetIndex)
   const content = serializeSDKTranscript(kept)
   rewriteSDKTranscript(filePath, content)
+  folded.store.removeAfterFold()
   console.log(`[Agent 会话] 已删除重试前错误: sessionId=${id}, uuid=${errorUuid}`)
   return true
 }
 
 /**
- * Persist successful Skill loading on the human input that Pi actually consumed.
- * This is intentionally a targeted JSONL rewrite: native Pi queues can produce
- * several logical user turns before a single terminal result arrives.
+ * 将成功加载的 Skill 归属到 Pi 实际消费的用户 UUID。
+ * 日常补记只修改独立快照。没有可信单行位置时才严格解析整份旧历史。
  */
 export function updateSDKUserMessageSkillActivations(
   id: string,
   userMessageUuid: string,
   activations: SkillActivation[],
 ): boolean {
-  if (activations.length === 0) return false
+  if (activations.length === 0 || isAgentSessionDeleting(id)) return false
   const filePath = getAgentSessionMessagesPath(id)
-  if (!existsSync(filePath)) return false
+  const readStamp = skillActivationFileStamp(filePath)
+  if (!readStamp) return false
+  if (activationMemo.matches(filePath, userMessageUuid, activations)) return true
 
-  const raw = readFileSync(filePath, 'utf-8')
-  const lines = raw.split('\n').filter((line) => line.trim())
-  const messages = parseJsonlStrict<unknown>(lines, `更新用户 Skill metadata (${id})`)
-    .map(normalizePersistedSDKMessage)
-  const targetIndex = messages.findIndex((message) => (
-    message.type === 'user'
-    && (message as SDKUserMessage).uuid === userMessageUuid
-  ))
-  if (targetIndex < 0) return false
-
-  const target = messages[targetIndex] as SDKUserMessage
-  const merged = mergeSkillActivations(target.skill_activations ?? [], activations)
-  if (JSON.stringify(merged) === JSON.stringify(target.skill_activations ?? [])) return true
-
-  messages[targetIndex] = { ...target, skill_activations: merged }
-  const content = serializeSDKTranscript(messages)
-  rewriteSDKTranscript(filePath, content)
+  /** 仅从受管追加回执定位目标单行；回执失效时回退严格全量读取。 */
+  const receipt = getPersistedAgentMessageReceipt(id, userMessageUuid, readStamp)
+  let target = receipt ? readSDKMessageAtReceipt(filePath, userMessageUuid, receipt) : undefined
+  if (!target) {
+    // 旧文件一次严格核验所有物理行，不在找到输入后提前忽略损坏尾行。
+    const handle = openSync(filePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0))
+    try {
+      const opened = fstatSync(handle)
+      if (!opened.isFile() || opened.nlink !== 1) return false
+      const messages = parseJsonlStrict<unknown>(readFileSync(handle, 'utf-8').split('\n').filter((line) => line.trim()), `更新用户 Skill metadata (${id})`)
+      target = messages.map(normalizePersistedSDKMessage).find(message => message?.type === 'user' && message.uuid === userMessageUuid)
+    } finally { closeSync(handle) }
+  }
+  if (target?.type !== 'user') return false
+  if (skillActivationFileStamp(filePath) !== readStamp) throw new Error('会话在记录 Skill 期间发生变化，请重试')
+  const store = loadSkillActivationStore(filePath)
+  store.update(target as SDKUserMessage, activations)
+  const projected = store.project(target) as SDKUserMessage
+  activationMemo.remember(filePath, userMessageUuid, projected.skill_activations ?? [], `${readStamp}/${store.fingerprint ?? 'missing'}`)
   return true
 }
 

@@ -1,8 +1,8 @@
 import { discardTranscriptSnapshot } from '@/lib/agent-transcript-sync'
-import { mountedTranscriptViews, readTranscriptPageOnce } from '@/lib/agent-transcript-window'
+import { mountedTranscriptViews, readAdjacentTranscript, readTranscriptPageOnce } from '@/lib/agent-transcript-window'
 import { acknowledgeTranscriptMessages, acknowledgeTranscriptReceipts, bindTranscriptMessages, getTranscriptWindow, mergeTranscriptPage, inheritTranscriptWindow, canAcceptTranscriptPage } from '@/lib/agent-transcript-sync'
 import { recordPerformanceSample } from '@/lib/performance-monitor'
-import type { AgentTranscriptPage } from '@dutydeck/shared'
+import type { AgentTranscriptPage, AgentTranscriptPageRequest } from '@dutydeck/shared'
 import { ComputerUseStatus } from '../computer-use/ComputerUseStatus'
 import { currentVisualProductionReferenceAtomFamily, snapshotVisualProductionReferences, visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import { VisualProductionReferenceChips } from '@/components/visual-production/VisualProductionReferenceChips'
@@ -1347,7 +1347,9 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     const cachedWindow = getTranscriptWindow(store.get(agentSDKMessagesCacheAtom).get(sessionId))
     const requestRun = store.get(agentSessionStreamingStateAtomFamily(sessionId))
     const ipcStarted = performance.now()
-    const readPage = (input: import('@dutydeck/shared').AgentTranscriptPageRequest) => readTranscriptPageOnce(input, window.electronAPI.getAgentSessionTranscriptPage, String(refreshVersion))
+    const readPage = (input: AgentTranscriptPageRequest) => readAdjacentTranscript(input,
+      request => readTranscriptPageOnce(request, window.electronAPI.getAgentSessionTranscriptPage, String(refreshVersion)),
+      () => !cancelled && requestId === messagesRequestIdRef.current)
     const readTail = async (): Promise<AgentTranscriptPage> => {
       let page = await readPage(cachedWindow?.after
         ? { sessionId, mode: 'after', cursor: cachedWindow.after }
@@ -1486,7 +1488,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
   }, [sessionId, refreshVersion, tailReloadTick, setStreamingStates, setLiveMessagesMap, setMessagesCache, store])
 
   // 阅读窗口与最新尾窗分开，旧页不会改变重试/探索结论的消息来源。
-  const navigateHistory = React.useCallback(async (mode: 'before' | 'after' | 'tail' | 'around' | 'rebuild', messageId?: string): Promise<boolean> => {
+  const navigateHistory = React.useCallback(async (mode: AgentTranscriptPageRequest['mode'], messageId?: string, canCommit?: () => boolean): Promise<boolean> => {
     const token = ++historyNavigationRef.current
     const writesTail = mode === 'tail' || mode === 'rebuild'
     const acceptanceEpoch = writesTail ? ++tailAcceptanceRef.current : tailAcceptanceRef.current
@@ -1497,8 +1499,11 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     setHistoryLoading(true)
     setHistoryError(null)
     try {
-      const page = await readTranscriptPageOnce({ sessionId, mode, cursor, messageId }, window.electronAPI.getAgentSessionTranscriptPage, String(store.get(agentMessageRefreshAtom).get(sessionId) ?? 0))
-      if (token !== historyNavigationRef.current || mutationVersion !== messagesMutationVersionRef.current
+      const page = await readAdjacentTranscript({ sessionId, mode, cursor, messageId },
+        request => readTranscriptPageOnce(request, window.electronAPI.getAgentSessionTranscriptPage, String(store.get(agentMessageRefreshAtom).get(sessionId) ?? 0)),
+        () => token === historyNavigationRef.current && mutationVersion === messagesMutationVersionRef.current)
+      // 在途读取不拥有视口：用户刚开始框选或操作消息时保留原文，下次滚动可重读该游标。
+      if (token !== historyNavigationRef.current || mutationVersion !== messagesMutationVersionRef.current || canCommit?.() === false
         || !canAcceptTranscriptPage(writesTail ? getTranscriptWindow(persistedSDKMessagesRef.current) : undefined, page, acceptanceEpoch, tailAcceptanceRef.current)) return false
       if (page.status === 'resetRequired') throw new Error('历史已变化，请返回最新消息后重试')
       const merged = mergeTranscriptPage(mode === 'before' || mode === 'after' ? current : undefined, page,

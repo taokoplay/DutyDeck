@@ -1,9 +1,9 @@
 import { TranscriptPresentationContext } from '@/lib/agent-transcript-presentation'
+import { TranscriptNavigation } from './TranscriptNavigation'
 import { sliceRetainedTranscript } from '@/lib/agent-transcript-detail'
+import { TranscriptInlineRecords } from './TranscriptInlineDetails'
 import { selectTranscriptDisplay, preserveInteractingTranscript } from '@/lib/agent-transcript-sync'
 import type { AgentTranscriptPage } from '@dutydeck/shared'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { recordPerformanceSample } from '@/lib/performance-monitor'
 /**
  * AgentMessages — Agent 消息列表
@@ -250,7 +250,7 @@ interface AgentMessagesProps {
   readingHistory?: boolean
   historyLoading?: boolean
   historyError?: string | null
-  onNavigateHistory?: (mode: 'before' | 'after' | 'tail' | 'around' | 'rebuild', messageId?: string) => Promise<boolean>
+  onNavigateHistory?: (mode: 'before' | 'after' | 'tail' | 'around' | 'rebuild', messageId?: string, canCommit?: () => boolean) => Promise<boolean>
   /** 当前会话工作目录，用于解析相对文件路径 */
   sessionPath?: string | null
   /** 附加目录列表（与 sessionPath 一并用作相对路径解析候选） */
@@ -798,40 +798,8 @@ const AgentTranscriptHistory = React.forwardRef<AgentTranscriptHistoryHandle, Ag
   onRestoreProjectRoot,
   onCompact,
 }, ref): React.ReactElement {
-  const { scrollRef, isAtBottom, stopScroll } = useStickToBottomContext()
-  const previousLayoutRef = React.useRef<{
-    count: number
-    firstGroupId: string | undefined
-    scrollHeight: number
-    isAtBottom: boolean
-  } | null>(null)
-
-  const firstGroupId = groups[0] ? getGroupId(groups[0]) : undefined
-  const groupCount = groups.length
-
-  React.useLayoutEffect(() => {
-    const element = scrollRef.current
-    if (!element) return
-
-    const previous = previousLayoutRef.current
-    if (
-      previous
-      && previous.firstGroupId !== undefined
-      && groupCount > previous.count
-      && firstGroupId !== previous.firstGroupId
-      && !previous.isAtBottom
-    ) {
-      const heightDelta = element.scrollHeight - previous.scrollHeight
-      if (heightDelta > 0) element.scrollTop += heightDelta
-    }
-
-    previousLayoutRef.current = {
-      count: groupCount,
-      firstGroupId,
-      scrollHeight: element.scrollHeight,
-      isAtBottom,
-    }
-  }, [firstGroupId, groupCount, isAtBottom, scrollRef])
+  // 双向窗口可能同时补头、裁尾；滚动位置只由导航按可见消息校准，不能再叠加总高度差。
+  const { scrollRef, stopScroll } = useStickToBottomContext()
 
   const firstLiveIndex = groups.findIndex((group) => liveGroupSet.has(group))
   const historyEnd = firstLiveIndex >= 0 ? firstLiveIndex : groups.length
@@ -915,119 +883,77 @@ const AgentTranscriptHistory = React.forwardRef<AgentTranscriptHistoryHandle, Ag
   )
 })
 
-/** 保留缓冲不是另一个无界DOM；逐条、逐16k字符检查，不丢弃未确认原件。 */
+/** 保留缓冲的持久状态尚未确认；原位阅读不修改或丢弃原件。 */
 function RetainedTranscriptRecords({ messages }: { messages: SDKMessage[] }): React.ReactElement | null {
-  const [open, setOpen] = React.useState(false)
-  const [index, setIndex] = React.useState(0)
-  const [offset, setOffset] = React.useState(0)
-  const segment = React.useMemo(() => open ? sliceRetainedTranscript(messages[Math.min(index, messages.length - 1)], offset) : { text: '' }, [messages, index, open, offset])
-  if (messages.length === 0) return null
-  return <>
-    <Button size="sm" variant="outline" onClick={() => { setIndex(0); setOffset(0); setOpen(true) }}>查看保留记录（{messages.length}）</Button>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>保留记录（只读）</DialogTitle></DialogHeader>
-      <p>第 {Math.min(index + 1, messages.length)} 条，共 {messages.length} 条。尚未确认的完整缓冲仍保留。</p>
-      <pre tabIndex={0} className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-all text-xs">{segment.text}</pre>
-      <div className="flex flex-wrap gap-2">
-        <Button disabled={index === 0} onClick={() => { setIndex(index - 1); setOffset(0) }}>上一条</Button>
-        <Button disabled={index >= messages.length - 1} onClick={() => { setIndex(index + 1); setOffset(0) }}>下一条</Button>
-        <Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 16000))}>上一段</Button>
-        <Button disabled={segment.nextOffset === undefined} onClick={() => setOffset(offset + 16000)}>下一段</Button>
-      </div>
-    </DialogContent></Dialog>
-  </>
+  /** 被裁掉的缓冲可达数千条；只选择并挂载一条，不重新遍历/分组整批正文。 */
+  const [selected, setSelected] = React.useState(0)
+  const index = Math.min(selected, Math.max(0, messages.length - 1))
+  const message = messages[index]
+  /** 只为当前条构造入口，原始缓冲继续由既有状态持有。 */
+  const records = React.useMemo(() => {
+    if (!message) return []
+    const identity = (message as { _promaTranscriptId?: string })._promaTranscriptId ?? ('uuid' in message && typeof message.uuid === 'string' ? message.uuid : undefined)
+    return [{ id: `retained:${identity ?? index}`, anchors: identity ? [identity] : [],
+      label: `查看保留记录 ${index + 1}`, description: '此记录尚未确认已持久化，完整缓冲仍保留。', fallback: true,
+      load: async (offset: number) => sliceRetainedTranscript(message, offset) }]
+  }, [message, index])
+  if (!messages.length) return null
+  return <div className="text-xs text-muted-foreground">
+    <label>保留记录（共 {messages.length} 条，尚未确认已持久化）
+      <input type="number" aria-label="选择保留记录序号" min={1} max={messages.length} value={index + 1}
+        className="mx-2 w-24 rounded border bg-background px-2" onChange={event => {
+          const value = event.currentTarget.valueAsNumber
+          if (Number.isSafeInteger(value)) setSelected(Math.max(0, Math.min(messages.length - 1, value - 1)))
+        }} />
+    </label>
+    <TranscriptInlineRecords key={records[0]?.id} records={records} />
+  </div>
 }
 
 function TranscriptDetails({ page }: { page: AgentTranscriptPage }): React.ReactElement | null {
-  const [detail, setDetail] = React.useState<{ id: string; offset: number; text: string; nextOffset?: number } | null>(null)
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const request = React.useRef(0)
-  React.useEffect(() => { request.current++; setDetail(null) }, [page.sessionId, page.generation])
-  const load = async (id: string, offset = 0): Promise<void> => {
-    const token = ++request.current
-    setLoading(true); setError(null)
-    setDetail((previous) => previous?.id === id ? previous : { id, offset, text: '' })
-    try {
-      const result = await window.electronAPI.getAgentTranscriptDetail({ sessionId: page.sessionId, generation: page.generation,
-        ...(id.startsWith('tool:') ? { toolUseId: id.slice(5) } : { recordId: id }), offset })
-      if (request.current === token) setDetail({ id, offset, ...result })
-    } catch (cause) { if (request.current === token) setError(cause instanceof Error ? cause.message : '详情读取失败') }
-    finally { if (request.current === token) setLoading(false) }
-  }
-  const blocks = page.entries.flatMap(entry => {
-    const content = (entry.message as { message?: { content?: unknown } }).message?.content
-    return Array.isArray(content) ? content as Array<{ type: string; id?: string; tool_use_id?: string }> : []
-  })
-  const results = new Set(blocks.filter(block => block.type === 'tool_result').map(block => block.tool_use_id))
-  const missingTools = [...new Set(blocks.filter(block => block.type === 'tool_use' && block.id && !results.has(block.id)).map(block => block.id!))].slice(0, 30)
-  const calls = new Set(blocks.filter(block => block.type === 'tool_use').map(block => block.id))
-  const deferred = page.entries.filter(entry => entry.deferred || (entry.message.type === 'user' && (
-    ((entry.message as { message?: { content?: Array<{ type: string; tool_use_id?: string }> } }).message?.content ?? [])
-      .some(block => block.type === 'tool_result' && !calls.has(block.tool_use_id)))))
-  if (deferred.length === 0 && missingTools.length === 0 && !detail) return null
-  return <div className="px-3 text-xs text-muted-foreground">
-    {missingTools.length > 0 && <p>部分工具结果未在当前分段中；这不代表调用成功或失败。</p>}
-    {missingTools.map((id, index) => <Button key={id} size="sm" variant="outline" onClick={() => void load(`tool:${id}`)}>查找工具结果 {index + 1}</Button>)}
-    {deferred.map((entry, index) => <Button key={entry.recordId} size="sm" variant="outline" onClick={() => void load(entry.recordId)}>
-      查看分段记录 {index + 1}
-    </Button>)}
-    <Dialog open={detail !== null} onOpenChange={(open) => { if (!open) { request.current++; setDetail(null) } }}>
-      <DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>历史记录详情（只读展示投影）</DialogTitle></DialogHeader>
-        {error && <p role="alert">{error}</p>}
-        {loading && <p>正在读取…</p>}
-        <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-all text-xs" tabIndex={0}>{detail?.text}</pre>
-        <div className="flex gap-2">
-          <Button variant="outline" disabled={loading || !detail || detail.offset === 0} onClick={() => detail && void load(detail.id, Math.max(0, detail.offset - 16000))}>上一段</Button>
-          <Button variant="outline" disabled={loading || detail?.nextOffset === undefined} onClick={() => detail && void load(detail.id, detail.nextOffset)}>下一段</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  </div>
-}
-
-/** 明确分页而非无界追加；读取中保留现有内容，按首可见消息恢复像素锚点。 */
-function TranscriptNavigation({ page, reading, loading, error, onNavigate }: {
-  page?: AgentTranscriptPage; reading: boolean; loading: boolean; error?: string | null
-  onNavigate?: AgentMessagesProps['onNavigateHistory']
-}): React.ReactElement | null {
-  const { scrollRef, stopScroll, scrollToBottom } = useStickToBottomContext()
-  const [pinned, setPinned] = React.useState(false)
-  if (!onNavigate) return null
-  const move = async (mode: 'before' | 'after' | 'tail' | 'rebuild'): Promise<void> => {
-    const root = scrollRef.current
-    const selection = window.getSelection()
-    const selectionInside = Boolean(selection && !selection.isCollapsed && selection.anchorNode && root?.contains(selection.anchorNode))
-    if (selectionInside) { setPinned(true); return }
-    setPinned(false)
-    stopScroll()
-    const top = root?.getBoundingClientRect().top ?? 0
-    const anchor = Array.from(root?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])
-      .find((element) => element.getBoundingClientRect().bottom > top)
-    const id = anchor?.dataset.messageId
-    const offset = anchor ? anchor.getBoundingClientRect().top - top : 0
-    if (!await onNavigate(mode)) return
-    window.requestAnimationFrame(() => {
-      if (mode === 'tail' || mode === 'rebuild') { void scrollToBottom(); return }
-      const target = Array.from(root?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])
-        .find((element) => element.dataset.messageId === id)
-      if (root && target) root.scrollTop += target.getBoundingClientRect().top - top - offset
-      else if (root) root.scrollTop = 0
-    })
-  }
-  return <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs text-muted-foreground" aria-live="polite">
-    {page?.indexRequired && <><span>尾部记录超过首屏扫描预算；可按需构建完整索引，不会修改原始历史。</span><Button variant="outline" size="sm" disabled={loading} onClick={() => void move('rebuild')}>构建历史索引</Button></>}
-    {page?.hasBefore && !page.indexRequired && <Button variant="outline" size="sm" disabled={loading} onClick={() => void move('before')}>较早历史</Button>}
-    {reading && <>
-      {page?.hasAfter && <Button variant="outline" size="sm" disabled={loading} onClick={() => void move('after')}>较新历史</Button>}
-      <Button variant="outline" size="sm" disabled={loading} onClick={() => void move('tail')}>返回最新消息</Button>
-      <span>正在阅读历史，实时输出保留在最新窗口</span>
-    </>}
-    {page && (page.startsMidTurn || page.endsMidTurn) && <span>此回合已按展示预算分段，可继续翻页</span>}
-    {page?.turnNumbersRelative && <span>回合编号为当前窗口相对编号</span>}
-    {loading && <span>正在读取历史…</span>}
-    {pinned && <span>请先取消文本选区，再切换历史窗口</span>}
-    {error && <><span role="alert">{error}</span><Button size="sm" variant="outline" disabled={loading} onClick={() => void move('tail')}>重新加载</Button></>}
-  </div>
+  /** 按实际渲染分组获取记录兜底锚点，不把详情集中到列表顶部。 */
+  const records = React.useMemo(() => {
+    const groups = groupIntoTurns(page.entries.map(entry => entry.message))
+    /** 单次线性分组索引，避免每条 deferred 都扫描全部回合。 */
+    const groupAnchors = new Map<SDKMessage, string>()
+    for (const group of groups) {
+      const id = getGroupId(group)
+      for (const message of group.type === 'assistant-turn' ? group.turnMessages
+        : [group.type === 'system' ? group.identityMessage : group.message]) groupAnchors.set(message, id)
+    }
+    /** 提取内容块只用于工具调用/结果身份关联，不读取页外正文。 */
+    const blocksFor = (message: SDKMessage): Array<{ type: string; id?: string; tool_use_id?: string }> => {
+      const content = (message as { message?: { content?: unknown } }).message?.content
+      return Array.isArray(content) ? content : []
+    }
+    const blocks = page.entries.flatMap(entry => blocksFor(entry.message))
+    const results = new Set(blocks.filter(block => block.type === 'tool_result').map(block => block.tool_use_id))
+    const calls = new Set(blocks.filter(block => block.type === 'tool_use').map(block => block.id))
+    /** 工具调用位置只索引一次，跨页结果入口直接回到所属调用。 */
+    const toolOwners = new Map<string, AgentTranscriptPage['entries'][number]>()
+    for (const entry of page.entries) for (const block of blocksFor(entry.message)) {
+      if (block.type === 'tool_use' && block.id) toolOwners.set(block.id, entry)
+    }
+    const missingTools = [...new Set(blocks.filter(block => block.type === 'tool_use' && block.id && !results.has(block.id)).map(block => block.id!))].slice(0, 30)
+    /** 优先命中精确消息锚点，再回退到同一助手回合。 */
+    const anchorsFor = (entry: AgentTranscriptPage['entries'][number]): string[] => {
+      return [entry.recordId, groupAnchors.get(entry.message)].filter((id): id is string => !!id)
+    }
+    const deferred = page.entries.filter(entry => entry.deferred || (entry.message.type === 'user'
+      && blocksFor(entry.message).some(block => block.type === 'tool_result' && !calls.has(block.tool_use_id))))
+    return [
+      ...missingTools.map(id => {
+        const owner = toolOwners.get(id)!
+        return { id: JSON.stringify([page.sessionId, page.generation, 'tool', id]), anchors: anchorsFor(owner), label: '查看工具结果', fallback: true,
+          description: '工具结果未在当前分段中；这不代表调用成功或失败。',
+          load: (offset: number) => window.electronAPI.getAgentTranscriptDetail({ sessionId: page.sessionId, generation: page.generation, toolUseId: id, offset }) }
+      }),
+      ...deferred.map(entry => ({ id: JSON.stringify([page.sessionId, page.generation, 'record', entry.recordId]), anchors: anchorsFor(entry), label: '展开完整记录', fallback: true,
+        load: (offset: number) => window.electronAPI.getAgentTranscriptDetail({ sessionId: page.sessionId, generation: page.generation, recordId: entry.recordId, offset }) })),
+    ]
+  }, [page])
+  if (!records.length) return null
+  return <TranscriptInlineRecords records={records} />
 }
 
 export const AgentMessages = React.memo(function AgentMessages({
@@ -1292,12 +1218,12 @@ export const AgentMessages = React.memo(function AgentMessages({
 
   // 搜索记录与迷你地图一样只依赖结构快照，流式 token 不触发全文重建。
   const localSearchRecordInputs = React.useMemo<LocalSearchRecordInput[]>(
-    () => toTranscript(structuralGroups).map((turn, index) => ({
+    () => onNavigateHistory ? [] : toTranscript(structuralGroups).map((turn, index) => ({
       messageId: getGroupId(structuralGroups[index]!),
       role: turn.role,
       text: turn.text,
     })),
-    [structuralGroups],
+    [structuralGroups, onNavigateHistory],
   )
   const localSearchRecords = React.useMemo<LocalSearchRecord[]>(
     () => createLocalSearchRecords(localSearchRecordInputs),
@@ -1351,6 +1277,8 @@ export const AgentMessages = React.memo(function AgentMessages({
 
   // turn 在消息渲染时一次性标注到 DOM；历史划选只需读取锚点属性，绝不回扫全部消息。
   const groupHistoryTurns = React.useMemo(() => {
+    // 冷尾窗回合号以局部起点计数，向前扩展还可能为负；不要把它作为绝对回合号写入用户的摘引。
+    if (transcriptWindow?.turnNumbersRelative) return new Map<string, number>()
     const indexed = new Map(transcriptWindow?.entries.map(entry => [entry.recordId, entry.turn]) ?? [])
     let turn = Math.max(1, transcriptWindow?.entries[0]?.turn ?? 1)
     const turns = new Map<string, number>()
@@ -1381,7 +1309,7 @@ export const AgentMessages = React.memo(function AgentMessages({
           {display !== candidateDisplay && <p className="text-xs text-muted-foreground">交互期间暂停替换展示窗口，结束选区或移开焦点后显示新内容。</p>}
           <RetainedTranscriptRecords messages={display.retained} />
           {display.omitted > 0 && <p className="px-3 text-xs text-muted-foreground">当前显示最新的有界窗口，{display.omitted} 条较早的实时缓冲未挂载；原始历史与未确认缓冲均保留。</p>}
-          <TranscriptNavigation page={transcriptWindow} reading={readingHistory} loading={historyLoading}
+          <TranscriptNavigation key={sessionId} ready={ready} page={transcriptWindow} reading={readingHistory} loading={historyLoading}
             error={historyError} onNavigate={onNavigateHistory} />
           {transcriptWindow && <TranscriptDetails page={transcriptWindow} />}
           {!hasContent && !streaming ? (

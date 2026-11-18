@@ -6,7 +6,7 @@
  * （每行共享同一 message.id，是逐步增长的完整快照）。本层按 message.id 取最后一条
  * （最完整）快照来消除「拼接单字 / 重复段落」，这是会话「快照去重」的落地实现。
  */
-import type { SDKAssistantMessage, SDKContentBlock, SDKToolUseBlock } from '@dutydeck/shared'
+import type { SDKAssistantMessage, SDKContentBlock, SDKToolUseBlock, SkillActivation } from '@dutydeck/shared'
 import { type MessageGroup, extractUserText, getGroupPreview, stripScheduledRunMarker } from './group'
 import { estimateTokens } from './tokens'
 
@@ -22,6 +22,8 @@ export interface TranscriptTurn {
   text: string
   /** assistant 回合的工具调用摘要，已折叠连续重复为 "name args ×N"。 */
   toolSummaries: string[]
+  /** 用户输入实际激活的 Skill，保留给 Markdown 导出。 */
+  skillActivations?: SkillActivation[]
   /** 单行预览（<=200 字）。 */
   preview: string
   /** 近似 token 数（正文 + 工具摘要）。 */
@@ -110,6 +112,7 @@ export function toTranscript(groups: MessageGroup[]): TranscriptTurn[] {
         createdAt: (group.message as unknown as { _createdAt?: number })._createdAt,
         text,
         toolSummaries: [],
+        ...(group.message.skill_activations?.length ? { skillActivations: group.message.skill_activations } : {}),
         preview: getGroupPreview(group),
         tokens: estimateTokens(text),
       }

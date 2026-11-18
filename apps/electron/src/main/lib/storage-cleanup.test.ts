@@ -194,3 +194,49 @@ describe('storage cleanup', () => {
     }
   })
 })
+
+
+describe('Skill 权威旁车清理边界', () => {
+  it('Given 孤儿 JSONL 与旁车以及在册旁车 When 预览并清理 Then 只删除孤儿且统计旁车字节', async () => {
+    /** 隔离所有清理目标，不触碰业务数据根。 */
+    const root = await mkdtemp(join(tmpdir(), 'skill-sidecar-cleanup-'))
+    try {
+      /** 在册会话的旁车即使没有 JSONL 也必须保留。 */
+      const context = await createContext(root, [{ id: 'kept', archived: false, updatedAt: OLD_TIME }], new Set(['busy']))
+      /** 两种孤儿情况：JSONL 尚在，以及之前清理遗留的独立旁车。 */
+      const orphanNames = ['gone.jsonl', 'gone.jsonl.skills.json', 'alone.jsonl.skills.json']
+      for (const name of [...orphanNames, 'kept.jsonl.skills.json', 'busy.jsonl.skills.json']) {
+        const path = join(context.agentSessionsDir, name)
+        await writeFile(path, '{}\n')
+        await setOld(path)
+      }
+      const preview = await previewStorageCleanup(context, { mode: 'orphaned', beforeDays: 0 }, NOW)
+      expect(preview.candidates).toHaveLength(3)
+      expect(preview.reclaimableBytes).toBe(9)
+      const result = await executeStorageCleanup({ ...preview, operationId: 'skills-cleanup' }, context, preview.candidates.map((item) => item.id))
+      expect(result.freedBytes).toBe(9)
+      for (const name of orphanNames) expect(await Bun.file(join(context.agentSessionsDir, name)).exists()).toBe(false)
+      expect(await Bun.file(join(context.agentSessionsDir, 'kept.jsonl.skills.json')).exists()).toBe(true)
+      expect(await Bun.file(join(context.agentSessionsDir, 'busy.jsonl.skills.json')).exists()).toBe(true)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+  it('Given 预览后旁车更新或会话恢复到索引 When 执行 Then 不删除新的权威快照', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'skill-sidecar-cleanup-'))
+    try {
+      const sessions: StorageCleanupSessionSnapshot[] = []
+      const context = await createContext(root, sessions)
+      for (const id of ['changed', 'restored']) {
+        const path = join(context.agentSessionsDir, `${id}.jsonl.skills.json`)
+        await writeFile(path, '{}\n')
+        await setOld(path)
+      }
+      const preview = await previewStorageCleanup(context, { mode: 'orphaned', beforeDays: 0 }, NOW)
+      expect(preview.candidates).toHaveLength(2)
+      await writeFile(join(context.agentSessionsDir, 'changed.jsonl.skills.json'), '[]\n')
+      sessions.push({ id: 'restored', archived: false, updatedAt: NOW })
+      const result = await executeStorageCleanup({ ...preview, operationId: 'skills-cleanup' }, context, preview.candidates.map((item) => item.id))
+      expect(result.deletedCount).toBe(0)
+      expect(result.skippedCount).toBe(2)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+})

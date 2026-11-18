@@ -1,3 +1,4 @@
+import { createRendererPerformanceObserver } from '../../shared/agent-performance'
 import { mountedTranscriptViews } from '@/lib/agent-transcript-window'
 import { visualProductionReferencesAtomFamily } from '@/atoms/visual-production-reference-atoms'
 import { restoreVisualProductionReferences } from '@dutydeck/shared'
@@ -1631,6 +1632,12 @@ export function useGlobalAgentListeners(): void {
     }).catch(console.error)
 
     // ===== 1. 流式事件 =====
+    /** 本地显式开关；不经过 IPC，也不存储任何消息正文。 */
+    const performanceObserver = createRendererPerformanceObserver({
+      enabled: (() => { try { return window.localStorage.getItem('dutydeck:agent-perf') === '1' } catch { return false } })(),
+      requestFrame: callback => window.requestAnimationFrame(callback),
+      cancelFrame: id => window.cancelAnimationFrame(id),
+    })
     const handleStreamEvent = (streamEvent: AgentStreamEvent): void => {
         const { sessionId, payload } = streamEvent
         /** Canvas owner 或损坏内部身份存在于全局索引，不依赖当前打开的 Canvas。 */
@@ -1785,6 +1792,8 @@ export function useGlobalAgentListeners(): void {
             }
             return map
           })
+
+          performanceObserver.applied(streamEvent)
 
           // 文本/思考恢复后只收束一次 retry 或已完成的压缩状态；正常 token
           // 不会触碰 AgentStreamState，从而避免重新引入逐 token 的第二次 Map 更新。
@@ -2300,6 +2309,7 @@ export function useGlobalAgentListeners(): void {
       }),
     })
     const cleanupEvent = window.electronAPI.onAgentStreamEvent((streamEvent) => {
+      performanceObserver.receive(streamEvent)
       streamEventBatcher.push(streamEvent)
     })
 
@@ -2813,6 +2823,7 @@ export function useGlobalAgentListeners(): void {
       canvasAgentBootstrapCoordinator.dispose()
       pendingRequestRecovery.dispose()
       cleanupEvent()
+      performanceObserver.dispose()
       streamEventBatcher.dispose()
       unsubscribeVisibleSession()
       cleanupComplete()

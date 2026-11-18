@@ -12,7 +12,9 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { DataRootMigrationProgress } from '@dutydeck/shared'
+import { readSessionMessages } from '@dutydeck/session-core/node'
+import { mergeSkillActivationStore } from '../../../../../packages/session-core/src/skill-activation-projection'
+import type { SDKUserMessage, DataRootMigrationProgress } from '@dutydeck/shared'
 import { DataRootLocator } from './data-root-locator'
 import {
   PROMA_DATA_ROOT_MARKER_FILE,
@@ -245,6 +247,35 @@ describe('DataRootMigrationCoordinator', () => {
     expect(progressEvents.some((progress) => progress.stage === 'verifying')).toBe(true)
     expect(locator.requireActiveRoot()).toBe(targetRoot)
     expect(existsSync(getDirectoryCopySidecarPath(targetRoot))).toBe(false)
+  })
+
+  test('Given 会话 JSONL 与权威 Skill 旁车 When 完整数据根迁移 Then 新根和旧备份保留原始字节', async () => {
+    /** 使用合法业务数据根和真实复制器，覆盖校验及路径重定位阶段。 */
+    ensurePromaDataRootMarker(sourceRoot)
+    const locator = new DataRootLocator({ homeDir })
+    const coordinator = new DataRootMigrationCoordinator({ locator,
+      lockPath: join(homeDir, '.skills-migration.lock'),
+      getAvailableBytes: async () => 1_000_000, isPidRunning: () => false })
+    /** 复制协议把旁车视为不透明权威文件，不解析或重新序列化。 */
+    const message: SDKUserMessage = { type: 'user', uuid: 'portable-input', parent_tool_use_id: null,
+      message: { content: [{ type: 'text', text: '迁移后继续审查' }] } }
+    const store = mergeSkillActivationStore({ version: 1, entries: [] }, message,
+      [{ slug: 'review', name: '代码审查', sources: ['read'] }])
+    const files = new Map([
+      ['portable.jsonl', JSON.stringify(message) + '\r\n'],
+      ['portable.jsonl.skills.json', JSON.stringify(store) + '\n'],
+    ])
+    mkdirSync(join(sourceRoot, 'agent-sessions'))
+    for (const [name, bytes] of files) writeFileSync(join(sourceRoot, 'agent-sessions', name), bytes)
+    await coordinator.createPlan(targetRoot)
+    await coordinator.runPending()
+    expect(locator.requireActiveRoot()).toBe(targetRoot)
+    expect(locator.inspect().locatorFile?.previousRoot).toBe(sourceRoot)
+    expect((readSessionMessages(join(targetRoot, 'agent-sessions', 'portable.jsonl'))[0] as SDKUserMessage).skill_activations?.[0]?.slug).toBe('review')
+    for (const [name, bytes] of files) {
+      expect(readFileSync(join(sourceRoot, 'agent-sessions', name), 'utf8')).toBe(bytes)
+      expect(readFileSync(join(targetRoot, 'agent-sessions', name), 'utf8')).toBe(bytes)
+    }
   })
 
   test('Given 零进度计划创建后源配置被退出流程更新 When 隔离进程恢复 Then 以最终源容量完成迁移', async () => {

@@ -1,3 +1,4 @@
+import { createAgentPerformanceTrace } from '../../../shared/agent-performance'
 import { normalizePiTokenUsage, type TokenUsageObserver } from '../token-usage-observer'
 /**
  * Pi Agent SDK 适配器
@@ -740,8 +741,13 @@ export async function preparePromptWithPromaSkills(
   prompt: string,
   explicitSkillNames?: string[],
   workspaceSlug?: string,
+  /** 仅本 query 首个普通 prompt 可携带初始化后校验过的资源快照。 */
+  initialSnapshot?: SkillLoadResult,
 ): Promise<PreparedPromptWithSkills> {
-  await resourceLoader.reload()
+  /** 列表身份已变更时回退刷新；后续 steer/queue 未传快照，始终刷新。 */
+  const currentSnapshot = initialSnapshot ? resourceLoader.getSkills() : undefined
+  if (!initialSnapshot || currentSnapshot?.skills !== initialSnapshot.skills
+    || currentSnapshot.diagnostics !== initialSnapshot.diagnostics) await resourceLoader.reload()
 
   const requestedNames = explicitSkillNames?.length ? explicitSkillNames : extractSkillCommandNames(prompt)
   if (requestedNames.length === 0) return { content: prompt, activations: [] }
@@ -1646,6 +1652,9 @@ export class PiAgentAdapter implements AgentProviderAdapter {
   private activeQueries = new Map<string, ActivePiSession>()
 
   async *query(input: PiAgentQueryOptions, queryToken: string): AsyncIterable<SDKMessage> {
+    /** runtime 使用自己的单调时钟，不与主进程/renderer 时间相减。 */
+    const performanceTrace = createAgentPerformanceTrace({ enabled: process.env.DUTYDECK_AGENT_PERF === '1', domain: 'runtime', sessionId: input.sessionId, runStartedAt: input.retryRunStartedAt ?? 0 })
+    performanceTrace('runtime_start')
     const active = createActivePiSession()
     this.activeSessions.set(input.sessionId, active)
     this.activeQueries.set(queryToken, active)
@@ -1825,6 +1834,8 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         systemPromptOverride: () => appendWindowsBaseModeInstruction(input.systemPrompt, input.runtimeEnv),
       })
       await resourceLoader.reload()
+      /** 单 query 初始快照；仅 nextPrompt 初始项携带，后续输入不会继承。 */
+      const initialSkillSnapshot = resourceLoader.getSkills()
       active.resourceLoader = resourceLoader
 
       const skillDiagnostics = resourceLoader.getSkills().diagnostics
@@ -2009,6 +2020,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
               const assistantUuid = assistantUuidFor()
               const delta = serializePiAssistantDelta(event.assistantMessageEvent)
               if (delta) {
+                if (delta.type === 'text_delta' && delta.delta.length > 0) performanceTrace('first_text')
                 queue.push({
                   type: 'assistant_delta',
                   uuid: assistantUuid,
@@ -2254,11 +2266,14 @@ export class PiAgentAdapter implements AgentProviderAdapter {
           let nextPrompt: {
             content: string
             skipSkillExpansion: boolean
+            /** 初始化后已过滤的首轮快照，不跨 prompt 传播。 */
+            initialSkillSnapshot?: SkillLoadResult
             skillMentions?: string[]
             userMessageUuid?: string
           } | undefined = {
             content: appendOutputFormatInstruction(input.prompt, input.outputFormat),
             skipSkillExpansion: false,
+            initialSkillSnapshot,
             skillMentions: input.skillMentions,
             userMessageUuid: input.initialUserMessageUuid,
           }
@@ -2344,6 +2359,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
                   promptInput.content,
                   promptInput.skillMentions,
                   input.skillWorkspaceSlug,
+                  promptInput.initialSkillSnapshot,
                 )
             } catch (error) {
               currentInterrupt?.rejectAccepted(error)
@@ -2376,6 +2392,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
                 await session.agent.continue()
               } else {
                 nextPromptUserUuid = promptInput.userMessageUuid
+                performanceTrace('prompt_submit')
                 await session.prompt(prompt, { source: 'rpc' })
               }
               await finalizeCompletedTurn()

@@ -38,21 +38,31 @@ export async function readTranscriptPage(
   if (request.mode === 'around' && (typeof request.messageId !== 'string' || request.messageId.length > 200)) throw new Error('消息定位ID非法')
   const started = performance.now()
   let index: TranscriptIndex
-  try { index = await getTranscriptIndex(path, request.mode === 'tail' || request.mode === 'after') }
+  try {
+    index = await getTranscriptIndex(path, request.mode !== 'around' && request.mode !== 'rebuild',
+      cursor && (request.mode === 'before' || request.mode === 'after')
+        ? { direction: request.mode, offset: cursor.offset, generation: cursor.generation, maxRecords } : undefined)
+  }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     return { sessionId: request.sessionId, status: cursor ? 'resetRequired' : 'page', generation: 'empty',
       revision: 'empty:0', observedEnd: 0, entries: [], hasBefore: false, hasAfter: false,
       startsMidTurn: false, endsMidTurn: false, ioBytes: 0, indexBytes: 0, turnNumbersRelative: false, returnedBytes: 0 }
   }
-  if (cursor && cursor.generation === index.generation && cursor.offset < index.coverageStart) index = await getTranscriptIndex(path)
   const records = index.records
   const page: AgentTranscriptPage = { sessionId: request.sessionId, status: 'page', generation: index.generation,
     revision: `${index.generation}:${index.observedEnd}`, observedEnd: index.observedEnd,
     entries: [], hasBefore: false, hasAfter: false, startsMidTurn: false, endsMidTurn: false,
-    ioBytes: 0, indexBytes: index.scannedBytes, turnNumbersRelative: !index.complete, returnedBytes: 0 }
-  if (!index.complete && records.length === 0) {
-    return { ...page, indexRequired: true, hasBefore: true }
+    ioBytes: 0, indexBytes: index.scannedBytes, turnNumbersRelative: index.turnNumbersRelative ?? !index.complete, returnedBytes: 0 }
+  if (cursor && cursor.generation !== index.generation) return { ...page, status: 'resetRequired' }
+  if ((request.mode === 'tail' && index.scanPending)
+    || (!index.complete && records.length === 0)
+    || (request.mode === 'before' && cursor?.offset === index.coverageStart && index.coverageStart > 0)
+    || (request.mode === 'after' && cursor?.offset === index.observedEnd && index.scanPending)) {
+    // 初始tail用同代游标继续；before/after必须保留原方向和原游标，不能跳回最新页。
+    const retryCursor = cursor ?? { sessionId: request.sessionId, generation: index.generation, offset: index.observedEnd }
+    return { ...page, indexRequired: true, hasBefore: index.coverageStart > 0, hasAfter: !!index.scanPending,
+      before: retryCursor, after: retryCursor }
   }
   if (cursor && (cursor.generation !== index.generation || cursor.offset > index.observedEnd
     || (cursor.offset !== index.observedEnd && cursor.offset !== 0 && records[lowerBound(records, cursor.offset)]?.offset !== cursor.offset))) {
@@ -132,10 +142,11 @@ export async function readTranscriptPage(
   const firstRecord = page.entries.length > 0 ? records[first] : undefined
   const lastRecord = page.entries.length > 0 ? records[last] : undefined
   page.hasBefore = firstRecord !== undefined && (first > 0 || index.coverageStart > 0)
-  page.hasAfter = lastRecord !== undefined && last < records.length - 1
+  page.hasAfter = lastRecord !== undefined && (last < records.length - 1 || !!index.scanPending)
   page.startsMidTurn = firstRecord !== undefined && ((first > 0 && records[first - 1]!.turn === firstRecord.turn)
     || (first === 0 && index.coverageStart > 0 && !firstRecord.turnStart))
-  page.endsMidTurn = lastRecord !== undefined && last + 1 < records.length && records[last + 1]!.turn === lastRecord.turn
+  page.endsMidTurn = lastRecord !== undefined && (last + 1 < records.length
+    ? records[last + 1]!.turn === lastRecord.turn : !!index.scanPending)
   page.before = { sessionId: request.sessionId, generation: index.generation, offset: firstRecord?.offset ?? 0 }
   page.after = { sessionId: request.sessionId, generation: index.generation, offset: lastRecord?.end ?? 0 }
   page.returnedBytes = Buffer.byteLength(JSON.stringify(page))

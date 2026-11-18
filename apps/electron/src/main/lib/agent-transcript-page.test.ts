@@ -119,3 +119,157 @@ test('Given 关联ID很多的巨条 When 最小分页预算 Then 仍返回可查
   expect(page.entries[0]?.deferred).toBe(true)
   expect(page.returnedBytes).toBeLessThanOrEqual(4096)
 })
+
+for (const count of [10000, 50000]) {
+  test(`Given ${count}条历史 When 跨局部窗口before再after Then 有界无漏项且回合稳定`, async () => {
+    // 大样本让连续上翻跨越冷启动的1000条局部索引。
+    const path = fixture(count / 2)
+    let page = await readTranscriptPage(path, { sessionId: 'bounded', mode: 'tail', maxRecords: 300, maxTurns: 60 }, project)
+    const generation = page.generation
+    // 保存实际返回的身份与回合，向前跨窗后再逐页向后对照。
+    const seen = new Map(page.entries.map((entry) => [entry.recordId, entry.turn]))
+    for (let step = 0; step < 12; step++) {
+      const newer = page
+      page = await readTranscriptPage(path, { sessionId: 'bounded', mode: 'before', cursor: page.before, maxRecords: 300, maxTurns: 60 }, project)
+      expect(page.status).toBe('page')
+      expect(page.generation).toBe(generation)
+      expect(page.indexBytes).toBeLessThanOrEqual(1024 * 1024)
+      expect(page.after?.offset).toBe(newer.before?.offset)
+      for (const entry of page.entries) {
+        expect(seen.has(entry.recordId)).toBe(false)
+        seen.set(entry.recordId, entry.turn)
+      }
+      const back = await readTranscriptPage(path, { sessionId: 'bounded', mode: 'after', cursor: page.after, maxRecords: 300, maxTurns: 60 }, project)
+      expect(back.entries.map((entry) => [entry.recordId, entry.turn])).toEqual(newer.entries.map((entry) => [entry.recordId, entry.turn]))
+    }
+  })
+}
+
+test('Given 巨型尾行 When 同代tail有界续扫 Then 自动推进到deferred而不显式rebuild', async () => {
+  const path = fixture(1)
+  appendFileSync(path, row('giant', 'assistant', 'x'.repeat(5 * 1024 * 1024)))
+  let page = await readTranscriptPage(path, { sessionId: 'giant', mode: 'tail', maxBytes: 4096 }, project)
+  const generation = page.generation
+  expect(page.indexRequired).toBe(true)
+  for (let attempt = 0; attempt < 24 && page.indexRequired; attempt++) {
+    page = await readTranscriptPage(path, { sessionId: 'giant', mode: 'tail', cursor: page.after, maxBytes: 4096 }, project)
+    expect(page.generation).toBe(generation)
+    expect(page.indexBytes).toBeGreaterThan(0)
+    expect(page.indexBytes).toBeLessThanOrEqual(1024 * 1024)
+  }
+  expect(page.indexRequired).not.toBe(true)
+  expect(page.entries.at(-1)?.deferred).toBe(true)
+  expect(page.observedEnd).toBe(statSync(path).size)
+})
+
+test('Given 受管追加5MiB When after逐批续扫 Then 不整扫追加且最终接上旧游标', async () => {
+  const path = fixture(1)
+  const tail = await readTranscriptPage(path, { sessionId: 'append', mode: 'tail' }, project)
+  const stamp = transcriptFileStamp(statSync(path))
+  appendFileSync(path, row('giant', 'assistant', 'x'.repeat(5 * 1024 * 1024)))
+  noteTranscriptAppend(path, stamp)
+  let page = await readTranscriptPage(path, { sessionId: 'append', mode: 'after', cursor: tail.after }, project)
+  for (let attempt = 0; attempt < 24 && page.indexRequired; attempt++) {
+    expect(page.indexBytes).toBeLessThanOrEqual(1024 * 1024)
+    page = await readTranscriptPage(path, { sessionId: 'append', mode: 'after', cursor: tail.after }, project)
+  }
+  expect(page.indexBytes).toBeLessThanOrEqual(1024 * 1024)
+  expect(page.generation).toBe(tail.generation)
+  expect(page.entries).toHaveLength(1)
+  expect(page.entries[0]?.offset).toBe(tail.after?.offset)
+})
+
+test('Given 局部窗口跨工具回合 When 多次before至开头再after Then 回合与边界不漂移', async () => {
+  const path = fixture(0)
+  // 工具结果虽为user类型，但不能建立新用户回合。
+  const tool = JSON.stringify({ type: 'user', uuid: 'tool', message: { content: [{ type: 'tool_result', tool_use_id: 'call', content: 'ok' }] } }) + '\n'
+  writeFileSync(path, row('start', 'user') + Array.from({ length: 1200 }, (_, index) => row(`a${index}`, 'assistant')).join('') + tool)
+  const tail = await readTranscriptPage(path, { sessionId: 'turn', mode: 'tail', maxRecords: 300 }, project)
+  let page = tail
+  for (let count = 0; count < 10 && page.hasBefore; count++) {
+    page = await readTranscriptPage(path, { sessionId: 'turn', mode: 'before', cursor: page.before, maxRecords: 300 }, project)
+    expect(page.entries.every((entry) => entry.turn === tail.entries[0]!.turn)).toBe(true)
+    expect(page.endsMidTurn).toBe(true)
+  }
+  expect(page.entries[0]?.recordId).toBe('start')
+  expect(page.startsMidTurn).toBe(false)
+  const again = await readTranscriptPage(path, { sessionId: 'turn', mode: 'tail', maxRecords: 300 }, project)
+  expect(again.entries.map((entry) => [entry.recordId, entry.turn])).toEqual(tail.entries.map((entry) => [entry.recordId, entry.turn]))
+  expect(again.turnNumbersRelative).toBe(true)
+})
+
+test('Given 巨型中间行 When before有界续扫 Then 跨越后可after返回原尾页', async () => {
+  const path = fixture(1)
+  appendFileSync(path, row('giant', 'assistant', 'x'.repeat(3 * 1024 * 1024)) + row('last', 'assistant'))
+  const tail = await readTranscriptPage(path, { sessionId: 'middle', mode: 'tail', maxRecords: 1 }, project)
+  expect(tail.entries[0]?.recordId).toBe('last')
+  let before = await readTranscriptPage(path, { sessionId: 'middle', mode: 'before', cursor: tail.before, maxRecords: 1 }, project)
+  for (let attempt = 0; attempt < 10 && before.indexRequired; attempt++) {
+    expect(before.indexBytes).toBeGreaterThan(0)
+    expect(before.indexBytes).toBeLessThanOrEqual(1024 * 1024)
+    before = await readTranscriptPage(path, { sessionId: 'middle', mode: 'before', cursor: tail.before, maxRecords: 1 }, project)
+  }
+  expect(before.entries).toHaveLength(1)
+  expect(before.entries[0]?.deferred).toBe(true)
+  expect(before.after?.offset).toBe(tail.before?.offset)
+  const after = await readTranscriptPage(path, { sessionId: 'middle', mode: 'after', cursor: before.after, maxRecords: 1 }, project)
+  expect(after.entries.map((entry) => entry.recordId)).toEqual(['last'])
+})
+
+test('Given 正向追加超过一批 When after返回局部页 Then hasAfter不能假报已到最新', async () => {
+  const path = fixture(1)
+  const tail = await readTranscriptPage(path, { sessionId: 'growing', mode: 'tail' }, project)
+  const stamp = transcriptFileStamp(statSync(path))
+  appendFileSync(path, Array.from({ length: 2000 }, (_, index) => row(`next${index}`, 'assistant')).join(''))
+  noteTranscriptAppend(path, stamp)
+  const page = await readTranscriptPage(path, { sessionId: 'growing', mode: 'after', cursor: tail.after, maxRecords: 1000 }, project)
+  expect(page.entries).toHaveLength(1000)
+  expect(page.hasAfter).toBe(true)
+  expect(page.endsMidTurn).toBe(true)
+})
+
+test('Given 可解析的巨条工具结果 When tail续扫再around Then UUID和工具回合身份一致', async () => {
+  const path = fixture(1)
+  appendFileSync(path, JSON.stringify({ type: 'user', uuid: 'large-tool', message: { content: [{ type: 'tool_result', tool_use_id: 'call-large', is_error: true, content: 'x'.repeat(600000) }] } }) + '\n')
+  let page = await readTranscriptPage(path, { sessionId: 'identity', mode: 'tail', maxBytes: 4096 }, project)
+  for (let attempt = 0; attempt < 4 && page.indexRequired; attempt++) {
+    page = await readTranscriptPage(path, { sessionId: 'identity', mode: 'tail', cursor: page.after, maxBytes: 4096 }, project)
+  }
+  expect(page.entries.at(-1)?.recordId).toBe('large-tool')
+  expect(page.entries.at(-1)?.turn).toBe(page.entries[0]?.turn)
+  const around = await readTranscriptPage(path, { sessionId: 'identity', mode: 'around', messageId: page.entries.at(-1)!.recordId, maxBytes: 4096 }, project)
+  expect(around.status).toBe('page')
+  expect(around.entries.at(-1)?.recordId).toBe('large-tool')
+  expect((page.entries.at(-1)?.message as { message: { content: Array<{ tool_use_id: string; is_error: boolean }> } }).message.content[0]).toMatchObject({ tool_use_id: 'call-large', is_error: true })
+})
+
+test('Given 巨行续扫中外部替换或截短 When 用旧tail游标重试 Then resetRequired且不返回旧页', async () => {
+  for (const replacement of ['', row('replacement', 'user')]) {
+    const path = fixture(0)
+    appendFileSync(path, row('giant', 'assistant', 'x'.repeat(3 * 1024 * 1024)))
+    const initial = await readTranscriptPage(path, { sessionId: 'replace', mode: 'tail' }, project)
+    expect(initial.indexRequired).toBe(true)
+    writeFileSync(path, replacement)
+    const reset = await readTranscriptPage(path, { sessionId: 'replace', mode: 'tail', cursor: initial.after }, project)
+    expect(reset.status).toBe('resetRequired')
+    expect(reset.entries).toEqual([])
+    expect(reset.generation).not.toBe(initial.generation)
+  }
+})
+
+test('Given 冷巨行仍在倒扫 When 受管追加与tail续扫交错 Then 不混接正反向覆盖范围', async () => {
+  const path = fixture(1)
+  appendFileSync(path, row('giant', 'assistant', 'x'.repeat(3 * 1024 * 1024)))
+  let page = await readTranscriptPage(path, { sessionId: 'interleave', mode: 'tail' }, project)
+  const stamp = transcriptFileStamp(statSync(path))
+  appendFileSync(path, row('last', 'assistant'))
+  noteTranscriptAppend(path, stamp)
+  for (let attempt = 0; attempt < 12 && page.indexRequired; attempt++) {
+    page = await readTranscriptPage(path, { sessionId: 'interleave', mode: 'tail', cursor: page.after }, project)
+    expect(page.indexBytes).toBeLessThanOrEqual(1024 * 1024)
+  }
+  expect(page.indexRequired).not.toBe(true)
+  expect(page.entries.map((entry) => entry.recordId)).toEqual(['u0', 'a0', 'giant', 'last'])
+  const earlier = await readTranscriptPage(path, { sessionId: 'interleave', mode: 'before', cursor: page.before }, project)
+  expect(earlier.entries).toEqual([])
+})

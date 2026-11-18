@@ -18,6 +18,27 @@ export function createMountedTranscriptRegistry() {
   }
 }
 export const mountedTranscriptViews = createMountedTranscriptRegistry()
+
+/** 同一用户请求分批续扫巨型 JSONL 行。保留原方向和授权游标；切会话立即停止，期间不拿空页覆盖已读内容。 */
+export async function readAdjacentTranscript(
+  input: AgentTranscriptPageRequest, read: (request: AgentTranscriptPageRequest) => Promise<AgentTranscriptPage>, isCurrent: () => boolean,
+): Promise<AgentTranscriptPage> {
+  let request = input
+  while (isCurrent()) {
+    const page = await read(request)
+    if (!page.indexRequired || page.status === 'resetRequired') return page
+    if (!Number.isSafeInteger(page.indexBytes) || page.indexBytes <= 0) throw new Error('历史读取没有进展，请重试')
+    if (input.mode === 'tail' && !request.cursor) {
+      // 冷尾扫必须绑定本次观察的文件代次；没有可靠游标不能重新发起无条件 tail。
+      const cursor = page.after
+      if (!cursor || cursor.sessionId !== input.sessionId || cursor.generation !== page.generation) throw new Error('历史续读游标无效，请重试')
+      request = { ...input, cursor }
+    }
+    // 每批之间释放事件循环；丢弃过期调用，不在用户离开后启动下一批 I/O。
+    await new Promise<void>(resolve => setTimeout(resolve, 0))
+  }
+  throw new Error('历史读取已取消')
+}
 // 只保存进行中的Promise；完成/失败均清理，不缓存正文或延长历史生命周期。
 const inflight = new WeakMap<(input: AgentTranscriptPageRequest) => Promise<AgentTranscriptPage>, Map<string, Promise<AgentTranscriptPage>>>()
 export async function readTranscriptPageOnce(input: AgentTranscriptPageRequest, read: (input: AgentTranscriptPageRequest) => Promise<AgentTranscriptPage>, freshness = ''): Promise<AgentTranscriptPage> {

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, spyOn, test } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import * as os from 'node:os'
+import * as fs from 'node:fs'
 import { join } from 'node:path'
 import type { AgentProviderAdapter, SDKMessage } from '@dutydeck/shared'
 import type { SessionCallbacks } from './agent-orchestrator'
@@ -112,7 +113,7 @@ mock.module('node:os', () => ({
 mock.module('./adapters/pi-builtin-tools', () => ({ buildPiBuiltinTools: async () => ({ tools: [], toolNames: [] }) }))
 
 function jsonl(rows: string[]): string {
-  return rows.join('\n') + '\n'
+  return rows.length ? rows.join('\n') + '\n' : ''
 }
 
 function writeAgentSessionJsonl(sessionId: string, rows: string[]): void {
@@ -2165,5 +2166,161 @@ describe('可移植会话存储合同', () => {
     expect(await manager.rewindPiAgentSession(source.id, 'portable-keep')).toBe(2)
     expect(readFileSync(paths.getAgentSessionMessagesPath(source.id), 'utf8')).toBe(original)
     expect(JSON.stringify(manager.getAgentSessionSDKMessages(source.id))).toContain(attachment)
+  })
+})
+
+
+describe('Skill 无变化快路径与原 JSONL 兼容', () => {
+  /** 合法的专项 Skill 夹具，覆盖真正持久化的来源字段。 */
+  const explicitSkill = { slug: 'p1-demo', name: 'P1 演示', sources: ['explicit' as const] }
+
+  test('Given 当前轮已落盘 When 首次激活 Then 不全读或改写正文且分页、重试和导出的读取一致', async () => {
+    const session = manager.createAgentSession('合成增量激活')
+    const path = join(testDataRoot, 'agent-sessions', `${session.id}.jsonl`)
+    const receipt = manager.appendSDKMessages(session.id, [{ type: 'user', uuid: 'current-input', parent_tool_use_id: null,
+      message: { content: [{ type: 'text', text: '同一条输入' }] } }])
+    // 在首次补记前记录身份、原始字节、已有分页游标，而不是写入后的副本。
+    const original = readFileSync(path)
+    const inode = fs.statSync(path).ino
+    const tail = await manager.getAgentSessionTranscriptPage({ sessionId: session.id, mode: 'tail' })
+    const reads = spyOn(fs, 'readFileSync')
+    try {
+      expect(manager.updateSDKUserMessageSkillActivations(session.id, 'current-input', [explicitSkill])).toBe(true)
+      expect(reads.mock.calls.filter(([source]) => source === path || typeof source === 'number')).toHaveLength(0)
+    } finally { reads.mockRestore() }
+    expect(fs.statSync(path).ino).toBe(inode)
+    expect(readFileSync(path)).toEqual(original)
+    const [restored] = manager.getAgentSessionSDKMessages(session.id)
+    expect(restored).toMatchObject({ uuid: 'current-input', skill_activations: [explicitSkill] })
+    expect<unknown>(manager.getAgentSessionMessages(session.id)[0]).toEqual(restored)
+    expect((await manager.getAgentSessionSDKMessagesForDisplay(session.id))[0]).toEqual(restored)
+    expect(await manager.getAgentTranscriptRetryInput(session.id)).toEqual(restored!)
+    const page = await manager.getAgentSessionTranscriptPage({ sessionId: session.id, mode: 'tail' })
+    expect(page.entries[0]?.message).toEqual(restored!)
+    expect(page.generation).toBe(tail.generation)
+    expect(manager.readPersistedAgentEvidence(session.id, [receipt]).records[0]?.uuid).toBe('current-input')
+    manager.deleteAgentSession(session.id)
+    expect(existsSync(`${path}.skills.json`)).toBe(false)
+  })
+
+  test('Given 分叉点前后各有补记 When 分叉并回退 Then 分叉独立保留前缀且裁掉的 UUID 不会复活', async () => {
+    const session = manager.createAgentSession('分支激活一致性')
+    const piSessionFile = join(tempHome, 'skill-source.pi.jsonl')
+    writePiSessionArtifact(piSessionFile, 'pi-test-session', 'entry-keep')
+    manager.updateAgentSessionMeta(session.id, { sdkSessionId: 'pi-test-session', piSessionFile,
+      piEntryBindings: { boundary: 'entry-keep' } })
+    const discarded: SDKMessage = { type: 'user', uuid: 'discarded', message: { content: '同一正文' } }
+    manager.appendSDKMessages(session.id, [
+      { type: 'user', uuid: 'kept', message: { content: '保留输入' } },
+      { type: 'assistant', uuid: 'boundary', message: { content: '分叉点' } }, discarded,
+    ])
+    for (const uuid of ['kept', 'discarded']) expect(manager.updateSDKUserMessageSkillActivations(session.id, uuid, [explicitSkill])).toBe(true)
+    const child = await manager.forkAgentSession({ sessionId: session.id, upToMessageUuid: 'boundary' })
+    expect(manager.getAgentSessionSDKMessages(child.id)[0]).toMatchObject({ uuid: 'kept', skill_activations: [explicitSkill] })
+    expect(await manager.rewindPiAgentSession(session.id, 'boundary')).toBe(2)
+    manager.appendSDKMessages(session.id, [discarded])
+    expect(manager.getAgentSessionSDKMessages(session.id).at(-1)).toEqual(discarded)
+    manager.deleteAgentSession(session.id)
+    expect(manager.getAgentSessionSDKMessages(child.id)[0]).toMatchObject({ skill_activations: [explicitSkill] })
+  })
+
+  test('Given 已完成补记 When 同版本重复通知 Then 零正文读取且旧证据回执有效', () => {
+    const sessionId = 'skill-noop-evidence'
+    indexSessionForAppend(sessionId); writeAgentSessionJsonl(sessionId, [])
+    const receipt = manager.appendSDKMessages(sessionId, [
+      { type: 'user', uuid: 'skill-input', message: { content: '保留正文证据' } } as SDKMessage,
+    ])
+    expect(manager.updateSDKUserMessageSkillActivations(sessionId, 'skill-input', [explicitSkill])).toBe(true)
+    const path = join(testDataRoot, 'agent-sessions', `${sessionId}.jsonl`)
+    const original = readFileSync(path)
+    const reads = spyOn(fs, 'readFileSync')
+    const partialReads = spyOn(fs, 'readSync')
+    try {
+      expect(manager.updateSDKUserMessageSkillActivations(sessionId, 'skill-input', [explicitSkill])).toBe(true)
+      expect(reads.mock.calls.filter(([source]) => source === path || typeof source === 'number')).toHaveLength(0)
+      expect(partialReads).not.toHaveBeenCalled()
+    } finally { reads.mockRestore(); partialReads.mockRestore() }
+    expect(readFileSync(path)).toEqual(original)
+    expect(manager.readPersistedAgentEvidence(sessionId, [receipt]).records.map((record) => record.text)).toEqual(['保留正文证据'])
+  })
+
+  test('Given 缓存命中后旁车损坏、删除 When 收到同一补记 Then 不误报成功且缺失旁车可重建', () => {
+    const session = manager.createAgentSession('补记缓存版本')
+    const path = join(testDataRoot, 'agent-sessions', `${session.id}.jsonl.skills.json`)
+    manager.appendSDKMessages(session.id, [{ type: 'user', uuid: 'input', message: { content: '正文' } }])
+    manager.updateSDKUserMessageSkillActivations(session.id, 'input', [explicitSkill])
+    writeFileSync(path, '{invalid')
+    expect(() => manager.updateSDKUserMessageSkillActivations(session.id, 'input', [explicitSkill])).toThrow()
+    expect(readFileSync(path, 'utf8')).toBe('{invalid')
+    rmSync(path)
+    expect(manager.updateSDKUserMessageSkillActivations(session.id, 'input', [explicitSkill])).toBe(true)
+    expect(manager.getAgentSessionSDKMessages(session.id)[0]).toMatchObject({ skill_activations: [explicitSkill] })
+  })
+
+  test.each(['old-index', 'wrong-target', 'huge-range', 'partial-line'])('Given %s 定位不可用于 Skill When 首次补记 Then 严格回退并仅标记请求的输入', (mode) => {
+    const session = manager.createAgentSession(mode)
+    const path = join(testDataRoot, 'agent-sessions', `${session.id}.jsonl.evidence-index.json`)
+    manager.appendSDKMessages(session.id, ['requested', 'wrong'].map(uuid => ({ type: 'user', uuid, message: { content: uuid } })))
+    const index = JSON.parse(readFileSync(path, 'utf8'))
+    if (mode === 'old-index') delete index.transcriptStamp
+    if (mode === 'wrong-target') index.messages.requested = index.messages.wrong
+    if (mode === 'huge-range') index.messages.requested.byteLength = 2 ** 40
+    if (mode === 'partial-line') index.messages.requested.byteOffset++
+    writeFileSync(path, JSON.stringify(index))
+    if (mode === 'old-index') {
+      const oldReceipt = manager.getPersistedAgentMessageReceipt(session.id, 'requested')
+      expect(manager.readPersistedAgentEvidence(session.id, [oldReceipt!]).records[0]?.uuid).toBe('requested')
+    }
+    const reads = spyOn(fs, 'readFileSync')
+    try {
+      expect(manager.updateSDKUserMessageSkillActivations(session.id, 'requested', [explicitSkill])).toBe(true)
+      expect(reads.mock.calls.some(([source]) => typeof source === 'number')).toBe(true)
+    } finally { reads.mockRestore() }
+    const [requested, wrong] = manager.getAgentSessionSDKMessages(session.id)
+    expect(requested).toMatchObject({ skill_activations: [explicitSkill] })
+    expect(wrong).not.toHaveProperty('skill_activations')
+  })
+
+  test('Given 原文件已追加损坏尾行 When 重复激活 Then 仍严格失败并保留原文件', () => {
+    const sessionId = 'skill-noop-corruption'
+    indexSessionForAppend(sessionId); writeAgentSessionJsonl(sessionId, [])
+    manager.appendSDKMessages(sessionId, [{ type: 'user', uuid: 'input', message: { content: '正文' } } as SDKMessage])
+    manager.updateSDKUserMessageSkillActivations(sessionId, 'input', [explicitSkill])
+    const path = join(testDataRoot, 'agent-sessions', `${sessionId}.jsonl`)
+    fs.appendFileSync(path, '{incomplete')
+    const original = readFileSync(path)
+    expect(() => manager.updateSDKUserMessageSkillActivations(sessionId, 'input', [explicitSkill])).toThrow()
+    expect(readFileSync(path)).toEqual(original)
+  })
+
+  test('Given 排队用户和已有 Skill When 新增来源并裁剪 Then UUID 归属正确且裁掉的消息不复活', async () => {
+    const sessionId = 'skill-noop-queued'
+    indexSessionForAppend(sessionId); writeAgentSessionJsonl(sessionId, [])
+    manager.appendSDKMessages(sessionId, ['first', 'second'].map((uuid) => ({ type: 'user', uuid,
+      message: { content: `输入 ${uuid}` } } as SDKMessage)))
+    manager.updateSDKUserMessageSkillActivations(sessionId, 'first', [explicitSkill])
+    manager.updateSDKUserMessageSkillActivations(sessionId, 'second', [{ ...explicitSkill, slug: 'other' }])
+    manager.updateSDKUserMessageSkillActivations(sessionId, 'first', [{ ...explicitSkill, sources: ['read'] }])
+    const raw = manager.getAgentSessionSDKMessages(sessionId)
+    expect(raw[0]).toMatchObject({ uuid: 'first', skill_activations: [{ ...explicitSkill, sources: ['explicit', 'read'] }] })
+    expect(raw[1]).toMatchObject({ uuid: 'second', skill_activations: [{ slug: 'other' }] })
+    expect(await manager.getAgentSessionSDKMessagesForDisplay(sessionId)).toEqual(raw)
+    const page = await manager.getAgentSessionTranscriptPage({ sessionId, mode: 'tail', maxRecords: 10 })
+    expect(page.entries.map((entry) => entry.message)).toEqual(raw)
+    manager.truncateSDKMessages(sessionId, 'first')
+    expect(manager.updateSDKUserMessageSkillActivations(sessionId, 'second', [{ ...explicitSkill, slug: 'other' }])).toBe(false)
+    expect(manager.getAgentSessionSDKMessages(sessionId)).toHaveLength(1)
+  })
+
+  test('Given 已热缓存的会话进入删除边界 When 迟到激活 Then 不再确认成功或写回', () => {
+    const sessionId = 'skill-noop-deleting'
+    indexSessionForAppend(sessionId); writeAgentSessionJsonl(sessionId, [])
+    manager.appendSDKMessages(sessionId, [{ type: 'user', uuid: 'input', message: { content: '正文' } } as SDKMessage])
+    manager.updateSDKUserMessageSkillActivations(sessionId, 'input', [explicitSkill])
+    const path = join(testDataRoot, 'agent-sessions', `${sessionId}.jsonl`)
+    const original = readFileSync(path)
+    manager.markAgentSessionDeleting(sessionId)
+    expect(manager.updateSDKUserMessageSkillActivations(sessionId, 'input', [explicitSkill])).toBe(false)
+    expect(readFileSync(path)).toEqual(original)
   })
 })
