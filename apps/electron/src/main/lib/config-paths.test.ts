@@ -117,14 +117,18 @@ test('Given 已删除的旧生图 Skill 缓存 When 清理退役默认 Skill The
   /** 使用独立临时目录验证启动清理不会碰用户自行安装的 Skill。 */
   const defaultSkillsDir = mkdtempSync(join(tmpdir(), 'proma-retired-skills-'))
   temporaryHomeDirs.push(defaultSkillsDir)
-  mkdirSync(join(defaultSkillsDir, 'proma-generate-image'))
-  mkdirSync(join(defaultSkillsDir, 'user-installed-skill'))
+  for (const slug of ['proma-generate-image', 'proma-gpt-image-2', 'media-models', 'user-installed-skill']) {
+    mkdirSync(join(defaultSkillsDir, slug))
+  }
 
   removeRetiredDefaultSkills(defaultSkillsDir)
 
-  expect(RETIRED_DEFAULT_SKILL_SLUGS).toContain('proma-generate-image')
-  expect(isRetiredDefaultSkill('proma-generate-image')).toBe(true)
-  expect(existsSync(join(defaultSkillsDir, 'proma-generate-image'))).toBe(false)
+  for (const slug of ['proma-generate-image', 'proma-gpt-image-2']) {
+    expect(RETIRED_DEFAULT_SKILL_SLUGS).toContain(slug)
+    expect(isRetiredDefaultSkill(slug)).toBe(true)
+    expect(existsSync(join(defaultSkillsDir, slug))).toBe(false)
+  }
+  expect(existsSync(join(defaultSkillsDir, 'media-models'))).toBe(true)
   expect(existsSync(join(defaultSkillsDir, 'user-installed-skill'))).toBe(true)
 })
 

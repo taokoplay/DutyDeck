@@ -605,6 +605,7 @@ export const RETIRED_DEFAULT_SKILL_SLUGS: readonly string[] = [
   'brainstorming',
   'vault',
   'proma-generate-image',
+  'proma-gpt-image-2',
 ]
 
 const RETIRED_DEFAULT_SKILL_SLUG_SET = new Set(RETIRED_DEFAULT_SKILL_SLUGS)

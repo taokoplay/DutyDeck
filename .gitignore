@@ -68,6 +68,9 @@ pnpm-workspace.yaml
 .context/
 .bitfun/
 
+# DutyDeck 本地运行数据：设计资产、知识库、Canvas 与任务状态不纳入源码仓库。
+.dutydeck/
+
 # Agent 运行产物：诊断备份、QA 截图、原型页面、运行时状态与 brainstorm 工作目录，不入仓。
 # .omx/plans 与 .omx/reports 保留可跟踪，仅精选报告需要入仓。
 .omx/diagnostics/

@@ -214,6 +214,129 @@ describe('媒体 Agent 工具提供器', () => {
     expect(planned.allowedToolNames).not.toContain('media_import_assets')
   })
 
+  test('Given 普通会话 When 装配独立媒体入口 Then 工作流链可用而旧发布管理及专业产物入口不可用', () => {
+    const f = fixture({ withSources: true, withLocalImport: true, withAssetFile: true })
+    const forbidden = (): never => { throw new Error('装配阶段不能读取配置或生成') }
+    f.dependencies.generation = { listModels: forbidden, prepare: forbidden, execute: forbidden, get: forbidden, wait: forbidden, cancel: forbidden }
+    const run = createMediaToolRun(f.dependencies, { ...context, mediaOnly: true, mediaToolScope: 'standalone' })
+    for (const name of ['media_list_models', 'media_prepare_generation', 'media_execute_generation',
+      'media_list_workflows', 'media_list_resources', 'media_discover_workflows', 'media_read_remote_workflow',
+      'media_use_remote_workflow', 'media_get_node_schema', 'media_inspect_workflow', 'media_match_assets',
+      'media_save_local_workflow', 'media_prepare_run', 'media_execute_run', 'media_get_run', 'media_wait_run',
+      'media_cancel_run', 'media_get_asset_file', 'media_import_assets']) expect(run.allowedToolNames).toContain(name)
+    for (const name of ['media_publish_workflow', 'media_save_workflow_draft', 'media_save_profile',
+      'media_list_profiles', 'media_import_remote_asset', 'media_import_remote_workflow', 'media_list_api_models']) {
+      expect(run.allowedToolNames).not.toContain(name)
+    }
+    expect(run.allowedToolNames.some(name => /^(canvas_|visual_production_)/.test(name))).toBe(false)
+    expect(run.systemPromptAppend).toContain('media_discover_workflows')
+    expect(run.systemPromptAppend).toContain('media_prepare_run')
+    expect(run.systemPromptAppend).toContain('不要读取渠道配置')
+    expect(run.systemPromptAppend).not.toContain('旧导入、项目草稿、公共发布和 profile 工具')
+    expect(f.calls).toEqual([])
+    const plan = createMediaToolRun(f.dependencies, { ...context, mediaOnly: true, mediaToolScope: 'standalone', permissionCeiling: 'plan' })
+    expect(plan.allowedToolNames).toContain('media_discover_workflows')
+    expect(plan.allowedToolNames).toContain('media_inspect_workflow')
+    expect(plan.allowedToolNames).toContain('media_prepare_run')
+    for (const name of ['media_list_models', 'media_discover_workflows', 'media_list_resources', 'media_get_node_schema', 'media_inspect_workflow']) {
+      expect(plan.readOnlyToolNames).toContain(name)
+    }
+    expect(plan.readOnlyToolNames?.every(name => plan.allowedToolNames.includes(name))).toBe(true)
+    for (const name of ['media_use_remote_workflow', 'media_prepare_run', 'media_prepare_generation', 'media_save_local_workflow', 'media_execute_run']) {
+      expect(plan.readOnlyToolNames).not.toContain(name)
+    }
+    for (const name of ['media_execute_run', 'media_cancel_run', 'media_execute_generation', 'media_cancel_generation',
+      'media_save_local_workflow', 'media_import_assets', 'media_import_local_file', 'media_import_remote_asset']) {
+      expect(plan.allowedToolNames).not.toContain(name)
+    }
+  })
+
+  test('Given 无画布且只有一个启用服务器 When 普通会话发现与准备 Then 使用真实连接且不写默认绑定', async () => {
+    const f = fixture()
+    f.dependencies.getCanvasConnection = () => { throw new Error('独立任务不读取画布') }
+    const run = createMediaToolRun(f.dependencies, { ...context, mediaOnly: true, mediaToolScope: 'standalone' })
+    expect((await executeTool(run.piCustomTools, 'media_list_workflows', {})).details)
+      .toMatchObject({ canvasId: null, effectiveConnection: { id: 'gpu' }, connectionSource: 'single-enabled' })
+    expect((await executeTool(run.piCustomTools, 'media_discover_workflows', { mediaKind: 'image' })).details)
+      .toMatchObject({ connectionId: 'gpu' })
+    expect(f.prepared).toEqual([])
+    expect(f.publishedProjectIds).toEqual([])
+    expect((await executeTool(run.piCustomTools, 'media_prepare_run', {
+      workflowId: 'local', workflowRevision: 1, mediaKind: 'image', inputs: {},
+    })).details).toMatchObject({ phase: 'prepared', sourceRef: { connectionId: 'gpu' } })
+  })
+
+  test('Given 独立会话无默认绑定 When 多个或无启用连接 Then 不猜第一项且显式选择保留优先级', async () => {
+    const f = fixture()
+    const catalog = f.dependencies.configuration.listProject()
+    let connections = [...catalog.connections, { ...catalog.connections[0]!, id: 'other' }]
+    f.dependencies.configuration.listProject = () => ({ ...catalog, connections })
+    const run = createMediaToolRun(f.dependencies, { ...context, mediaOnly: true, mediaToolScope: 'standalone' })
+    expect((await executeTool(run.piCustomTools, 'media_list_workflows', {})).details)
+      .toMatchObject({ effectiveConnection: null, connectionSource: null })
+    await expect(executeTool(run.piCustomTools, 'media_discover_workflows', { mediaKind: 'video' }))
+      .rejects.toThrow('MEDIA_CONNECTION_REQUIRED')
+    expect((await executeTool(run.piCustomTools, 'media_list_resources', { connectionId: 'other', kind: 'nodes' })).details)
+      .toMatchObject({ connectionId: 'other' })
+    connections = [{ ...catalog.connections[0]!, enabled: false }]
+    await expect(executeTool(run.piCustomTools, 'media_list_resources', { kind: 'nodes' })).rejects.toThrow('MEDIA_CONNECTION_REQUIRED')
+    await expect(executeTool(run.piCustomTools, 'media_list_resources', { connectionId: 'gpu', kind: 'nodes' })).rejects.toThrow('MEDIA_CONNECTION_UNAVAILABLE')
+    connections = []
+    expect((await executeTool(run.piCustomTools, 'media_list_workflows', {})).details).toMatchObject({ effectiveConnection: null })
+    expect(f.prepared).toEqual([])
+  })
+
+  test('Given 普通独立工作流 When 执行与恢复 Then 保留预算、原会话归属和实时审批', async () => {
+    const f = fixture()
+    const read = f.dependencies.configuration.read
+    let authorizationMode: 'ask' | 'automatic' = 'ask'
+    f.dependencies.configuration.read = () => ({ ...read(), authorizationMode })
+    const standalone: CanvasToolRunContext = { ...context, mediaOnly: true, mediaToolScope: 'standalone' }
+    const run = createMediaToolRun(f.dependencies, standalone)
+    expect(run.toolApprovalPolicy?.getMode('media_execute_run')).toBe('ask')
+    authorizationMode = 'automatic'
+    expect(run.toolApprovalPolicy?.getMode('media_execute_run')).toBe('automatic')
+    expect(run.toolApprovalPolicy?.getMode('media_save_local_workflow')).toBe('ask')
+    authorizationMode = 'ask'
+    expect(run.toolApprovalPolicy?.getMode('media_execute_run')).toBe('ask')
+    const input = { workflowId: 'local', workflowRevision: 1, connectionId: 'gpu', mediaKind: 'image', inputs: {} }
+    const ids: string[] = []
+    for (let index = 0; index < 8; index += 1) {
+      const prepared = await executeTool(run.piCustomTools, 'media_prepare_run', input, `standalone-${index}`)
+      const id = (prepared.details as MediaRunSnapshot).id
+      ids.push(id)
+      await executeTool(run.piCustomTools, 'media_execute_run', { runId: id, expectedRevision: 0 })
+    }
+    await expect(executeTool(run.piCustomTools, 'media_prepare_run', input, 'standalone-8')).rejects.toThrow('MEDIA_RUN_BUDGET_EXCEEDED')
+    await expect(executeTool(run.piCustomTools, 'media_execute_run', { runId: 'ninth-owned', expectedRevision: 0 })).rejects.toThrow('MEDIA_RUN_BUDGET_EXCEEDED')
+    await executeTool(run.piCustomTools, 'media_execute_run', { runId: ids[0], expectedRevision: 0 })
+    const resumed = createMediaToolRun(f.dependencies, { ...standalone, runStartedAt: 84 })
+    expect((await executeTool(resumed.piCustomTools, 'media_wait_run', { runId: ids[0] })).details).toMatchObject({ phase: 'succeeded' })
+    const other = createMediaToolRun(f.dependencies, { ...standalone, sessionId: 'other-session' })
+    for (const name of ['media_get_run', 'media_wait_run', 'media_execute_run', 'media_cancel_run']) {
+      await expect(executeTool(other.piCustomTools, name, { runId: ids[0], expectedRevision: 0, cancelIntent: 'explicit' })).rejects.toThrow('MEDIA_RUN_NOT_OWNED')
+    }
+    await expect(executeTool(resumed.piCustomTools, 'media_cancel_run', { runId: ids[0], cancelIntent: 'implicit' })).rejects.toThrow('MEDIA_CANCEL_INTENT_REQUIRED')
+    standalone.permissionCeiling = 'plan'
+    await expect(executeTool(run.piCustomTools, 'media_execute_run', { runId: ids[0], expectedRevision: 0 })).rejects.toThrow('MEDIA_EXECUTE_INTENT_REQUIRED')
+    await expect(executeTool(run.piCustomTools, 'media_save_local_workflow', { creationIntent: 'user-confirmed' })).rejects.toThrow('MEDIA_PUBLISH_NOT_AUTHORIZED')
+    expect(f.publishedProjectIds).toEqual([])
+  })
+
+  test('Given 独立会话已有画布目标或 Host 撤销项目权限 When 准备工作流 Then 不绕过目标与授权守卫', async () => {
+    const f = fixture()
+    const standalone: CanvasToolRunContext = { ...context, mediaOnly: true, mediaToolScope: 'standalone' }
+    const run = createMediaToolRun(f.dependencies, standalone)
+    const input = { workflowId: 'local', workflowRevision: 1, connectionId: 'gpu', mediaKind: 'image', inputs: {} }
+    await expect(executeTool(run.piCustomTools, 'media_prepare_run', { ...input, canvasId: 'canvas-1' })).rejects.toThrow('MEDIA_CANVAS_TARGET_USE_CANVAS_TOOLS')
+    f.dependencies.authorize = () => { throw new Error('MEDIA_PROJECT_READ_ONLY') }
+    await expect(executeTool(run.piCustomTools, 'media_prepare_run', input)).rejects.toThrow('MEDIA_PROJECT_READ_ONLY')
+    expect(f.prepared).toEqual([])
+    const parent = createMediaToolRun(f.dependencies, { ...standalone, canvasAgentMode: 'parent-orchestrated' })
+    expect(parent.allowedToolNames).not.toContain('media_execute_run')
+    expect(parent.allowedToolNames).not.toContain('media_save_local_workflow')
+  })
+
   test('Given 仅影像模块 When 创建真实媒体运行 Then 提示与工具描述不指向未选画布能力', () => {
     /** 直接验证生产媒体 Provider，防止 Canvas 外层过滤掩盖内部提示泄漏。 */
     const f = fixture()
@@ -875,8 +998,8 @@ describe('媒体 Agent 工具提供器', () => {
     delete f.dependencies.getCanvasConnection
     await expect(executeTool(run.piCustomTools, 'media_list_resources', { canvasId: 'canvas-1', kind: 'nodes' }))
       .rejects.toThrow('MEDIA_CANVAS_CONNECTION_REQUIRED')
-    await expect(executeTool(run.piCustomTools, 'media_list_resources', { kind: 'nodes' }))
-      .rejects.toThrow('MEDIA_CONNECTION_REQUIRED')
+    expect((await executeTool(run.piCustomTools, 'media_list_resources', { kind: 'nodes' })).details)
+      .toMatchObject({ connectionId: 'gpu' })
   })
 
   test('Given 固定画布的 Agent When 传入另一画布 Then 拒绝读取它的默认连接', async () => {

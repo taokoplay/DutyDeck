@@ -24,10 +24,10 @@ describe('Agent 模块 Skill 解析', () => {
   test('Given 用户显式选择 Canvas When 解析 Then 返回 Skill、提示摘要和工具绑定', () => {
     const result = resolveActiveModuleContext(
       { workspaceSlug: 'project', sessionId: 'session', policy: policy(), explicitModuleIds: ['canvas'], now: 10 },
-      { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production', 'media-models']) },
+      { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production', 'media-models', 'comfyui-workflows']) },
     )
     expect(result.modules[0]).toMatchObject({ moduleId: 'canvas', mode: 'pinned', policyRevision: 3 })
-    expect(result.skillMentions).toEqual(['canvas-production', 'media-models'])
+    expect(result.skillMentions).toEqual(['canvas-production', 'media-models', 'comfyui-workflows'])
     expect(result.allowedToolNames).toEqual([])
     expect(result.promptFragments[0]).toContain('当前模块是画布')
     expect(result.unavailable).toEqual([])
@@ -36,10 +36,10 @@ describe('Agent 模块 Skill 解析', () => {
   test('Given Session 已附着 Canvas When 没有显式模块 Then 注入 Canvas 模块上下文', () => {
     const result = resolveActiveModuleContext(
       { workspaceSlug: 'project', sessionId: 'session', policy: policy({ mode: 'pinned', enabledModuleIds: ['canvas'], pinnedModuleIds: ['canvas'] }), now: 10 },
-      { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production', 'media-models', 'in-app-browser']) },
+      { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production', 'media-models', 'comfyui-workflows', 'in-app-browser']) },
     )
     expect(result.modules[0]).toMatchObject({ moduleId: 'canvas', mode: 'pinned', policyRevision: 3 })
-    expect(result.skillMentions).toEqual(['canvas-production', 'media-models'])
+    expect(result.skillMentions).toEqual(['canvas-production', 'media-models', 'comfyui-workflows'])
     expect(result.promptFragments[0]).toContain('当前模块是画布')
     expect(result.unavailable).toEqual([])
   })
@@ -61,7 +61,7 @@ describe('Agent 模块 Skill 解析', () => {
         policy: policy({ enabledModuleIds: ['canvas'], pinnedModuleIds: ['canvas'], moduleBindings: [{ moduleId: 'canvas', moduleVersion: '0.9.0' }] }),
         now: 10,
       },
-      { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production', 'media-models']) },
+      { listModules: listBuiltinAgentModules, getSkills: () => skills(['canvas-production', 'media-models', 'comfyui-workflows']) },
     )
     expect(result.modules).toEqual([])
     expect(result.unavailable).toEqual([{ moduleId: 'canvas', reason: 'AGENT_MODULE_IDENTITY_CHANGED' }])
@@ -140,7 +140,7 @@ describe('宿主模块目录与权限边界', () => {
 
   test('Given 未知 promptRef When 选择 Then 不根据模块名冒用提示或读取任意路径', () => {
     const result = resolveActiveModuleContext({ workspaceSlug: 'project', sessionId: 'session', explicitModuleIds: ['canvas'], policy: policy() }, {
-      listModules: () => [{ ...listBuiltinAgentModules()[0]!, promptRefs: ['/private/secret.md'] }], getSkills: () => skills(['canvas-production', 'media-models']),
+      listModules: () => [{ ...listBuiltinAgentModules()[0]!, promptRefs: ['/private/secret.md'] }], getSkills: () => skills(['canvas-production', 'media-models', 'comfyui-workflows']),
     })
     expect(result.unavailable).toEqual([{ moduleId: 'canvas', reason: 'AGENT_MODULE_PROMPT_UNAVAILABLE' }])
     expect(result.promptFragments).toEqual([])
@@ -257,7 +257,7 @@ describe('专业模块与基础能力的上下文边界', () => {
   })
 
   test('Given 未选专业模块 When 构建自动Skill目录 Then 排除专用Skill而保留浏览器', () => {
-    expect(getInactiveModuleSkillSlugs([])).toEqual(expect.arrayContaining(['canvas-production', 'media-models', 'interaction-design', 'capability-factory-scene-design']))
+    expect(getInactiveModuleSkillSlugs([])).toEqual(expect.arrayContaining(['canvas-production', 'media-models', 'comfyui-workflows', 'interaction-design', 'capability-factory-scene-design']))
     expect(getInactiveModuleSkillSlugs([])).not.toContain('in-app-browser')
   })
 
@@ -266,5 +266,23 @@ describe('专业模块与基础能力的上下文边界', () => {
     expect(getInactiveModuleSkillSlugs(['visual-production'])).toContain('canvas-production')
     expect(getInactiveModuleSkillSlugs(['canvas'])).not.toContain('media-models')
     expect(getInactiveModuleSkillSlugs(['canvas'])).not.toContain('canvas-production')
+    for (const moduleId of ['canvas', 'visual-production']) {
+      expect(getInactiveModuleSkillSlugs([moduleId])).not.toContain('comfyui-workflows')
+    }
+    expect(getInactiveModuleSkillSlugs([], undefined, ['media-models'])).toContain('comfyui-workflows')
+    const ordinary = getInactiveModuleSkillSlugs([], undefined, ['media-models', 'comfyui-workflows'])
+    expect(ordinary).not.toContain('comfyui-workflows')
+    expect(ordinary).toContain('canvas-production')
+    expect(ordinary).toContain('interaction-design')
   })
+})
+
+
+test('Given 影像模块与 ComfyUI Skill When 显式选择 Then 注入工作流指引但不借 manifest 扩大工具权限', () => {
+  const result = resolveActiveModuleContext({ workspaceSlug: 'project', sessionId: 'session', policy: policy(),
+    explicitModuleIds: ['visual-production'] }, { listModules: listBuiltinAgentModules,
+    getSkills: () => skills(['media-models', 'comfyui-workflows']) })
+  expect(result.unavailable).toEqual([])
+  expect(result.skillMentions).toEqual(['media-models', 'comfyui-workflows'])
+  expect(result.allowedToolNames).toEqual([])
 })

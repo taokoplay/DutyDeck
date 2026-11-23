@@ -13,6 +13,15 @@ describe('音视频文件探测', () => {
     expect(argsSeen).toEqual([['-version']])
     await expect(assertMediaProbeAvailable({ candidates: [], exec: async () => { throw new Error('unused') } })).rejects.toThrow('MEDIA_PROBE_UNAVAILABLE')
   })
+  test('Given 首个候选不可执行但后续候选可用 When 检查接收工具 Then 继续尝试后续路径', async () => {
+    const calls: string[] = []
+    await assertMediaProbeAvailable({ candidates: ['broken-ffprobe', 'working-ffprobe'], exec: async (file) => {
+      calls.push(file)
+      if (file === 'broken-ffprobe') return { stdout: 'not ffprobe', stderr: '' }
+      return { stdout: 'ffprobe version 7.1\n', stderr: '' }
+    } })
+    expect(calls).toEqual(['broken-ffprobe', 'working-ffprobe'])
+  })
   test('Given 图片与复合容器签名 When 同步识别 Then 上传计划复用规范扩展且不猜复合容器媒体类别', () => {
     expect(detectMediaFileSignature(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toEqual({ extension: '.png', mediaType: 'image/png', mediaKind: 'image' })
     expect(detectMediaFileSignature(Buffer.from('000000186674797069736f6d', 'hex'))).toEqual({ extension: '.mp4', mediaType: 'application/mp4' })

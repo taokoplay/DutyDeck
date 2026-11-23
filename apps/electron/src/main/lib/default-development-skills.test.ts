@@ -122,6 +122,51 @@ if (process.env.DUTYDECK_DEVELOPMENT_SKILL_TEST_CHILD !== '1') {
       expect(loadActiveSkills().skills.map((skill) => skill.name)).toContain('test-driven-development')
     })
 
+    test('Given 旧生图入口残留在缓存和启停目录 When 升级工作区 Then 不再发现或重新安装且保留统一与专业流程', () => {
+      const active = getWorkspaceSkillsDir('existing')
+      const inactive = getInactiveSkillsDir('existing')
+      const retired = ['proma-generate-image', 'proma-gpt-image-2']
+      for (const slug of retired) {
+        for (const directory of [getDefaultSkillsDir(), active, inactive]) {
+          writeInstalledSkill(directory, slug, '99.0.0')
+        }
+      }
+      const preserved = ['media-models', 'bone-app-ip-design', 'canvas-production', 'libtv-media']
+      const original = new Map(preserved.map(slug => [slug, writeInstalledSkill(active, slug, '99.0.0')]))
+      for (let pass = 0; pass < 2; pass++) {
+        upgradeDefaultSkillsInWorkspaces()
+        for (const slug of retired) {
+          expect(existsSync(join(active, slug))).toBe(false)
+          expect(existsSync(join(inactive, slug))).toBe(false)
+          expect(loadActiveSkills().skills.map(skill => skill.name)).not.toContain(slug)
+        }
+        for (const slug of preserved) {
+          expect(readFileSync(join(active, slug, 'SKILL.md'), 'utf8')).toBe(original.get(slug)!)
+        }
+      }
+    })
+
+    test('Given 新 ComfyUI Skill When 同步缺失、停用和自定义高版本副本 Then 可发现且保留用户状态', () => {
+      const slug = 'comfyui-workflows'
+      cpSync(join(bundledRoot, slug), join(getDefaultSkillsDir(), slug), { recursive: true })
+      upgradeDefaultSkillsInWorkspaces()
+      expect(loadActiveSkills().skills.map(skill => skill.name)).toContain(slug)
+      expect(readFileSync(join(getWorkspaceSkillsDir('existing'), slug, 'references/workflow-authoring.md'), 'utf8'))
+        .toBe(readFileSync(join(bundledRoot, slug, 'references/workflow-authoring.md'), 'utf8'))
+
+      toggleWorkspaceSkill('existing', slug, false)
+      writeInstalledSkill(getInactiveSkillsDir('existing'), slug, '0.0.1')
+      upgradeDefaultSkillsInWorkspaces()
+      expect(loadActiveSkills().skills.map(skill => skill.name)).not.toContain(slug)
+      expect(readFileSync(join(getInactiveSkillsDir('existing'), slug, 'SKILL.md'), 'utf8'))
+        .toBe(readFileSync(join(bundledRoot, slug, 'SKILL.md'), 'utf8'))
+
+      toggleWorkspaceSkill('existing', slug, true)
+      const original = writeInstalledSkill(getWorkspaceSkillsDir('existing'), slug, '99.0.0')
+      upgradeDefaultSkillsInWorkspaces()
+      expect(readFileSync(join(getWorkspaceSkillsDir('existing'), slug, 'SKILL.md'), 'utf8')).toBe(original)
+    })
+
     test('Given 用户已有更高版本 TDD When 同步内置版本 Then 不覆盖用户副本', () => {
       /** 高于本次内置版本的用户内容，用于验证既有升级边界。 */
       const original = writeInstalledSkill(getWorkspaceSkillsDir('existing'), 'test-driven-development', '99.0.0')

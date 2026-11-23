@@ -17,7 +17,7 @@ export const BUILTIN_AGENT_MODULES: readonly AgentModuleManifest[] = [
     icon: 'layout-dashboard',
     scope: 'project',
     contributions: ['surface', 'skill', 'prompt', 'tool', 'artifact'],
-    skillRefs: ['canvas-production', 'media-models'],
+    skillRefs: ['canvas-production', 'media-models', 'comfyui-workflows'],
     promptRefs: ['canvas.system.v1'],
     toolRefs: ['canvas.inspect', 'canvas.create_node', 'canvas.update_node'],
     artifactTypes: ['canvas.document', 'canvas.node'],

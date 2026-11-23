@@ -1,9 +1,33 @@
 import { execFile } from 'node:child_process'
+import { delimiter, join } from 'node:path'
 
 const PROBE_TIMEOUT_MS = 10_000
 const PROBE_MAX_BUFFER = 64 * 1024
-/** 优先固定系统安装位置，最后通过当前应用 PATH 查找。 */
-const PROBE_CANDIDATES = ['/usr/bin/ffprobe', '/opt/homebrew/bin/ffprobe', '/usr/local/bin/ffprobe', 'ffprobe']
+/** 优先固定系统安装位置，再复用 Electron 启动时的 PATH；显式环境变量便于打包版指定私有工具。 */
+const STATIC_PROBE_CANDIDATES = process.platform === 'win32'
+  ? ['C:\\ffmpeg\\bin\\ffprobe.exe', 'C:\\ProgramData\\chocolatey\\bin\\ffprobe.exe']
+  : ['/usr/bin/ffprobe', '/opt/homebrew/bin/ffprobe', '/opt/homebrew/opt/ffmpeg/bin/ffprobe', '/usr/local/bin/ffprobe', '/usr/local/opt/ffmpeg/bin/ffprobe', '/opt/local/bin/ffprobe']
+
+/** 删除重复路径，同时保留候选顺序。 */
+function uniqueCandidates(candidates: readonly string[]): string[] {
+  return [...new Set(candidates.filter((candidate) => candidate.trim().length > 0))]
+}
+
+/** 运行中的 Electron 可能没有继承终端 PATH，因此把 PATH 目录展开为绝对候选。 */
+function defaultProbeCandidates(): string[] {
+  const executable = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'
+  const pathCandidates = (process.env.PATH ?? '').split(delimiter)
+    .filter((directory) => directory.length > 0)
+    .map((directory) => join(directory, executable))
+  const explicit = process.env.DUTYDECK_FFPROBE_PATH?.trim()
+  return uniqueCandidates([...(explicit ? [explicit] : []), ...STATIC_PROBE_CANDIDATES, ...pathCandidates, executable])
+}
+
+/** 候选不是可执行文件时继续尝试后续路径；媒体内容错误仍由 probeMediaFile 原样报告。 */
+function isMissingExecutable(error: unknown): boolean {
+  return error instanceof Error && 'code' in error
+    && ['ENOENT', 'EACCES', 'ENOEXEC', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))
+}
 
 /** ffprobe 调用参数保持可注入，测试不依赖开发机安装状态。 */
 export interface MediaProbeExecOptions { timeout: number; maxBuffer: number }
@@ -66,16 +90,17 @@ const defaultExec: MediaProbeExec = async (file, args, options) => await new Pro
 /** 提交付费音视频生成前验证本机能接收产物，不读取任何用户媒体。 */
 export async function assertMediaProbeAvailable(dependencies: MediaFileProbeDependencies = {}): Promise<void> {
   const exec = dependencies.exec ?? defaultExec
-  for (const candidate of dependencies.candidates ?? PROBE_CANDIDATES) {
+  let lastError: unknown
+  for (const candidate of dependencies.candidates ?? defaultProbeCandidates()) {
     try {
       const result = await exec(candidate, ['-version'], { timeout: PROBE_TIMEOUT_MS, maxBuffer: PROBE_MAX_BUFFER })
-      if (!/^ffprobe version /m.test(result.stdout)) throw new Error('MEDIA_PROBE_INVALID')
-      return
+      if (/^ffprobe version /m.test(result.stdout)) return
+      lastError = new Error('MEDIA_PROBE_INVALID')
     } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('MEDIA_PROBE_UNAVAILABLE', { cause: error })
+      lastError = error
     }
   }
-  throw new Error('MEDIA_PROBE_UNAVAILABLE')
+  throw new Error('MEDIA_PROBE_UNAVAILABLE', { cause: lastError })
 }
 
 /** 只用文件头确定允许的容器族，不信任调用方 MIME 或扩展名。 */
@@ -154,13 +179,13 @@ function fileFormat(signature: SignatureFormat, mediaKind: 'audio' | 'video'): {
 export async function probeMediaFile(path: string, signatureBytes: Uint8Array, dependencies: MediaFileProbeDependencies = {}): Promise<ProbedMediaFile> {
   const signature = detectSignature(signatureBytes)
   const exec = dependencies.exec ?? defaultExec
-  const candidates = dependencies.candidates ?? PROBE_CANDIDATES
+  const candidates = dependencies.candidates ?? defaultProbeCandidates()
   const args = ['-v', 'error', '-protocol_whitelist', 'file', '-show_entries',
     'format=format_name,duration:stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate,channels,duration', '-of', 'json', path]
   let result: MediaProbeExecResult | undefined
   for (const candidate of candidates) {
     try { result = await exec(candidate, args, { timeout: PROBE_TIMEOUT_MS, maxBuffer: PROBE_MAX_BUFFER }); break } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('MEDIA_PROBE_FAILED', { cause: error })
+      if (!isMissingExecutable(error)) throw new Error('MEDIA_PROBE_FAILED', { cause: error })
     }
   }
   if (!result) throw new Error('MEDIA_PROBE_UNAVAILABLE')

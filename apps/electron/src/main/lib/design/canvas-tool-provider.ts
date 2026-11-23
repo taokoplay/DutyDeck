@@ -548,10 +548,10 @@ export type CanvasToolPermissionCeiling = 'plan' | 'execute'
 
 /** 引用完成权威解析后构造的单轮可信上下文。 */
 export interface CanvasToolRunContext {
-  /** Host 根据本条消息模块选择签发；影像运行仅装配共享媒体能力，不读取画布。 */
+  /** Host 根据本条消息模块选择签发；普通及影像运行仅装配共享媒体能力，不读取画布。 */
   mediaOnly?: boolean
-  /** 普通对话只装配统一生成及素材工具；专业模块保留完整工作流工具。 */
-  mediaToolScope?: 'generation'
+  /** standalone 开放受管独立工作流链；generation 保留旧精简入口；缺省为专业完整能力。 */
+  mediaToolScope?: 'generation' | 'standalone'
   projectId: string
   sessionId: string
   runStartedAt: number

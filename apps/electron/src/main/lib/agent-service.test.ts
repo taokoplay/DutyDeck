@@ -55,7 +55,7 @@ describe('Headless Agent 可信运行来源', () => {
 })
 
 describe('Agent service 迁移准入', () => {
-  test('Given 普通消息未选专业模块 When 准备扩展 Then 直接装配精简共享媒体入口', () => {
+  test('Given 普通消息未选专业模块 When 准备扩展 Then 直接装配独立媒体及工作流入口', () => {
     /** 服务接线检查确保门禁发生在唯一 runtime 工厂调用之前。 */
     const source = readFileSync(join(import.meta.dir, 'agent-service.ts'), 'utf8')
     expect(source).toContain('resolveActiveModuleIds')
@@ -65,7 +65,7 @@ describe('Agent service 迁移准入', () => {
     expect(source).not.toContain("const canvasSelected = input.moduleIds?.includes('canvas') === true")
     expect(source).not.toContain("const visualSelected = input.moduleIds?.includes('visual-production') === true")
     expect(source).toContain('getMediaToolProviderRuntime()')
-    expect(source).toContain("mediaToolScope: 'generation'")
+    expect(source).toContain("mediaToolScope: 'standalone'")
     expect(source).not.toContain('!canvasSelected && !visualSelected && !mediaModelSelected')
     expect(source).toContain('mediaOnly: !canvasSelected')
   })

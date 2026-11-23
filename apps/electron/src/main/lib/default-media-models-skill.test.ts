@@ -15,7 +15,7 @@ test('Given 统一媒体 Skill When 校验模型发现 Then 覆盖全部目录�
 
   expect(skill).toMatch(/^name: media-models$/m)
   expect(skill).toMatch(/^group: proma$/m)
-  expect(skill).toMatch(/^version: "1\.0\.3"$/m)
+  expect(skill).toMatch(/^version: "1\.0\.6"$/m)
   for (const rule of [
     'media_list_models',
     'media_list_api_models',
@@ -30,6 +30,18 @@ test('Given 统一媒体 Skill When 校验模型发现 Then 覆盖全部目录�
     'voice-cloning',
     'text-to-music',
   ]) expect(skill).toContain(rule)
+})
+
+test('Given 自然语言媒体需求 When Agent 读取触发元数据 Then 不要求斜杠命令并区分生成与咨询', () => {
+  const skill = readMediaModelsSkill()
+  const description = skill.match(/^description: (.+)$/m)?.[1] ?? ''
+  for (const phrase of ['画一张', '生成封面', '修改这张图', '把图片做成视频', '配音', '无需斜杠命令']) {
+    expect(description).toContain(phrase)
+  }
+  expect(skill).toContain('自然语言中指定的供应商或模型名，与 `/模型名` 选择具有相同的选型意图')
+  expect(skill).toContain('只要求提示词、文案、模型比较或代码修改时，不发起生成')
+  expect(skill).toContain('仅当当前工具或宿主上下文明确提供默认配置时才使用')
+  expect(skill).toContain('计划模式只发现、分析和准备，不执行生成或导入素材')
 })
 
 test('Given 用户指定 LibTV When 选择执行链 Then 转交官方远程工具且不伪造统一模型引用', () => {
@@ -57,4 +69,11 @@ test('Given 媒体生成请求 When 校验旧路由和执行边界 Then 禁止�
   ]) expect(skill).toContain(rule)
   expect(skill).toContain('不要把 TTS 模型、LLM 或旧图片模型冒充音乐模型')
   expect(skill).toContain('不重复提交同一付费任务')
+})
+
+
+test('Given 用户指定 ComfyUI When 统一模型目录没有该入口 Then 区分工作流路由与未配置并保留模块边界', () => {
+  const skill = readMediaModelsSkill()
+  for (const rule of ['comfyui-workflows', 'media_discover_workflows', '不能据此判断未配置',
+    '不要伪造', '普通会话无需选择画布或影像模块', '统一目录未找到用户指定模型']) expect(skill).toContain(rule)
 })

@@ -1,0 +1,31 @@
+{
+  "skill_name": "comfyui-workflows",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "用 ComfyUI 把这两张图做成首尾帧视频，帮我选合适工作流。当前已选画布，authorizationMode=automatic。服务器第一页有工作流 A，名称含首尾帧，但两个输入实际都是参考图；nextOffset=6。第二页工作流 B 的真实输入分别为 start_image 和 end_image，输出视频，全部硬约束符合且已核对。说明下一步及不能做的事。追加独立边界：旧宿主普通会话本轮只有统一模型工具、目录没有 ComfyUI；再追加只有编写提示词的请求。不要调用真实生成工具。",
+      "expected_output": "不因名称或数量选 A，按游标选语义符合的 B；用精确 descriptor/contentHash 取得快照，不新建模板。画布配置与执行沿原卡片。缺工作流工具只说明本轮能力边界，不宣称选择专业模块必能解决，不断言未配置或伪造 modelRef；提示词请求不生成。",
+      "files": [],
+      "assertions": [
+        "按真实首尾帧角色而非名称选择 B",
+        "沿 nextOffset 继续检查并使用 descriptor/contentHash，不另存模板",
+        "使用画布配置/执行入口，不用独立任务绕过",
+        "缺工具时不误报未配置、不通过脚本绕过",
+        "提示词请求不生成"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "用 ComfyUI 做一张 512x512 的蓝色纸船。没有合适工作流就自行编写并保存。当前允许新建保存，authorizationMode=ask，未批准生成。完整无过滤目录已返回 no-match。资源/schema 来自测试夹具，按其真实节点和模型编写 definition；绑定正负提示词、种子、宽高与输出。只写测试定义，不调用媒体工具。另说明如果实际只检查了筛选后第一页，或节点缺失，应如何处理。",
+      "expected_output": "基于给定 schema 编写能通过宿主静态检查的 API definition，不发起实际生成；区分保存授权与生成审批，partial/blocked 不当作 no-match，不下载模型或安装节点。",
+      "files": [],
+      "assertions": [
+        "定义通过 parseMediaWorkflowDefinition 与 validateComfyWorkflow",
+        "模型名称属于夹具枚举并有正确绑定/输出",
+        "使用 creationIntent=user-confirmed 保存且生成另行批准",
+        "筛选第一页无结果不当作 no-match",
+        "缺资源不虚构、不下载或安装"
+      ]
+    }
+  ]
+}

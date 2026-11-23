@@ -42,6 +42,23 @@ describe('Pi 专业模块 Skill 接入边界', () => {
     }
   })
 
+  test('Given 普通会话宿主提供媒体 Skill When Pi 自动发现 Then 只开放受管媒体入口且不强制展开正文', async () => {
+    const root = '/tmp/dutydeck-skill-filter'
+    const excluded = getInactiveModuleSkillSlugs([], undefined, ['media-models', 'comfyui-workflows'])
+    const resourceLoader = {
+      reload: async () => undefined,
+      getSkills: () => createPromaSkillsOverride([root], excluded)({
+        skills: [skill('media-models'), skill('comfyui-workflows'), skill('canvas-production'), skill('interaction-design'),
+          skill('media-models', 'outside-media', '/tmp/outside-skills')], diagnostics: [],
+      }),
+    } as unknown as ResourceLoader
+    expect(resourceLoader.getSkills().skills.map(entry => entry.name)).toEqual(['media-models', 'comfyui-workflows'])
+    expect(await preparePromptWithPromaSkills(resourceLoader, '帮我画一张封面')).toEqual({
+      content: '帮我画一张封面', activations: [],
+    })
+    expect(createPromaSkillsOverride([], excluded)({ skills: [skill('media-models'), skill('comfyui-workflows')], diagnostics: [] }).skills).toEqual([])
+  })
+
   test('Given 未选专业模块 When 发现 Skills Then 按目录 slug 排除且保留普通及浏览器能力', () => {
     /** 待发现的专业和普通 Skill 集合。 */
     const skills = [skill('canvas-production', 'Canvas Studio'), skill('in-app-browser'), skill('notes')]

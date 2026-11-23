@@ -43,7 +43,7 @@ export const VISUAL_PRODUCTION_MODULE_MANIFEST: AgentModuleManifest = {
   icon: 'clapperboard',
   scope: 'project',
   contributions: ['surface', 'skill', 'prompt', 'tool', 'artifact'],
-  skillRefs: ['media-models'],
+  skillRefs: ['media-models', 'comfyui-workflows'],
   promptRefs: ['visual-production.system.v1'],
   toolRefs: ['visual.projects', 'visual.script', 'visual.storyboard', 'visual.media', 'visual.review', 'visual.edit', 'visual.deliver'],
   artifactTypes: ['visual.production', 'visual.script', 'visual.storyboard', 'media.image', 'media.video', 'media.audio', 'visual.timeline', 'visual.final-master'],

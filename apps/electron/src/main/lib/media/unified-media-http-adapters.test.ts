@@ -41,6 +41,28 @@ describe('统一媒体 HTTP 执行器', () => {
     expect(new TextDecoder().decode(output[0]!.bytes)).toBe('image')
   })
 
+  test('Given GPT 精确模型与尺寸 When 文生图 Then 请求保留模型、size 和单张数量', async () => {
+    let submittedUrl = ''
+    let submitted: Record<string, unknown> = {}
+    const adapter = createUnifiedMediaHttpAdapters({ fetch: async (url, init) => {
+      submittedUrl = String(url)
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return Response.json({ data: [{ b64_json: Buffer.from('image').toString('base64') }] })
+    } }).find(item => item.id === 'openai-images')!
+    const modelRef = 'media:image:openai-images:image:gpt-image-2'
+    const imageRoute: UnifiedMediaModelRoute = {
+      ...route('openai-images', 'image'),
+      ref: { kind: 'image', provider: 'openai-images', profileId: 'image', modelId: 'gpt-image-2' },
+      option: { ...route('openai-images', 'image').option, ref: modelRef, provider: 'openai-images', profileId: 'image', modelId: 'gpt-image-2', capabilities: ['text-to-image'] },
+    }
+    await adapter.generate({
+      request: { ...request, modelRef, prompt: '蓝色纸船', inputs: { size: { kind: 'scalar', value: '1024x1024' } } },
+      route: imageRoute, signal: new AbortController().signal,
+    })
+    expect(submittedUrl).toBe('https://api.example.test/v1/images/generations')
+    expect(submitted).toEqual({ model: 'gpt-image-2', prompt: '蓝色纸船', n: 1, size: '1024x1024' })
+  })
+
   test('Given MiniMax Speech 返回 base64 When 生成 Then 解析为音频字节', async () => {
     const requests: Request[] = []
     const adapters = createUnifiedMediaHttpAdapters({ fetch: async (input, init) => {
