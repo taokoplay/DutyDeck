@@ -42,11 +42,11 @@ test('Given 跨批UTF8和巨行 When 倒读续扫 Then 不重复读取前缀且�
   // 新批读取接口将续扫状态留在主进程内，不信任来自renderer的半行内容。
   const { readJsonlBatch } = await import('./agent-jsonl-tail-reader')
   const path = fixture('开头\n' + '汉'.repeat(900) + '\n结束\n半行')
-  let result = readJsonlBatch(path, { direction: 'backward', end: Buffer.byteLength('开头\n' + '汉'.repeat(900) + '\n结束\n半行'), maxBytes: 128, maxLineBytes: 64 })
+  let result = await readJsonlBatch(path, { direction: 'backward', end: Buffer.byteLength('开头\n' + '汉'.repeat(900) + '\n结束\n半行'), maxBytes: 128, maxLineBytes: 64 })
   const lines = [...result.lines]
   let total = result.bytesRead
   while (!result.done) {
-    result = readJsonlBatch(path, { direction: 'backward', end: statSync(path).size, maxBytes: 128, maxLineBytes: 64, continuation: result.continuation })
+    result = await readJsonlBatch(path, { direction: 'backward', end: statSync(path).size, maxBytes: 128, maxLineBytes: 64, continuation: result.continuation })
     lines.push(...result.lines); total += result.bytesRead
   }
   expect(lines.map((line) => line.text)).toEqual(['结束', undefined, '开头'])
@@ -62,10 +62,10 @@ for (const direction of ['forward', 'backward'] as const) {
     const text = '\n一\n\n末尾\n未完'
     const path = fixture(text)
     for (const limits of [{ maxBytes: 1 }, { maxBytes: 128, maxLines: 1 }]) {
-      let batch = readJsonlBatch(path, { direction, end: Buffer.byteLength(text), ...limits })
+      let batch = await readJsonlBatch(path, { direction, end: Buffer.byteLength(text), ...limits })
       const lines = [...batch.lines]
       for (let step = 0; step < 100 && !batch.done; step++) {
-        batch = readJsonlBatch(path, { direction, end: Buffer.byteLength(text), ...limits, continuation: batch.continuation })
+        batch = await readJsonlBatch(path, { direction, end: Buffer.byteLength(text), ...limits, continuation: batch.continuation })
         lines.push(...batch.lines)
       }
       expect(batch.done).toBe(true)
@@ -77,3 +77,11 @@ for (const direction of ['forward', 'backward'] as const) {
     }
   })
 }
+
+
+test('Given 长会话批次读取 When 发起索引扩展 Then 文件读取返回Promise让出主进程事件循环', async () => {
+  const { readJsonlBatch } = await import('./agent-jsonl-tail-reader')
+  const result = readJsonlBatch(fixture('第一行\n第二行\n'), { direction: 'forward', end: Buffer.byteLength('第一行\n第二行\n') })
+  expect(result).toBeInstanceOf(Promise)
+  await expect(result).resolves.toMatchObject({ done: true, lines: [{ text: '第一行' }, { text: '第二行' }] })
+})

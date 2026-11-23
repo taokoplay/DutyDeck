@@ -47,6 +47,16 @@ describe('版本化展示窗口同步', () => {
     expect(getTranscriptWindow(messages)).toBe(window)
     expect(getTranscriptWindow([...messages])).toBeUndefined()
   })
+  test('Given 长历史页 When 异步准备展示 Then 合并与绑定结果保持一致且返回Promise', async () => {
+    const previous = page([0, 1, 2])
+    const incoming = page([3, 4])
+    const result = sync.prepareTranscriptPage(previous, incoming, 'after', 4)
+    expect(result).toBeInstanceOf(Promise)
+    const prepared = await result
+    expect(prepared.page.entries.map((item) => item.recordId)).toEqual(['m1', 'm2', 'm3', 'm4'])
+    expect(getTranscriptWindow(prepared.messages)).toBe(prepared.page)
+    expect(prepared.messages.map((message) => (message as { _promaTranscriptId?: string })._promaTranscriptId)).toEqual(['m1', 'm2', 'm3', 'm4'])
+  })
 })
 
 describe('完成交接与乐观覆盖层', () => {

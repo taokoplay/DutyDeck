@@ -1,3 +1,4 @@
+import { open } from 'node:fs/promises'
 import { openSync, closeSync, readSync, fstatSync } from 'node:fs'
 
 export interface JsonlTailLine { text: string; offset: number; end: number }
@@ -75,10 +76,10 @@ export interface JsonlBatchResult {
   continuation: JsonlBatchContinuation
 }
 /** 按方向在固定预算内扫描；调用方负责将continuation绑定到同一文件代次。 */
-export function readJsonlBatch(path: string, options: {
+export async function readJsonlBatch(path: string, options: {
   direction: 'forward' | 'backward'; start?: number; end: number
   maxBytes?: number; maxLineBytes?: number; maxLines?: number; continuation?: JsonlBatchContinuation
-}): JsonlBatchResult {
+}): Promise<JsonlBatchResult> {
   // 预算与物理范围在分配缓冲前验证。
   const maxBytes = options.maxBytes ?? 1024 * 1024
   const maxLineBytes = options.maxLineBytes ?? 256 * 1024
@@ -109,17 +110,17 @@ export function readJsonlBatch(path: string, options: {
   function emit(offset: number, end: number): void {
     result.lines.push({ offset, end, ...(state.length <= maxLineBytes ? { text: Buffer.concat(state.pending, state.length).toString('utf8') } : {}) })
   }
-  const fd = openSync(path, 'r')
+  const handle = await open(path, 'r')
   try {
-    const stat = fstatSync(fd)
+    const stat = await handle.stat()
     if (!stat.isFile() || stat.size < options.end) throw new Error('历史记录已截短或不是普通文件')
     while ((backward ? state.position > start : state.position < options.end) && result.bytesRead < maxBytes) {
       const size = Math.min(16 * 1024, maxBytes - result.bytesRead, backward ? state.position - start : options.end - state.position)
       const blockStart = backward ? state.position - size : state.position
       const buffer = Buffer.allocUnsafe(size)
-      const read = readSync(fd, buffer, 0, size, blockStart)
-      result.bytesRead += read
-      if (read !== size) throw new Error('历史记录在批次读取期间已截短')
+      const { bytesRead } = await handle.read(buffer, 0, size, blockStart)
+      result.bytesRead += bytesRead
+      if (bytesRead !== size) throw new Error('历史记录在批次读取期间已截短')
       let boundary = backward ? size : 0
       for (let index = backward ? size - 1 : 0; backward ? index >= 0 : index < size; index += backward ? -1 : 1) {
         if (buffer[index] !== 10) continue
@@ -144,5 +145,5 @@ export function readJsonlBatch(path: string, options: {
       state.boundary = start; state.pending = []; state.length = 0
     }
     return result
-  } finally { closeSync(fd) }
+  } finally { await handle.close() }
 }

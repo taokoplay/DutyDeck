@@ -280,7 +280,7 @@ async function buildLocalIndex(
   await new Promise<void>((resolve) => setImmediate(resolve))
   if ((epochs.get(path) ?? 0) !== epoch || transcriptFileStamp(statSync(path)) !== stamp) throw new Error('历史在索引期间发生变化，请重试')
   const forward = needsSuffix && !(validBefore && needsPrefix)
-  const batch = readJsonlBatch(path, {
+  const batch = await readJsonlBatch(path, {
     direction: forward ? 'forward' : 'backward',
     start: forward ? old!.observedEnd : 0,
     end: forward ? stat.size : cached?.prefixScan ? old!.size : old?.coverageStart ?? stat.size,

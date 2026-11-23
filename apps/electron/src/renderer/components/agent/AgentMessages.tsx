@@ -45,6 +45,7 @@ import {
 } from '@/lib/session-message-search'
 import { toTranscript } from '@dutydeck/session-core'
 import { Spinner } from '@/components/ui/spinner'
+import { LoadingIndicator } from '@/components/ui/loading-indicator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { groupIntoTurns, AssistantLogo, MessageGroupRenderer, getGroupId, getGroupPreview, extractUserText, buildTaskProgressDataForTurn, type MessageGroup } from './SDKMessageRenderer'
 import { buildLiveGroupSet } from './live-group-set'
@@ -1297,6 +1298,11 @@ export const AgentMessages = React.memo(function AgentMessages({
       <AgentBrowserLinkProvider sessionId={sessionId}>
         <TranscriptPresentationContext.Provider value={presentation}>
         <div ref={historySelectionRootRef} className="relative flex min-h-0 flex-1 flex-col">
+          {messagesLoaded === false && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/90" role="status" aria-live="polite">
+              <LoadingIndicator label="正在加载会话历史" showElapsed size="lg" />
+            </div>
+          )}
       <style>{`
         ::highlight(${AGENT_HISTORY_QUOTE_HIGHLIGHT_NAME}) {
           background-color: hsl(var(--primary) / 0.28);

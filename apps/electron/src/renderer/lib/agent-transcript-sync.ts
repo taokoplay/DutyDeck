@@ -19,6 +19,48 @@ export function bindTranscriptMessages(page: AgentTranscriptPage): SDKMessage[] 
   windows.set(messages, page)
   return messages
 }
+
+/** 让出Renderer事件循环，避免长历史页的准备工作连续占用主线程。 */
+function yieldToRenderer(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+/**
+ * 分阶段准备展示页：先合并有界窗口，再分批绑定稳定记录ID，期间允许滚动和输入事件优先处理。
+ * @param previous 当前已展示窗口；首次加载时传入 undefined。
+ * @param page 新读取的历史页。
+ * @param direction 新页相对当前窗口的方向。
+ * @param limit 窗口最大记录数。
+ * @param isCurrent 可选的请求有效性检查，切换会话后立即放弃剩余准备工作。
+ * @returns 合并后的历史页和绑定后的消息数组。
+ */
+export async function prepareTranscriptPage(
+  previous: AgentTranscriptPage | undefined,
+  page: AgentTranscriptPage,
+  direction: 'before' | 'after' | 'replace',
+  limit = 500,
+  isCurrent?: () => boolean,
+): Promise<{ page: AgentTranscriptPage; messages: SDKMessage[] }> {
+  await yieldToRenderer()
+  if (isCurrent && !isCurrent()) throw new Error('历史展示准备已取消')
+  const merged = mergeTranscriptPage(previous, page, direction, limit)
+  await yieldToRenderer()
+  if (isCurrent && !isCurrent()) throw new Error('历史展示准备已取消')
+  const messages: SDKMessage[] = []
+  for (let index = 0; index < merged.entries.length; index++) {
+    const entry = merged.entries[index]!
+    // 展示身份不能冒充权威uuid；老格式消息重载也能使用稳定React key。
+    const message = entry.message as SDKMessage & { _promaTranscriptId?: string }
+    message._promaTranscriptId = entry.recordId
+    messages.push(message)
+    if ((index + 1) % 64 === 0) {
+      await yieldToRenderer()
+      if (isCurrent && !isCurrent()) throw new Error('历史展示准备已取消')
+    }
+  }
+  windows.set(messages, merged)
+  return { page: merged, messages }
+}
 /** 仅合并连续同代窗口。硬条数与内存预算先于完整回合软目标。 */
 export function mergeTranscriptPage(
   previous: AgentTranscriptPage | undefined, page: AgentTranscriptPage,

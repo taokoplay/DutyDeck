@@ -3,6 +3,7 @@ import { ArrowDown, RotateCw } from 'lucide-react'
 import { useStickToBottomContext } from 'use-stick-to-bottom'
 import type { AgentTranscriptPage, AgentTranscriptPageRequest } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
+import { LoadingIndicator } from '@/components/ui/loading-indicator'
 import { getTranscriptScrollAction } from '@/lib/agent-transcript-scroll'
 
 /** 页码只存在于存储层；此组件依靠滚动方向与窗口边缘决定何时补读。 */
@@ -69,15 +70,21 @@ export function TranscriptNavigation(props: NavigationProps): React.ReactElement
     const request = active.current
     const root = scrollRef.current
     if (!root || !request || !mounted.current || request.aligned || current.current.loading || current.current.error || request.page === current.current.page) return
-    request.aligned = true
     if (request.mode === 'tail') {
+      // transition 可能还未提交新页；页面身份变化后本 effect 会再次校准。
+      if (current.current.page === request.page) return
+      request.aligned = true
       if (!current.current.page?.indexRequired) void scrollToBottom('instant')
     } else if (request.anchor) {
       const target = root.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(request.anchor.id)}"]`)
-      if (target) {
-        const delta = target.getBoundingClientRect().top - root.getBoundingClientRect().top - request.anchor.offset
-        if (Math.abs(delta) > 0.5) root.scrollTop += delta
-      }
+      // 锚点尚未挂载时不能提前标记完成，否则 transition 提交后无法再次恢复位置。
+      if (!target) return
+      request.aligned = true
+      const delta = target.getBoundingClientRect().top - root.getBoundingClientRect().top - request.anchor.offset
+      if (Math.abs(delta) > 0.5) root.scrollTop += delta
+      ignoredTop.current = root.scrollTop
+    } else {
+      request.aligned = true
       ignoredTop.current = root.scrollTop
     }
   }, [scrollRef, scrollToBottom])
@@ -165,9 +172,9 @@ export function TranscriptNavigation(props: NavigationProps): React.ReactElement
   }, [move, props.page, props.loading, props.error, props.ready, scrollRef])
 
   if (!props.onNavigate) return null
-  return <div data-transcript-navigation="" className={`flex items-center justify-center gap-2 text-xs text-muted-foreground${props.error ? ' sticky top-0 z-10 bg-background' : ''}`} aria-live="polite">
+  return <div data-transcript-navigation="" className={`flex min-h-6 items-center justify-center gap-2 text-xs text-muted-foreground${props.error ? ' sticky top-0 z-10 bg-background' : ''}`} aria-live="polite" aria-busy={props.loading || undefined}>
     {props.error ? <><span role="alert">{props.error}</span><Button size="sm" variant="ghost" onClick={() => void move(lastMode.current, true)}><RotateCw className="size-3" />重试</Button></>
-      : props.loading ? <span>正在读取历史…</span> : props.page && !props.page.hasBefore && props.page.entries.length > 0 ? <span>已到会话开头</span> : null}
+      : props.loading ? <LoadingIndicator label="正在读取历史" size="sm" /> : props.page && !props.page.hasBefore && props.page.entries.length > 0 ? <span>已到会话开头</span> : null}
     {(props.reading || (props.error && lastMode.current !== 'tail')) && <Button size="sm" variant="ghost" disabled={props.loading} onClick={() => void move('tail', true)}><ArrowDown className="size-3" />回到最新</Button>}
   </div>
 }

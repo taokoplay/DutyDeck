@@ -1,6 +1,6 @@
 import { discardTranscriptSnapshot } from '@/lib/agent-transcript-sync'
 import { mountedTranscriptViews, readAdjacentTranscript, readTranscriptPageOnce } from '@/lib/agent-transcript-window'
-import { acknowledgeTranscriptMessages, acknowledgeTranscriptReceipts, bindTranscriptMessages, getTranscriptWindow, mergeTranscriptPage, inheritTranscriptWindow, canAcceptTranscriptPage } from '@/lib/agent-transcript-sync'
+import { acknowledgeTranscriptMessages, acknowledgeTranscriptReceipts, getTranscriptWindow, prepareTranscriptPage, inheritTranscriptWindow, canAcceptTranscriptPage } from '@/lib/agent-transcript-sync'
 import { recordPerformanceSample } from '@/lib/performance-monitor'
 import type { AgentTranscriptPage, AgentTranscriptPageRequest } from '@dutydeck/shared'
 import { ComputerUseStatus } from '../computer-use/ComputerUseStatus'
@@ -1350,20 +1350,24 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
     const readPage = (input: AgentTranscriptPageRequest) => readAdjacentTranscript(input,
       request => readTranscriptPageOnce(request, window.electronAPI.getAgentSessionTranscriptPage, String(refreshVersion)),
       () => !cancelled && requestId === messagesRequestIdRef.current)
-    const readTail = async (): Promise<AgentTranscriptPage> => {
+    const readTail = async (): Promise<{ page: AgentTranscriptPage; direction: 'after' | 'replace'; previous?: AgentTranscriptPage }> => {
       let page = await readPage(cachedWindow?.after
         ? { sessionId, mode: 'after', cursor: cachedWindow.after }
         : { sessionId, mode: 'tail' })
       if (page.status === 'resetRequired' || page.hasAfter) {
         page = await readPage({ sessionId, mode: 'tail' })
-        return mergeTranscriptPage(undefined, page, 'replace')
+        return { page, direction: 'replace' }
       }
-      return mergeTranscriptPage(cachedWindow, page, cachedWindow ? 'after' : 'replace')
+      return { page, direction: cachedWindow ? 'after' : 'replace', previous: cachedWindow }
     }
     readTail()
-      .then((page) => {
+      .then(async ({ page: rawPage, direction, previous }) => {
         recordPerformanceSample('agent.history.ipc-roundtrip', performance.now() - ipcStarted)
-        const sdkMsgs = bindTranscriptMessages(page)
+        if (cancelled || requestId !== messagesRequestIdRef.current) return
+        const prepared = await prepareTranscriptPage(previous, rawPage, direction, 500,
+          () => !cancelled && requestId === messagesRequestIdRef.current)
+        const page = prepared.page
+        const sdkMsgs = prepared.messages
         if (cancelled || requestId !== messagesRequestIdRef.current) return
         if (!canAcceptTranscriptPage(getTranscriptWindow(persistedSDKMessagesRef.current), page, acceptanceEpoch, tailAcceptanceRef.current)) {
           messagesRefreshingRef.current = false; setMessagesRefreshing(false); return
@@ -1391,7 +1395,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
         // 写入缓存（含 LRU 淘汰，防止会话数增长导致内存无限膨胀）
         setMessagesCache((prev) => setSessionMessagesCache(prev, sessionId, sdkMsgs))
         tailRetryCountRef.current = 0
-        unstable_batchedUpdates(() => {
+        React.startTransition(() => unstable_batchedUpdates(() => {
           persistedSDKMessagesRef.current = sdkMsgs
           setPersistedSDKMessages(sdkMsgs)
           setMessagesLoaded(true)
@@ -1450,7 +1454,7 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
             else map.delete(sessionId)
             return map
           })
-        })
+        }))
         // 页外缓冲仅通过同generation的精确ID确认回收，不能按数组长度或任意页清空。
         void (async () => {
           const snapshot = store.get(liveMessagesMapAtom).get(sessionId) ?? []
@@ -1505,25 +1509,38 @@ export function AgentView({ sessionId, embedded = false }: AgentViewProps): Reac
       // 在途读取不拥有视口：用户刚开始框选或操作消息时保留原文，下次滚动可重读该游标。
       if (token !== historyNavigationRef.current || mutationVersion !== messagesMutationVersionRef.current || canCommit?.() === false
         || !canAcceptTranscriptPage(writesTail ? getTranscriptWindow(persistedSDKMessagesRef.current) : undefined, page, acceptanceEpoch, tailAcceptanceRef.current)) return false
-      if (page.status === 'resetRequired') throw new Error('历史已变化，请返回最新消息后重试')
-      const merged = mergeTranscriptPage(mode === 'before' || mode === 'after' ? current : undefined, page,
-        mode === 'before' || mode === 'after' ? mode : 'replace')
-      const messages = bindTranscriptMessages(merged)
+      const prepared = await prepareTranscriptPage(
+        mode === 'before' || mode === 'after' ? current : undefined,
+        page,
+        mode === 'before' || mode === 'after' ? mode : 'replace',
+        500,
+        () => token === historyNavigationRef.current && mutationVersion === messagesMutationVersionRef.current && canCommit?.() !== false,
+      )
+      if (token !== historyNavigationRef.current || mutationVersion !== messagesMutationVersionRef.current || canCommit?.() === false) return false
+      const merged = prepared.page
+      const messages = prepared.messages
       if (writesTail) {
-        setReadingMessages(null)
         readingMessagesRef.current = null
-        setPersistedSDKMessages(messages)
         persistedSDKMessagesRef.current = messages
+        React.startTransition(() => {
+          setReadingMessages(null)
+          setPersistedSDKMessages(messages)
+        })
         setMessagesCache((prev) => setSessionMessagesCache(prev, sessionId, messages))
       } else {
-        setReadingMessages(messages)
         readingMessagesRef.current = messages
+        React.startTransition(() => setReadingMessages(messages))
         // 阅读窗口也纳入既有20项/64MiB预算；不会被SidePanel当作尾部结论。
         setMessagesCache((prev) => setSessionMessagesCache(prev, `${sessionId}:reading`, messages))
       }
       return true
     } catch (error) {
-      if (token === historyNavigationRef.current) setHistoryError(error instanceof Error ? error.message : '历史加载失败')
+      const stillCurrent = token === historyNavigationRef.current
+        && mutationVersion === messagesMutationVersionRef.current
+        && canCommit?.() !== false
+      if (stillCurrent && !(error instanceof Error && error.message === '历史展示准备已取消')) {
+        setHistoryError(error instanceof Error ? error.message : '历史加载失败')
+      }
       return false
     } finally { if (token === historyNavigationRef.current) setHistoryLoading(false) }
   }, [sessionId, setMessagesCache])
