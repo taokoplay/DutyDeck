@@ -56,7 +56,7 @@ import type { LocalModelLease } from './local-model-runtime'
 import { assertEnabledModelForChannel } from './agent-model-selection'
 import type { GithubCopilotOAuthCredentials } from '@dutydeck/shared'
 import { persistGithubCopilotOAuthCredentials, resolveGithubCopilotOAuthCredentials } from './channel-manager'
-import { getAgentWorkspaceBySlug, getWorkspaceSkillDirectories } from './agent-workspace-manager'
+import { getAgentWorkspaceBySlug, getWorkspaceSkillDirectorySnapshot } from './agent-workspace-manager'
 import { getMainRepoRoot } from './git-diff-service'
 import { getPiAssistantErrorDetails, hasPiAssistantTextContent, stripPiAssistantError } from './adapters/pi-message-adapter'
 import { friendlyErrorMessage, isPromptTooLongError, isThinkingSignatureError, mapAgentErrorToTypedError } from './agent-error-utils'
@@ -75,7 +75,7 @@ import { getPersistedAgentMessageReceipt, readPersistedAgentEvidence } from './a
 import { getAgentWorkspace, getProjectFilesPath, getWorkspaceMcpConfig, getWorkspaceAttachedDirectories, getWorkspaceAttachedFiles, getWorkspaceAgentsMdPath, readWorkspaceAgentsMd, getWorkspaceMemoryGuidance, isWorkspaceProjectKnowledgeMaintenanceApproved } from './agent-workspace-manager'
 import { getLocalProjectRootStatus } from './project-root-health'
 import { getMcpApiKeyEnvironment, getMcpOAuthHeaders } from './mcp-oauth-service'
-import { getAgentWorkspacePath, getAgentSessionWorkspacePath, getSdkConfigDir, getWorkspaceSkillsDir, getDataRootPathSnapshot } from './config-paths'
+import { getAgentWorkspacePath, getAgentSessionWorkspacePath, getSdkConfigDir, getDataRootPathSnapshot } from './config-paths'
 import { getRuntimeStatus } from './runtime-init'
 import { recordTokenUsage } from './token-usage-recorder'
 import { getSettings } from './settings-service'
@@ -2853,9 +2853,11 @@ export class AgentOrchestrator {
         checkpoint()
       }
       /** 本次运行冻结 Skill 目录，避免启动加载与结果归因各扫描一次文件系统。 */
-      const workspaceSkillDirectories = workspaceSlug && runWorkspaceSkillsEnabled
-        ? getWorkspaceSkillDirectories(workspaceSlug)
-        : []
+      const skillDirectorySnapshot = workspaceSlug && runWorkspaceSkillsEnabled
+        ? getWorkspaceSkillDirectorySnapshot(workspaceSlug)
+        : { skillDirectories: [], workspaceSkillDirectories: [] }
+      const skillDirectories = skillDirectorySnapshot.skillDirectories
+      const workspaceSkillDirectories = skillDirectorySnapshot.workspaceSkillDirectories
       const queryOptions: PiAgentQueryOptions = {
         sessionId,
         toolMode: runToolMode,
@@ -2910,7 +2912,8 @@ export class AgentOrchestrator {
         ),
         ...(allAdditionalDirectories.length > 0 && { additionalDirectories: allAdditionalDirectories }),
         ...(workspaceSlug && runWorkspaceSkillsEnabled ? {
-          additionalSkillPaths: workspaceSkillDirectories,
+          additionalSkillPaths: skillDirectories,
+          skillWorkspaceDirectories: workspaceSkillDirectories,
           excludedSkillSlugs,
           skillWorkspaceSlug: workspaceSlug,
         } : {}),
@@ -3144,7 +3147,7 @@ export class AgentOrchestrator {
                 tagModuleSkillActivations(collectSkillActivations(
                   [...accumulatedMessages, msg],
                   workspaceSlug
-                    ? { workspaceSlug, workspaceSkillsRoot: getWorkspaceSkillsDir(workspaceSlug) }
+                    ? { workspaceSlug, workspaceSkillDirectories }
                     : undefined,
                 ), activeModuleActivations),
               )

@@ -125,7 +125,6 @@ import { getDefaultDesignJobManager } from './lib/design/design-job-manager'
 import { createTray, destroyTray, getTray, setTrayFlash } from './tray'
 import { initializeRuntime } from './lib/runtime-init'
 import { seedDefaultSkills } from './lib/config-paths'
-import { upgradeDefaultSkillsInWorkspaces } from './lib/agent-workspace-manager'
 import { agentEventBus, hasActiveAgentSessions, stopAllAgents } from './lib/agent-service'
 import { stopAllTerminals } from './lib/terminal-service'
 import { disposePiMcpConnections } from './lib/adapters/pi-mcp-tools'
@@ -1109,11 +1108,8 @@ async function bootstrap(): Promise<void> {
   // 或由用户从设置手动检测；启动时不应将其作为 Agent 的前置要求。
   await safeAwait('initializeRuntime', () => initializeRuntime({ skipNodeDetection: true }))
 
-  // 同步默认 Skills 模板到 ~/.DutyDeck/default-skills/
+  // 同步内置 Skills 到共享的 ~/.DutyDeck/default-skills/，新工作区按引用读取。
   safeRun('seedDefaultSkills', seedDefaultSkills)
-
-  // 升级所有工作区中版本过旧的默认 Skills
-  safeRun('upgradeDefaultSkillsInWorkspaces', upgradeDefaultSkillsInWorkspaces)
 
   // Create application menu
   const menu = createApplicationMenu()

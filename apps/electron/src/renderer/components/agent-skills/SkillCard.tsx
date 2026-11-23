@@ -20,6 +20,14 @@ interface SkillCardProps {
   onUpdate: () => void
 }
 
+/** 将 Skill 作用域转换为用户可理解的来源标签。 */
+function getSkillScopeLabel(skill: SkillMeta, isBuiltin: boolean): string {
+  if (skill.scope === 'project') return '项目'
+  if (skill.scope === 'global') return '全局'
+  if (skill.scope === 'builtin' || isBuiltin) return '内置'
+  return skill.importSource ? `来自 ${skill.importSource.sourceWorkspaceName}` : '当前工作区'
+}
+
 export function SkillCard({ skill, isBuiltin, updating, onOpen, onToggle, onUpdate }: SkillCardProps): React.ReactElement {
   return (
     <div
@@ -66,17 +74,21 @@ export function SkillCard({ skill, isBuiltin, updating, onOpen, onToggle, onUpda
       </p>
 
       <div className="mt-auto flex items-center gap-2">
-        {isBuiltin ? (
+        {(skill.scope === 'builtin' || isBuiltin) ? (
           <span className="flex items-center gap-1 rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
-            <ShieldCheck size={12} /> 内置
+            <ShieldCheck size={12} /> {getSkillScopeLabel(skill, isBuiltin)}
+          </span>
+        ) : skill.scope === 'project' || skill.scope === 'global' ? (
+          <span className="rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+            {getSkillScopeLabel(skill, isBuiltin)}
           </span>
         ) : skill.importSource ? (
           <span className="truncate rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            来自 {skill.importSource.sourceWorkspaceName}
+            {getSkillScopeLabel(skill, isBuiltin)}
           </span>
         ) : (
           <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            本项目
+            {getSkillScopeLabel(skill, isBuiltin)}
           </span>
         )}
 

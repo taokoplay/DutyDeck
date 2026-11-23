@@ -528,14 +528,37 @@ export function getUserSkillsDir(): string {
 }
 
 /**
+ * 获取用户级 Skill 作用域设置路径。
+ *
+ * 该文件只保存全局与内置 Skill 的启停状态，不保存 Skill 正文。
+ */
+export function getSkillSettingsPath(): string {
+  return join(getConfigDir(), 'skill-settings.json')
+}
+
+/**
+ * 获取项目级 Skill 作用域设置路径。
+ *
+ * 读取时不创建 .dutydeck 目录，避免仅查看能力列表产生项目文件。
+ */
+export function getProjectSkillSettingsPath(projectRoot: string): string {
+  return join(projectRoot, '.dutydeck', 'skill-settings.json')
+}
+
+/**
  * 获取默认 Skills 模板目录路径。
  *
- * 新建工作区时自动复制此目录的内容到工作区 skills/ 下。
+ * 新建工作区通过多作用域解析器直接引用此目录，不再复制到每个工作区。
  *
  * @returns 默认路径为 ~/.DutyDeck/default-skills/
  */
+/** 解析默认 Skills 模板目录路径，不创建目录。 */
+export function resolveDefaultSkillsDir(configDir = getConfigDir()): string {
+  return join(configDir, 'default-skills')
+}
+
 export function getDefaultSkillsDir(): string {
-  const dir = join(getConfigDir(), 'default-skills')
+  const dir = resolveDefaultSkillsDir()
 
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })

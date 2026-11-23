@@ -29,6 +29,8 @@ import { cn } from '@/lib/utils'
 interface SkillFilesPanelProps {
   workspaceSlug: string
   skillSlug: string
+  /** 只读 Skill 仍可浏览资源，但不能创建、编辑、重命名或删除。 */
+  readOnly?: boolean
   /** watcher 通知；同一 Skill 只静默刷新资源树，不重置编辑状态。 */
   contentVersion?: number
   /** 文件总数（不含目录）变化时通知父组件，用于 Tab 徽章 */
@@ -59,7 +61,7 @@ function hasFile(nodes: SkillFileNode[], path: string): boolean {
     : hasFile(node.children ?? [], path))
 }
 
-export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, onFileCountChange }: SkillFilesPanelProps): React.ReactElement {
+export function SkillFilesPanel({ workspaceSlug, skillSlug, readOnly = false, contentVersion = 0, onFileCountChange }: SkillFilesPanelProps): React.ReactElement {
   const [tree, setTree] = React.useState<SkillFileNode[]>([])
   const [loading, setLoading] = React.useState(true)
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set())
@@ -203,6 +205,7 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
   }
 
   const saveFile = async (): Promise<void> => {
+    if (readOnly) return
     if (!fileContent || saving || missingFileRef.current) return
     const scope = scopeRef.current
     const request = fileRequestRef.current
@@ -240,6 +243,7 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
   }
 
   const commitCreate = async (): Promise<void> => {
+    if (readOnly) return
     if (!creating) return
     const name = createName.trim()
     if (!name) {
@@ -270,6 +274,7 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
   }
 
   const deleteEntry = async (node: SkillFileNode): Promise<void> => {
+    if (readOnly) return
     const label = node.type === 'directory' ? '目录及其内容' : '文件'
     if (!window.confirm(`确认删除${label} "${node.relativePath}"？此操作不可撤销。`)) return
     if (saving) return
@@ -288,11 +293,13 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
   }
 
   const startRename = (node: SkillFileNode): void => {
+    if (readOnly) return
     setRenaming(node.relativePath)
     setRenameValue(node.name)
   }
 
   const commitRename = async (node: SkillFileNode): Promise<void> => {
+    if (readOnly) return
     const newName = renameValue.trim()
     if (!newName || newName === node.name) {
       setRenaming(null)
@@ -332,22 +339,22 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
               })()}
         </div>
         <div className="flex items-center gap-1">
-          <button
+          {!readOnly && <button
             type="button"
             title="新建文件（根目录）"
             onClick={() => startCreate('file', '')}
             className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
           >
             <FilePlus size={14} />
-          </button>
-          <button
+          </button>}
+          {!readOnly && <button
             type="button"
             title="新建目录（根目录）"
             onClick={() => startCreate('directory', '')}
             className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
           >
             <FolderPlus size={14} />
-          </button>
+          </button>}
           <button
             type="button"
             title="刷新"
@@ -370,12 +377,12 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
               <div className="px-2 py-6 text-xs text-muted-foreground flex flex-col items-center gap-3 text-center">
                 <div>该 Skill 暂无其他资源文件</div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => startCreate('file', '')}>
+                  {!readOnly && <Button size="sm" variant="outline" onClick={() => startCreate('file', '')}>
                     <FilePlus size={12} /> 新建文件
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => startCreate('directory', '')}>
+                  </Button>}
+                  {!readOnly && <Button size="sm" variant="outline" onClick={() => startCreate('directory', '')}>
                     <FolderPlus size={12} /> 新建目录
-                  </Button>
+                  </Button>}
                 </div>
               </div>
             ) : (
@@ -396,6 +403,7 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
                 onStartCreate={startCreate}
                 onStartRename={startRename}
                 onDelete={deleteEntry}
+                readOnly={readOnly}
                 creating={creating}
                 createName={createName}
                 setCreateName={setCreateName}
@@ -439,7 +447,7 @@ export function SkillFilesPanel({ workspaceSlug, skillSlug, contentVersion = 0, 
                       {formatSize(fileContent.size)}
                     </span>
                     {!editing ? (
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(true)} disabled={missingFile} className="h-7">
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(true)} disabled={missingFile || readOnly} className="h-7">
                         <Pencil size={12} /> 编辑
                       </Button>
                     ) : (
@@ -507,6 +515,7 @@ interface FileTreeProps {
   setCreateName: (v: string) => void
   onCommitCreate: () => void
   onCancelCreate: () => void
+  readOnly: boolean
 }
 
 function FileTree(props: FileTreeProps): React.ReactElement {
@@ -583,7 +592,7 @@ function TreeNode(props: TreeNodeProps): React.ReactElement {
         {/* Action buttons */}
         {!isRenaming && (
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
-            {node.type === 'directory' && (
+            {!props.readOnly && node.type === 'directory' && (
               <>
                 <button
                   onClick={(e) => {
@@ -607,7 +616,7 @@ function TreeNode(props: TreeNodeProps): React.ReactElement {
                 </button>
               </>
             )}
-            <button
+            {!props.readOnly && <button
               onClick={(e) => {
                 e.stopPropagation()
                 props.onStartRename(node)
@@ -616,8 +625,8 @@ function TreeNode(props: TreeNodeProps): React.ReactElement {
               title="重命名"
             >
               <Pencil size={11} />
-            </button>
-            <button
+            </button>}
+            {!props.readOnly && <button
               onClick={(e) => {
                 e.stopPropagation()
                 props.onDelete(node)
@@ -626,7 +635,7 @@ function TreeNode(props: TreeNodeProps): React.ReactElement {
               title="删除"
             >
               <Trash2 size={11} />
-            </button>
+            </button>}
           </div>
         )}
       </div>

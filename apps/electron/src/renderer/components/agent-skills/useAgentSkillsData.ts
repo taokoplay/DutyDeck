@@ -217,7 +217,10 @@ export function useAgentSkillsData(workspaceId?: string): AgentSkillsData {
   const deleteSkill = React.useCallback(async (slug: string, name: string): Promise<boolean> => {
     try {
       await window.electronAPI.deleteWorkspaceSkill(workspaceSlug, slug)
-      setSkills((prev) => prev.filter((s) => s.slug !== slug))
+      // 删除高优先级项目/全局 Skill 后，低优先级同名 Skill 可能重新生效，
+      // 因此必须让主进程重新解析 catalog，不能只从当前数组里移除 slug。
+      const nextSkills = await window.electronAPI.getWorkspaceSkills(workspaceSlug)
+      setSkills(nextSkills)
       bumpCapabilitiesVersion((v) => v + 1)
       toast.success(`已删除 Skill：${name}`)
       return true

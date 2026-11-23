@@ -1225,6 +1225,9 @@ export interface CliIntegrationStatus {
 
 // ===== Skill 元数据 =====
 
+/** Skill 的来源作用域，顺序同时代表同名 Skill 的覆盖优先级。 */
+export type AgentSkillScope = 'project' | 'workspace' | 'global' | 'builtin'
+
 /** 从其他工作区导入的 Skill 来源元数据 */
 export interface SkillImportSource {
   sourceWorkspaceSlug: string
@@ -1243,6 +1246,12 @@ export interface SkillMeta {
   icon?: string
   version?: string
   enabled: boolean
+  /** Skill 的实际来源作用域；旧版本返回值缺少该字段时按 workspace 兼容。 */
+  scope?: AgentSkillScope
+  /** 当前生效 Skill 的绝对目录，供主进程调试和 UI 展示来源。 */
+  sourcePath?: string
+  /** 是否只能查看，内置 Skill 默认只读。 */
+  readOnly?: boolean
   /** 如果此 Skill 是从其他工作区导入的，则携带来源信息 */
   importSource?: SkillImportSource
   /** 是否有可用更新（源 Skill 版本 > importSource.sourceVersion） */

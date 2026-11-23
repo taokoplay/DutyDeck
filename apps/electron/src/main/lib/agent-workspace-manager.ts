@@ -26,7 +26,10 @@ import {
   getWorkspaceFilesDir,
   getInactiveSkillsDir,
   getDefaultSkillsDir,
+  resolveDefaultSkillsDir,
   getUserSkillsDir,
+  getSkillSettingsPath,
+  getProjectSkillSettingsPath,
   parseSkillVersion,
   RETIRED_DEFAULT_SKILL_SLUGS,
   isRetiredDefaultSkill,
@@ -38,9 +41,9 @@ import { RESERVED_BUILTIN_KEYS } from './builtin-mcp/baseline'
 import { createWorkspaceSlug } from './workspace-slug'
 import { inferMcpTransportType, normalizeMcpTransportType } from '@dutydeck/shared'
 import { isAgentWorkspacesIndex, isWorkspaceConfig } from './owned-path-rebaser-schema'
-import type { AgentWorkspace, CreateAgentWorkspaceInput, LocalProjectRootStatus, WorkspaceMcpConfig, SkillMeta, SkillImportSource, OtherWorkspaceSkillsGroup, WorkspaceCapabilities, SkillFileNode, SkillFileContent, WorkspaceMemorySummary, BulkImportSkillItemResult, BulkImportSkillsResult, BulkImportWorkspaceSelection } from '@dutydeck/shared'
+import type { AgentWorkspace, CreateAgentWorkspaceInput, LocalProjectRootStatus, WorkspaceMcpConfig, SkillMeta, SkillImportSource, OtherWorkspaceSkillsGroup, WorkspaceCapabilities, SkillFileNode, SkillFileContent, WorkspaceMemorySummary, BulkImportSkillItemResult, BulkImportSkillsResult, BulkImportWorkspaceSelection, AgentSkillScope } from '@dutydeck/shared'
 import { getLocalProjectRootStatus } from './project-root-health'
-import { buildAgentSkillScopeRoots, resolveAgentSkillDirectories } from './agent-skill-scope-resolver'
+import { buildAgentSkillScopeRoots } from './agent-skill-scope-resolver'
 export { getLocalProjectRootStatus } from './project-root-health'
 
 interface AgentWorkspacesIndex {
@@ -215,20 +218,163 @@ export function getProjectFilesPath(workspaceSlug: string): string {
  * 项目级目录位于用户项目根的 .dutydeck/skills；工作区目录保留历史自定义
  * Skill 和导入 Skill；全局与内置目录作为共享回退。
  */
+export interface WorkspaceSkillDirectorySnapshot {
+  /** 当前 query 可加载的所有已启用 Skill 目录，包含项目、工作区、全局和内置作用域。 */
+  skillDirectories: string[]
+  /** 仅属于当前受管工作区的目录，用于激活记录恢复定位。 */
+  workspaceSkillDirectories: string[]
+}
+
+/** 单次 catalog 扫描同时返回加载目录和 workspace 归因目录，避免重复读盘。 */
+export function getWorkspaceSkillDirectorySnapshot(workspaceSlug: string): WorkspaceSkillDirectorySnapshot {
+  const enabledSkills = getSkillCatalog(workspaceSlug).filter((skill) => skill.enabled && skill.sourcePath)
+  return {
+    skillDirectories: enabledSkills.map((skill) => skill.sourcePath as string),
+    workspaceSkillDirectories: enabledSkills
+      .filter((skill) => (skill.scope ?? 'workspace') === 'workspace')
+      .map((skill) => skill.sourcePath as string),
+  }
+}
+
+/** 返回当前工作区最终可加载的所有 Skill 目录。 */
 export function getWorkspaceSkillDirectories(workspaceSlug: string): string[] {
+  return getWorkspaceSkillDirectorySnapshot(workspaceSlug).skillDirectories
+}
+
+interface SkillScopeSettings {
+  version: 1
+  disabledGlobal: string[]
+  disabledBuiltin: string[]
+}
+
+interface ProjectSkillScopeSettings {
+  version: 1
+  disabled: string[]
+}
+
+/** 从不可信 JSON 中提取稳定的 slug 列表，损坏配置时按空集合继续读取。 */
+function normalizeDisabledSlugs(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.filter((item): item is string => typeof item === 'string' && item.length > 0))].sort()
+}
+
+/** 读取用户级 Skill 启停设置；文件损坏不会阻断能力目录加载。 */
+function readSkillScopeSettings(): SkillScopeSettings {
+  const value = readJsonFileSafe<Partial<SkillScopeSettings>>(getSkillSettingsPath())
+  return {
+    version: 1,
+    disabledGlobal: normalizeDisabledSlugs(value?.disabledGlobal),
+    disabledBuiltin: normalizeDisabledSlugs(value?.disabledBuiltin),
+  }
+}
+
+/** 读取项目级 Skill 启停设置；项目配置只影响当前项目。 */
+function readProjectSkillScopeSettings(projectRoot: string): ProjectSkillScopeSettings {
+  const value = readJsonFileSafe<Partial<ProjectSkillScopeSettings>>(getProjectSkillSettingsPath(projectRoot))
+  return { version: 1, disabled: normalizeDisabledSlugs(value?.disabled) }
+}
+
+/** 原子保存用户级 Skill 启停设置，并在首次写入时创建父目录。 */
+function writeSkillScopeSettings(settings: SkillScopeSettings): void {
+  const path = getSkillSettingsPath()
+  mkdirSync(dirname(path), { recursive: true })
+  writeJsonFileAtomic(path, settings, true)
+}
+
+/** 原子保存项目级 Skill 启停设置，并在首次写入时创建 .dutydeck。 */
+function writeProjectSkillScopeSettings(projectRoot: string, settings: ProjectSkillScopeSettings): void {
+  const path = getProjectSkillSettingsPath(projectRoot)
+  mkdirSync(dirname(path), { recursive: true })
+  writeJsonFileAtomic(path, settings, true)
+}
+
+/** 返回工作区对应的用户项目根；无外部项目时沿用受管 workspace-files。 */
+function getSkillProjectRoot(workspaceSlug: string): string {
   const workspace = getAgentWorkspaceBySlug(workspaceSlug)
+  return workspace?.projectRootPath ?? join(getAgentWorkspacePath(workspaceSlug), 'workspace-files')
+}
+
+/**
+ * 读取当前工作区最终生效的 Skill catalog。
+ *
+ * 同名 Skill 只保留优先级最高的一份；workspace 的旧 inactive 目录仍然参与
+ * 兼容读取，全局和内置目录的禁用状态只写入设置文件，不移动共享目录。
+ */
+export function getSkillCatalog(workspaceSlug: string): SkillMeta[] {
+  const projectRoot = getSkillProjectRoot(workspaceSlug)
   const workspaceRoot = getAgentWorkspacePath(workspaceSlug)
-  const projectRoot = workspace?.projectRootPath ?? join(workspaceRoot, 'workspace-files')
   const roots = buildAgentSkillScopeRoots({
     projectRoot,
     workspaceRoot,
     globalSkillsRoot: getUserSkillsDir(),
-    builtinSkillsRoot: getDefaultSkillsDir(),
+    builtinSkillsRoot: resolveDefaultSkillsDir(),
   })
-  return resolveAgentSkillDirectories(roots)
+  const userSettings = readSkillScopeSettings()
+  const projectSettings = readProjectSkillScopeSettings(projectRoot)
+  const selected = new Set<string>()
+  const catalog: SkillMeta[] = []
+
+  for (const root of roots) {
+    const disabled = root.scope === 'project'
+      ? new Set(projectSettings.disabled)
+      : root.scope === 'global'
+        ? new Set(userSettings.disabledGlobal)
+        : root.scope === 'builtin'
+          ? new Set(userSettings.disabledBuiltin)
+          : new Set<string>()
+    const directories = root.scope === 'workspace'
+      ? [
+          { path: root.path, enabled: true },
+          { path: join(workspaceRoot, 'skills-inactive'), enabled: false },
+        ]
+      : [{ path: root.path, enabled: true }]
+
+    for (const directory of directories) {
+      const skills = scanSkillsInDir(directory.path, directory.enabled, root.scope, root.scope === 'builtin')
+      for (const skill of skills) {
+        if (selected.has(skill.slug)) continue
+        if (root.scope !== 'workspace') skill.enabled = !disabled.has(skill.slug)
+        selected.add(skill.slug)
+        catalog.push(skill)
+      }
+    }
+  }
+
+  return catalog
 }
 
-/** 将 ~/.proma/default-skills/ 的内容逐个复制到工作区 skills/ 目录 */
+/** 通过 catalog 找到当前生效 Skill，避免 renderer 拼接过期目录。 */
+function resolveCatalogSkill(workspaceSlug: string, skillSlug: string): SkillMeta | null {
+  return getSkillCatalog(workspaceSlug).find((skill) => skill.slug === skillSlug) ?? null
+}
+
+/** 更新项目、全局或内置 Skill 的启停状态；workspace 仍由目录移动表达状态。 */
+function toggleScopedSkill(workspaceSlug: string, skill: SkillMeta, enabled: boolean): void {
+  const scope = skill.scope ?? 'workspace'
+  if (scope === 'workspace') {
+    toggleWorkspaceDirectorySkill(workspaceSlug, skill.slug, enabled)
+    return
+  }
+
+  if (scope === 'project') {
+    const projectRoot = getSkillProjectRoot(workspaceSlug)
+    const settings = readProjectSkillScopeSettings(projectRoot)
+    const disabled = new Set(settings.disabled)
+    if (enabled) disabled.delete(skill.slug)
+    else disabled.add(skill.slug)
+    writeProjectSkillScopeSettings(projectRoot, { version: 1, disabled: [...disabled].sort() })
+    return
+  }
+
+  const settings = readSkillScopeSettings()
+  const key = scope === 'builtin' ? 'disabledBuiltin' : 'disabledGlobal'
+  const disabled = new Set(settings[key])
+  if (enabled) disabled.delete(skill.slug)
+  else disabled.add(skill.slug)
+  writeSkillScopeSettings({ ...settings, [key]: [...disabled].sort() })
+}
+
+/** 兼容旧迁移流程：将内置 Skill 复制到旧工作区目录。新工作区不再调用。 */
 function copyDefaultSkills(workspaceSlug: string, options: { throwOnError?: boolean } = {}): void {
   const defaultDir = getDefaultSkillsDir()
   const targetDir = getWorkspaceSkillsDir(workspaceSlug)
@@ -302,7 +448,6 @@ export async function createAgentWorkspace(input: string | CreateAgentWorkspaceI
 
   try {
     getAgentWorkspacePath(slug)
-    copyDefaultSkills(slug, { throwOnError: true })
   } catch (error) {
     const workspacesRoot = resolve(getAgentWorkspacesDir())
     const workspaceDir = resolve(join(workspacesRoot, slug))
@@ -514,7 +659,6 @@ export function ensureDefaultWorkspace(): AgentWorkspace {
     }
 
     getAgentWorkspacePath('default')
-    copyDefaultSkills('default')
 
     index.workspaces.push(defaultWs)
     writeIndex(index)
@@ -758,7 +902,7 @@ export function saveWorkspaceMcpConfig(workspaceSlug: string, config: WorkspaceM
 
 /** 扫描工作区活跃 Skills，仅返回 skills/ 下的 Skill */
 export function getWorkspaceSkills(workspaceSlug: string): SkillMeta[] {
-  return scanSkillsInDir(getWorkspaceSkillsDir(workspaceSlug), true)
+  return getSkillCatalog(workspaceSlug).filter((skill) => skill.enabled)
 }
 
 /** 解析 SKILL.md 的 YAML frontmatter，支持单行值、block scalar（`|` / `>`）和多行缩进 */
@@ -847,15 +991,14 @@ export function getWorkspaceCapabilities(workspaceSlug: string): WorkspaceCapabi
 }
 
 export function deleteWorkspaceSkill(workspaceSlug: string, skillSlug: string): void {
-  const skillsDir = getWorkspaceSkillsDir(workspaceSlug)
-  const skillPath = join(skillsDir, skillSlug)
-
-  if (!existsSync(skillPath)) {
+  const skill = resolveCatalogSkill(workspaceSlug, skillSlug)
+  if (!skill || !skill.sourcePath) {
     throw new Error(`Skill 不存在: ${skillSlug}`)
   }
+  if (skill.readOnly) throw new Error(`内置 Skill 只读，不能删除: ${skillSlug}`)
 
-  rmSyncWithRetry(skillPath, { recursive: true, force: true })
-  console.log(`[Agent 工作区] 已删除 Skill: ${workspaceSlug}/${skillSlug}`)
+  rmSyncWithRetry(skill.sourcePath, { recursive: true, force: true })
+  console.log(`[Agent 工作区] 已删除 Skill: ${skill.scope ?? 'workspace'}/${workspaceSlug}/${skillSlug}`)
 }
 
 /** 扫描指定目录下的 Skills，供 getWorkspaceSkills 和 getAllWorkspaceSkills 复用 */
@@ -870,7 +1013,12 @@ function isSkillDirectoryEntry(dir: string, entry: Dirent): boolean {
   }
 }
 
-function scanSkillsInDir(dir: string, enabled: boolean): SkillMeta[] {
+function scanSkillsInDir(
+  dir: string,
+  enabled: boolean,
+  scope: AgentSkillScope = 'workspace',
+  readOnly = false,
+): SkillMeta[] {
   const skills: SkillMeta[] = []
 
   try {
@@ -885,6 +1033,9 @@ function scanSkillsInDir(dir: string, enabled: boolean): SkillMeta[] {
       try {
         const content = readFileSync(skillMdPath, 'utf-8')
         const meta = parseSkillFrontmatter(content, entry.name, enabled)
+        meta.scope = scope
+        meta.sourcePath = join(dir, entry.name)
+        meta.readOnly = readOnly
 
         // 如果是导入的 Skill，读取来源信息并检测更新
         const importSource = readSkillImportSource(join(dir, entry.name))
@@ -909,7 +1060,7 @@ function scanSkillsInDir(dir: string, enabled: boolean): SkillMeta[] {
   return skills
 }
 
-/** 获取默认 Skills 的 slug 列表（来自 ~/.proma/default-skills/） */
+/** 获取默认 Skills 的 slug 列表（兼容旧 UI；新 UI 优先使用 SkillMeta.scope）。 */
 export function getDefaultSkillSlugs(): string[] {
   const dir = getDefaultSkillsDir()
   if (!existsSync(dir)) return []
@@ -925,13 +1076,19 @@ export function getDefaultSkillSlugs(): string[] {
 
 /** 获取工作区所有 Skills（含活跃和不活跃），用于设置页 UI */
 export function getAllWorkspaceSkills(workspaceSlug: string): SkillMeta[] {
-  const activeSkills = scanSkillsInDir(getWorkspaceSkillsDir(workspaceSlug), true)
-  const inactiveSkills = scanSkillsInDir(getInactiveSkillsDir(workspaceSlug), false)
-  return [...activeSkills, ...inactiveSkills]
+  return getSkillCatalog(workspaceSlug)
 }
 
 /** 在 skills/ 和 skills-inactive/ 之间移动来切换启用/禁用 */
 export function toggleWorkspaceSkill(workspaceSlug: string, skillSlug: string, enabled: boolean): void {
+  const skill = resolveCatalogSkill(workspaceSlug, skillSlug)
+  if (!skill) throw new Error(`Skill 不存在: ${skillSlug}`)
+  toggleScopedSkill(workspaceSlug, skill, enabled)
+  console.log(`[Agent 工作区] Skill ${enabled ? '启用' : '禁用'}: ${skill.scope ?? 'workspace'}/${skillSlug}`)
+}
+
+/** 只处理旧工作区目录的 active/inactive 移动，供多作用域开关复用。 */
+function toggleWorkspaceDirectorySkill(workspaceSlug: string, skillSlug: string, enabled: boolean): void {
   const activeDir = getWorkspaceSkillsDir(workspaceSlug)
   const inactiveDir = getInactiveSkillsDir(workspaceSlug)
 
@@ -950,7 +1107,6 @@ export function toggleWorkspaceSkill(workspaceSlug: string, skillSlug: string, e
   }
 
   renameWithRetry(srcPath, destPath)
-  console.log(`[Agent 工作区] Skill ${enabled ? '启用' : '禁用'}: ${workspaceSlug}/${skillSlug}`)
 }
 
 /**
@@ -1201,7 +1357,7 @@ function writeSkillImportSource(skillDir: string, source: SkillImportSource): vo
   writeFileSync(join(skillDir, SOURCE_META_FILE), JSON.stringify(source, null, 2), 'utf-8')
 }
 
-/** 解析 Skill 所在目录（active 或 inactive），不存在则返回 null */
+/** 解析工作区旧目录中的 Skill（active 或 inactive），供导入逻辑使用。 */
 function resolveSkillDir(workspaceSlug: string, skillSlug: string): string | null {
   const active = join(getWorkspaceSkillsDir(workspaceSlug), skillSlug)
   if (existsSync(active)) return active
@@ -1210,11 +1366,19 @@ function resolveSkillDir(workspaceSlug: string, skillSlug: string): string | nul
   return null
 }
 
-/** 返回 Skill 的实际目录，避免 renderer 使用可能过期的 Skills 根路径。 */
+/** 返回当前生效 Skill 的实际目录，避免 renderer 使用可能过期的 Skills 根路径。 */
 export function getWorkspaceSkillFolder(workspaceSlug: string, skillSlug: string): string {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
-  return dir
+  const skill = resolveCatalogSkill(workspaceSlug, skillSlug)
+  if (!skill?.sourcePath) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  return skill.sourcePath
+}
+
+/** 返回当前生效 Skill 元数据，并阻止对内置只读目录执行写操作。 */
+function getWritableCatalogSkillFolder(workspaceSlug: string, skillSlug: string): string {
+  const skill = resolveCatalogSkill(workspaceSlug, skillSlug)
+  if (!skill?.sourcePath) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  if (skill.readOnly) throw new Error(`内置 Skill 只读，不能编辑: ${skillSlug}`)
+  return skill.sourcePath
 }
 
 export function readWorkspaceSkillContent(workspaceSlug: string, skillSlug: string): string {
@@ -1225,8 +1389,7 @@ export function readWorkspaceSkillContent(workspaceSlug: string, skillSlug: stri
 }
 
 export function writeWorkspaceSkillContent(workspaceSlug: string, skillSlug: string, content: string): void {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  const dir = getWritableCatalogSkillFolder(workspaceSlug, skillSlug)
   writeFileSync(join(dir, 'SKILL.md'), content, 'utf-8')
   console.log(`[Agent 工作区] 已更新 SKILL.md: ${workspaceSlug}/${skillSlug}`)
 }
@@ -1878,14 +2041,12 @@ function buildSkillFileTree(rootDir: string, currentDir: string, depth: number):
 }
 
 export function listSkillFiles(workspaceSlug: string, skillSlug: string): SkillFileNode[] {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  const dir = getWorkspaceSkillFolder(workspaceSlug, skillSlug)
   return buildSkillFileTree(dir, dir, 0)
 }
 
 export function readSkillFile(workspaceSlug: string, skillSlug: string, relativePath: string): SkillFileContent {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  const dir = getWorkspaceSkillFolder(workspaceSlug, skillSlug)
   const abs = resolveSkillChildPath(dir, relativePath)
   if (!existsSync(abs)) throw new Error(`文件不存在: ${relativePath}`)
 
@@ -1905,8 +2066,7 @@ export function readSkillFile(workspaceSlug: string, skillSlug: string, relative
 }
 
 export function writeSkillFile(workspaceSlug: string, skillSlug: string, relativePath: string, content: string): void {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  const dir = getWritableCatalogSkillFolder(workspaceSlug, skillSlug)
   const abs = resolveSkillChildPath(dir, relativePath)
 
   const byteLen = Buffer.byteLength(content, 'utf-8')
@@ -1925,8 +2085,7 @@ export function createSkillEntry(
   relativePath: string,
   type: 'file' | 'directory',
 ): void {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  const dir = getWritableCatalogSkillFolder(workspaceSlug, skillSlug)
   const abs = resolveSkillChildPath(dir, relativePath)
 
   if (existsSync(abs)) {
@@ -1946,8 +2105,7 @@ export function createSkillEntry(
 }
 
 export function deleteSkillEntry(workspaceSlug: string, skillSlug: string, relativePath: string): void {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  const dir = getWritableCatalogSkillFolder(workspaceSlug, skillSlug)
   const abs = resolveSkillChildPath(dir, relativePath)
   if (!existsSync(abs)) {
     throw new Error(`目标不存在: ${relativePath}`)
@@ -1962,8 +2120,7 @@ export function renameSkillEntry(
   fromRelative: string,
   toRelative: string,
 ): void {
-  const dir = resolveSkillDir(workspaceSlug, skillSlug)
-  if (!dir) throw new Error(`Skill 不存在: ${workspaceSlug}/${skillSlug}`)
+  const dir = getWritableCatalogSkillFolder(workspaceSlug, skillSlug)
   const fromAbs = resolveSkillChildPath(dir, fromRelative)
   const toAbs = resolveSkillChildPath(dir, toRelative)
   if (!existsSync(fromAbs)) {

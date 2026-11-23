@@ -1,6 +1,10 @@
+- 2026-11-23（Skills 作用域第二阶段收口）：补齐 Read 回退激活归因，只把当前 query 实际加载的工作区 Skill 目录写入 workspace locator；项目、全局和内置来源保持无 workspace 标记。新增单次 catalog 快照同时返回全部加载目录与工作区归因目录，避免重复扫描；默认 Skills 路径读取改为无副作用解析。定向 Skills 回归 10 项/19 断言通过，`packages/shared` typecheck 通过；Electron 全量 typecheck 与 Renderer 构建仍受依赖环境缺失阻断。
+
 - 2026-11-23（媒体与上游同步）：已提交并推送 `c0b270f37`（`feat(media): 接入自然语言媒体与 ComfyUI 工作流`），包含普通会话媒体 Skill/独立 ComfyUI 工作流、输出预检、跨平台 ffprobe 候选、模型请求修正及回归测试；`.dutydeck/` 已加入 `.gitignore`，本地设计资产、知识库和 Canvas 运行数据不入仓。`upstream/main` 抓取后相对当前分支为 upstream 领先 71、当前分支领先 1092；现代 `git merge-tree` 检出 107 个冲突文件，涉及 Pi runtime/adapter、Agent service/session、IPC、MCP、模型目录和 renderer，不能一次普通 merge，后续需按能力拆分迁移。定向媒体/Skill 回归 209 项、ComfyUI/媒体集成 135 项和全仓 typecheck 通过；全仓并行测试有 42 个环境依赖或超时失败，未作为全绿依据。Nowledge Mem 搜索因本机 127.0.0.1:14242 不可达未同步。
 
 # MEMORY.md
+
+- 2026-11-23（Skills 作用域第二阶段，已实施未提交）：Skills catalog 已按项目 `.dutydeck/skills` > 当前工作区 `skills/` > 用户全局 `~/.DutyDeck/skills` > 内置 `~/.DutyDeck/default-skills` 去重，并通过 `SkillMeta.scope/sourcePath/readOnly` 向 UI 传递来源。新建默认项目不再复制内置 Skill，启动时也停止对所有旧工作区做默认 Skill 自动升级；旧 active/inactive 副本保留兼容。项目、全局和内置 Skill 的禁用状态分别写入项目 `.dutydeck/skill-settings.json` 或用户 `skill-settings.json`，内置 Skill 内容与资源编辑由主进程和 UI 双重保护为只读。新增同名覆盖、作用域启停测试；作用域解析测试 3 项通过，shared typecheck 通过。Electron renderer 构建和全量 typecheck 受当前环境缺失 `@vitejs/plugin-react`、`@dutydeck/*` workspace 链接及其他既有依赖影响未完成；尚未提交、push 或发布。
 
 - 2026-11-18（会话历史交互，工作树已实施）：用户以滚动而非分页弹窗阅读；到达磁盘尾页不等于恢复实时跟随，仅在用户继续下滚到真实底部时切回，补页和在途选区不得抢走视口。5 万条普通合成消息首次上翻主进程 P50 从 362.7 ms 降到 9.7 ms（新索引 20 个文件）；不能把这一数值当作界面或模型首字耗时。Skill 补记已改为会话旁车原子快照：已落盘当前轮首次补记按 UUID/正文摘要局部定位，只写旁车，不再重写整份 JSONL；无可信回执的旧文件仍严格全量回退。旁车读取有大小上限、软链拒绝和 CAS，裁剪/rewind 时先合回正文再删除旁车。合成 5 万条样本首次新增 P50 1.85 ms（旧基线 1018 ms），无回执历史回退 P50 126.88 ms；仅为主进程函数计时，不代表端到端 UI/模型延迟。验收与边界见 `docs/superpowers/plans/2026-11-18-agent-session-continuous-history.md`，未发布。
 

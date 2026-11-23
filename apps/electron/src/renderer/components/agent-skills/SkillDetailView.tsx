@@ -24,6 +24,8 @@ export interface SkillDetailViewProps {
   /** 外部能力变更后由数据层递增，用于重新读取 SKILL.md 和静默刷新资源树。 */
   contentVersion: number
   isBuiltin: boolean
+  /** 内置 Skill 只能查看正文和资源，不能修改文件。 */
+  readOnly?: boolean
   updating: boolean
   onBack: () => void
   onToggle: (enabled: boolean) => void
@@ -37,6 +39,7 @@ export function SkillDetailView({
   workspaceSlug,
   contentVersion,
   isBuiltin,
+  readOnly = skill.readOnly ?? isBuiltin,
   updating,
   onBack,
   onToggle,
@@ -227,11 +230,15 @@ export function SkillDetailView({
     }
   }, [])
 
-  const sourceLabel = isBuiltin
-    ? '内置'
+  const sourceLabel = skill.scope === 'project'
+    ? '项目级 Skill'
+    : skill.scope === 'global'
+      ? '用户全局 Skill'
+      : isBuiltin
+        ? '内置'
     : skill.importSource
       ? `从 ${skill.importSource.sourceWorkspaceName} 导入`
-      : '当前项目'
+      : '当前工作区'
 
   return (
     <div
@@ -278,7 +285,7 @@ export function SkillDetailView({
             <span className="text-xs text-muted-foreground">{skill.enabled ? '已启用' : '已禁用'}</span>
           </div>
           {skill.hasUpdate && (
-            <Button size="sm" variant="outline" onClick={onUpdate} disabled={updating}>
+              <Button size="sm" variant="outline" onClick={onUpdate} disabled={updating || readOnly}>
               <RefreshCw size={14} className={cn(updating && 'animate-spin')} />
               {updating ? '更新中' : '更新'}
             </Button>
@@ -291,7 +298,7 @@ export function SkillDetailView({
             </TooltipTrigger>
             <TooltipContent side="top">打开目录</TooltipContent>
           </Tooltip>
-          {!isBuiltin && (
+          {!readOnly && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -329,9 +336,10 @@ export function SkillDetailView({
               )}
             </div>
             <SettingsCard divided>
-              <MetaEditRow label="名称" value={editName} onChange={(name) => updateDraft({ name })} />
-              <MetaEditRow label="描述" value={editDescription} onChange={(description) => updateDraft({ description })} multiline />
+              <MetaEditRow label="名称" value={editName} onChange={(name) => updateDraft({ name })} disabled={readOnly} />
+              <MetaEditRow label="描述" value={editDescription} onChange={(description) => updateDraft({ description })} multiline disabled={readOnly} />
               <MetaRow label="数据源" value={sourceLabel} />
+              <MetaRow label="作用域" value={skill.scope === 'project' ? '项目' : skill.scope === 'global' ? '全局' : skill.scope === 'builtin' ? '内置' : '当前工作区'} />
               <MetaRow label="位置" value={`skills/${skill.slug}`} />
             </SettingsCard>
           </div>
@@ -361,6 +369,7 @@ export function SkillDetailView({
                       value={editBody}
                       onChange={(body) => updateDraft({ body })}
                       onSave={retrySave}
+                      readOnly={readOnly}
                       className="live-markdown-external-scroll skill-detail-live-markdown"
                     />
                   </div>
@@ -373,6 +382,7 @@ export function SkillDetailView({
                 <SkillFilesPanel
                   workspaceSlug={workspaceSlug}
                   skillSlug={skill.slug}
+                  readOnly={readOnly}
                   contentVersion={contentVersion}
                   onFileCountChange={setFileCount}
                 />
@@ -395,7 +405,7 @@ function MetaRow({ label, value }: { label: string; value: string }): React.Reac
   )
 }
 
-function MetaEditRow({ label, value, onChange, multiline }: { label: string; value: string; onChange: (v: string) => void; multiline?: boolean }): React.ReactElement {
+function MetaEditRow({ label, value, onChange, multiline, disabled }: { label: string; value: string; onChange: (v: string) => void; multiline?: boolean; disabled?: boolean }): React.ReactElement {
   return (
     <div className="flex items-start gap-4 px-4 py-2.5">
       <span className="w-16 shrink-0 pt-2 text-xs text-muted-foreground">{label}</span>
@@ -405,12 +415,14 @@ function MetaEditRow({ label, value, onChange, multiline }: { label: string; val
           onChange={(e) => onChange(e.target.value)}
           className="min-w-0 flex-1 resize-y rounded-md border border-border bg-transparent px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           rows={3}
+          disabled={disabled}
         />
       ) : (
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
           className="min-w-0 flex-1 rounded-md border border-border bg-transparent px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
         />
       )}

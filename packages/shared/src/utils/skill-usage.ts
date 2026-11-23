@@ -32,6 +32,15 @@ function getWorkspaceSkillPath(value: unknown, slug: string): string | undefined
   return path === `${slug}/SKILL.md` ? path : undefined
 }
 
+/** 判断 Skill 文件是否来自当前 query 冻结的工作区目录，避免把全局/内置来源伪装成 workspace。 */
+function isPathWithinSkillDirectory(filePath: string, directories: readonly string[]): boolean {
+  const normalizedPath = filePath.replace(/\\/g, '/')
+  return directories.some((directory) => {
+    const normalizedDirectory = directory.replace(/\\/g, '/').replace(/\/$/, '')
+    return normalizedPath.startsWith(`${normalizedDirectory}/`)
+  })
+}
+
 function normalizeActivation(value: unknown): SkillActivation | null {
   if (!isRecord(value) || typeof value.slug !== 'string' || value.slug.trim() === '') return null
 
@@ -72,15 +81,18 @@ export function createSkillActivationFromPath(
   source: SkillActivationSource,
   name?: string,
   workspaceSlug?: string,
+  workspaceSkillDirectories?: readonly string[],
 ): SkillActivation | null {
   const slug = getSkillSlugFromEntryPath(path)
   if (!slug) return null
   const normalizedWorkspaceSlug = normalizeWorkspaceSlug(workspaceSlug)
+  const belongsToWorkspace = workspaceSkillDirectories === undefined
+    || isPathWithinSkillDirectory(path, workspaceSkillDirectories)
   return {
     slug,
     name: name?.trim() || slug,
     filePath: path,
-    ...(normalizedWorkspaceSlug
+    ...(normalizedWorkspaceSlug && belongsToWorkspace
       ? { workspaceSlug: normalizedWorkspaceSlug, workspaceSkillPath: `${slug}/SKILL.md` }
       : {}),
     sources: [source],
@@ -141,14 +153,13 @@ function getReadPath(input: Record<string, unknown>): string | null {
 
 export interface SkillActivationCollectionOptions {
   workspaceSlug?: string
-  workspaceSkillsRoot?: string
+  /** 当前 query 实际加载的工作区 Skill 目录快照；目录项是具体 Skill 目录而非共享根。 */
+  workspaceSkillDirectories?: readonly string[]
 }
 
 function isWorkspaceSkillEntryPath(path: string, options?: SkillActivationCollectionOptions): boolean {
-  if (!options?.workspaceSlug || !options.workspaceSkillsRoot) return false
-  const root = options.workspaceSkillsRoot.replace(/\\/g, '/').replace(/\/+$/, '')
-  const entry = path.replace(/\\/g, '/')
-  return entry.startsWith(`${root}/`)
+  if (!options?.workspaceSlug || !options.workspaceSkillDirectories) return false
+  return isPathWithinSkillDirectory(path, options.workspaceSkillDirectories)
 }
 
 /**
@@ -177,6 +188,7 @@ export function collectSuccessfulSkillReadActivations(
           'read',
           undefined,
           isWorkspaceSkillEntryPath(path, options) ? options?.workspaceSlug : undefined,
+          options?.workspaceSkillDirectories,
         )
         if (activation) pendingReads.set(tool.id, activation)
       }

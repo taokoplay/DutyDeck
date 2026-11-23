@@ -307,6 +307,8 @@ export interface PiAgentQueryOptions extends AgentQueryInput {
   initialUserMessageUuid?: string
   /** Workspace that owns `additionalSkillPaths`, used for relocatable Skill previews. */
   skillWorkspaceSlug?: string
+  /** 本 query 冻结的 workspace Skill 目录，仅这些目录可写入 workspace 激活归因。 */
+  skillWorkspaceDirectories?: string[]
   /** Skill 成功加载并注入 prompt 后回调。 */
   onSkillActivated?: (activations: SkillActivation[], userMessageUuid: string) => void
   proxyUrl?: string
@@ -362,6 +364,8 @@ interface ActivePiSession {
   disposed: boolean
   runtimeGuard?: AgentRuntimeGuard
   skillWorkspaceSlug?: string
+  /** 本 query 冻结的 workspace Skill 目录，供追加消息沿用同一归因边界。 */
+  skillWorkspaceDirectories?: readonly string[]
   pendingSkillActivations: PendingPromptSkillActivationTracker
   onSkillActivated?: (activations: SkillActivation[], userMessageUuid: string) => void
   /** 当前 Host 完成检查的取消边界，只在显式启用时存在。 */
@@ -743,6 +747,8 @@ export async function preparePromptWithPromaSkills(
   workspaceSlug?: string,
   /** 仅本 query 首个普通 prompt 可携带初始化后校验过的资源快照。 */
   initialSnapshot?: SkillLoadResult,
+  /** 当前 query 的 workspace 目录快照；全局/内置 Skill 不写入 workspace locator。 */
+  workspaceSkillDirectories?: readonly string[],
 ): Promise<PreparedPromptWithSkills> {
   /** 列表身份已变更时回退刷新；后续 steer/queue 未传快照，始终刷新。 */
   const currentSnapshot = initialSnapshot ? resourceLoader.getSkills() : undefined
@@ -768,6 +774,7 @@ export async function preparePromptWithPromaSkills(
       'explicit',
       skill.name,
       workspaceSlug,
+      workspaceSkillDirectories,
     )
     if (activation) activations.push(activation)
     blocks.push(block)
@@ -1664,6 +1671,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
     const retryRunStartedAt = input.retryRunStartedAt ?? Date.now()
     active.runtimeGuard = runtimeGuard
     active.skillWorkspaceSlug = input.skillWorkspaceSlug
+    active.skillWorkspaceDirectories = input.skillWorkspaceDirectories
     active.onSkillActivated = input.onSkillActivated
     let unsubscribe: (() => void) | undefined
     /** SDK 内置落盘 listener 之后的回执监听器。 */
@@ -2360,6 +2368,7 @@ export class PiAgentAdapter implements AgentProviderAdapter {
                   promptInput.skillMentions,
                   input.skillWorkspaceSlug,
                   promptInput.initialSkillSnapshot,
+                  input.skillWorkspaceDirectories,
                 )
             } catch (error) {
               currentInterrupt?.rejectAccepted(error)
@@ -2501,6 +2510,8 @@ export class PiAgentAdapter implements AgentProviderAdapter {
         message.message.content,
         options?.skillMentions,
         active.skillWorkspaceSlug,
+        undefined,
+        active.skillWorkspaceDirectories,
       )
       : { content: message.message.content, activations: [] }
     const content = preparedPrompt.content

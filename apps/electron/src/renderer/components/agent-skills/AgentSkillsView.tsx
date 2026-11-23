@@ -69,6 +69,8 @@ function buildSkillClassificationPrompt(input: {
     .map((skill) => {
       const meta: string[] = []
       if (skill.group) meta.push(`group=${skill.group}`)
+      if (skill.scope) meta.push(`scope=${skill.scope}`)
+      if (skill.sourcePath) meta.push(`path=${skill.sourcePath}`)
       return `- ${skill.slug} (${skill.name})${meta.length > 0 ? ` [${meta.join('; ')}]` : ''}`
     })
     .join('\n')
@@ -82,7 +84,7 @@ Skills 目录：${input.skillsDir}
 ${skillList || '- 暂无'}
 
 目标：
-1. 逐个读取 Skills 目录下每个子目录的 SKILL.md，基于实际 description 和正文内容判断用途，不要只靠 slug、文件夹名或固定前缀猜分类。
+    1. 按每个 Skill 条目提供的 path 读取对应 SKILL.md；项目、当前工作区、全局和内置 Skill 可能来自不同目录，不能假定它们都在同一个目录下。
 2. 为每个 Skill 补全或修正 frontmatter 中的 group：
    - group 是一个简短、稳定的一级分组，直接用人类可读名称，例如 "Lark"、"文档"、"演示文稿"、"规划协作"。这些只是例子，不是固定枚举；请根据实际内容归纳。
    - 分组数量要克制，优先让用户能快速折叠/浏览，不要把每个细分场景都做成新组。
@@ -234,8 +236,10 @@ export function AgentSkillsView({
     })
   }, [data.skills, q])
 
-  const customSkills = filteredSkills.filter((s) => !data.defaultSkillSlugs.has(s.slug))
-  const builtinSkills = filteredSkills.filter((s) => data.defaultSkillSlugs.has(s.slug))
+  const isBuiltinSkill = (skill: SkillMeta): boolean => skill.scope === 'builtin'
+    || (skill.scope === undefined && data.defaultSkillSlugs.has(skill.slug))
+  const customSkills = filteredSkills.filter((s) => !isBuiltinSkill(s))
+  const builtinSkills = filteredSkills.filter((s) => isBuiltinSkill(s))
   const updateCount = data.skills.filter((s) => s.hasUpdate).length
 
   const catalogServerNames = React.useMemo(() => getCatalogServerNames(), [])
@@ -279,7 +283,7 @@ export function AgentSkillsView({
     && data.loadedWorkspaceSlug === data.workspaceSlug
     ? data.skills.find((s) => s.slug === selectedSkillSlug) ?? null
     : null
-  const selectedIsBuiltin = selectedSkill ? data.defaultSkillSlugs.has(selectedSkill.slug) : false
+  const selectedIsBuiltin = selectedSkill ? isBuiltinSkill(selectedSkill) : false
   const selectedMcp = selectedMcpName ? data.mcpConfig.servers[selectedMcpName] ?? null : null
 
   React.useEffect(() => {
@@ -599,6 +603,7 @@ export function AgentSkillsView({
           workspaceSlug={data.workspaceSlug}
           contentVersion={data.skillsRevision}
           isBuiltin={selectedIsBuiltin}
+          readOnly={selectedSkill.readOnly ?? selectedIsBuiltin}
           updating={data.updatingSkill === selectedSkill.slug}
           onBack={closeSkill}
           onToggle={(enabled) => data.toggleSkill(selectedSkill.slug, enabled)}
@@ -835,7 +840,10 @@ export function AgentSkillsView({
                 total={data.skills.length}
                 updateCount={updateCount}
                 updatingSkill={data.updatingSkill}
-                isBuiltin={(slug) => data.defaultSkillSlugs.has(slug)}
+                isBuiltin={(slug) => {
+                  const skill = data.skills.find((item) => item.slug === slug)
+                  return skill ? isBuiltinSkill(skill) : data.defaultSkillSlugs.has(slug)
+                }}
                 onOpen={selectSkill}
                 onToggle={data.toggleSkill}
                 onUpdate={data.updateSkill}
