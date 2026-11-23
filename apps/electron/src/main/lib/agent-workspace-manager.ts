@@ -26,6 +26,7 @@ import {
   getWorkspaceFilesDir,
   getInactiveSkillsDir,
   getDefaultSkillsDir,
+  getUserSkillsDir,
   parseSkillVersion,
   RETIRED_DEFAULT_SKILL_SLUGS,
   isRetiredDefaultSkill,
@@ -39,6 +40,7 @@ import { inferMcpTransportType, normalizeMcpTransportType } from '@dutydeck/shar
 import { isAgentWorkspacesIndex, isWorkspaceConfig } from './owned-path-rebaser-schema'
 import type { AgentWorkspace, CreateAgentWorkspaceInput, LocalProjectRootStatus, WorkspaceMcpConfig, SkillMeta, SkillImportSource, OtherWorkspaceSkillsGroup, WorkspaceCapabilities, SkillFileNode, SkillFileContent, WorkspaceMemorySummary, BulkImportSkillItemResult, BulkImportSkillsResult, BulkImportWorkspaceSelection } from '@dutydeck/shared'
 import { getLocalProjectRootStatus } from './project-root-health'
+import { buildAgentSkillScopeRoots, resolveAgentSkillDirectories } from './agent-skill-scope-resolver'
 export { getLocalProjectRootStatus } from './project-root-health'
 
 interface AgentWorkspacesIndex {
@@ -205,6 +207,25 @@ export function getAgentWorkspaceBySlug(slug: string): AgentWorkspace | undefine
  */
 export function getProjectFilesPath(workspaceSlug: string): string {
   return getAgentWorkspaceBySlug(workspaceSlug)?.projectRootPath ?? getWorkspaceFilesDir(workspaceSlug)
+}
+
+/**
+ * 解析当前工作区可用的 Skills 目录，并按作用域优先级去重。
+ *
+ * 项目级目录位于用户项目根的 .dutydeck/skills；工作区目录保留历史自定义
+ * Skill 和导入 Skill；全局与内置目录作为共享回退。
+ */
+export function getWorkspaceSkillDirectories(workspaceSlug: string): string[] {
+  const workspace = getAgentWorkspaceBySlug(workspaceSlug)
+  const workspaceRoot = getAgentWorkspacePath(workspaceSlug)
+  const projectRoot = workspace?.projectRootPath ?? join(workspaceRoot, 'workspace-files')
+  const roots = buildAgentSkillScopeRoots({
+    projectRoot,
+    workspaceRoot,
+    globalSkillsRoot: getUserSkillsDir(),
+    builtinSkillsRoot: getDefaultSkillsDir(),
+  })
+  return resolveAgentSkillDirectories(roots)
 }
 
 /** 将 ~/.proma/default-skills/ 的内容逐个复制到工作区 skills/ 目录 */

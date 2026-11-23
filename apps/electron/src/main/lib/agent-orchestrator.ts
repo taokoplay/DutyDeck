@@ -56,7 +56,7 @@ import type { LocalModelLease } from './local-model-runtime'
 import { assertEnabledModelForChannel } from './agent-model-selection'
 import type { GithubCopilotOAuthCredentials } from '@dutydeck/shared'
 import { persistGithubCopilotOAuthCredentials, resolveGithubCopilotOAuthCredentials } from './channel-manager'
-import { getAgentWorkspaceBySlug } from './agent-workspace-manager'
+import { getAgentWorkspaceBySlug, getWorkspaceSkillDirectories } from './agent-workspace-manager'
 import { getMainRepoRoot } from './git-diff-service'
 import { getPiAssistantErrorDetails, hasPiAssistantTextContent, stripPiAssistantError } from './adapters/pi-message-adapter'
 import { friendlyErrorMessage, isPromptTooLongError, isThinkingSignatureError, mapAgentErrorToTypedError } from './agent-error-utils'
@@ -2852,6 +2852,10 @@ export class AgentOrchestrator {
         localModelLease = await getLocalModelRuntime().acquire(selectedModelId, runIdentity.signal)
         checkpoint()
       }
+      /** 本次运行冻结 Skill 目录，避免启动加载与结果归因各扫描一次文件系统。 */
+      const workspaceSkillDirectories = workspaceSlug && runWorkspaceSkillsEnabled
+        ? getWorkspaceSkillDirectories(workspaceSlug)
+        : []
       const queryOptions: PiAgentQueryOptions = {
         sessionId,
         toolMode: runToolMode,
@@ -2906,7 +2910,7 @@ export class AgentOrchestrator {
         ),
         ...(allAdditionalDirectories.length > 0 && { additionalDirectories: allAdditionalDirectories }),
         ...(workspaceSlug && runWorkspaceSkillsEnabled ? {
-          additionalSkillPaths: [getWorkspaceSkillsDir(workspaceSlug)],
+          additionalSkillPaths: workspaceSkillDirectories,
           excludedSkillSlugs,
           skillWorkspaceSlug: workspaceSlug,
         } : {}),

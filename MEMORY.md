@@ -2481,3 +2481,5 @@
 - 2026-11-23（选择性吸纳 upstream 侧栏滚动优化）：未直接合并 upstream/main。审查确认当前分支已经具备会话历史连续滚动自动加载、任务进度同步、utility runtime 生命周期加固、会话文件变更折叠和 Skill 刷新状态保护；本轮仅吸纳 upstream `ea6f95816` 的 `SidebarScrollBoundary` 思路，在 Chat/Agent 活跃、今日活动和归档列表外增加局部顶部滚动反馈。滚动状态封装在小组件内，避免每次侧栏滚动触发整个 `LeftSidebar` 重渲染；新增同构 effect 以消除 SSR 警告，并补充静态渲染回归。Nowledge 定向检索仍因本机 `127.0.0.1:14242` 连接拒绝不可用。
 
 - 2026-11-23（长会话异步加载与连续滚动优化）：会话历史 JSONL 批次读取改为 `fs/promises` 异步文件句柄，索引构建等待异步批次，避免 Electron 主进程同步读盘阻塞；Renderer 以 `prepareTranscriptPage` 分阶段合并有界窗口、每 64 条消息让出事件循环，并通过请求有效性校验取消迟到准备。首次无缓存加载显示带耗时的历史加载动画，向上自动补载期间保留旧内容并显示 spinner/`aria-busy`，不恢复弹窗式上一页/下一页；滚动锚点必须等 transition 后真实 DOM 锚点挂载再恢复。定向长会话测试 56 项通过，renderer build 通过；全仓测试和 typecheck 仍有既有环境/类型阻断，未把它们归因于本轮改动。Nowledge 定向检索因本机 `127.0.0.1:14242` 连接拒绝不可用。
+
+- 2026-11-23（Skills 作用域第一阶段，已落地未发布）：确认内置 Skill 全量复制到每个工作区会造成存储重复、升级遍历和版本漂移；本轮新增只读多作用域解析器，运行时按项目 `项目根/.dutydeck/skills` > 当前工作区 `skills/` > 用户全局 `~/.DutyDeck/skills` > 内置 `~/.DutyDeck/default-skills/` 选择唯一同名目录。保留旧工作区副本、启停、编辑和导入语义，未做迁移删除；全局/项目 Skill 的激活记录不标记为工作区 locator，避免恢复时错误重定位。解析器 3 项 BDD、`packages/shared` typecheck 和独立 TypeScript 检查通过；Electron 关联测试/全仓 typecheck 受当前 workspace 依赖链接缺失影响，未能运行。

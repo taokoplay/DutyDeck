@@ -516,7 +516,19 @@ export function getInactiveSkillsDir(slug: string): string {
 }
 
 /**
- * 获取默认 Skills 模板目录路径
+ * 获取用户全局 Skills 目录。
+ *
+ * 该目录供所有项目共享，读取路径时不自动创建，避免仅查看能力列表就产生
+ * 文件系统副作用；用户安装第一个全局 Skill 时再由写入流程创建。
+ *
+ * @returns 默认路径为 ~/.DutyDeck/skills/
+ */
+export function getUserSkillsDir(): string {
+  return join(getConfigDir(), 'skills')
+}
+
+/**
+ * 获取默认 Skills 模板目录路径。
  *
  * 新建工作区时自动复制此目录的内容到工作区 skills/ 下。
  *
