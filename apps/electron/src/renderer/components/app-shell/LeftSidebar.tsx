@@ -121,6 +121,7 @@ import { sessionHoverPreviewEnabledAtom } from '@/atoms/ui-preferences'
 import { CollapsedWorkspacePopover } from '@/components/agent/CollapsedWorkspacePopover'
 import { CollapsedSessionRail, type RailRecentItem } from '@/components/agent/CollapsedSessionRail'
 import { VirtualSidebarList, type VirtualSidebarRow } from '@/components/ui/virtual-sidebar-list'
+import { SidebarScrollBoundary } from '@/components/ui/sidebar-scroll-boundary'
 import { LocalProjectBadge } from '@/components/agent/LocalProjectBadge'
 import { MoveSessionDialog } from '@/components/agent/MoveSessionDialog'
 import {
@@ -3541,18 +3542,22 @@ export function LeftSidebar({ width, noTransition }: LeftSidebarProps): React.Re
 
       {/* Chat 模式 active 视图：置顶 + 对话历史，结构与 Agent active 视图保持一致 */}
       {mode === 'chat' && viewMode === 'active' ? (
-        <VirtualSidebarList
-          key="chat-active-list"
-          className="flex-1"
-          rows={chatActiveVirtualRows}
-          activeRowId={activeSessionId ? `chat-${activeSessionId}` : null}
-        />
+        <SidebarScrollBoundary key="chat-active-boundary">
+          <VirtualSidebarList
+            key="chat-active-list"
+            className="flex-1"
+            rows={chatActiveVirtualRows}
+            activeRowId={activeSessionId ? `chat-${activeSessionId}` : null}
+          />
+        </SidebarScrollBoundary>
       ) : mode === 'agent' && viewMode === 'active' ? (
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin titlebar-no-drag px-2 pb-3">
-          {agentActiveVirtualRows.map((row) => (
-            <React.Fragment key={row.id}>{row.content}</React.Fragment>
-          ))}
-        </div>
+        <SidebarScrollBoundary key="agent-active-boundary">
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin titlebar-no-drag px-2 pb-3">
+            {agentActiveVirtualRows.map((row) => (
+              <React.Fragment key={row.id}>{row.content}</React.Fragment>
+            ))}
+          </div>
+        </SidebarScrollBoundary>
       ) : viewMode === 'today' ? (
         <>
           {/* 今日活动标题栏：与入口计数保持一致 */}
@@ -3564,16 +3569,18 @@ export function LeftSidebar({ width, noTransition }: LeftSidebarProps): React.Re
 
           {/* 今日活动：跨项目列表；Agent 会话按父子层级展开 */}
           {todayVirtualRows.length > 0 ? (
-            <VirtualSidebarList
-              key={mode === 'agent' ? 'agent-today-list' : 'chat-today-list'}
-              className="flex-1 px-3 pt-2 pb-3"
-              rows={todayVirtualRows}
-              activeRowId={activeSessionId
-                ? mode === 'agent' && todayAgentSessions.some((session) => session.id === activeSessionId && isDelegatedChildSession(session))
-                  ? `agent-today-child-${activeSessionId}`
-                  : `${mode === 'agent' ? 'agent' : 'chat'}-today-${activeSessionId}`
-                : null}
-            />
+            <SidebarScrollBoundary key={mode === 'agent' ? 'agent-today-boundary' : 'chat-today-boundary'}>
+              <VirtualSidebarList
+                key={mode === 'agent' ? 'agent-today-list' : 'chat-today-list'}
+                className="flex-1 px-3 pt-2 pb-3"
+                rows={todayVirtualRows}
+                activeRowId={activeSessionId
+                  ? mode === 'agent' && todayAgentSessions.some((session) => session.id === activeSessionId && isDelegatedChildSession(session))
+                    ? `agent-today-child-${activeSessionId}`
+                    : `${mode === 'agent' ? 'agent' : 'chat'}-today-${activeSessionId}`
+                  : null}
+              />
+            </SidebarScrollBoundary>
           ) : (
             <div className="min-h-0 flex-1 px-6 pt-6 text-[12px] text-foreground/30 select-none">
               今天还没有{mode === 'agent' ? '会话' : '对话'}
@@ -3593,19 +3600,23 @@ export function LeftSidebar({ width, noTransition }: LeftSidebarProps): React.Re
 
           {/* 归档视图：单列表布局 */}
           {mode === 'chat' ? (
-            <VirtualSidebarList
-              key="chat-archived-list"
-              className="flex-1 px-3 pt-2 pb-3"
-              rows={chatArchivedVirtualRows}
-              activeRowId={activeSessionId ? `chat-archived-${activeSessionId}` : null}
-            />
+            <SidebarScrollBoundary key="chat-archived-boundary">
+              <VirtualSidebarList
+                key="chat-archived-list"
+                className="flex-1 px-3 pt-2 pb-3"
+                rows={chatArchivedVirtualRows}
+                activeRowId={activeSessionId ? `chat-archived-${activeSessionId}` : null}
+              />
+            </SidebarScrollBoundary>
           ) : (
-            <VirtualSidebarList
-              key="agent-archived-list"
-              className="flex-1 px-3 pt-2 pb-3"
-              rows={agentArchivedVirtualRows}
-              activeRowId={activeSessionId ? `agent-archived-${activeSessionId}` : null}
-            />
+            <SidebarScrollBoundary key="agent-archived-boundary">
+              <VirtualSidebarList
+                key="agent-archived-list"
+                className="flex-1 px-3 pt-2 pb-3"
+                rows={agentArchivedVirtualRows}
+                activeRowId={activeSessionId ? `agent-archived-${activeSessionId}` : null}
+              />
+            </SidebarScrollBoundary>
           )}
         </>
       )}

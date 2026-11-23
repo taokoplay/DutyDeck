@@ -2477,3 +2477,5 @@
 - 2026-10-27（Windows 复测与打包阻塞）：本地 `electron:build` 在将 Swift/Clang module cache 指向可写临时目录后完整退出 0；影像相关 30 项/948 断言通过。`dist:win` 已完成跨平台 JS、Renderer、CLI、原生 helper 和移动端构建，但 `bun install --os=win32 --cpu=x64` 受受限网络阻断，无法下载 6 个 Windows 依赖（@napi-rs/canvas、sharp、esbuild、rollup）；因此没有生成新 Windows 安装包。UU 远程画面仍运行旧版本，聊天中显示 `shotId` 为必填，尚未加载本轮修复。
 
 - 2026-10-27（知识库整理取消弹窗）：用户明确要求触发后直接让 Agent 整理，成功和失败均不弹窗；自动接管从进度组件移到知识库控制层，提案按项目/id/revision 去重，来源页收到提案也继续处理。进度仅页内按需展开，保留暂停、继续、局部重试及失败后查看正文仍可重试的恢复入口；不新增模型调用，沿用既有会话队列、宿主确认和文件版本保护。59 项相关测试/266 断言、隔离 Electron UI smoke、临时目录 Renderer 构建与 diff check 通过；全仓 typecheck 仍被本轮未改的 Vault 分页 cursor.offset 可空错误阻断。未调用真实模型整理、未发布；Nowledge 定向检索连接拒绝。
+
+- 2026-11-23（选择性吸纳 upstream 侧栏滚动优化）：未直接合并 upstream/main。审查确认当前分支已经具备会话历史连续滚动自动加载、任务进度同步、utility runtime 生命周期加固、会话文件变更折叠和 Skill 刷新状态保护；本轮仅吸纳 upstream `ea6f95816` 的 `SidebarScrollBoundary` 思路，在 Chat/Agent 活跃、今日活动和归档列表外增加局部顶部滚动反馈。滚动状态封装在小组件内，避免每次侧栏滚动触发整个 `LeftSidebar` 重渲染；新增同构 effect 以消除 SSR 警告，并补充静态渲染回归。Nowledge 定向检索仍因本机 `127.0.0.1:14242` 连接拒绝不可用。
