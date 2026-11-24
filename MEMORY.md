@@ -2492,3 +2492,5 @@
 - 2026-11-24（官网模型兼容收口）：按 OpenAI 与 Z.AI 官方模型资料补齐 GPT-6.2 Astra、GPT-6.2 Sol、GPT-6.1 Terra、GPT-6.1 Sol 的能力覆盖与 reasoning 协议；GPT-6.1 Terra 仅在关闭 reasoning 时发送 temperature。GLM-5.3 FlashX-Legal 加入标准 Z.AI 渠道，GLM-5.4 仅加入 Z.AI Coding Plan/团队版，保留 1M/128K 与 low/high/max adaptive reasoning；未把无法官网确认的 GLM-5.5 加入模型目录。新增覆盖与 runtime 注册回归均通过；全仓 typecheck 仍被既有 `@proma/shared` 缺失和旧 `test.each` 类型错误阻断。Nowledge Mem 本轮因本机 `127.0.0.1:14242` 连接拒绝不可用。
 
 - 2026-11-24（长会话修复与模型能力补齐）：`TranscriptNavigation` 以 active 导航锁覆盖异步读取、React transition 和 DOM 锚点恢复，连续历史 Electron smoke 的最大锚点漂移为 0px；同批补齐 GPT-6.2 Astra/Sol、GPT-6.1 Sol/Terra、GLM-5.4 Coding Plan 和 GLM-5.3 FlashX-Legal 的能力覆盖与 temperature/reasoning 约束。定向模型测试 78 项/193 断言、Renderer build 通过；全仓 typecheck 仍受既有 `pi-kimi-upgrade-compat.test.ts` 的 `@proma/shared` 缺失和 `test.each` 类型错误阻断。Nowledge Mem 服务仍不可达。
+
+- 2026-11-24（v0.20.24 GitHub Release 与本地产物清理）：GitHub Release `v0.20.24` 已由 CI 正式发布，远端已包含 macOS arm64 DMG、ZIP、blockmap 及其他平台产物；本地临时生成的 Apple Development 签名 DMG 与远端 CI 资产 SHA-256 不同，因此未覆盖远端正式资产。确认 Release 下载地址可达后，已删除 `apps/electron/out/` 下全部 DMG 和 blockmap，保留 updater 元数据与应用目录；Nowledge Mem 定向检索因本机 `127.0.0.1:14242` 不可达未完成。
