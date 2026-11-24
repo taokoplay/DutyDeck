@@ -223,7 +223,7 @@ export class OpenAIAdapter implements ProviderAdapter {
       messages,
       stream: true,
       stream_options: { include_usage: true },
-      ...(input.temperature === undefined || !supportsTemperature(this.providerType, input.modelId)
+      ...(input.temperature === undefined || !supportsTemperature(this.providerType, input.modelId, reasoning?.level)
         ? {}
         : { temperature: input.temperature }),
     }

@@ -35,6 +35,20 @@ describe('OpenAIAdapter 请求参数', () => {
     expect(body.temperature).toBeUndefined()
   })
 
+  test('Given GPT-6.1 Terra 关闭推理 When 调用方传入温度 Then 保留 temperature 并发送 none', () => {
+    const body = buildBody({ modelId: 'gpt-6.1-terra', temperature: 0.2, thinkingEnabled: false, thinkingLevel: 'off' })
+
+    expect(body.temperature).toBe(0.2)
+    expect(body.reasoning_effort).toBe('none')
+  })
+
+  test('Given GPT-6.1 Terra 开启推理 When 调用方传入温度 Then 遵守官方约束省略 temperature', () => {
+    const body = buildBody({ modelId: 'gpt-6.1-terra', temperature: 0.2, thinkingEnabled: true, thinkingLevel: 'high' })
+
+    expect(body.temperature).toBeUndefined()
+    expect(body.reasoning_effort).toBe('high')
+  })
+
   test('Given 工具续接包含本轮推理 When 构建请求 Then assistant 回传 reasoning_content', () => {
     const body = buildBody({
       continuationMessages: [{

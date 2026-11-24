@@ -24,8 +24,10 @@ export const CODEX_GPT_54_MINI_CONTEXT_WINDOW = 400_000
 export const CODEX_GPT_56_CONTEXT_WINDOW = 372_000
 /** ChatGPT Codex 订阅中的 GPT-6 Astra、Sol 与 Luna 上下文窗口。 */
 export const CODEX_GPT_6_CONTEXT_WINDOW = 372_000
-/** Pi 0.99.1 目录中 GPT-6.1 Sol 的上下文窗口。 */
-export const CODEX_GPT_61_SOL_CONTEXT_WINDOW = 272_000
+/** Pi 1.4.0 Codex 目录中 GPT-6.1 Sol 的上下文窗口。 */
+export const CODEX_GPT_61_SOL_CONTEXT_WINDOW = 500_000
+/** 无渠道信息时保留旧快照的保守 GPT-6.1 Sol 窗口。 */
+const LEGACY_GPT_61_SOL_CONTEXT_WINDOW = 272_000
 
 /**
  * 为 ChatGPT Codex 中的 GPT-5.x / GPT-6 模型返回统一上下文窗口。
@@ -66,7 +68,7 @@ const ONE_MILLION_CONTEXT_RULES = {
   // DeepSeek
   deepseek: ['deepseek-v4', 'deepseek-flash'],
   // 智谱 GLM
-  glm: ['glm-5.3', 'glm-5.3-flash', 'glm-5.3-flashx', 'glm-5.2'],
+  glm: ['glm-5.4', 'glm-5.3', 'glm-5.3-flash', 'glm-5.3-flashx', 'glm-5.3-flashx-legal', 'glm-5.2'],
   // 小米 MiMo：V2.5 保留用于历史用量统计，V2.6 为当前官方模型。
   mimo: ['mimo-v2.5', 'mimo-v2.5-pro', 'mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.6-pro-ultraspeed'],
   // MiniMax
@@ -161,7 +163,9 @@ export function inferContextWindow(model?: string, provider?: ProviderType): num
   /** 已知渠道使用精确端点上限，历史无渠道记录继续沿用原回退逻辑。 */
   const capability = getModelCapabilities(provider, model)
   if (capability?.contextWindow !== undefined) return capability.contextWindow
-  if (isGpt61SolFamily(model)) return CODEX_GPT_61_SOL_CONTEXT_WINDOW
+  if (isGpt61SolFamily(model)) {
+    return provider === 'openai-codex' ? CODEX_GPT_61_SOL_CONTEXT_WINDOW : LEGACY_GPT_61_SOL_CONTEXT_WINDOW
+  }
   const codexAlignedWindow = inferCodexAlignedGPT5ContextWindow(model)
   if (codexAlignedWindow !== undefined) return codexAlignedWindow
   const geminiCapability = getGeminiModelCapability(model)

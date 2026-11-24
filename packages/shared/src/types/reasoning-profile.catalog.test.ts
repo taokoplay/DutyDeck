@@ -15,6 +15,34 @@ describe('模型目录思考档位约束', () => {
     expect(resolveReasoningProfile({ provider: 'kimi-coding', modelId: 'k3', transport: 'anthropic-messages' })?.levels).toContain('off')
   })
 
+
+  test.each([
+    { modelId: 'gpt-6.2-astra', levels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+    { modelId: 'gpt-6.2-sol', levels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+    { modelId: 'gpt-6.1-sol', levels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+    { modelId: 'gpt-6.1-terra', levels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  ] as const)('Given OpenAI 官网模型 $modelId When 解析 reasoning Then 只暴露官方档位', ({ modelId, levels }) => {
+    const profile = resolveReasoningProfile({ modelId, transport: 'openai-responses', provider: 'openai' })
+    expect(profile?.levels).toEqual(levels)
+    expect(profile?.defaultLevel).toBe(modelId === 'gpt-6.2-astra' ? 'low' : 'medium')
+  })
+
+  test('Given GLM-5.4 When 渠道不是 Coding Plan Then 不借用不可用的官方模型协议', () => {
+    expect(resolveReasoningProfile({ modelId: 'glm-5.4', transport: 'openai-completions', provider: 'zhipu' })).toBeUndefined()
+  })
+
+  test('Given GLM-5.4 Coding Plan When 解析 reasoning Then 使用 low high max adaptive 档位', () => {
+    const profile = resolveReasoningProfile({ modelId: 'glm-5.4', transport: 'anthropic-messages', provider: 'zhipu-coding' })
+    expect(profile?.levels).toEqual(['low', 'high', 'max'])
+    expect(profile?.encodings['anthropic-messages']?.kind).toBe('adaptive-effort')
+  })
+
+  test('Given GLM-5.3 FlashX Legal When 解析 Z.AI reasoning Then 复用官方 effort 档位', () => {
+    const profile = resolveReasoningProfile({ modelId: 'glm-5.3-flashx-legal', transport: 'openai-completions', provider: 'zhipu' })
+    expect(profile?.levels).toEqual(['low', 'high', 'max'])
+    expect(profile?.encodings['openai-completions']?.effortMap.low).toBe('low')
+  })
+
   test.each(['gpt-5', 'gpt-5-mini', 'gpt-5-nano'])('Given %s When 解析 API 思考能力 Then 保留 minimal 且不提供关闭和 xhigh', (modelId) => {
     /** 待核对的精确模型 profile。 */
     const profile = resolveReasoningProfile({ modelId, transport: 'openai-responses' })

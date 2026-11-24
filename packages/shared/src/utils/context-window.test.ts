@@ -38,10 +38,14 @@ describe('按供应商推断上下文', () => {
     expect(inferContextWindow('gpt-6-astra', 'openai-responses')).toBe(1_050_000)
     expect(inferContextWindow('gpt-6-astra', 'openai-codex')).toBe(372_000)
     expect(inferContextWindow('gpt-6.1-sol', 'openai')).toBe(1_050_000)
-    expect(inferContextWindow('gpt-6.1-sol', 'openai-codex')).toBe(272_000)
+    expect(inferContextWindow('gpt-6.1-sol', 'openai-codex')).toBe(500_000)
   })
 
   test('Given GPT-4o When 已知供应商 Then 不使用 200K 无来源默认值', () => {
     expect(inferContextWindow('gpt-4o', 'openai')).toBe(128_000)
+  })
+
+  test('Given GLM-5.3 FlashX Legal When 未提供渠道 Then 仍使用官方 1M 回退窗口', () => {
+    expect(inferContextWindow('glm-5.3-flashx-legal')).toBe(ONE_MILLION_CONTEXT_WINDOW)
   })
 })

@@ -759,6 +759,15 @@ export async function resolvePiReasoningCapability(
   const catalogModel = resolvedModelId
     ? await findPiCatalogModel(provider, resolvedModelId)
     : undefined
+  // Codex 订阅的模型能力以 Pi 自带目录为准，避免 API profile 覆盖订阅专属档位。
+  if (provider === 'openai-codex' && catalogModel) {
+    return resolveReasoningCapability({
+      catalog: {
+        reasoning: catalogModel.reasoning,
+        thinkingLevelMap: catalogModel.thinkingLevelMap,
+      },
+    })
+  }
   const profile = resolveReasoningProfile({
     modelId: resolvedModelId,
     provider,
@@ -823,7 +832,7 @@ async function resolvePiModelDefaults(input: Pick<PiModelBuildInput, 'provider' 
   const isVolcengineGlm5x = (input.provider === 'doubao' || input.provider === 'doubao-api' || input.provider === 'ark-coding-plan')
     && (glmModelId === 'glm-5.2' || glmModelId === 'glm-5.3')
   const isCatalogMissingGlm53Family = !catalogModel
-    && (glmModelId === 'glm-5.3' || glmModelId === 'glm-5.3-flash' || glmModelId === 'glm-5.3-flashx')
+    && (glmModelId === 'glm-5.3' || glmModelId === 'glm-5.3-flash' || glmModelId === 'glm-5.3-flashx' || glmModelId === 'glm-5.3-flashx-legal')
   // 新模型可能尚未进入 Pi catalog，使用共享层的精确 ID 判断避免误伤未来版本。
   const isCatalogMissingMimoV26Family = !catalogModel && isMimoV26Model(glmModelId)
   /** 传入 provider，避免第三方同名 GPT 被误判为 ChatGPT Codex 模型。 */

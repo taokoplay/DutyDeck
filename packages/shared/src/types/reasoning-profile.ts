@@ -1,4 +1,4 @@
-import { isGpt6AstraFamily, isGpt6LunaFamily, isGpt6SolFamily } from '../utils/model-family'
+import { isGpt6AstraFamily, isGpt6LunaFamily, isGpt6SolFamily, isGpt61SolFamily, isGpt62AstraFamily, isGpt62SolFamily, isGpt61TerraFamily } from '../utils/model-family'
 import { getModelCapabilities, getModelReasoningCapability } from '../utils/model-capabilities'
 import type { ProviderType } from './channel'
 import type { AgentThinkingLevel } from './agent'
@@ -53,7 +53,7 @@ export interface ReasoningEncoding {
 }
 
 export interface ReasoningProfile {
-  id: 'deepseek-v4-flash' | 'deepseek-flash' | 'deepseek-v4-pro' | 'kimi-k3' | 'glm-5.2' | 'glm-5.3' | 'openai-reasoning-standard' | 'openai-reasoning-max' | 'openai-reasoning-astra' | 'openai-reasoning-sol-luna'
+  id: 'deepseek-v4-flash' | 'deepseek-flash' | 'deepseek-v4-pro' | 'kimi-k3' | 'glm-5.2' | 'glm-5.3' | 'glm-5.4' | 'openai-reasoning-standard' | 'openai-reasoning-max' | 'openai-reasoning-astra' | 'openai-reasoning-sol-luna'
   levels: readonly AgentThinkingLevel[]
   defaultLevel: AgentThinkingLevel
   normalize(level: AgentThinkingLevel | undefined): AgentThinkingLevel
@@ -286,6 +286,18 @@ const GLM_53_PROFILE: ReasoningProfile = {
   },
 }
 
+/** GLM-5.4 Coding Plan 与 GLM-5.3 采用相同的 adaptive effort 请求协议。 */
+const GLM_54_PROFILE: ReasoningProfile = {
+  id: 'glm-5.4',
+  levels: GLM_53_LEVELS,
+  defaultLevel: 'max',
+  normalize: normalizeGlm53Level,
+  encodings: {
+    'anthropic-messages': { kind: 'adaptive-effort', effortMap: GLM_53_EFFORT_MAP },
+    'openai-completions': { kind: 'zai-thinking-effort', effortMap: GLM_53_EFFORT_MAP },
+  },
+}
+
 const GLM_52_PROFILE: ReasoningProfile = {
   id: 'glm-5.2',
   levels: GLM_52_LEVELS,
@@ -331,6 +343,18 @@ const OPENAI_ASTRA_PROFILE: ReasoningProfile = {
 }
 
 /** GPT-6 Sol/Luna 支持关闭推理，未指定时默认 medium。 */
+/** GPT-6.2 Sol 与 GPT-6.1 Sol 不支持 none；默认使用 medium。 */
+const OPENAI_SOL_NO_OFF_PROFILE: ReasoningProfile = {
+  id: 'openai-reasoning-astra',
+  levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+  defaultLevel: 'medium',
+  normalize: (level) => level === 'off' || level === 'minimal' ? 'low' : level ?? 'medium',
+  encodings: {
+    'openai-completions': { kind: 'openai-reasoning-effort', effortMap: { off: 'low', minimal: 'low', xhigh: 'xhigh', max: 'max' } },
+    'openai-responses': { kind: 'openai-reasoning-effort', effortMap: { off: 'low', minimal: 'low', xhigh: 'xhigh', max: 'max' } },
+  },
+}
+
 const OPENAI_SOL_LUNA_PROFILE: ReasoningProfile = {
   id: 'openai-reasoning-sol-luna',
   levels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'],
@@ -349,6 +373,7 @@ export const REASONING_PROFILES: readonly ReasoningProfile[] = [
   K3_PROFILE,
   GLM_52_PROFILE,
   GLM_53_PROFILE,
+  GLM_54_PROFILE,
   OPENAI_STANDARD_PROFILE,
   OPENAI_MAX_PROFILE,
   OPENAI_ASTRA_PROFILE,
@@ -390,6 +415,7 @@ function supportsProfileProvider(profile: ReasoningProfile, provider: ProviderTy
   }
   if (profile.id.startsWith('deepseek-')) return provider === 'deepseek'
   if (profile.id === 'kimi-k3') return provider === 'kimi-api' || provider === 'kimi-coding'
+  if (profile.id === 'glm-5.4') return provider === 'zhipu-coding' || provider === 'zhipu-coding-team'
   return ['zhipu', 'zhipu-coding', 'zhipu-coding-team', 'doubao', 'doubao-api', 'ark-coding-plan'].includes(provider)
 }
 
@@ -405,10 +431,12 @@ export function resolveReasoningProfile(input: ResolveReasoningProfileInput): Re
   const isOpenAIReasoningModel = openAICapability !== undefined
     && (modelId.startsWith('gpt-5') || /^(o1|o3|o4)(?:-|$)/.test(modelId))
   /** 先确定编码候选，再统一经过供应商能力约束。 */
-  const profile = isGpt6AstraFamily(modelId)
+  const profile = isGpt6AstraFamily(modelId) || isGpt62AstraFamily(modelId)
     ? OPENAI_ASTRA_PROFILE
-    : isGpt6SolFamily(modelId) || isGpt6LunaFamily(modelId)
+    : isGpt6SolFamily(modelId) || isGpt6LunaFamily(modelId) || isGpt61TerraFamily(modelId)
     ? OPENAI_SOL_LUNA_PROFILE
+    : isGpt62SolFamily(modelId) || isGpt61SolFamily(modelId)
+    ? OPENAI_SOL_NO_OFF_PROFILE
     : /^deepseek-flash(?:-|$)/.test(modelId)
     ? DEEPSEEK_FLASH_PROFILE
     : /^deepseek-v4-flash(?:-|$)/.test(modelId)
@@ -417,9 +445,11 @@ export function resolveReasoningProfile(input: ResolveReasoningProfileInput): Re
       ? DEEPSEEK_V4_PRO_PROFILE
       : /^(?:k3(?:-256k)?|kimi-k3)$/.test(modelId)
         ? K3_PROFILE
-        : modelId === 'glm-5.3' || modelId === 'glm-5.3-flash' || modelId === 'glm-5.3-flashx'
-          ? GLM_53_PROFILE
-          : modelId === 'glm-5.2'
+        : modelId === 'glm-5.4'
+          ? GLM_54_PROFILE
+          : modelId === 'glm-5.3' || modelId === 'glm-5.3-flash' || modelId === 'glm-5.3-flashx' || modelId === 'glm-5.3-flashx-legal'
+            ? GLM_53_PROFILE
+            : modelId === 'glm-5.2'
             ? GLM_52_PROFILE
             : isOpenAITransport && isOpenAIReasoningModel
               ? /^gpt-5\.6(?:-|$)/.test(modelId) ? OPENAI_MAX_PROFILE : OPENAI_STANDARD_PROFILE

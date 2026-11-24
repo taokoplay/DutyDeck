@@ -68,6 +68,35 @@ describe('供应商模型快照运行时接入', () => {
     expect((await getCodexCatalogModels()).find((model) => model.id === 'gpt-6-astra')?.contextWindow).toBe(372_000)
   })
 
+  test('Given OpenAI 官网新增 GPT 模型 When 真实 runtime 注册 Then 保留 1M、128K 输出和官方输入模态', async () => {
+    for (const modelId of ['gpt-6.2-astra', 'gpt-6.2-sol', 'gpt-6.1-terra']) {
+      const model = await registeredModel('openai-responses', modelId, PROVIDER_DEFAULT_URLS['openai-responses'])
+      expect(model.contextWindow).toBe(1_050_000)
+      expect(model.maxTokens).toBe(128_000)
+      expect(model.input).toEqual(['text', 'image'])
+    }
+  })
+
+  test('Given GLM-5.4 Coding Plan When 真实 runtime 注册 Then 使用 1M、128K 和 adaptive reasoning', async () => {
+    const model = await registeredModel('zhipu-coding', 'glm-5.4')
+    expect(model.contextWindow).toBe(1_000_000)
+    expect(model.maxTokens).toBe(128_000)
+    expect(model.input).toEqual(['text', 'image'])
+    expect(model.compat).toMatchObject({ forceAdaptiveThinking: true })
+    expect(model.thinkingLevelMap).toMatchObject({ off: null, low: 'low', high: 'high', max: 'max' })
+  })
+
+  test('Given GLM-5.3 FlashX Legal When 真实 runtime 注册 Then 保留 Legal 的上下文、输出、输入与 reasoning 档位', async () => {
+    const model = await registeredModel('zhipu', 'glm-5.3-flashx-legal', PROVIDER_DEFAULT_URLS.zhipu)
+    expect(model.contextWindow).toBe(1_000_000)
+    expect(model.maxTokens).toBe(128_000)
+    expect(model.input).toEqual(['text', 'image'])
+    expect(model.thinkingLevelMap).toMatchObject({ off: null, low: 'low', high: 'high', max: 'max' })
+    const payload = await captureReasoningPayload('zhipu', 'glm-5.3-flashx-legal', 'high')
+    expect(payload.thinking).toEqual({ type: 'enabled', clear_thinking: false })
+    expect(payload.reasoning_effort).toBe('high')
+  })
+
   test('Given GPT-4o 的 128K 目录 When 注册 Then 不用 200K 默认值抬高上限', async () => {
     expect((await registeredModel('openai', 'gpt-4o', PROVIDER_DEFAULT_URLS.openai)).contextWindow).toBe(128_000)
   })

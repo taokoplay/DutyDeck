@@ -149,8 +149,19 @@ export function resolveMaxTokens(
   return maximum === undefined ? fallback : Math.min(fallback, maximum)
 }
 
-/** 模型明确禁止 temperature 时丢弃调用方温度；缺少快照时保持原透传行为。 */
-export function supportsTemperature(provider: ProviderType, modelId: string): boolean {
+/**
+ * 判断当前端点是否允许发送 temperature。
+ *
+ * Terra 只有 reasoning.effort=none 时允许 temperature；默认推理或显式开启推理都必须省略。
+ */
+export function supportsTemperature(
+  provider: ProviderType,
+  modelId: string,
+  reasoningLevel?: AgentThinkingLevel,
+): boolean {
+  if (modelId.trim().toLowerCase() === 'gpt-6.1-terra'
+    && (provider === 'openai' || provider === 'openai-responses')
+    && reasoningLevel !== 'off') return false
   return getModelCapabilities(provider, modelId)?.temperature !== false
 }
 

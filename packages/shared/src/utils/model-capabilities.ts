@@ -3,6 +3,7 @@ import type { AgentThinkingLevel } from '../types/agent'
 import type { ProviderType } from '../types/channel'
 import type { ReasoningCapability } from '../types/reasoning-profile'
 import { getGeminiModelCapability } from './gemini-model-capabilities'
+import { MODEL_CAPABILITY_OVERRIDES } from './model-capability-overrides'
 
 /** 供应商声明的思考控制；缺省或空数组表示目录没有列出控制参数。 */
 export type ModelReasoningOption =
@@ -46,7 +47,15 @@ interface ModelCapabilitiesSnapshot {
 const providers = Object.fromEntries(Object.entries((snapshot as ModelCapabilitiesSnapshot).providers).map(([provider, models]) => [
   provider,
   Object.fromEntries(Object.entries(models).map(([modelId, capability]) => [modelId.toLowerCase(), capability])),
-]))
+])) as Record<string, Record<string, ModelCapabilities>>
+
+/** 将官网覆盖合并到公共快照；深层费用字段保留快照原值，避免覆盖已验证价格。 */
+for (const [provider, models] of Object.entries(MODEL_CAPABILITY_OVERRIDES)) {
+  const target = providers[provider] ?? (providers[provider] = {})
+  for (const [modelId, override] of Object.entries(models)) {
+    target[modelId.toLowerCase()] = { ...target[modelId.toLowerCase()], ...override } as ModelCapabilities
+  }
+}
 
 /** 渠道枚举对应实际端点目录；订阅和自定义网关继续由自己的 Pi 目录负责。 */
 const PROVIDER_CATALOG: Partial<Record<ProviderType, string>> = {
@@ -110,8 +119,8 @@ export function getModelReasoningCapability(provider: ProviderType | undefined, 
   if (levels.length === 0 || levels.every((level) => level === 'off')) return undefined
   /** 保留原产品默认偏好，并在新目录不支持时回退到合法强度。 */
   const preferredDefault = provider === 'google' ? getGeminiModelCapability(modelId)?.defaultThinkingLevel
-    : modelId === 'gpt-6-astra' ? 'low'
-    : modelId === 'gpt-6-sol' || modelId === 'gpt-6-luna' ? 'medium'
+    : modelId === 'gpt-6-astra' || modelId === 'gpt-6.2-astra' ? 'low'
+    : modelId === 'gpt-6-sol' || modelId === 'gpt-6-luna' || modelId === 'gpt-6.2-sol' || modelId === 'gpt-6.1-sol' || modelId === 'gpt-6.1-terra' ? 'medium'
     : modelId?.startsWith('glm-5.3') ? 'max' : undefined
   /** 仅选择目录真正支持的默认强度。 */
   const defaultLevel = preferredDefault && levels.includes(preferredDefault)

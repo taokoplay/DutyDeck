@@ -478,8 +478,17 @@ export function ChannelForm({ channel, onSaved, onCancel }: ChannelFormProps): R
           { id: 'mimo-v2.5', name: 'MiMo V2.5', enabled: true },
           { id: 'mimo-v2.5-pro', name: 'MiMo V2.5 Pro', enabled: true },
         ])
-      } else if (p === 'zhipu' || p === 'zhipu-coding' || p === 'zhipu-coding-team') {
+      } else if (p === 'zhipu') {
         setModels([
+          { id: 'glm-5.3', name: 'GLM-5.3', enabled: true },
+          { id: 'glm-5.3-flash', name: 'GLM-5.3-Flash', enabled: true },
+          { id: 'glm-5.3-flashx', name: 'GLM-5.3-FlashX', enabled: true },
+          { id: 'glm-5.3-flashx-legal', name: 'GLM-5.3-FlashX-Legal', enabled: true },
+          { id: 'glm-5.1', name: 'GLM-5.1', enabled: false },
+        ])
+      } else if (p === 'zhipu-coding' || p === 'zhipu-coding-team') {
+        setModels([
+          { id: 'glm-5.4', name: 'GLM-5.4', enabled: true },
           { id: 'glm-5.3', name: 'GLM-5.3', enabled: true },
           { id: 'glm-5.3-flash', name: 'GLM-5.3-Flash', enabled: true },
           { id: 'glm-5.3-flashx', name: 'GLM-5.3-FlashX', enabled: true },

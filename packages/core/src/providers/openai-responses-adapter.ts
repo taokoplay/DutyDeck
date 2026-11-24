@@ -266,7 +266,7 @@ export class OpenAIResponsesAdapter implements ProviderAdapter {
       model: input.modelId,
       input: toResponsesInput(input),
       stream: true,
-      ...(input.temperature === undefined || !supportsTemperature(this.providerType, input.modelId)
+      ...(input.temperature === undefined || !supportsTemperature(this.providerType, input.modelId, reasoning?.level)
         ? {}
         : { temperature: input.temperature }),
       ...(maxTokens === undefined ? {} : { max_output_tokens: maxTokens }),
