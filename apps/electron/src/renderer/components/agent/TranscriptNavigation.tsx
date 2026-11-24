@@ -4,7 +4,7 @@ import { useStickToBottomContext } from 'use-stick-to-bottom'
 import type { AgentTranscriptPage, AgentTranscriptPageRequest } from '@dutydeck/shared'
 import { Button } from '@/components/ui/button'
 import { LoadingIndicator } from '@/components/ui/loading-indicator'
-import { getTranscriptScrollAction } from '@/lib/agent-transcript-scroll'
+import { getTranscriptScrollAction, shouldReleaseTranscriptNavigation } from '@/lib/agent-transcript-scroll'
 
 /** 页码只存在于存储层；此组件依靠滚动方向与窗口边缘决定何时补读。 */
 interface NavigationProps {
@@ -18,6 +18,15 @@ interface NavigationProps {
 type Move = 'before' | 'after' | 'tail'
 /** 记录当前屏幕内稳定的消息与相对位置；元素可能在提交新窗口时重新挂载。 */
 interface ViewportAnchor { id: string; offset: number }
+
+/** 记录一次分页导航及其锚点恢复状态，成功请求必须等对齐完成才释放。 */
+interface ActiveNavigation {
+  key: string
+  mode: Move
+  page?: AgentTranscriptPage
+  anchor?: ViewportAnchor
+  aligned?: boolean
+}
 
 /** 只在换页或用户在读取期间移动时测量，不为流式 token 或普通滚动反复遍历。 */
 function visibleAnchor(root: HTMLElement): ViewportAnchor | undefined {
@@ -50,7 +59,7 @@ export function TranscriptNavigation(props: NavigationProps): React.ReactElement
   const context = useStickToBottomContext()
   const { scrollRef, stopScroll, scrollToBottom } = context
   const current = React.useRef(props)
-  const active = React.useRef<{ key: string; mode: Move; page?: AgentTranscriptPage; anchor?: ViewportAnchor; aligned?: boolean } | null>(null)
+  const active = React.useRef<ActiveNavigation | null>(null)
   const lastRequest = React.useRef<string | undefined>(undefined)
   const lastMode = React.useRef<Move>('tail')
   const ignoredTop = React.useRef<number | undefined>(undefined)
@@ -69,12 +78,18 @@ export function TranscriptNavigation(props: NavigationProps): React.ReactElement
   const align = React.useCallback((): void => {
     const request = active.current
     const root = scrollRef.current
-    if (!root || !request || !mounted.current || request.aligned || current.current.loading || current.current.error || request.page === current.current.page) return
+    if (!root || !request || !mounted.current || request.aligned || current.current.loading || current.current.error) return
+    if (request.page === current.current.page) {
+      // unchanged 页没有新的 DOM 可恢复，但请求已经完成，必须释放边缘锁。
+      request.aligned = true
+      if (active.current === request) active.current = null
+      return
+    }
     if (request.mode === 'tail') {
       // transition 可能还未提交新页；页面身份变化后本 effect 会再次校准。
-      if (current.current.page === request.page) return
       request.aligned = true
       if (!current.current.page?.indexRequired) void scrollToBottom('instant')
+      if (active.current === request) active.current = null
     } else if (request.anchor) {
       const target = root.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(request.anchor.id)}"]`)
       // 锚点尚未挂载时不能提前标记完成，否则 transition 提交后无法再次恢复位置。
@@ -83,9 +98,11 @@ export function TranscriptNavigation(props: NavigationProps): React.ReactElement
       const delta = target.getBoundingClientRect().top - root.getBoundingClientRect().top - request.anchor.offset
       if (Math.abs(delta) > 0.5) root.scrollTop += delta
       ignoredTop.current = root.scrollTop
+      if (active.current === request) active.current = null
     } else {
       request.aligned = true
       ignoredTop.current = root.scrollTop
+      if (active.current === request) active.current = null
     }
   }, [scrollRef, scrollToBottom])
   React.useLayoutEffect(() => { current.current = props; align() }, [props, align])
@@ -103,15 +120,23 @@ export function TranscriptNavigation(props: NavigationProps): React.ReactElement
     if (!retry && key === lastRequest.current) return
     const focused = document.activeElement
     if (focused instanceof HTMLElement && focused.closest('[data-transcript-navigation]')) focused.blur()
-    const request = { key, mode, page, anchor: mode === 'tail' ? undefined : visibleAnchor(root) }
+    const request: ActiveNavigation = { key, mode, page, anchor: mode === 'tail' ? undefined : visibleAnchor(root) }
     lastRequest.current = key; lastMode.current = mode; active.current = request
     stopScroll()
+    let succeeded = false
     try {
-      const ok = await onNavigate(mode, undefined, () => mounted.current && !interactionPinned(root))
-      if (!ok && !current.current.error) lastRequest.current = undefined
-      if (ok) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-      if (ok && active.current === request) align()
-    } finally { if (active.current === request) active.current = null }
+      succeeded = await onNavigate(mode, undefined, () => mounted.current && !interactionPinned(root))
+      if (!succeeded && !current.current.error) lastRequest.current = undefined
+      if (succeeded) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        if (active.current === request) align()
+      }
+    } finally {
+      // 成功请求必须等新页真正挂载并恢复锚点后才释放；否则触顶事件会连续推进多个页面。
+      if (active.current === request && shouldReleaseTranscriptNavigation({ succeeded, aligned: request.aligned === true })) {
+        active.current = null
+      }
+    }
   }, [align, scrollRef, stopScroll])
 
   React.useEffect(() => {
@@ -124,8 +149,8 @@ export function TranscriptNavigation(props: NavigationProps): React.ReactElement
       if (!page || root.clientHeight <= 0) return
       const remaining = root.scrollHeight - root.clientHeight - root.scrollTop
       const mode = getTranscriptScrollAction({ direction, top: root.scrollTop, remaining,
-        short: root.scrollHeight <= root.clientHeight + 2, reading, hasBefore: page.hasBefore,
-        hasAfter: page.hasAfter, indexRequired: Boolean(page.indexRequired) })
+        short: root.scrollHeight <= root.clientHeight + 2, reading, loading: current.current.loading,
+        pendingNavigation: active.current !== null, hasBefore: page.hasBefore, hasAfter: page.hasAfter, indexRequired: Boolean(page.indexRequired) })
       if (mode) void move(mode)
     }
     const scrolled = (): void => {

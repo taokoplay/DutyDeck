@@ -2487,3 +2487,5 @@
 - 2026-11-23（长会话异步加载与连续滚动优化）：会话历史 JSONL 批次读取改为 `fs/promises` 异步文件句柄，索引构建等待异步批次，避免 Electron 主进程同步读盘阻塞；Renderer 以 `prepareTranscriptPage` 分阶段合并有界窗口、每 64 条消息让出事件循环，并通过请求有效性校验取消迟到准备。首次无缓存加载显示带耗时的历史加载动画，向上自动补载期间保留旧内容并显示 spinner/`aria-busy`，不恢复弹窗式上一页/下一页；滚动锚点必须等 transition 后真实 DOM 锚点挂载再恢复。定向长会话测试 56 项通过，renderer build 通过；全仓测试和 typecheck 仍有既有环境/类型阻断，未把它们归因于本轮改动。Nowledge 定向检索因本机 `127.0.0.1:14242` 连接拒绝不可用。
 
 - 2026-11-23（Skills 作用域第一阶段，已落地未发布）：确认内置 Skill 全量复制到每个工作区会造成存储重复、升级遍历和版本漂移；本轮新增只读多作用域解析器，运行时按项目 `项目根/.dutydeck/skills` > 当前工作区 `skills/` > 用户全局 `~/.DutyDeck/skills` > 内置 `~/.DutyDeck/default-skills/` 选择唯一同名目录。保留旧工作区副本、启停、编辑和导入语义，未做迁移删除；全局/项目 Skill 的激活记录不标记为工作区 locator，避免恢复时错误重定位。解析器 3 项 BDD、`packages/shared` typecheck 和独立 TypeScript 检查通过；Electron 关联测试/全仓 typecheck 受当前 workspace 依赖链接缺失影响，未能运行。
+
+- 2026-11-24（长会话触顶重复加载修复）：`TranscriptNavigation` 的上拉分页锁必须覆盖请求返回、React transition 提交和真实 DOM 锚点恢复三个阶段；仅依赖 `loading` 或在请求 `finally` 释放会被连续 wheel/scroll 事件穿透，造成多页连载和滚动定位漂移。现以 `active` 导航锁阻断重复触发，成功请求在锚点恢复后释放，失败和 `unchanged` 无变化结果可释放；新增边缘触发回归覆盖。相关测试 79 项通过；全仓 typecheck 仍被既有 `pi-kimi-upgrade-compat.test.ts` 的 `@proma/shared` 引用与 `test.each` 类型错误阻断。
